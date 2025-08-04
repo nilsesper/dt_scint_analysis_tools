@@ -34,6 +34,14 @@ def add_timestamp(hits, *, silent=False):
         last_oc = oc
     return ts_hits
 
-
+### sort hits by timestamp
+def sort_by_timestamp(hits, *, silent=False):
+    sorted_hits = copy.deepcopy(hits)
+    n_hits = len(sorted_hits["ch"])
+    if not silent: print(f"Sorting {n_hits} hits by timestamp...")
+    new_idx_order = np.argsort(sorted_hits["ts"])
+    for k in hits.keys(): # sort all keys of hit dict depending on order in timestamp key
+        sorted_hits[k] = sorted_hits[k][new_idx_order]
+    return sorted_hits
 
 

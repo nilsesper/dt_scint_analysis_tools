@@ -35,10 +35,12 @@ print("dumpfile_hits =",dumpfile_hits)
 
 dt_hits = dt_utils.extract_dt_hits(hits=dumpfile_hits)
 dt_hits = timestamp_utils.add_timestamp(hits=dt_hits)
+dt_hits = timestamp_utils.sort_by_timestamp(hits=dt_hits)
 print("dt_hits =",dt_hits)
 
 scint_hits = scint_utils.extract_scint_hits(hits=dumpfile_hits)
 scint_hits = timestamp_utils.add_timestamp(hits=scint_hits)
+scint_hits = timestamp_utils.sort_by_timestamp(hits=scint_hits)
 print("scint_hits =",scint_hits)
 
 
