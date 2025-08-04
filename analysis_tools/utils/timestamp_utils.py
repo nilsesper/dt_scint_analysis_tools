@@ -14,8 +14,9 @@ import analysis_tools.params.derived_params as derived_params
 # -----------------------------------------
 
 ### add timestamp (integer value concatenating all existing timestamp keys oc,bx,tdc into one value with key ts) to hits object
-# timestamp formula: ts = (tdc) + n_tdc*(bx) + n_tdc*n_bunches*(orbit)
-# timestamp unit = 0.78 ns
+# timestamp formula: ts = (tdc) + n_tdc*(bx) + n_tdc*n_bunches*(orbit) + n_tdc*n_bunches*n_orbits*(orbit_overflow)
+# timestamp unit: 0.78 ns
+# timestamp data type: uint64 i.e. max. value ~1.844e19 timestamp units (0.78 ns) = ~1.438e10 seconds = ~456 days
 def add_timestamp(hits, *, silent=False):
     ts_hits = copy.deepcopy(hits)
     n_hits = len(ts_hits["ch"])
@@ -35,6 +36,7 @@ def add_timestamp(hits, *, silent=False):
     return ts_hits
 
 ### sort hits by timestamp
+# sort hints in ascending order depending on timestamp value ("ts" key)
 def sort_by_timestamp(hits, *, silent=False):
     sorted_hits = copy.deepcopy(hits)
     n_hits = len(sorted_hits["ch"])
