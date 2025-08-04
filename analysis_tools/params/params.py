@@ -43,19 +43,26 @@ _htg_keys = {
     "ro_ch": np.int8,
 }
 
+### timestamp conversion
+_lhc_tdc_count = 32 # max value of TDC + 1  (i.e. conversion factor: _lhc_tdc_count TDC = 1 BX)
+_lhc_bunch_count = 3564 # max value of BX + 1 (i.e. conversion factor: _lhc_bunch_count BX = 1 ORBIT)
+_lhc_orbit_count = 65536 # 2^16, max value of ORBIT + 1
+_ts_type = np.uint64 # data type of timestamp field in hits
+
 ### dt specific
-# fe conn idx list (key "conn_id")
+# fe conn idx list (key "fe_id")
 _fe_idx_list = ["1A", "1B", "2A", "2B", "3A", "3B", "4A", "4B", "5A", "5B", "6A", "6B", "7A", "7B", "8A", "8B", "9A", "9B", "10A", "10B", "11A", "11B", "12A", "12B", "13A", "13B", "14A", "14B"] # idx -> fe conn str
 
 ### dt hit format:
 ### - htg origin: {"oc", "bx", "tdc", "ch"}
-### - added dt mapping: {"sl": 1-3 superlayer, "ly": 0-3 layer in sl, "wi": 0-XX wire in layer, "conn_id": _fe_idx_list[fe] fec name, "ch_id": 0-15 for each fec}
+### - added dt mapping: {"sl": 1-3 superlayer, "ly": 0-3 layer in sl, "wi": 0-XX wire in layer, "conn_id": idx of fe_conn_name "J35" in fe_mapping dict, "fe_id": _fe_idx_list[fe] for fe name "1A" etc., "ch_id": 0-15 for each fec}
 ### - added timestamp: {"ts": converted timestamp from oc,bx,tdc}
 _dt_mapping_keys = { # {key: dtype}
     "sl": np.int8,
     "ly": np.int8,
     "wi": np.int16,
     "conn_id": np.int8,
+    "fe_id": np.int8,
     "ch_id": np.int8,
 }
 
@@ -63,10 +70,12 @@ _dt_mapping_keys = { # {key: dtype}
 
 ### scintillator hit format:
 ### - htg origin: {"oc", "bx", "tdc", "ch"}
-### - added scintillator mapping: {"ly": 0-1 scintillator layer, "st": 0-15 strip in layer}
+### - added scintillator mapping: {"ly": 0-1 scintillator layer, "st": 0-15 strip in layer, "ch_id": idx of coinc ch name in dict}
 ### - added timestamp: {"ts": converted timestamp from oc,bx,tdc}
-_scint_hit_keys = {
-
+_scint_mapping_keys = {
+    "ly": np.int8,
+    "st": np.int8,
+    "ch_id": np.int8,
 }
 
 ###############################
@@ -143,12 +152,12 @@ _scintillator = {
         1: {"type": "strips", "orient": "theta"},
     }
 }
-### mezzanine scintillator mapping: {coinc_ch_name: {ly: scint layer, st: scint strip}}
+### mezzanine scintillator mapping: {coinc_ch_name: {ch: ch id, ly: scint layer, st: scint strip}}
 _mezzanine_1_fe_mapping = {
-    f"coinc_ch_{i}": {"ly": 0, "st": i} for i in range(16)
+    f"coinc_ch_{i}": {"ly": 0, "st": i, "ch": i} for i in range(16)
 }
 _mezzanine_2_fe_mapping = {
-    f"coinc_ch_{i}": {"ly": 1, "st": i} for i in range(16)
+    f"coinc_ch_{i}": {"ly": 1, "st": i, "ch": i} for i in range(16)
 }
 
 ### hardware setup
