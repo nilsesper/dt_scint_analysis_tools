@@ -76,9 +76,13 @@ for ro_ch in _scint_ro_chs:
 
 ### timestamp conversion
 _tdc_to_timestamp = 1
-_bx_to_timestamp = params._lhc_tdc_count * _tdc_to_timestamp
-_orbit_to_timestamp = params._lhc_bunch_count * _bx_to_timestamp
+_bx_to_timestamp = np.uint64(params._lhc_tdc_count * _tdc_to_timestamp)
+_orbit_to_timestamp = np.uint64(params._lhc_bunch_count * _bx_to_timestamp)
 _orbit_overflow_to_timestamp = np.uint64(params._lhc_orbit_count * _orbit_to_timestamp)
 # 1 timestamp unit = 1 TDC = 0.78 ns 
+
+### dt sl patterns
+# idx of pattern name is key pat_type
+_dt_sl_pattern_names = list(params._dt_sl_patterns.keys())
 
 

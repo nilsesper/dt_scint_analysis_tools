@@ -36,11 +36,11 @@ _htg_bitshift = {
 }
 # htg data keys & data types
 _htg_keys = {
-    "ch": np.int16,
-    "bx": np.int16,
-    "tdc": np.int8,
-    "oc": np.int32,
-    "ro_ch": np.int8,
+    "ch": np.uint8,
+    "bx": np.uint16,
+    "tdc": np.uint8,
+    "oc": np.uint16,
+    "ro_ch": np.uint8,
 }
 
 ### timestamp conversion
@@ -58,12 +58,72 @@ _fe_idx_list = ["1A", "1B", "2A", "2B", "3A", "3B", "4A", "4B", "5A", "5B", "6A"
 ### - added dt mapping: {"sl": 1-3 superlayer, "ly": 0-3 layer in sl, "wi": 0-XX wire in layer, "conn_id": idx of fe_conn_name "J35" in fe_mapping dict, "fe_id": _fe_idx_list[fe] for fe name "1A" etc., "ch_id": 0-15 for each fec}
 ### - added timestamp: {"ts": converted timestamp from oc,bx,tdc}
 _dt_mapping_keys = { # {key: dtype}
-    "sl": np.int8,
-    "ly": np.int8,
-    "wi": np.int16,
-    "conn_id": np.int8,
-    "fe_id": np.int8,
-    "ch_id": np.int8,
+    "sl": np.uint8,
+    "ly": np.uint8,
+    "wi": np.uint8,
+    "conn_id": np.uint8,
+    "fe_id": np.uint8,
+    "ch_id": np.uint8,
+}
+
+### dt hit patterns per superlayer
+# higher wi index towards right -->
+# ly  [+A]     ref              [-A]     ref         
+# 0   | - | - | O | - | - |     | - | - | O | - | - |
+# 1   - | - | - | O | - | -     - | - | O | - | - | -
+# 2   | - | - | O | - | - |     | - | - | O | - | - |
+# 3   - | - | - | O | - | -     - | - | O | - | - | -
+#
+# ly  [+B]     ref              [-B]     ref         
+# 0   | - | - | O | - | - |     | - | - | O | - | - |
+# 1   - | - | O | - | - | -     - | - | - | O | - | -
+# 2   | - | - | O | - | - |     | - | - | O | - | - |
+# 3   - | - | - | O | - | -     - | - | O | - | - | -
+# 
+# ly  [+C]     ref              [-C]     ref         
+# 0   | - | - | O | - | - |     | - | - | O | - | - |
+# 1   - | - | - | O | - | -     - | - | O | - | - | -
+# 2   | - | - | - | O | - |     | - | O | - | - | - |
+# 3   - | - | - | O | - | -     - | - | O | - | - | -
+# 
+# ly  [+D]     ref              [-D]     ref         
+# 0   | - | - | O | - | - |     | - | - | O | - | - |
+# 1   - | - | - | O | - | -     - | - | O | - | - | -
+# 2   | - | - | - | O | - |     | - | O | - | - | - |
+# 3   - | - | - | - | O | -     - | O | - | - | - | -
+# 
+# (!) depends on ly_indent = _dt_chamber["sls"][sl]["ly_indent"]
+# with ly_indent = [True, False, True, False] we have:
+# ly  wi 0   1   2   3        
+# 0     | - | - | - | - |  
+# 1   | - | - | - | - | -  
+# 2     | - | - | - | - |
+# 3   | - | - | - | - | -  
+#
+_dt_sl_patterns = { # {name: [list of relative wire index of layers 0-3, relative to first layer]}
+    "+a": [ 0,  1,  0,  1],
+    "-a": [ 0,  0,  0,  0],
+    "+b": [ 0,  0,  0,  1],
+    "-b": [ 0,  1,  0,  0],
+    "+c": [ 0,  1,  1,  1],
+    "-c": [ 0,  0, -1,  0],
+    "+d": [ 0,  1,  1,  2],
+    "-d": [ 0,  0, -1, -1],
+}
+# timestamp window in which hits of sl must lie in order to be counted as pattern
+_dt_sl_patterns_ts_window = int(400/0.78) # in same unit as timestamp (0.78 ns)
+# sl_pattern keys
+_sl_pattern_keys = { # {key: dtype}
+    "sl": np.uint8, # sl of pattern in dt chamber
+    "pat_type": np.uint8, # index of string name of pattern (index of key of _dt_sl_patterns)
+    "ts0": _ts_type, # timestamp of ly 0 wire of pattern (= base wire timestamp)
+    "wi0": np.uint8, # wire index of ly 0 wire of pattern (= base wire)
+    "ts1": _ts_type, # timestamp of ly 1 wire of pattern
+    "wi1": np.uint8, # wire index of ly 0 wire of pattern
+    "ts2": _ts_type, # timestamp of ly 2 wire of pattern
+    "wi2": np.uint8, # wire index of ly 0 wire of pattern
+    "ts3": _ts_type, # timestamp of ly 3 wire of pattern
+    "wi3": np.uint8, # wire index of ly 0 wire of pattern
 }
 
 ### scintillator specific
@@ -73,23 +133,23 @@ _dt_mapping_keys = { # {key: dtype}
 ### - added scintillator mapping: {"ly": 0-1 scintillator layer, "st": 0-15 strip in layer, "ch_id": idx of coinc ch name in dict}
 ### - added timestamp: {"ts": converted timestamp from oc,bx,tdc}
 _scint_mapping_keys = {
-    "ly": np.int8,
-    "st": np.int8,
-    "ch_id": np.int8,
+    "ly": np.uint8,
+    "st": np.uint8,
+    "ch_id": np.uint8,
 }
 
 ###############################
 ### HARDWARE SETUP
 ###############################
 
-### dt chamber properties: {type: type of chamber (mb1), sls: {sl_id: {type: sl type (phi/theta)}}}
+### dt chamber properties: {type: type of chamber (mb1), sls: {sl_id: {type: sl type (phi/theta), n_lys: no. of layers, n_wis: no. of wires, ly_indent: [true if wi of this ly is shifted towards higher wi, for all lys]}}}
 _dt_chamber = {
     "type": "MB1",
     "sls": {
-        1: {"type": "phi"},
-        2: {"type": "theta"},
-        3: {"type": "phi"},
-    }
+        1: {"type": "phi", "n_lys": 4, "n_wis": 49, "ly_indent": [True, False, True, False]},
+        2: {"type": "theta", "n_lys": 4, "n_wis": 57, "ly_indent": [True, False, True, False]},
+        3: {"type": "phi", "n_lys": 4, "n_wis": 49, "ly_indent": [True, False, True, False]},
+    },
 }
 ### obdt mappings: {fe_conn_name: {chs: (ch list), fe: fec name, sl: superlayer}}, fe conns sorted in order
 _obdt_phi_1_fe_mapping = {

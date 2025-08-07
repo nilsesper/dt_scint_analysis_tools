@@ -43,7 +43,78 @@ def extract_dt_hits(hits, *, silent=False):
             tmp_hits[k][i] = derived_params._dt_remap_table[ro_ch][ch][k]
     return tmp_hits
 
+### helper: return 3d object to store one value of specified data type for dt chamber
+# dt_map = {sl: {ly: [wi: value of dtype]}}
+def _empty_dt_chamber_map(dtype):
+    dt_map = {}
+    for sl in params._dt_chamber["sls"].keys():
+        dt_map[sl] = {}
+        for ly in range(params._dt_chamber["sls"][sl]["n_lys"]):
+            dt_map[sl][ly] = np.full(params._dt_chamber["sls"][sl]["n_wis"], 0, dtype=dtype)
+    return dt_map
 
+### find pattern in dt hits for each superlayer separately, within given timestamp range
+# requires timestamps assigned in hits object & sorted hits object wrt timestamps
+# returns list of found sl patterns with timestamps and pattern info
+def find_sl_patterns(hits, *, silent=False):
+    pattern_list = []
+    n_hits = len(hits["ch"])
+    if not silent: print(f"Extract DT superlayer patterns from {n_hits} total hits...")
+    last_hit = _empty_dt_chamber_map(dtype=params._ts_type)
+    for i in range(n_hits):
+        if not silent and i%1000 == 0: print(f"  Progress: Processing DT hit {i}/{n_hits}...")
+        # update last timestamp of all dt wires
+        sl = hits["sl"][i]
+        ly = hits["ly"][i]
+        wi = hits["wi"][i]
+        ts = hits["ts"][i]
+        last_hit[sl][ly][wi] = ts
+        # check for any pattern in all superlayers
+        for sl in params._dt_chamber["sls"].keys():
+            # loop over all possible patterns
+            for pat_type, pat_idcs in enumerate(params._dt_sl_patterns.values()): # pat_idcs = [rel idx wrt base wi for lys 0,1,2,3], pat_type = idx of key in _dt_sl_patterns dict
+                # loop over all possible base wires (i.e. wire idx in ly 0)
+                max_wi = params._dt_chamber["sls"][sl]["n_wis"]-1
+                for base_wi in range(max_wi+1):
+                    # calculate relevant wire idcs of all 4 layers for given pattern
+                    pat_wi = np.full(4, 0, dtype=np.int16) # wi idx of ly 0,1,2,3 of pattern
+                    for ly, rel_wi_idx in enumerate(pat_idcs):
+                        pat_wi[ly] = base_wi+rel_wi_idx
+                    # skip if wire index out of range
+                    if np.sum(pat_wi < 0) > 0 or np.sum(pat_wi > max_wi) > 0:
+                        continue
+                    pat_wi = np.uint8(pat_wi)
+                    # collect timestamps of relevant hits for pattern
+                    pat_ts = np.full(4, 0, dtype=params._ts_type)
+                    for ly in range(4):
+                        pat_ts[ly] = last_hit[sl][ly][ pat_wi[ly] ]
+                    # skip if any ts is exactly zero (this is simply the initialization value)
+                    if np.sum(pat_ts == 0) > 0:
+                        continue
+                    # check if timestamps are within specified range
+                    pat_ts_diff = np.full(6, 0, dtype=params._ts_type)
+                    pat_ts_diff[0] = pat_ts[0]-pat_ts[1] if pat_ts[0]>pat_ts[1] else pat_ts[1]-pat_ts[0]
+                    pat_ts_diff[1] = pat_ts[0]-pat_ts[2] if pat_ts[0]>pat_ts[2] else pat_ts[2]-pat_ts[0]
+                    pat_ts_diff[2] = pat_ts[0]-pat_ts[3] if pat_ts[0]>pat_ts[3] else pat_ts[3]-pat_ts[0]
+                    pat_ts_diff[3] = pat_ts[1]-pat_ts[2] if pat_ts[1]>pat_ts[2] else pat_ts[2]-pat_ts[1]
+                    pat_ts_diff[4] = pat_ts[1]-pat_ts[3] if pat_ts[1]>pat_ts[3] else pat_ts[3]-pat_ts[1]
+                    pat_ts_diff[5] = pat_ts[2]-pat_ts[3] if pat_ts[2]>pat_ts[3] else pat_ts[3]-pat_ts[2]
+                    # no pattern found within time window, continue
+                    if np.sum(pat_ts_diff > params._dt_sl_patterns_ts_window) > 0:
+                        continue
+                    # if valid pattern, store it
+                    pattern_list.append([sl, pat_type, pat_wi, pat_ts])
+    # convert collected pattern_list to proper output format
+    n_patterns = len(pattern_list)
+    if not silent: print(f"Found {n_patterns} DT superlayer patterns.")
+    sl_patterns = {k: np.full(n_patterns, 0, dtype=v) for k,v in params._sl_pattern_keys.items()}
+    for i in range(n_patterns):
+        sl_patterns["sl"][i] = pattern_list[i][0]
+        sl_patterns["pat_type"][i] = pattern_list[i][1]
+        for j in range(4):
+            sl_patterns[f"wi{j}"][i] = pattern_list[i][2][j]
+            sl_patterns[f"ts{j}"][i] = pattern_list[i][3][j]
+    return sl_patterns
 
 
 

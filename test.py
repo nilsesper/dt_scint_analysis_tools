@@ -15,16 +15,15 @@ hit_list = [
     { "ro_ch": 24, "ch": 42, "oc": 0, "bx": 30, "tdc": 20, },
     # dt hits
     { "ro_ch": 8, "ch": 186, "oc": 1, "bx": 50, "tdc": 0, },
-    { "ro_ch": 8, "ch": 187, "oc": 1, "bx": 52, "tdc": 3, },
-    { "ro_ch": 8, "ch": 189, "oc": 1, "bx": 55, "tdc": 10, },
-    { "ro_ch": 8, "ch": 188, "oc": 1, "bx": 55, "tdc": 25, },
+    { "ro_ch": 8, "ch": 187, "oc": 1, "bx": 50, "tdc": 3, },
+    { "ro_ch": 8, "ch": 189, "oc": 1, "bx": 50, "tdc": 10, },
+    { "ro_ch": 8, "ch": 188, "oc": 1, "bx": 50, "tdc": 25, },
     # scint hits
     { "ro_ch": 24, "ch": 1, "oc": 2, "bx": 5, "tdc": 3, },
     { "ro_ch": 24, "ch": 9, "oc": 2, "bx": 19, "tdc": 7, },
     { "ro_ch": 25, "ch": 0, "oc": 2, "bx": 23, "tdc": 9, },
     { "ro_ch": 25, "ch": 3, "oc": 2, "bx": 55, "tdc": 15, },
-    # overflow
-    { "ro_ch": 25, "ch": 3, "oc": 1, "bx": 55, "tdc": 15, },
+    { "ro_ch": 25, "ch": 3, "oc": 1, "bx": 55, "tdc": 15, }, # overflow
 ]
 
 dummy_hits = dummy_gen.hit_list_to_hits(hit_list)
@@ -43,6 +42,8 @@ scint_hits = timestamp_utils.add_timestamp(hits=scint_hits)
 scint_hits = timestamp_utils.sort_by_timestamp(hits=scint_hits)
 print("scint_hits =",scint_hits)
 
+dt_sl_patterns = dt_utils.find_sl_patterns(hits=dt_hits)
+print("dt_sl_patterns =",dt_sl_patterns)
 
 
 

@@ -31,7 +31,7 @@ def add_timestamp(hits, *, silent=False):
         if last_oc > oc: # if last oc > current oc i.e. overflow detected -> increment oc_overflow counter to "smooth out" timestamp and not have jumps in it
             oc_overflow += 1
             if not silent: print(f"Orbit counter overflow detected for hit #{i}. Incrementing overflow counter to {oc_overflow}.")
-        ts_hits["ts"][i] = tdc * derived_params._tdc_to_timestamp + bx * derived_params._bx_to_timestamp + oc * derived_params._orbit_to_timestamp + oc_overflow * derived_params._orbit_overflow_to_timestamp
+        ts_hits["ts"][i] =  tdc * derived_params._tdc_to_timestamp + bx * derived_params._bx_to_timestamp + oc * derived_params._orbit_to_timestamp + oc_overflow * derived_params._orbit_overflow_to_timestamp
         last_oc = oc
     return ts_hits
 
