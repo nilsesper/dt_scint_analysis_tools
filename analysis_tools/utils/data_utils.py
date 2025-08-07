@@ -5,6 +5,7 @@
 import numpy as np
 import copy
 import os.path
+from tqdm import tqdm
 
 import analysis_tools.params.params as params
 
@@ -21,7 +22,8 @@ def import_raw(file_name, *, silent=False):
     if not silent: print(f"Converting raw file to dictionary of np arrays...")
     n_hits = len(lines)
     hits = {k: np.full(n_hits, 0, dtype=v) for k,v in params._htg_keys.items()}
-    for i,d in enumerate(lines):
+    for i in tqdm(range(n_hits)):
+        d = lines[i]
         hits["ch"][i] = (int(d) & params._htg_shifted_mask["ch"]) >> params._htg_bitshift["ch"]
         hits["bx"][i] = (int(d) & params._htg_shifted_mask["bx"]) >> params._htg_bitshift["bx"]
         hits["tdc"][i] = (int(d) & params._htg_shifted_mask["tdc"]) >> params._htg_bitshift["tdc"]
@@ -41,20 +43,20 @@ def cut_data(data, conditions=[], *, silent=False):
     # calculate masks for data
     #mask = np.full(len(data["ch"]), True)
     last_data = copy.deepcopy(data)
+    any_key = list(last_data.keys())[0]
+    mask = np.full(len(last_data[any_key]), True)
     for c in conditions: # calculate mask for all conditions and AND them together
-        new_mask = np.full(len(data[c[0]]), True)
-        if c[1] == "==": new_mask = (data[c[0]] == c[2])
-        elif c[1] == ">": new_mask = (data[c[0]] > c[2])
-        elif c[1] == "<": new_mask = (data[c[0]] < c[2])
-        elif c[1] == ">=": new_mask = (data[c[0]] >= c[2])
-        elif c[1] == "<=": new_mask = (data[c[0]] <= c[2])
-        elif c[1] == "in": new_mask = np.ma.isin(data[c[0]], c[2])
-        mask = new_mask #  mask & 
-        # apply mask to data
-        masked_data = {}
-        for name in data.keys():
-            masked_data[name] = copy.deepcopy(last_data[name][mask])
-        last_data = copy.deepcopy(masked_data)
+        if c[1] == "==": mask &= (data[c[0]] == c[2])
+        elif c[1] == ">": mask &= (data[c[0]] > c[2])
+        elif c[1] == "<": mask &= (data[c[0]] < c[2])
+        elif c[1] == ">=": mask &= (data[c[0]] >= c[2])
+        elif c[1] == "<=": mask &= (data[c[0]] <= c[2])
+        elif c[1] == "in": mask &= np.ma.isin(data[c[0]], c[2])
+    # apply mask to data
+    masked_data = {}
+    for name in data.keys():
+        masked_data[name] = copy.deepcopy(last_data[name][mask])
+    last_data = copy.deepcopy(masked_data)
     one_key = list(masked_data.keys())[0]
     if not silent: print(f"Cut flow: {len(masked_data[one_key])} / {len(data[one_key])} = {len(masked_data[one_key])/len(data[one_key])}")
     return masked_data

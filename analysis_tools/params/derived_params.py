@@ -80,9 +80,51 @@ _bx_to_timestamp = np.uint64(params._lhc_tdc_count * _tdc_to_timestamp)
 _orbit_to_timestamp = np.uint64(params._lhc_bunch_count * _bx_to_timestamp)
 _orbit_overflow_to_timestamp = np.uint64(params._lhc_orbit_count * _orbit_to_timestamp)
 # 1 timestamp unit = 1 TDC = 0.78 ns 
+_ts_unit = 0.78 # ns
+
+### drift velocity conversion
+# conversion from um / ns = 10^3 m/s to mm / ts_unit
+# ts_unit = _ts_unit = 0.78 ns
+_drift_velocity_mm_per_timestamp = ( params._drift_velocity * (_ts_unit) * (1e-3) ) # unit calc: mm/tsu = um/ns * 0.78*ns/tsu * 1e-3*mm/um
+# final unit: [_drift_velocity_mm_per_timestamp] = mm / ts_unit
 
 ### dt sl patterns
 # idx of pattern name is key pat_type
 _dt_sl_pattern_names = list(params._dt_sl_patterns.keys())
+
+### dt chamber geometry
+# calculate positions of center axis (height of wires) for all cells
+# allows to easily check if muon has hit chamber
+# _dt_cell_coordinates = {sl: {ly: {wi: [[xmin, xmax], [ymin, ymax], [zmin, zmax], x_center_pos, y_center_pos, z_center_pos]}}}
+_dt_cell_coordinates = {}
+for sl in params._dt_chamber["sls"].keys():
+    _dt_cell_coordinates[sl] = {}
+    for ly in range(params._dt_chamber["sls"][sl]["n_lys"]):
+        _dt_cell_coordinates[sl][ly] = {}
+        for wi in range(params._dt_chamber["sls"][sl]["n_wis"]):
+            _dt_cell_coordinates[sl][ly][wi] = []
+            # x axis (axis = 0)
+            coord_axis = 0
+            cell_offset = params._dt_chamber["sls"][sl]["ch_offset"][coord_axis] if params._dt_chamber["sls"][sl]["offset_ly"][ly] else 0
+            pos_x = params._dt_chamber["sls"][sl]["pos"][coord_axis]+params._dt_chamber["sls"][sl]["ch_pos"][coord_axis]+params._dt_chamber["sls"][sl]["ch_spacer"][coord_axis]+wi*(params._dt_chamber["sls"][sl]["ch_size"][coord_axis]+params._dt_chamber["sls"][sl]["ch_spacer"][coord_axis])+cell_offset
+            size_x = params._dt_chamber["sls"][sl]["ch_size"][coord_axis]
+            _dt_cell_coordinates[sl][ly][wi].append([pos_x, pos_x+size_x])
+            # y axis (axis = 1)
+            coord_axis = 0
+            cell_offset = params._dt_chamber["sls"][sl]["ch_offset"][coord_axis] if params._dt_chamber["sls"][sl]["offset_ly"][ly] else 0
+            pos_y = params._dt_chamber["sls"][sl]["pos"][coord_axis]+params._dt_chamber["sls"][sl]["ch_pos"][coord_axis]+params._dt_chamber["sls"][sl]["ch_spacer"][coord_axis]+wi*(params._dt_chamber["sls"][sl]["ch_size"][coord_axis]+params._dt_chamber["sls"][sl]["ch_spacer"][coord_axis])+cell_offset
+            size_y = params._dt_chamber["sls"][sl]["ch_size"][coord_axis]
+            _dt_cell_coordinates[sl][ly][wi].append([pos_y, pos_y+size_y])
+            # z axis (axis = 2)
+            coord_axis = 2
+            pos_z = params._dt_chamber["sls"][sl]["pos"][coord_axis]+params._dt_chamber["sls"][sl]["ch_pos"][coord_axis]+params._dt_chamber["sls"][sl]["ch_spacer"][coord_axis]+ly*(params._dt_chamber["sls"][sl]["ch_size"][coord_axis]+params._dt_chamber["sls"][sl]["ch_spacer"][coord_axis])
+            size_z = params._dt_chamber["sls"][sl]["ch_size"][coord_axis]
+            _dt_cell_coordinates[sl][ly][wi].append([pos_z, pos_z+size_z])
+            # x center pos
+            _dt_cell_coordinates[sl][ly][wi].append(pos_x+size_x/2)
+            # y center pos
+            _dt_cell_coordinates[sl][ly][wi].append(pos_y+size_y/2)
+            # z center pos
+            _dt_cell_coordinates[sl][ly][wi].append(pos_z+size_z/2)
 
 

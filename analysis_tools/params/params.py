@@ -3,6 +3,7 @@
 ###############################
 
 import numpy as np
+import matplotlib as mpl
 
 # -----------------------------------------
 
@@ -67,51 +68,54 @@ _dt_mapping_keys = { # {key: dtype}
 }
 
 ### dt hit patterns per superlayer
+# reference is on top (highest z coordinate i.e. ly 3)
 # higher wi index towards right -->
 # ly  [+A]     ref              [-A]     ref         
-# 0   | - | - | O | - | - |     | - | - | O | - | - |
-# 1   - | - | - | O | - | -     - | - | O | - | - | -
-# 2   | - | - | O | - | - |     | - | - | O | - | - |
-# 3   - | - | - | O | - | -     - | - | O | - | - | -
+# 3   | - | - | O | - | - |     | - | - | O | - | - |
+# 2   - | - | - | O | - | -     - | - | O | - | - | -
+# 1   | - | - | O | - | - |     | - | - | O | - | - |
+# 0   - | - | - | O | - | -     - | - | O | - | - | -
 #
 # ly  [+B]     ref              [-B]     ref         
-# 0   | - | - | O | - | - |     | - | - | O | - | - |
-# 1   - | - | O | - | - | -     - | - | - | O | - | -
-# 2   | - | - | O | - | - |     | - | - | O | - | - |
-# 3   - | - | - | O | - | -     - | - | O | - | - | -
+# 3   | - | - | O | - | - |     | - | - | O | - | - |
+# 2   - | - | O | - | - | -     - | - | - | O | - | -
+# 1   | - | - | O | - | - |     | - | - | O | - | - |
+# 0   - | - | - | O | - | -     - | - | O | - | - | -
 # 
 # ly  [+C]     ref              [-C]     ref         
-# 0   | - | - | O | - | - |     | - | - | O | - | - |
-# 1   - | - | - | O | - | -     - | - | O | - | - | -
-# 2   | - | - | - | O | - |     | - | O | - | - | - |
-# 3   - | - | - | O | - | -     - | - | O | - | - | -
+# 3   | - | - | O | - | - |     | - | - | O | - | - |
+# 2   - | - | - | O | - | -     - | - | O | - | - | -
+# 1   | - | - | - | O | - |     | - | O | - | - | - |
+# 0   - | - | - | O | - | -     - | - | O | - | - | -
 # 
 # ly  [+D]     ref              [-D]     ref         
-# 0   | - | - | O | - | - |     | - | - | O | - | - |
-# 1   - | - | - | O | - | -     - | - | O | - | - | -
-# 2   | - | - | - | O | - |     | - | O | - | - | - |
-# 3   - | - | - | - | O | -     - | O | - | - | - | -
+# 3   | - | - | O | - | - |     | - | - | O | - | - |
+# 2   - | - | - | O | - | -     - | - | O | - | - | -
+# 1   | - | - | - | O | - |     | - | O | - | - | - |
+# 0   - | - | - | - | O | -     - | O | - | - | - | -
 # 
 # (!) depends on ly_indent = _dt_chamber["sls"][sl]["ly_indent"]
-# with ly_indent = [True, False, True, False] we have:
+# with ly_indent = [True, False, True, False] (order is ly 0-3) we have:
 # ly  wi 0   1   2   3        
-# 0     | - | - | - | - |  
-# 1   | - | - | - | - | -  
-# 2     | - | - | - | - |
-# 3   | - | - | - | - | -  
+# 3   | - | - | - | - |  
+# 2     | - | - | - | - | -  
+# 1   | - | - | - | - |
+# 0     | - | - | - | - | -  
 #
-_dt_sl_patterns = { # {name: [list of relative wire index of layers 0-3, relative to first layer]}
-    "+a": [ 0,  1,  0,  1],
-    "-a": [ 0,  0,  0,  0],
-    "+b": [ 0,  0,  0,  1],
-    "-b": [ 0,  1,  0,  0],
-    "+c": [ 0,  1,  1,  1],
-    "-c": [ 0,  0, -1,  0],
-    "+d": [ 0,  1,  1,  2],
-    "-d": [ 0,  0, -1, -1],
+# use layer 3 (top layer) as reference where relative wire index is fixed to 0
+_dt_sl_patterns = { # {name: [list of relative wire index of layers 0-3]}
+    #   ly 0,1,2,3
+    "+a": [0,0,0,0],
+    "-a": [-1,0,-1,0],
+    "+b": [0,0,-1,0],
+    "-b": [-1,0,0,0],
+    "+c": [0,1,0,0],
+    "-c": [-1,-1,-1,0],
+    "+d": [1,1,0,0],
+    "-d": [-2,-1,-1,0],
 }
 # timestamp window in which hits of sl must lie in order to be counted as pattern
-_dt_sl_patterns_ts_window = int(400/0.78) # in same unit as timestamp (0.78 ns)
+_dt_sl_patterns_ts_window = int(400 / 0.78) # in same unit as timestamp (0.78 ns)
 # sl_pattern keys
 _sl_pattern_keys = { # {key: dtype}
     "sl": np.uint8, # sl of pattern in dt chamber
@@ -125,6 +129,8 @@ _sl_pattern_keys = { # {key: dtype}
     "ts3": _ts_type, # timestamp of ly 3 wire of pattern
     "wi3": np.uint8, # wire index of ly 0 wire of pattern
 }
+# dt drift velocity
+_drift_velocity = 54.5 # unit: um / ns = 10^-6 / 10 ^-9 m/s = 10^3 m/s
 
 ### scintillator specific
 
@@ -138,19 +144,124 @@ _scint_mapping_keys = {
     "ch_id": np.uint8,
 }
 
+## use custom coordinate frame
+# x axis: along theta wires
+# y axis: along phi wires
+# z axis: vertical axis (positive direction up from SL1 to SL 3)
+# global origin: at corner of smallest coordinates of SL1
+
+### all length units are mm, except where explicitly given
+
+### orientaion (coordinate frame slicing) explanation
+# indices of "real" coordinates (x:0, y:1, z:2) for the given orientation
+# for the 2D plotted coorinates (x, y)
+_orientation = {
+    "phi": (0, 2), # plot (x,z) - phi wires into screen, theta wires parallel to x axis
+    "theta": (1, 2), # plot (y,z) - theta wires into screen, phi wires parallel to y axis
+}
+
+### colors and colormaps
+# fill: fill color
+# edge: edge/line color
+_color_info = {
+    "fill": "white",
+    "edge": "black",
+    "sl": {
+        "fill": "white",
+        "edge": "black",
+    },
+    "honeycomb": {
+        "fill": "white",
+        "edge": "black",
+    },
+    "cell": {
+        "edge": "black",
+        None: "lightgray",
+        "wire": "black",
+        "side_view": "lightgray",
+        "cmap": mpl.colormaps["Reds"],
+    },
+}
+
+### muon object specific
+_muon_obj_keys = { # SPHERICAL COORDINATES
+    "x0": np.float16, # reference point (x0,y0,z0), in mm
+    "y0": np.float16,
+    "z0": np.float16,
+    "theta": np.float16, # theta angle (angle relative to z axis), in rad
+    "phi": np.float16, # phi angle (angle relative to x axis, between x and y axis), in rad
+    "ts": np.uint64, # timestamp of muon arrival (assume velocity is infinite, therefore during propagation no time passes, is alright here)
+}
+
 ###############################
 ### HARDWARE SETUP
 ###############################
 
-### dt chamber properties: {type: type of chamber (mb1), sls: {sl_id: {type: sl type (phi/theta), n_lys: no. of layers, n_wis: no. of wires, ly_indent: [true if wi of this ly is shifted towards higher wi, for all lys]}}}
+### dt chamber properties: {type: type of chamber (mb1), sls: {sl_id: {type: sl type (phi/theta), n_lys: no. of layers, n_wis: no. of wires, offset_ly: [true if wi of this ly is shifted towards higher wi, for all lys]}}}
+# single cell properties
+_cell_w_spacer = 1.2 # estimated only from sketch
+_cell_h_spacer = 1.5
+_cell_width = 42-_cell_w_spacer # size of cell air volume
+_cell_height = 13-_cell_h_spacer # size of cell air volume
+_cell_offset = (_cell_width+_cell_w_spacer)/2
+_cell_wire_radius = 0.5 # only for illustration (real radius much smaller)
+_cell_wire_width = 0.5 # only for illustration (real width much smaller)
+# full dt chamber property map
 _dt_chamber = {
-    "type": "MB1",
+    "name": "MB w/1/s -z R",
     "sls": {
-        1: {"type": "phi", "n_lys": 4, "n_wis": 49, "ly_indent": [True, False, True, False]},
-        2: {"type": "theta", "n_lys": 4, "n_wis": 57, "ly_indent": [True, False, True, False]},
-        3: {"type": "phi", "n_lys": 4, "n_wis": 49, "ly_indent": [True, False, True, False]},
+        1: {
+            "orient": "phi",
+            "n_lys": 4,
+            "n_wis": 49,
+            "offset_ly": [True, False, True, False],
+            "size": (2126., 2513., 53.5),
+            "pos": (0., 0., 0.),
+            "ch_pos": (22.9, 86., 0.), # corner with smallest coordinates of first cell (ly=0,wi=0), *RELATIVE TO* sl point with smallest coordinates
+            "ch_spacer": (_cell_w_spacer, 0., _cell_h_spacer), # size of spacer between layers/chambers
+            "ch_size": (_cell_width, 2341., _cell_height), # size of cell
+            "ch_offset": (_cell_offset, 0., 0.), # offset of cell between alternating layers
+            "wi_radius": _cell_wire_radius, # wire radius to be displayed (much larger than real wire radius)
+            "wi_linewidth": _cell_wire_width, # linewidth of side view of wire
+        },
+        2: {
+            "orient": "theta",
+            "n_lys": 4,
+            "n_wis": 57,
+            "offset_ly": [True, False, True, False],
+            "size": (2172., 2462.4, 53.5),
+            "pos": (-1.8, 25.3, 181.5),
+            "ch_pos": (86., 24.6, 0.),
+            "ch_spacer": (0., _cell_w_spacer, _cell_h_spacer),
+            "ch_size": (2000., _cell_width, _cell_height),
+            "ch_offset": (0., _cell_offset, 0.),
+            "wi_radius": _cell_wire_radius,
+            "wi_linewidth": _cell_wire_width,
+        },
+        3: {
+            "orient": "phi",
+            "n_lys": 4,
+            "n_wis": 49,
+            "offset_ly": [True, False, True, False],
+            "size": (2126., 2513., 53.5),
+            "pos": (21., 0., 235.),
+            "ch_pos": (22.9, 86., 0.),
+            "ch_spacer": (_cell_w_spacer, 0., _cell_h_spacer),
+            "ch_size": (_cell_width, 2341., _cell_height),
+            "ch_offset": (_cell_offset, 0., 0.),
+            "wi_radius": _cell_wire_radius,
+            "wi_linewidth": _cell_wire_width,
+        },
     },
+    "n_sl": 3,
+    "honeycomb": {
+        "size": (2033., 2458., 128.),
+        "pos": (30.7, 27.5, 53.5),
+    },
+    "size": (2172, 2513., 288.5),
+    "pos": (-1.8, 0., 0.),
 }
+
 ### obdt mappings: {fe_conn_name: {chs: (ch list), fe: fec name, sl: superlayer}}, fe conns sorted in order
 _obdt_phi_1_fe_mapping = {
     'J23': {"sl": 1, "fe": "1A", "chs": (158, 159, 160, 161, 162, 163, 164, 165, 166, 167, 168, 169, 204, 205, 206, 207)},

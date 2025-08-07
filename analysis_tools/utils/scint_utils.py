@@ -5,6 +5,7 @@
 import numpy as np
 import copy
 import os.path
+from tqdm import tqdm
 
 import analysis_tools.utils.data_utils as data_utils
 
@@ -32,10 +33,10 @@ def extract_scint_hits(hits, *, silent=False):
         tmp_hits[k] = tmp_hits[k][scint_mask]
     n_scint_hits = len(tmp_hits["ch"])
     if not silent: print(f"Cut flow: {n_scint_hits}/{n_hits} = {n_scint_hits/n_hits}")
-    if not silent: print(f"Found {n_scint_hits} scintillator hits.")
+    if not silent: print(f"Found {n_scint_hits} scintillator hits. Adding scintillator specific keys...")
     # add specific scint keys
     tmp_hits |= {k: np.full(n_scint_hits, 0, dtype=v) for k,v in params._scint_mapping_keys.items()}
-    for i in range(n_scint_hits):
+    for i in tqdm(range(n_scint_hits)):
         ro_ch = tmp_hits["ro_ch"][i]
         ch = tmp_hits["ch"][i]
         # add keys according to remapping table
