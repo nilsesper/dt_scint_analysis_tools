@@ -58,6 +58,23 @@ for ro_ch in _dt_ro_chs:
                 "ly": ly, # layer
                 "wi": wi, # wire
             }
+# generate inverted remapping table: {sl: {ly: {wi: {ch, ro_ch, conn_id, fe_id, ch_id}}}}
+_dt_inverted_remap_table = {}
+for ro_ch in _dt_ro_chs:
+    for ch in _dt_remap_table[ro_ch].keys():
+        sl = _dt_remap_table[ro_ch][ch]["sl"]
+        ly = _dt_remap_table[ro_ch][ch]["ly"]
+        wi = _dt_remap_table[ro_ch][ch]["wi"]
+        if sl not in _dt_inverted_remap_table.keys():
+            _dt_inverted_remap_table[sl] = {}
+        if ly not in _dt_inverted_remap_table[sl].keys():
+            _dt_inverted_remap_table[sl][ly] = {}
+        _dt_inverted_remap_table[sl][ly][wi] = {
+            "ch": ch,
+            "ro_ch": ro_ch,
+        }
+        for k in ["conn_id", "fe_id", "ch_id"]:
+            _dt_inverted_remap_table[sl][ly][wi][k] = _dt_remap_table[ro_ch][ch][k]
 
 ### generate scint remapping table: {ro_ch: {ch: {scint_keys: mapping value}}
 _scint_keys = list(params._scint_mapping_keys.keys()) # ly, st, ch_id
@@ -103,28 +120,50 @@ for sl in params._dt_chamber["sls"].keys():
         _dt_cell_coordinates[sl][ly] = {}
         for wi in range(params._dt_chamber["sls"][sl]["n_wis"]):
             _dt_cell_coordinates[sl][ly][wi] = []
-            # x axis (axis = 0)
-            coord_axis = 0
-            cell_offset = params._dt_chamber["sls"][sl]["ch_offset"][coord_axis] if params._dt_chamber["sls"][sl]["offset_ly"][ly] else 0
-            pos_x = params._dt_chamber["sls"][sl]["pos"][coord_axis]+params._dt_chamber["sls"][sl]["ch_pos"][coord_axis]+params._dt_chamber["sls"][sl]["ch_spacer"][coord_axis]+wi*(params._dt_chamber["sls"][sl]["ch_size"][coord_axis]+params._dt_chamber["sls"][sl]["ch_spacer"][coord_axis])+cell_offset
-            size_x = params._dt_chamber["sls"][sl]["ch_size"][coord_axis]
-            _dt_cell_coordinates[sl][ly][wi].append([pos_x, pos_x+size_x])
-            # y axis (axis = 1)
-            coord_axis = 0
-            cell_offset = params._dt_chamber["sls"][sl]["ch_offset"][coord_axis] if params._dt_chamber["sls"][sl]["offset_ly"][ly] else 0
-            pos_y = params._dt_chamber["sls"][sl]["pos"][coord_axis]+params._dt_chamber["sls"][sl]["ch_pos"][coord_axis]+params._dt_chamber["sls"][sl]["ch_spacer"][coord_axis]+wi*(params._dt_chamber["sls"][sl]["ch_size"][coord_axis]+params._dt_chamber["sls"][sl]["ch_spacer"][coord_axis])+cell_offset
-            size_y = params._dt_chamber["sls"][sl]["ch_size"][coord_axis]
-            _dt_cell_coordinates[sl][ly][wi].append([pos_y, pos_y+size_y])
-            # z axis (axis = 2)
-            coord_axis = 2
-            pos_z = params._dt_chamber["sls"][sl]["pos"][coord_axis]+params._dt_chamber["sls"][sl]["ch_pos"][coord_axis]+params._dt_chamber["sls"][sl]["ch_spacer"][coord_axis]+ly*(params._dt_chamber["sls"][sl]["ch_size"][coord_axis]+params._dt_chamber["sls"][sl]["ch_spacer"][coord_axis])
-            size_z = params._dt_chamber["sls"][sl]["ch_size"][coord_axis]
-            _dt_cell_coordinates[sl][ly][wi].append([pos_z, pos_z+size_z])
-            # x center pos
-            _dt_cell_coordinates[sl][ly][wi].append(pos_x+size_x/2)
-            # y center pos
-            _dt_cell_coordinates[sl][ly][wi].append(pos_y+size_y/2)
-            # z center pos
-            _dt_cell_coordinates[sl][ly][wi].append(pos_z+size_z/2)
-
+            if params._dt_chamber["sls"][sl]["orient"] == "phi": # phi wires along y
+                # idx = 0: x axis (axis = 0)
+                coord_axis = 0
+                cell_offset = params._dt_chamber["sls"][sl]["ch_offset"][coord_axis] if params._dt_chamber["sls"][sl]["offset_ly"][ly] else 0
+                pos_x = params._dt_chamber["sls"][sl]["pos"][coord_axis]+params._dt_chamber["sls"][sl]["ch_pos"][coord_axis]+params._dt_chamber["sls"][sl]["ch_spacer"][coord_axis]+wi*(params._dt_chamber["sls"][sl]["ch_size"][coord_axis]+params._dt_chamber["sls"][sl]["ch_spacer"][coord_axis])+cell_offset
+                size_x = params._dt_chamber["sls"][sl]["ch_size"][coord_axis]
+                _dt_cell_coordinates[sl][ly][wi].append([pos_x, pos_x+size_x])
+                # idx = 1: y axis (axis = 1) ==> ALL CELLS LOOK THE SAME FOR PHI SL ALONG Y
+                coord_axis = 1
+                pos_y = params._dt_chamber["sls"][sl]["pos"][coord_axis]+params._dt_chamber["sls"][sl]["ch_pos"][coord_axis]+params._dt_chamber["sls"][sl]["ch_spacer"][coord_axis]
+                size_y = params._dt_chamber["sls"][sl]["ch_size"][coord_axis]
+                _dt_cell_coordinates[sl][ly][wi].append([pos_y, pos_y+size_y])
+                # idx = 2: z axis (axis = 2)
+                coord_axis = 2
+                pos_z = params._dt_chamber["sls"][sl]["pos"][coord_axis]+params._dt_chamber["sls"][sl]["ch_pos"][coord_axis]+params._dt_chamber["sls"][sl]["ch_spacer"][coord_axis]+ly*(params._dt_chamber["sls"][sl]["ch_size"][coord_axis]+params._dt_chamber["sls"][sl]["ch_spacer"][coord_axis])
+                size_z = params._dt_chamber["sls"][sl]["ch_size"][coord_axis]
+                _dt_cell_coordinates[sl][ly][wi].append([pos_z, pos_z+size_z])
+                # idx = 3: x center pos
+                _dt_cell_coordinates[sl][ly][wi].append(pos_x+size_x/2)
+                # idx = 4: y center pos
+                _dt_cell_coordinates[sl][ly][wi].append(pos_y+size_y/2)
+                # idx = 5: z center pos
+                _dt_cell_coordinates[sl][ly][wi].append(pos_z+size_z/2)
+            elif params._dt_chamber["sls"][sl]["orient"] == "theta": # theta wires along x
+                # idx = 0: x axis (axis = 0) ==> ALL CELLS LOOK THE SAME FOR THETA SL ALONG X
+                coord_axis = 0
+                pos_x = params._dt_chamber["sls"][sl]["pos"][coord_axis]+params._dt_chamber["sls"][sl]["ch_pos"][coord_axis]+params._dt_chamber["sls"][sl]["ch_spacer"][coord_axis]
+                size_x = params._dt_chamber["sls"][sl]["ch_size"][coord_axis]
+                _dt_cell_coordinates[sl][ly][wi].append([pos_x, pos_x+size_x])
+                # idx = 1: y axis (axis = 1)
+                coord_axis = 1
+                cell_offset = params._dt_chamber["sls"][sl]["ch_offset"][coord_axis] if params._dt_chamber["sls"][sl]["offset_ly"][ly] else 0
+                pos_y = params._dt_chamber["sls"][sl]["pos"][coord_axis]+params._dt_chamber["sls"][sl]["ch_pos"][coord_axis]+params._dt_chamber["sls"][sl]["ch_spacer"][coord_axis]+wi*(params._dt_chamber["sls"][sl]["ch_size"][coord_axis]+params._dt_chamber["sls"][sl]["ch_spacer"][coord_axis])+cell_offset
+                size_y = params._dt_chamber["sls"][sl]["ch_size"][coord_axis]
+                _dt_cell_coordinates[sl][ly][wi].append([pos_y, pos_y+size_y])
+                # idx = 2: z axis (axis = 2)
+                coord_axis = 2
+                pos_z = params._dt_chamber["sls"][sl]["pos"][coord_axis]+params._dt_chamber["sls"][sl]["ch_pos"][coord_axis]+params._dt_chamber["sls"][sl]["ch_spacer"][coord_axis]+ly*(params._dt_chamber["sls"][sl]["ch_size"][coord_axis]+params._dt_chamber["sls"][sl]["ch_spacer"][coord_axis])
+                size_z = params._dt_chamber["sls"][sl]["ch_size"][coord_axis]
+                _dt_cell_coordinates[sl][ly][wi].append([pos_z, pos_z+size_z])
+                # idx = 3: x center pos
+                _dt_cell_coordinates[sl][ly][wi].append(pos_x+size_x/2)
+                # idx = 4: y center pos
+                _dt_cell_coordinates[sl][ly][wi].append(pos_y+size_y/2)
+                # idx = 5: z center pos
+                _dt_cell_coordinates[sl][ly][wi].append(pos_z+size_z/2)
 
