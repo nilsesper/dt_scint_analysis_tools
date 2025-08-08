@@ -75,7 +75,9 @@ def find_sl_patterns(hits, *, silent=False):
         # max value of wire idx for current sl
         max_wi = params._dt_chamber["sls"][sl]["n_wis"]-1
         # loop over all possible patterns
-        for pat_type, pat_idcs in enumerate(params._dt_sl_patterns.values()): # pat_idcs = [rel idx wrt base wi for lys 0,1,2,3], pat_type = idx of key in _dt_sl_patterns dict
+        for pat_type, pat_name in enumerate(params._dt_sl_patterns.keys()): # pat_idcs = [rel idx wrt base wi for lys 0,1,2,3], pat_type = idx of key in _dt_sl_patterns dict
+            # extract pattern relative wire indices
+            pat_idcs = params._dt_sl_patterns[pat_name]["rel_wis"]
             # loop over all possible base wires
             for base_wi in range(max_wi+1):
                 # calculate relevant wire idcs of all 4 layers for given pattern

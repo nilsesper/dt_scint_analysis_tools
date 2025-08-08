@@ -75,27 +75,43 @@ _dt_mapping_keys = { # {key: dtype}
 # 2   - | - | - | O | - | -     - | - | O | - | - | -
 # 1   | - | - | O | - | - |     | - | - | O | - | - |
 # 0   - | - | - | O | - | -     - | - | O | - | - | -
+# possible lateralities (l=-1, r=+1) ly 3-0:
+# llrl rlrl llrr rlrr           rrlr lrlr rrll lrll
+# lateralities ly 0-3:
+# lrll lrlr rrll rrlr           rlrr rlrl llrr llrl
 #
 # ly  [+B]     ref              [-B]     ref         
 # 3   | - | - | O | - | - |     | - | - | O | - | - |
 # 2   - | - | O | - | - | -     - | - | - | O | - | -
 # 1   | - | - | O | - | - |     | - | - | O | - | - |
 # 0   - | - | - | O | - | -     - | - | O | - | - | -
+# possible lateralities (l=-1, r=+1) ly 3-0:
+# rlll rllr rlrr                lrrr lrrl lrll
+# lateralities ly 0-3:
+# lllr rllr rrlr                rrrl lrrl llrl
 # 
 # ly  [+C]     ref              [-C]     ref         
 # 3   | - | - | O | - | - |     | - | - | O | - | - |
 # 2   - | - | - | O | - | -     - | - | O | - | - | -
 # 1   | - | - | - | O | - |     | - | O | - | - | - |
 # 0   - | - | - | O | - | -     - | - | O | - | - | -
+# possible lateralities (l=-1, r=+1) ly 3-0:
+# lllr rllr rrlr                rrrl lrrl llrl
+# lateralities ly 0-3:
+# rlll rllr rlrr                lrrr lrrl lrll
 # 
 # ly  [+D]     ref              [-D]     ref         
 # 3   | - | - | O | - | - |     | - | - | O | - | - |
 # 2   - | - | - | O | - | -     - | - | O | - | - | -
 # 1   | - | - | - | O | - |     | - | O | - | - | - |
 # 0   - | - | - | - | O | -     - | O | - | - | - | -
+# possible lateralities (l=-1, r=+1) ly 3-0:
+# llll rrrr llrr rrll lllr rrrl      rrrr llll rrll llrr rrrl lllr
+# lateralities ly 0-3:
+# llll rrrr rrll llrr rlll lrrr      rrrr llll llrr rrll lrrr rlll
 # 
 # (!) depends on ly_indent = _dt_chamber["sls"][sl]["ly_indent"]
-# with ly_indent = [True, False, True, False] (order is ly 0-3) we have:
+# with ly_indent = [True, False, True, False] (order is ly 0-3) we have: (z axis goes upwards)
 # ly  wi 0   1   2   3        
 # 3   | - | - | - | - |  
 # 2     | - | - | - | - | -  
@@ -103,16 +119,48 @@ _dt_mapping_keys = { # {key: dtype}
 # 0     | - | - | - | - | -  
 #
 # use layer 3 (top layer) as reference where relative wire index is fixed to 0
-_dt_sl_patterns = { # {name: [list of relative wire index of layers 0-3]}
-    #   ly 0,1,2,3
-    "+a": [0,0,0,0],
-    "-a": [-1,0,-1,0],
-    "+b": [0,0,-1,0],
-    "-b": [-1,0,0,0],
-    "+c": [0,1,0,0],
-    "-c": [-1,-1,-1,0],
-    "+d": [1,1,0,0],
-    "-d": [-2,-1,-1,0],
+_dt_sl_patterns = {
+    # order in lists: ly 0,1,2,3
+    "+a": {
+        "rel_wis": [0,0,0,0], # list of relative wire index of layers 0-3
+        # laterality ly 0-3: lrll lrlr rrll rrlr
+        "laterality": ([-1,1,-1,-1], [-1,1,-1,1], [1,1,-1,-1], [1,1,-1,1], ) # list of possible lateralities (muon left l=-1 / right r=+1 of wire) for this pattern for layers 0-3
+    },
+    "-a":{
+        "rel_wis": [-1,0,-1,0],
+        # laterality ly 0-3: rlrr rlrl llrr llrl
+        "laterality": ([1,-1,1,1], [1,-1,1,-1], [-1,-1,1,1], [-1,-1,1,-1], )
+    },
+    "+b": {
+        "rel_wis": [0,0,-1,0],
+        # laterality ly 0-3: lllr rllr rrlr
+        "laterality": ([-1,-1,-1,1], [1,-1,-1,1], [1,1,-1,1], )
+    },
+    "-b": {
+        "rel_wis": [-1,0,0,0],
+        # laterality ly 0-3: rrrl lrrl llrl
+        "laterality": ([1,1,1,-1], [-1,1,1,-1], [-1,-1,1,-1], )
+    },
+    "+c": {
+        "rel_wis": [0,1,0,0],
+        # laterality ly 0-3: rlll rllr rlrr
+        "laterality": ([1,-1,-1,-1], [1,-1,-1,1], [1,-1,1,1], )
+    },
+    "-c": {
+        "rel_wis": [-1,-1,-1,0],
+        # laterality ly 0-3: lrrr lrrl lrll
+        "laterality": ([-1,1,1,1], [-1,1,1,-1], [-1,1,-1,-1], )
+    },
+    "+d": {
+        "rel_wis": [1,1,0,0],
+        # laterality ly 0-3: llll rrrr rrll llrr rlll lrrr
+        "laterality": ([-1,-1,-1,-1], [1,1,1,1], [1,1,-1,-1], [-1,-1,1,1], [1,-1,-1,-1], [-1,1,1,1], )
+    },
+    "-d": {
+        "rel_wis": [-2,-1,-1,0],
+        # laterality ly 0-3: rrrr llll llrr rrll lrrr rlll
+        "laterality": ([1,1,1,1], [-1,-1,-1,-1], [1,1,-1,-1], [1,1,-1,-1], [-1,1,1,1], [1,-1,-1,-1], )
+    },
 }
 # timestamp window in which hits of sl must lie in order to be counted as pattern
 _dt_sl_patterns_ts_window = int(400 / 0.78) # in same unit as timestamp (0.78 ns)
@@ -192,6 +240,13 @@ _muon_obj_keys = { # SPHERICAL COORDINATES
     "phi": np.float16, # phi angle (angle relative to x axis, between x and y axis), in rad
     "ts": np.uint64, # timestamp of muon arrival (assume velocity is infinite, therefore during propagation no time passes, is alright here)
 }
+
+### cosmic muon theta weight for a given theta value
+# muon flux ~ cos(theta)^(n-1), n ~ 3 (when assuming flat earth) -> https://arxiv.org/pdf/1606.06907
+# theta in range [0, pi]
+def cosmic_muon_theta_weight(theta):
+    norm = np.pi/2 # integral cos²(x) from 0 to pi = pi / 2
+    return np.cos(theta)**2 * 1/norm # normalized to 1 for integral from 0 to pi
 
 ###############################
 ### HARDWARE SETUP

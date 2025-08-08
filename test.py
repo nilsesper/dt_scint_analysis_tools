@@ -8,7 +8,7 @@ import matplotlib.patches as pat
 import matplotlib as mpl
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 
-from analysis_tools.utils import dummy_gen, data_utils, dt_utils, scint_utils, timestamp_utils, geoplot_utils, muon_utils
+from analysis_tools.utils import dummy_gen, data_utils, dt_utils, scint_utils, timestamp_utils, geoplot_utils, muon_utils, math_utils, hist_utils
 from analysis_tools.params import params, derived_params
 
 dummy_filename = "dumpfiles/dummy_data.txt"
@@ -54,22 +54,46 @@ def main():
     dt_sl_patterns = dt_utils.find_sl_patterns(hits=dt_hits)
     print("dt_sl_patterns =",dt_sl_patterns)
 
-    dummy_muon = {"x0": 1000, "y0": 1000, "z0": 100, "theta": 10*np.pi/180, "phi": 20*np.pi/180, "ts": 1000}
-    dt_muon_hits = muon_utils.dt_hits_from_muon(muon=dummy_muon)
+    # generate cosmic muons
+    #dummy_muon = {"x0": 1000, "y0": 1000, "z0": 100, "theta": 10*np.pi/180, "phi": 20*np.pi/180, "ts": 1000}
+    n_muons = 10
+    t_step = 1000
+    cosmic_muons = []
+    for i in range(n_muons):
+        cosmic_muons.append( muon_utils.generate_cosmic_muon(xrange=[-100, 2300], yrange=[-100, 2600], z0=100, ts=t_step*i) )
+    
+    # propagate cosmic muons through dt chamber
+    dt_muon_hits = muon_utils.dt_hits_from_muons(muons=cosmic_muons)
     print("dt_muon_hits =",dt_muon_hits)
 
+    # create hists for dt hits
+    hist_bins = {
+        "dt": np.arange(-75, 575+1, 5),
+        "sl": np.arange(1, 3+1, 1),
+        "bx": "auto",
+        "tdc": np.arange(-0.5, 32.5+1, 1),
+        "muon_id": "auto"
+    }
+    for k in hist_bins.keys():
+        hists, edges, centers = hist_utils.calculate_hist(data=dt_muon_hits, key=k, bin_centers=hist_bins[k])
+        round_digits = 1 if k == "tdc" else 0
+        hist_utils.plot_1hist(hist=hists, centers=centers, xlabel=k, round_digits=round_digits)
+
+
+    #"""
+    ### plot chamber
+
+    # generate cell data to plot chamber
     cell_data = dt_utils._chamber_data()
-    """
-    # illustrate patterns that should be recognized
-    for i, (pat_name, pat_rel_wi) in enumerate(params._dt_sl_patterns.items()):
-        start_wi = 6*i+3
-        for ly in range(4):
-            cell_data[1][ly][start_wi+pat_rel_wi[ly]]["color"] = "tab:red"
-    """
+    ## illustrate patterns that should be recognized
+    #for i, (pat_name, pat_rel_wi) in enumerate(params._dt_sl_patterns.items()):
+    #    start_wi = 6*i+3
+    #    for ly in range(4):
+    #        cell_data[1][ly][start_wi+pat_rel_wi[ly]]["color"] = "tab:red"
     # mark muon hits in chamber
     for i in range(len(dt_muon_hits["ch"])):
         sl, ly, wi = dt_muon_hits["sl"][i], dt_muon_hits["ly"][i], dt_muon_hits["wi"][i]
-        cell_data[sl][ly][wi]["color"] = "tab:orange"
+        cell_data[sl][ly][wi]["color"] = "aqua"
             
     ### plot chamber (phi orientation)
     orient = "phi"
@@ -80,7 +104,8 @@ def main():
     # plot chamber geometry
     ax = geoplot_utils.chamber_ax(ax=ax, orient=orient, cell_data=cell_data, wire=show_wires)
     # plot muon track
-    ax = geoplot_utils.muon_ax(ax=ax, orient=orient, muon=dummy_muon, color="tab:red")
+    for i in range(n_muons):
+        ax = geoplot_utils.muon_ax(ax=ax, orient=orient, muon=cosmic_muons[i], color="red")
     # axis limits
     ax.margins(x=0.05, y=0.05)
     # text labels
@@ -91,11 +116,11 @@ def main():
     ax.text(x_topleft+0.04, y_topleft+0.02, "Private work", transform=plt.gcf().transFigure, fontstyle="italic", fontsize=10)
     description = params._dt_chamber["name"]
     if orient == "theta":
-        description += ", $\\theta$ view"
+        description += ", SL-$\\theta$ view"
         ax.set_xlabel("$x$ [mm]")
         ax.set_ylabel("$z$ [mm]")
     elif orient == "phi":
-        description += ", $\\phi$ view"
+        description += ", SL-$\\phi$ view"
         ax.set_xlabel("$y$ [mm]")
         ax.set_ylabel("$z$ [mm]")
     ax.text(x_topright, y_topleft+0.02, description, transform=plt.gcf().transFigure, horizontalalignment="right")
@@ -110,7 +135,8 @@ def main():
     # plot chamber geometry
     ax = geoplot_utils.chamber_ax(ax=ax, orient=orient, cell_data=cell_data, wire=show_wires)
     # plot muon track
-    ax = geoplot_utils.muon_ax(ax=ax, orient=orient, muon=dummy_muon, color="tab:red")
+    for i in range(n_muons):
+        ax = geoplot_utils.muon_ax(ax=ax, orient=orient, muon=cosmic_muons[i], color="red")
     # axis limits
     ax.margins(x=0.05, y=0.05)
     # text labels
@@ -121,16 +147,17 @@ def main():
     ax.text(x_topleft+0.04, y_topleft+0.02, "Private work", transform=plt.gcf().transFigure, fontstyle="italic", fontsize=10)
     description = params._dt_chamber["name"]
     if orient == "theta":
-        description += ", $\\theta$ view"
+        description += ", SL-$\\theta$ view"
         ax.set_xlabel("$x$ [mm]")
         ax.set_ylabel("$z$ [mm]")
     elif orient == "phi":
-        description += ", $\\phi$ view"
+        description += ", SL-$\\phi$ view"
         ax.set_xlabel("$y$ [mm]")
         ax.set_ylabel("$z$ [mm]")
     ax.text(x_topright, y_topleft+0.02, description, transform=plt.gcf().transFigure, horizontalalignment="right")
     # show/store figure
     fig.show()
+    #"""
 
     input("Press enter to exit.")
 
