@@ -8,6 +8,7 @@ import os.path
 
 import analysis_tools.params.params as params
 import analysis_tools.params.derived_params as derived_params
+import analysis_tools.utils.timestamp_utils as timestamp_utils
 
 # -----------------------------------------
 
@@ -61,9 +62,12 @@ def dt_hits_from_muon(muon):
         # map back htg timestamp from drift time
         hit_ts = dt_hit_list[i]["hit_ts"]
         dt_hits["ts"][i] = hit_ts
-        # map back obdt ch
+        (oc, bx, tdc) = timestamp_utils.remap_htg_timestamp(hit_ts)
+        dt_hits["oc"][i], dt_hits["bx"][i], dt_hits["tdc"][i] = oc, bx, tdc
+        # map back htg parameters
         sl, ly, wi = dt_hit_list[i]["sl"], dt_hit_list[i]["ly"], dt_hit_list[i]["wi"]
-        dt_hits["ch"][i] = derived_params._dt_inverted_remap_table[sl][ly][wi]["ch"]
+        for k in ["ro_ch", "ch", "fe_id", "conn_id", "ch_id"]:
+            dt_hits[k][i] = derived_params._dt_inverted_remap_table[sl][ly][wi][k]
     return dt_hits
 
 

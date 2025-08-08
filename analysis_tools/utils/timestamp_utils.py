@@ -47,4 +47,10 @@ def sort_by_timestamp(hits, *, silent=False):
         sorted_hits[k] = sorted_hits[k][new_idx_order]
     return sorted_hits
 
+### calculate back ox,bx,tdc from timestamp value
+def remap_htg_timestamp(ts):
+    oc = (ts % derived_params._orbit_overflow_to_timestamp) // derived_params._orbit_to_timestamp
+    bx = (ts % derived_params._orbit_to_timestamp) // derived_params._bx_to_timestamp
+    tdc = (ts % derived_params._bx_to_timestamp) // derived_params._tdc_to_timestamp
+    return (oc, bx, tdc)
 

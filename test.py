@@ -54,7 +54,7 @@ def main():
     dt_sl_patterns = dt_utils.find_sl_patterns(hits=dt_hits)
     print("dt_sl_patterns =",dt_sl_patterns)
 
-    dummy_muon = {"x0": 1000, "y0": 1000, "z0": 100, "theta": 10*np.pi/180, "phi": 20*np.pi/180, "ts": 20}
+    dummy_muon = {"x0": 1000, "y0": 1000, "z0": 100, "theta": 10*np.pi/180, "phi": 20*np.pi/180, "ts": 1000}
     dt_muon_hits = muon_utils.dt_hits_from_muon(muon=dummy_muon)
     print("dt_muon_hits =",dt_muon_hits)
 
@@ -69,7 +69,7 @@ def main():
     # mark muon hits in chamber
     for i in range(len(dt_muon_hits["ch"])):
         sl, ly, wi = dt_muon_hits["sl"][i], dt_muon_hits["ly"][i], dt_muon_hits["wi"][i]
-        cell_data[sl][ly][wi]["color"] = "tab:red"
+        cell_data[sl][ly][wi]["color"] = "tab:orange"
             
     ### plot chamber (phi orientation)
     orient = "phi"
