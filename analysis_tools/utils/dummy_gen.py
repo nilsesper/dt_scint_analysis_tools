@@ -21,7 +21,8 @@ def write_to_dumpfile(file_name, hits, *, silent=False):
     for i in range(n_hits):
         num_content[i] = 0
         for k in derived_params._dumpfile_keys:
-            num_content[i] |= ((int(hits[k][i]) << params._htg_bitshift[k]) & params._htg_shifted_mask[k])
+            print(k, hits[k][i])
+            num_content[i] |= ((int(hits[k][i]) << (params._htg_bitshift[k])) & (params._htg_shifted_mask[k]))
     # convert to ascii content
     content = ""
     for i in range(n_hits):
