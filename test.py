@@ -58,9 +58,7 @@ def main():
     #dummy_muon = {"x0": 1000, "y0": 1000, "z0": 100, "theta": 10*np.pi/180, "phi": 20*np.pi/180, "ts": 1000}
     n_muons = 10
     t_step = 1000
-    cosmic_muons = []
-    for i in range(n_muons):
-        cosmic_muons.append( muon_utils.generate_cosmic_muon(xrange=[-100, 2300], yrange=[-100, 2600], z0=100, ts=t_step*i) )
+    cosmic_muons = muon_utils.generate_cosmic_muons(n=n_muons, ts=np.arange(start=0, stop=t_step*n_muons, step=t_step) , xrange=[-100, 2300], yrange=[-100, 2600], z0=100)
     
     # propagate cosmic muons through dt chamber
     dt_muon_hits = muon_utils.dt_hits_from_muons(muons=cosmic_muons)
@@ -71,12 +69,12 @@ def main():
         "dt": np.arange(-75, 575+1, 5),
         "sl": np.arange(1, 3+1, 1),
         "bx": "auto",
-        "tdc": np.arange(-0.5, 32.5+1, 1),
-        "muon_id": "auto"
+        "tdc": np.arange(0, 32, 1),
+        "muon_id": np.arange(0, n_muons, 1),
     }
     for k in hist_bins.keys():
         hists, edges, centers = hist_utils.calculate_hist(data=dt_muon_hits, key=k, bin_centers=hist_bins[k])
-        round_digits = 1 if k == "tdc" else 0
+        round_digits = 1 if k in ["tdc"] else 0
         hist_utils.plot_1hist(hist=hists, centers=centers, xlabel=k, round_digits=round_digits)
 
 
@@ -105,7 +103,7 @@ def main():
     ax = geoplot_utils.chamber_ax(ax=ax, orient=orient, cell_data=cell_data, wire=show_wires)
     # plot muon track
     for i in range(n_muons):
-        ax = geoplot_utils.muon_ax(ax=ax, orient=orient, muon=cosmic_muons[i], color="red")
+        ax = geoplot_utils.muon_ax(ax=ax, orient=orient, muons=cosmic_muons, muon_id=i, color="red")
     # axis limits
     ax.margins(x=0.05, y=0.05)
     # text labels
@@ -136,7 +134,7 @@ def main():
     ax = geoplot_utils.chamber_ax(ax=ax, orient=orient, cell_data=cell_data, wire=show_wires)
     # plot muon track
     for i in range(n_muons):
-        ax = geoplot_utils.muon_ax(ax=ax, orient=orient, muon=cosmic_muons[i], color="red")
+        ax = geoplot_utils.muon_ax(ax=ax, orient=orient, muons=cosmic_muons, muon_id=i, color="red")
     # axis limits
     ax.margins(x=0.05, y=0.05)
     # text labels

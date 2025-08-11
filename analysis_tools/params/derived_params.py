@@ -34,7 +34,6 @@ for ro_ch in _scint_ro_chs:
 _dumpfile_keys = list(params._htg_keys.keys())
 
 ### generate dt remapping table: {ro_ch: {ch: {dt_keys: mapping value}}
-_dt_keys = list(params._dt_mapping_keys.keys()) # sl, ly, wi, conn_id, ch_id, fe_id
 _fecable2wireoffset = lambda fe: 4*((int(fe[:-1])-1)*2 + (1 if fe[-1]=='B' else 0)) # remapping function: fe connector (XA/B) -> wire offset
 _dt_remap_table = {}
 for ro_ch in _dt_ro_chs:

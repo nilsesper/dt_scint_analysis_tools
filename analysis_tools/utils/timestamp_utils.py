@@ -1,5 +1,5 @@
 ###########################################
-### SCINTILLATOR-SPECIFIC UTILS
+### TIMESTAMP UTILS
 ###########################################
 
 import numpy as np

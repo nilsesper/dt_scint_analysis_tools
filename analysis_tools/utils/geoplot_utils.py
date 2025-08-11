@@ -107,17 +107,17 @@ def chamber_ax(ax, orient, cell_data, *, wire=False):
 
 ### draw muon track into existing ax (subplot)
 # zrange: [zmin, zmax] of shown muon track
-def muon_ax(ax, orient, muon, *, color="tab:blue"):
-    z0 = muon["z0"]
+def muon_ax(ax, orient, muons, muon_id, *, color="tab:blue"):
+    z0 = muons["z0"][muon_id]
     zstep = 10
-    (x1, y1, z1) = muon_utils.propagate_muon(muon=muon, z=z0+zstep)
+    (x1, y1, z1) = muon_utils.propagate_muon(muons=muons, muon_id=muon_id, z=z0+zstep)
     _y0 = z0
     _y1 = z1
     if orient == "phi":
-        _x0 = muon["x0"]
+        _x0 = muons["x0"][muon_id]
         _x1 = x1
     else:
-        _x0 = muon["y0"]
+        _x0 = muons["y0"][muon_id]
         _x1 = y1
     ax.axline((_x0, _y0), (_x1, _y1), c=color)
     return ax

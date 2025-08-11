@@ -40,7 +40,7 @@ def extract_dt_hits(hits, *, silent=False):
         ro_ch = tmp_hits["ro_ch"][i]
         ch = tmp_hits["ch"][i]
         # add keys according to remapping table
-        for k in derived_params._dt_keys:
+        for k in params._dt_mapping_keys.keys():
             tmp_hits[k][i] = derived_params._dt_remap_table[ro_ch][ch][k]
     return tmp_hits
 

@@ -66,6 +66,13 @@ _dt_mapping_keys = { # {key: dtype}
     "fe_id": np.uint8,
     "ch_id": np.uint8,
 }
+_dt_other_keys = {
+    "ts": _ts_type,
+    "muon_ts": _ts_type,
+    "dt": np.uint16, # drift time (in ts units)
+    "dd": np.uint16, # drift distance (in mm)
+    "muon_id": np.uint16, # id / idx of correlated muon
+}
 
 ### dt hit patterns per superlayer
 # reference is on top (highest z coordinate i.e. ly 3)
@@ -254,7 +261,7 @@ def cosmic_muon_theta_weight(theta):
 
 ### dt chamber properties: {type: type of chamber (mb1), sls: {sl_id: {type: sl type (phi/theta), n_lys: no. of layers, n_wis: no. of wires, offset_ly: [true if wi of this ly is shifted towards higher wi, for all lys]}}}
 # single cell properties
-_cell_w_spacer = 1.2 # estimated only from sketch
+_cell_w_spacer = 0 # estimated only from sketch = 1.2
 _cell_h_spacer = 1.5
 _cell_width = 42-_cell_w_spacer # size of cell air volume
 _cell_height = 13-_cell_h_spacer # size of cell air volume
