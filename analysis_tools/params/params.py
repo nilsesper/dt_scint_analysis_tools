@@ -49,6 +49,7 @@ _lhc_tdc_count = 32 # max value of TDC + 1  (i.e. conversion factor: _lhc_tdc_co
 _lhc_bunch_count = 3564 # max value of BX + 1 (i.e. conversion factor: _lhc_bunch_count BX = 1 ORBIT)
 _lhc_orbit_count = 65536 # 2^16, max value of ORBIT + 1
 _ts_type = np.uint64 # data type of timestamp field in hits
+_err_ts = 1 # error of timestamps for fitting (in ts_units)
 
 ### dt specific
 # fe conn idx list (key "fe_id")
@@ -119,7 +120,7 @@ _dt_mapping_keys = { # {key: dtype}
 # 0     | - | - | - | - | -  
 #
 # use layer 3 (top layer) as reference where relative wire index is fixed to 0
-_dt_sl_patterns = {
+_dt_sl_patterns = { # pat_type key in sl patterns is idx of key, i.e. "+a"=0, "-a"=1 etc.
     # order in lists: ly 0,1,2,3
     "+a": {
         "rel_wis": [0,0,0,0], # list of relative wire index of layers 0-3
@@ -179,6 +180,14 @@ _sl_pattern_keys = { # {key: dtype}
 }
 # dt drift velocity
 _drift_velocity = 54.5 # unit: um / ns = 10^-6 / 10 ^-9 m/s = 10^3 m/s
+# sl fit keys (fit list also also keeps sl_pattern_keys)
+_sl_fit_keys = { # {key: dtype}
+    "laterality": np.uint8, # idx of selected laterality [] in _dt_sl_patterns 
+    "t0": np.uint64, # t0 fit param
+    "x0": np.float16, # x0 fit param
+    "tan_alpha": np.float16, # tan(alpha) fit param
+    "chi2/ndf": np.float16, # reduced chi2 value
+}
 
 ### scintillator specific
 
@@ -254,7 +263,7 @@ def cosmic_muon_theta_weight(theta):
 
 ### dt chamber properties: {type: type of chamber (mb1), sls: {sl_id: {type: sl type (phi/theta), n_lys: no. of layers, n_wis: no. of wires, offset_ly: [true if wi of this ly is shifted towards higher wi, for all lys]}}}
 # single cell properties
-_cell_w_spacer = 1.2 # estimated only from sketch
+_cell_w_spacer = 0 # estimated only from sketch = 1.2
 _cell_h_spacer = 1.5
 _cell_width = 42-_cell_w_spacer # size of cell air volume
 _cell_height = 13-_cell_h_spacer # size of cell air volume
@@ -269,7 +278,7 @@ _dt_chamber = {
             "orient": "phi",
             "n_lys": 4,
             "n_wis": 49,
-            "offset_ly": [True, False, True, False],
+            "offset_ly": [True, False, True, False], # for ly 0,1,2,3: True means shifted to right i.e. towards higher wi idx
             "size": (2126., 2513., 53.5),
             "pos": (0., 0., 0.),
             "ch_pos": (22.9, 86., 0.), # corner with smallest coordinates of first cell (ly=0,wi=0), *RELATIVE TO* sl point with smallest coordinates
