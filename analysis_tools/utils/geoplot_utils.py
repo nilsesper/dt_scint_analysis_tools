@@ -31,8 +31,8 @@ def cell_pat(orient, sl, ly, wi, *, wire=False, cell_data=None): # sliced cell d
         cell_color = cell_data["color"] #params._color_info["cell"][None]
         patches.append( pat.Rectangle((derived_params._dt_cell_coordinates[sl][ly][wi][x_axis][0], derived_params._dt_cell_coordinates[sl][ly][wi][y_axis][0]), width=(derived_params._dt_cell_coordinates[sl][ly][wi][x_axis][1]-derived_params._dt_cell_coordinates[sl][ly][wi][x_axis][0]), height=(derived_params._dt_cell_coordinates[sl][ly][wi][y_axis][1]-derived_params._dt_cell_coordinates[sl][ly][wi][y_axis][0]), edgecolor=params._color_info["cell"]["edge"], facecolor=cell_color) )
         if wire:
-            wire_x = derived_params._dt_cell_coordinates[sl][ly][wi][x_axis][0]+(params._dt_chamber["sls"][sl]["ch_size"][x_axis])/2
-            wire_y = derived_params._dt_cell_coordinates[sl][ly][wi][y_axis][0]+(params._dt_chamber["sls"][sl]["ch_size"][y_axis])/2
+            wire_x = derived_params._dt_cell_coordinates[sl][ly][wi][x_axis+3]#[0]+(params._dt_chamber["sls"][sl]["ch_size"][x_axis])/2
+            wire_y = derived_params._dt_cell_coordinates[sl][ly][wi][y_axis+3]#[0]+(params._dt_chamber["sls"][sl]["ch_size"][y_axis])/2
             patches.append( pat.Circle((wire_x, wire_y), radius=params._dt_chamber["sls"][sl]["wi_radius"], edgecolor=None, facecolor=params._color_info["cell"]["wire"] ) )
     ## if orientation is flipped, only outline the cells
     # in order to prevent overlaying objects in the plot only draw wi=0 for each layer from the side
@@ -90,18 +90,37 @@ def chamber_ax(ax, orient, cell_data, *, wire=False):
 ### draw muon track into existing ax (subplot)
 # zrange: [zmin, zmax] of shown muon track
 def muon_ax(ax, orient, muons, muon_id, *, color="tab:blue"):
-    z0 = muons["z0"][muon_id]
-    zstep = 10
-    (x1, y1, z1) = muon_utils.propagate_muon(muons=muons, muon_id=muon_id, z=z0+zstep)
+    z0 = derived_params._dt_cell_coordinates[3][3][0][5] if orient == "phi" else derived_params._dt_cell_coordinates[2][3][0][5]
+    z1 = derived_params._dt_cell_coordinates[1][0][0][5] if orient == "phi" else derived_params._dt_cell_coordinates[2][0][0][5]
+    (x0, y0, z0) = muon_utils.propagate_muon(muons=muons, muon_id=muon_id, z=z0)
+    (x1, y1, z1) = muon_utils.propagate_muon(muons=muons, muon_id=muon_id, z=z1)
     _y0 = z0
     _y1 = z1
     if orient == "phi":
-        _x0 = muons["x0"][muon_id]
+        _x0 = x0
         _x1 = x1
     else:
-        _x0 = muons["y0"][muon_id]
+        _x0 = y0
         _x1 = y1
     ax.axline((_x0, _y0), (_x1, _y1), c=color)
+    return ax
+
+### draw dt hits (if laterality + drift distance + muon id is known)
+# for given muon id
+def cell_hits_ax(ax, orient, dt_hits, muon_id, *, color="tab:green"):
+    n_hits = len(dt_hits["ch"])
+    x_axis, y_axis = params._orientation[orient][0], params._orientation[orient][1]
+    x_pts, y_pts = [], []
+    for i in range(n_hits):
+        if dt_hits["muon_id"][i] != muon_id: continue
+        sl, ly, wi = dt_hits["sl"][i], dt_hits["ly"][i], dt_hits["wi"][i]
+        if params._dt_chamber["sls"][sl]["orient"] != orient: continue
+        dd, hit_lat = dt_hits["dd"][i], dt_hits["hit_lat"][i] # hit_lat: hit laterality, dd drift distance
+        x_pts.append( dd*hit_lat + derived_params._dt_cell_coordinates[sl][ly][wi][3+x_axis] )
+        y_pts.append( derived_params._dt_cell_coordinates[sl][ly][wi][3+y_axis] )
+        #print("cell_hits_ax", dd, hit_lat, derived_params._dt_cell_coordinates[sl][ly][wi][3+x_axis], "=", x_pts)
+    x_pts, y_pts = np.array(x_pts), np.array(y_pts)
+    ax.scatter(x_pts, y_pts, marker=".", color=color)
     return ax
 
 ###--------- draw sl pattern fit
@@ -154,32 +173,89 @@ def sl_fit_ax(ax, sl_dt_fits, pattern_id, *, wire=False):
     return ax
 
 ### draw dt sl fit muon
-def sl_muon_fit_ax(ax, sl_dt_fits, pattern_id, *, wire=False, color="red"):
+def sl_muon_fit_ax(ax, sl_dt_fits, pattern_id, *, color="red"):
     # plot muon track
     _z0 = derived_params._sl_pattern_coordinates[3][0][3] # z_cell (wire position) of ly=3
     _z1 = derived_params._sl_pattern_coordinates[2][0][3] # z_cell (wire position) of ly=2
     x0_fit, tan_alpha_fit = sl_dt_fits["x0"][pattern_id], sl_dt_fits["tan_alpha"][pattern_id]
     ax.axline((derived_params.f_x_muon(z=_z0, x0=x0_fit, tan_alpha=tan_alpha_fit), _z0), (derived_params.f_x_muon(z=_z1, x0=x0_fit, tan_alpha=tan_alpha_fit), _z1), c=color)
-    # plot muon hits
-    #for ly in 
     return ax
 
 ### draw sl projection of muon object
 # give no of sl to project to
-def sl_muon_proj_ax(ax, muons, muon_id, sl, *, wire=False, color="tab:green"):
-    z0 = muons[muon_id]["z0"]
-    zstep = 10
-    (x1, y1, z1) = muon_utils.propagate_muon(muon=muon, z=z0+zstep)
+def sl_muon_proj_ax(ax, muons, sl_dt_fits, pattern_id, *, color="tab:green"):
+    sl = sl_dt_fits["sl"][pattern_id]
+    muon_id = sl_dt_fits["muon_id"][pattern_id]
+    orient = params._dt_chamber["sls"][sl]["orient"]
+    x_axis, y_axis = params._orientation[orient][0], params._orientation[orient][1]
+    z0 = derived_params._dt_cell_coordinates[sl][3][0][y_axis+3] if orient == "phi" else derived_params._dt_cell_coordinates[sl][3][0][y_axis+3]
+    z1 = derived_params._dt_cell_coordinates[sl][0][0][y_axis+3] if orient == "phi" else derived_params._dt_cell_coordinates[sl][0][0][y_axis+3]
+    (x0, y0, z0) = muon_utils.propagate_muon(muons=muons, muon_id=muon_id, z=z0)
+    (x1, y1, z1) = muon_utils.propagate_muon(muons=muons, muon_id=muon_id, z=z1)
     _y0 = z0
     _y1 = z1
-    orient = params._dt_chamber["sls"][sl]["orient"]
     if orient == "phi":
-        _x0 = muons[muon_id]["x0"]
+        _x0 = x0
         _x1 = x1
     else:
-        _x0 = muons[muon_id]["y0"]
+        _x0 = y0
         _x1 = y1
-    ax.axline((_x0, _y0), (_x1, _y1), c=color)
+    """
+    z0 = derived_params._dt_cell_coordinates[sl][3][hit_wi][3+x_axis] #derived_params._sl_pattern_coordinates[3][0][3] # z_cell (wire position) of ly=3 of crrect sl
+    z1 = derived_params._dt_cell_coordinates[sl][0][hit_wi][3+x_axis] #derived_params._sl_pattern_coordinates[2][0][3] # z_cell (wire position) of ly=2 of correct sl
+    (x0, y0, z0) = muon_utils.propagate_muon(muons=muons, muon_id=muon_id, z=z0)
+    (x1, y1, z1) = muon_utils.propagate_muon(muons=muons, muon_id=muon_id, z=z1)
+    _y0 = z0
+    _y1 = z1
+    
+    if orient == "phi":
+        _x0 = x0
+        _x1 = x1
+    else:
+        _x0 = y0
+        _x1 = y1
+    """
+    # transform coordinates into local coordinate frame with (0,0) at center (wire) position of cell ly=3, rel_wi=0
+    base_wi = sl_dt_fits["wi3"][pattern_id] # wi idx of ly=3 (base wi)
+    _coord_transform = [ derived_params._dt_cell_coordinates[sl][3][base_wi][x_axis+3], derived_params._dt_cell_coordinates[sl][3][base_wi][y_axis+3] ]
+    ax.axline((_x0-_coord_transform[0], _y0-_coord_transform[1]), (_x1-_coord_transform[0], _y1-_coord_transform[1]), c=color)
+    return ax
+
+### draw dt hits (if laterality + drift distance + muon id is known) into sl projection
+# for given muon id
+def sl_dt_hits_proj_ax(ax, dt_hits, sl_dt_fits, pattern_id, *, color="tab:green", other_lat=False):
+    n_hits = len(dt_hits["ch"])
+    sl = sl_dt_fits["sl"][pattern_id]
+    orient = params._dt_chamber["sls"][sl]["orient"]
+    muon_id = sl_dt_fits["muon_id"][pattern_id]
+    x_axis, y_axis = params._orientation[orient][0], params._orientation[orient][1]
+    # for correct hits
+    x_pts, y_pts = [], []
+    for i in range(n_hits):
+        if dt_hits["muon_id"][i] != muon_id: continue
+        hit_sl, hit_ly, hit_wi = dt_hits["sl"][i], dt_hits["ly"][i], dt_hits["wi"][i]
+        if sl != hit_sl: continue
+        dd, hit_lat = dt_hits["dd"][i], dt_hits["hit_lat"][i] # hit_lat: hit laterality, dd drift distance
+        x_pts.append( dd*hit_lat + derived_params._dt_cell_coordinates[sl][hit_ly][hit_wi][3+x_axis] )
+        y_pts.append( derived_params._dt_cell_coordinates[hit_sl][hit_ly][hit_wi][3+y_axis] )
+    x_pts, y_pts = np.array(x_pts), np.array(y_pts)
+    # for hits with other laterality
+    if other_lat:
+        x_pts2, y_pts2 = [], []
+        for i in range(n_hits):
+            if dt_hits["muon_id"][i] != muon_id: continue
+            hit_sl, hit_ly, hit_wi = dt_hits["sl"][i], dt_hits["ly"][i], dt_hits["wi"][i]
+            if sl != hit_sl: continue
+            dd, hit_lat = dt_hits["dd"][i], dt_hits["hit_lat"][i] # hit_lat: hit laterality, dd drift distance
+            x_pts2.append( -dd*hit_lat + derived_params._dt_cell_coordinates[sl][hit_ly][hit_wi][3+x_axis] )
+            y_pts2.append( derived_params._dt_cell_coordinates[hit_sl][hit_ly][hit_wi][3+y_axis] )
+        x_pts2, y_pts2 = np.array(x_pts2), np.array(y_pts2)
+    # transform coordinates into local coordinate frame with (0,0) at center (wire) position of cell ly=3, rel_wi=0
+    base_wi = sl_dt_fits["wi3"][pattern_id] # wi idx of ly=3 (base wi)
+    _coord_transform = [ derived_params._dt_cell_coordinates[sl][3][base_wi][x_axis+3], derived_params._dt_cell_coordinates[sl][3][base_wi][y_axis+3] ]
+    ax.scatter(x_pts-_coord_transform[0], y_pts-_coord_transform[1], marker=".", color=color)
+    if other_lat:
+        ax.scatter(x_pts2-_coord_transform[0], y_pts2-_coord_transform[1], marker=".", color="tab:gray")
     return ax
 
 

@@ -71,8 +71,9 @@ _dt_other_keys = {
     "ts": _ts_type,
     "muon_ts": _ts_type,
     "dt": np.uint16, # drift time (in ts units)
-    "dd": np.uint16, # drift distance (in mm)
+    "dd": np.float64, # drift distance (in mm)
     "muon_id": np.uint16, # id / idx of correlated muon
+    "hit_lat": np.int8, # hit laterality -1 (l) left of wire, +1 (r) right of wire
 }
 
 ### dt hit patterns per superlayer
@@ -94,9 +95,9 @@ _dt_other_keys = {
 # 1   | - | - | O | - | - |     | - | - | O | - | - |
 # 0   - | - | - | O | - | -     - | - | O | - | - | -
 # possible lateralities (l=-1, r=+1) ly 3-0:
-# rlll rllr rlrr                lrrr lrrl lrll
+# lrrr lrrl lrll                rlll rllr rlrr
 # lateralities ly 0-3:
-# lllr rllr rrlr                rrrl lrrl llrl
+# rrrl lrrl llrl                lllr rllr rrlr
 # 
 # ly  [+C]     ref              [-C]     ref         
 # 3   | - | - | O | - | - |     | - | - | O | - | - |
@@ -141,13 +142,13 @@ _dt_sl_patterns = { # pat_type key in sl patterns is idx of key, i.e. "+a"=0, "-
     },
     "+b": {
         "rel_wis": [0,0,-1,0],
-        # laterality ly 0-3: lllr rllr rrlr
-        "laterality": ([-1,-1,-1,1], [1,-1,-1,1], [1,1,-1,1], )
+        # laterality ly 0-3: rrrl lrrl llrl     # before: lllr rllr rrlr
+        "laterality": ([1,1,1,-1], [-1,1,1,-1], [-1,-1,1,-1], )     # before: "laterality": ([-1,-1,-1,1], [1,-1,-1,1], [1,1,-1,1], )
     },
     "-b": {
         "rel_wis": [-1,0,0,0],
-        # laterality ly 0-3: rrrl lrrl llrl
-        "laterality": ([1,1,1,-1], [-1,1,1,-1], [-1,-1,1,-1], )
+        # laterality ly 0-3: lllr rllr rrlr     # before: rrrl lrrl llrl
+        "laterality": ([-1,-1,-1,1], [1,-1,-1,1], [1,1,-1,1], )     # before: "laterality": ([1,1,1,-1], [-1,1,1,-1], [-1,-1,1,-1], )
     },
     "+c": {
         "rel_wis": [0,1,0,0],
@@ -161,13 +162,13 @@ _dt_sl_patterns = { # pat_type key in sl patterns is idx of key, i.e. "+a"=0, "-
     },
     "+d": {
         "rel_wis": [1,1,0,0],
-        # laterality ly 0-3: llll rrrr rrll llrr rlll lrrr
-        "laterality": ([-1,-1,-1,-1], [1,1,1,1], [1,1,-1,-1], [-1,-1,1,1], [1,-1,-1,-1], [-1,1,1,1], )
+        # laterality ly 0-3: llll rrrr rrll llrr rlll lrrr lllr rrrl
+        "laterality": ([-1,-1,-1,-1], [1,1,1,1], [1,1,-1,-1], [-1,-1,1,1], [1,-1,-1,-1], [-1,1,1,1], [-1,-1,-1,1], [1,1,1,-1] )
     },
     "-d": {
         "rel_wis": [-2,-1,-1,0],
-        # laterality ly 0-3: rrrr llll llrr rrll lrrr rlll
-        "laterality": ([1,1,1,1], [-1,-1,-1,-1], [1,1,-1,-1], [1,1,-1,-1], [-1,1,1,1], [1,-1,-1,-1], )
+        # laterality ly 0-3: rrrr llll llrr rrll lrrr rlll lllr rrrl
+        "laterality": ([1,1,1,1], [-1,-1,-1,-1], [1,1,-1,-1], [1,1,-1,-1], [-1,1,1,1], [1,-1,-1,-1], [-1,-1,-1,1], [1,1,1,-1] )
     },
 }
 # timestamp window in which hits of sl must lie in order to be counted as pattern
@@ -184,6 +185,7 @@ _sl_pattern_keys = { # {key: dtype}
     "wi2": np.uint8, # wire index of ly 0 wire of pattern
     "ts3": _ts_type, # timestamp of ly 3 wire of pattern
     "wi3": np.uint8, # wire index of ly 0 wire of pattern
+    "muon_id": np.uint16, # id / idx of correlated muon
 }
 # dt drift velocity
 _drift_velocity = 54.5 # unit: um / ns = 10^-6 / 10 ^-9 m/s = 10^3 m/s

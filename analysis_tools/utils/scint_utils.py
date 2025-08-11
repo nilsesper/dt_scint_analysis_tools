@@ -8,6 +8,7 @@ import os.path
 from tqdm import tqdm
 
 import analysis_tools.utils.data_utils as data_utils
+import analysis_tools.utils.timestamp_utils as timestamp_utils
 
 import analysis_tools.params.params as params
 import analysis_tools.params.derived_params as derived_params
@@ -42,5 +43,8 @@ def extract_scint_hits(hits, *, silent=False):
         # add keys according to remapping table
         for k in derived_params._scint_keys:
             tmp_hits[k][i] = derived_params._scint_remap_table[ro_ch][ch][k]
+    # add timestamp and sort by timestamp
+    tmp_hits = timestamp_utils.add_timestamp(hits=tmp_hits)
+    tmp_hits = timestamp_utils.sort_by_timestamp(hits=tmp_hits)
     return tmp_hits
 

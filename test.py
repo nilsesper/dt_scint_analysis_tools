@@ -41,13 +41,9 @@ def main():
     print("dumpfile_hits =",dumpfile_hits)
 
     dt_hits = dt_utils.extract_dt_hits(hits=dumpfile_hits)
-    dt_hits = timestamp_utils.add_timestamp(hits=dt_hits)
-    dt_hits = timestamp_utils.sort_by_timestamp(hits=dt_hits)
     print("dt_hits =",dt_hits)
 
     scint_hits = scint_utils.extract_scint_hits(hits=dumpfile_hits)
-    scint_hits = timestamp_utils.add_timestamp(hits=scint_hits)
-    scint_hits = timestamp_utils.sort_by_timestamp(hits=scint_hits)
     print("scint_hits =",scint_hits)
 
     #cut_dt_hits = data_utils.cut_data(data=dt_hits, conditions=[("sl", "==", 1), ("wi", ">=", 20), ("wi", "<=", 40)])
@@ -56,12 +52,12 @@ def main():
 
     # generate cosmic muons
     #dummy_muon = {"x0": 1000, "y0": 1000, "z0": 100, "theta": 10*np.pi/180, "phi": 20*np.pi/180, "ts": 1000}
-    n_muons = 1
+    n_muons = 10
     t_step = 1000
-    cosmic_muons = muon_utils.generate_cosmic_muons(n=n_muons, ts=np.arange(start=0, stop=t_step*n_muons, step=t_step) , xrange=[-100, 2300], yrange=[-100, 2600], z0=100)
+    cosmic_muons = muon_utils.generate_cosmic_muons(n=n_muons, ts=t_step*np.arange(1,n_muons+1), xrange=[200, 2000], yrange=[200, 2300], z0=0) # xrange=[-100, 2300], yrange=[-100, 2600]
     
     # propagate cosmic muons through dt chamber
-    dt_muon_hits = muon_utils.dt_hits_from_muons(muons=cosmic_muons)
+    dt_muon_hits = muon_utils.dt_hits_from_muons(muons=cosmic_muons, noise_ampl=1)
     print("dt_muon_hits =",dt_muon_hits)
 
     # treat these dt hits as dummy data -> apply clustering algorithm
@@ -69,37 +65,43 @@ def main():
     print("sl_muon_patterns =",sl_dt_patterns)
 
     # fit patterns
-    sl_dt_fits = dt_utils.fit_sl_patterns(patterns = sl_dt_patterns)
+    sl_dt_fits = dt_utils.fit_sl_patterns(patterns = sl_dt_patterns, verbose=True)
     print("sl_dt_fits =",sl_dt_fits)
 
-    ### plot sl pattern
-    show_wires = True
-    pattern_id = 0
-    # generate plot
-    fig, ax = plt.subplots(1, 1, figsize=(12,4))
-    plt.subplots_adjust(left=0.15, bottom=0.15, right=0.95, top=0.85, wspace=0.1, hspace=0.6)
-    # plot sl pattern
-    ax = geoplot_utils.sl_fit_ax(ax, sl_dt_fits=sl_dt_fits, pattern_id=pattern_id, wire=show_wires)
-    # plot fitted muon
-    ax = geoplot_utils.sl_muon_fit_ax(ax, sl_dt_fits=sl_dt_fits, pattern_id=pattern_id, wire=show_wires)
-    # axis limits
-    ax.margins(x=0.05, y=0.05)
-    # text labels
-    axbox = ax.get_position()
-    x_topleft = axbox.p0[0]
-    x_topright, y_topleft = axbox.p1[0], axbox.p1[1]
-    ax.text(x_topleft, y_topleft+0.02, "CMS", transform=plt.gcf().transFigure, fontweight="bold")
-    ax.text(x_topleft+0.04, y_topleft+0.02, "Private work", transform=plt.gcf().transFigure, fontstyle="italic", fontsize=10)
-    description = "SL pattern"
-    ax.set_xlabel("$x_\\text{rel}$ [mm]")
-    ax.set_ylabel("$z_\\text{rel}$ [mm]")
-    ax.text(x_topright, y_topleft+0.02, description, transform=plt.gcf().transFigure, horizontalalignment="right")
-    # show/store figure
-    fig.show()
+    n_patterns = len(sl_dt_fits["sl"])
+    for pattern_id in range(n_patterns):
+        ### plot sl pattern
+        show_wires = True
+        # generate plot
+        fig, ax = plt.subplots(1, 1, figsize=(12,4))
+        plt.subplots_adjust(left=0.15, bottom=0.15, right=0.95, top=0.85, wspace=0.1, hspace=0.6)
+        # plot sl pattern
+        ax = geoplot_utils.sl_fit_ax(ax, sl_dt_fits=sl_dt_fits, pattern_id=pattern_id, wire=show_wires)
+        # plot originally simulated muon
+        ax = geoplot_utils.sl_muon_proj_ax(ax, muons=cosmic_muons, sl_dt_fits=sl_dt_fits, pattern_id=pattern_id, color="tab:green")
+        # plot dt hits of simulated muon
+        ax = geoplot_utils.sl_dt_hits_proj_ax(ax, dt_hits=dt_muon_hits, sl_dt_fits=sl_dt_fits, pattern_id=pattern_id, color="tab:green", other_lat=True)
+        # plot fitted muon
+        ax = geoplot_utils.sl_muon_fit_ax(ax, sl_dt_fits=sl_dt_fits, pattern_id=pattern_id)
+        # axis limits
+        ax.margins(x=0.05, y=0.05)
+        # text labels
+        axbox = ax.get_position()
+        x_topleft = axbox.p0[0]
+        x_topright, y_topleft = axbox.p1[0], axbox.p1[1]
+        ax.text(x_topleft, y_topleft+0.02, "CMS", transform=plt.gcf().transFigure, fontweight="bold")
+        ax.text(x_topleft+0.04, y_topleft+0.02, "Private work", transform=plt.gcf().transFigure, fontstyle="italic", fontsize=10)
+        description = f"Pattern #{pattern_id}, SL {sl_dt_fits["sl"][pattern_id]}"
+        ax.set_xlabel("$x_\\text{rel}$ [mm]")
+        ax.set_ylabel("$z_\\text{rel}$ [mm]")
+        ax.text(x_topright, y_topleft+0.02, description, transform=plt.gcf().transFigure, horizontalalignment="right")
+        # show/store figure
+        fig.show()
 
-    input("Press enter to exit.")
-    exit()
+    #input("Press enter to exit.")
+    #exit()
 
+    """
     # create hists for dt hits
     hist_bins = {
         "dt": np.arange(-75, 575+1, 5),
@@ -112,9 +114,8 @@ def main():
         hists, edges, centers = hist_utils.calculate_hist(data=dt_muon_hits, key=k, bin_centers=hist_bins[k])
         round_digits = 1 if k in ["tdc"] else 0
         hist_utils.plot_1hist(hist=hists, centers=centers, xlabel=k, round_digits=round_digits)
+    """
 
-
-    #"""
     ### plot chamber
 
     # generate cell data to plot chamber
@@ -131,7 +132,7 @@ def main():
             
     ### plot chamber (phi orientation)
     orient = "phi"
-    show_wires = False
+    show_wires = True
     # generate plot
     fig, ax = plt.subplots(1, 1, figsize=(12,4))
     plt.subplots_adjust(left=0.15, bottom=0.15, right=0.95, top=0.85, wspace=0.1, hspace=0.6)
@@ -139,7 +140,10 @@ def main():
     ax = geoplot_utils.chamber_ax(ax=ax, orient=orient, cell_data=cell_data, wire=show_wires)
     # plot muon track
     for i in range(n_muons):
-        ax = geoplot_utils.muon_ax(ax=ax, orient=orient, muons=cosmic_muons, muon_id=i, color="red")
+        ax = geoplot_utils.muon_ax(ax=ax, orient=orient, muons=cosmic_muons, muon_id=i, color="tab:green")
+    # plot individual muon hits
+    for i in range(n_muons):
+        ax = geoplot_utils.cell_hits_ax(ax=ax, orient=orient, dt_hits=dt_muon_hits, muon_id=i, color="tab:green")
     # axis limits
     ax.margins(x=0.05, y=0.05)
     # text labels
@@ -163,6 +167,7 @@ def main():
 
     ### plot chamber (theta orientation)
     orient = "theta"
+    show_wires = True
     # generate plot
     fig, ax = plt.subplots(1, 1, figsize=(12,4))
     plt.subplots_adjust(left=0.15, bottom=0.15, right=0.95, top=0.85, wspace=0.1, hspace=0.6)
@@ -170,7 +175,10 @@ def main():
     ax = geoplot_utils.chamber_ax(ax=ax, orient=orient, cell_data=cell_data, wire=show_wires)
     # plot muon track
     for i in range(n_muons):
-        ax = geoplot_utils.muon_ax(ax=ax, orient=orient, muons=cosmic_muons, muon_id=i, color="red")
+        ax = geoplot_utils.muon_ax(ax=ax, orient=orient, muons=cosmic_muons, muon_id=i, color="tab:green")
+    # plot individual muon hits
+    for i in range(n_muons):
+        ax = geoplot_utils.cell_hits_ax(ax=ax, orient=orient, dt_hits=dt_muon_hits, muon_id=i, color="tab:green")
     # axis limits
     ax.margins(x=0.05, y=0.05)
     # text labels

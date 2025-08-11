@@ -97,6 +97,7 @@ _orbit_to_timestamp = np.uint64(params._lhc_bunch_count * _bx_to_timestamp)
 _orbit_overflow_to_timestamp = np.uint64(params._lhc_orbit_count * _orbit_to_timestamp)
 # 1 timestamp unit = 1 TDC = 0.78 ns 
 _ts_unit = 0.78 # ns
+_max_ts_value = np.iinfo(params._ts_type).max # max value of ts
 
 ### drift velocity conversion
 # conversion from um / ns = 10^3 m/s to mm / ts_unit
@@ -204,7 +205,8 @@ for ly in range(params._dt_chamber["sls"][sl]["n_lys"]):
             for j in [0,1]:
                 _sl_pattern_coordinates[ly][rel_wi][i][j] = _sl_pattern_coordinates[ly][rel_wi][i][j] - _sl_pattern_coordinates_transform[i]
         for i in [2,3]:
-            _sl_pattern_coordinates[ly][rel_wi][i] = _sl_pattern_coordinates[ly][rel_wi][i] - _sl_pattern_coordinates_transform[2-i]
+            _sl_pattern_coordinates[ly][rel_wi][i] = _sl_pattern_coordinates[ly][rel_wi][i] - _sl_pattern_coordinates_transform[i-2]
+print(_sl_pattern_coordinates)
 
 ### dt sl pattern fit function
 # use coordinates defined above
