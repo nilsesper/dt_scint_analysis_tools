@@ -6,6 +6,7 @@ import numpy as np
 import copy
 import os.path
 from tqdm import tqdm
+from scipy.optimize import curve_fit
 
 import analysis_tools.utils.data_utils as data_utils
 
@@ -131,6 +132,61 @@ def _chamber_data(default={"color": params._color_info["cell"][None], "text": ""
             for wi in range(params._dt_chamber["sls"][sl]["n_wis"]+1):
                 chamber_data[sl][ly][wi] = copy.deepcopy(default)
     return chamber_data
+
+### fit sl patterns
+# fit muons to sl patterns, try all lateralities, select best fit
+# return list of fit results/parameters
+def fit_sl_patterns(patterns, *, silent=False):
+    sl_fits = copy.deepcopy(patterns) # keep all pattern keys as well
+    n_patterns = len(patterns["sl"])
+    # add other keys
+    sl_fits |= {k: np.full(n_patterns, 0, dtype=v) for k,v in params._sl_fit_keys.items()}
+    # fit all patterns
+    for i in range(n_patterns):
+        pat_type = patterns["pat_type"][i] # idx of key in _dt_sl_patterns
+        pat_name = list(params._dt_sl_patterns.keys())[pat_type] # extract pattern name e.g. "+a"
+        lats = params._dt_sl_patterns[pat_name]["laterality"] # list of [lat for ly0,1,2,3] laterality lists
+        # prepare fit data & parameters:
+        # arguments are arrays with len=4 i.e. for each layer one hit
+        # idx of array = ly idx
+        z_arr, x_cell = np.full(4, 0, dtype=np.float16), np.full(4, 0, dtype=np.float16)
+        for ly in range(4):
+            z_arr[ly] = -1*(3-ly)*params._cell_height # z coord for ly0,1,2,3. note coordinate system with ly3 = (z=0)
+            rel_wi = params._dt_sl_patterns[pat_name]["rel_wis"][ly]
+            x_cell[ly] = derived_params._sl_pattern_coordinates[ly][rel_wi][2] # x values for fit => x positions of wires / cell centers for each layer, depends on pattern layout
+        ts = np.array([patterns[f"ts{ly}"][i] for ly in range(4)], dtype=params._ts_type) # y values for fit => timestamps for hits of each layer
+        err_ts = np.full(4, params._err_ts, dtype=np.float16) # ts uncertainty
+        t0_start = ts[3] # assume ts of ly=3 rel_wi=0 (reference cell) as t0 starting point
+        x0_start = derived_params._sl_pattern_coordinates[3][0][2] # center of ly=3 rel_wi=0 (reference cell)
+        tan_alpha_start = 0 # assume straight down muon as start
+        p0 = [t0_start, x0_start, tan_alpha_start] # fit start values
+        # define parameter bounds
+        p_bounds = [
+            (np.amin(np.uint64([0, t0_start-params._dt_sl_patterns_ts_window])), derived_params._sl_pattern_coordinates[3][0][0][0], -1e5), # lower limit for t0, x0, tan_alpha
+            (np.uint64(t0_start+params._dt_sl_patterns_ts_window), derived_params._sl_pattern_coordinates[3][0][0][1], 1e5), # upper limit for t0, x0, tan_alpha
+        ]
+        lat_fits = []
+        lat_chi2 = []
+        for lat_id, lat in enumerate(lats): # lat_id = idx of laterality list for given pattern
+            laterality = np.array(lat)
+            # prepare fit function:
+            def f_ts_fit_wparams(x_cell, t0, x0, tan_alpha):
+                return derived_params.f_ts_fit(x_cell, t0, x0, tan_alpha, z=z_arr, laterality=laterality)
+            # execute fit, store results:
+            popt, pcov = curve_fit(f=f_ts_fit_wparams, xdata=x_cell, ydata=ts, p0=p0, sigma=err_ts, absolute_sigma=True, bounds=p_bounds)
+            t0_fit, x0_fit, tan_alpha_fit = popt
+            ndf = 4 - 3 # no data - no params = 4 - 3
+            chi2ndf = np.sum((f_ts_fit_wparams(x_cell, t0_fit, x0_fit, tan_alpha_fit)-ts)**2 / err_ts**2) / ndf
+            #if not silent: print(f"pattern no = {i}, pattern name = {pat_name}, laterality = {lat} ---- popt[t0, x0, tan_alpha] = {popt}, chi2/ndf = {chi2ndf}")
+            lat_fits.append({"laterality": lat_id, "t0": t0_fit, "x0": x0_fit, "tan_alpha": tan_alpha_fit, "chi2/ndf": chi2ndf})
+            lat_chi2.append(chi2ndf)
+            if not silent: print("  Fitting:",{"pattern_id": i, "pattern_name": pat_name, "laterality": lat_id, "t0": t0_fit, "x0": x0_fit, "tan_alpha": tan_alpha_fit, "bounds": p_bounds, "chi2/ndf": chi2ndf})
+        # compare fits, select fit with best chi2 value, store results:
+        best_fit_idx = np.argmin(lat_chi2)
+        for k in params._sl_fit_keys.keys():
+            sl_fits[k][i] = lat_fits[best_fit_idx][k]
+    return sl_fits
+
 
 
 

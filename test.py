@@ -56,13 +56,49 @@ def main():
 
     # generate cosmic muons
     #dummy_muon = {"x0": 1000, "y0": 1000, "z0": 100, "theta": 10*np.pi/180, "phi": 20*np.pi/180, "ts": 1000}
-    n_muons = 10
+    n_muons = 1
     t_step = 1000
     cosmic_muons = muon_utils.generate_cosmic_muons(n=n_muons, ts=np.arange(start=0, stop=t_step*n_muons, step=t_step) , xrange=[-100, 2300], yrange=[-100, 2600], z0=100)
     
     # propagate cosmic muons through dt chamber
     dt_muon_hits = muon_utils.dt_hits_from_muons(muons=cosmic_muons)
     print("dt_muon_hits =",dt_muon_hits)
+
+    # treat these dt hits as dummy data -> apply clustering algorithm
+    sl_dt_patterns = dt_utils.find_sl_patterns(hits=dt_muon_hits)
+    print("sl_muon_patterns =",sl_dt_patterns)
+
+    # fit patterns
+    sl_dt_fits = dt_utils.fit_sl_patterns(patterns = sl_dt_patterns)
+    print("sl_dt_fits =",sl_dt_fits)
+
+    ### plot sl pattern
+    show_wires = True
+    pattern_id = 0
+    # generate plot
+    fig, ax = plt.subplots(1, 1, figsize=(12,4))
+    plt.subplots_adjust(left=0.15, bottom=0.15, right=0.95, top=0.85, wspace=0.1, hspace=0.6)
+    # plot sl pattern
+    ax = geoplot_utils.sl_fit_ax(ax, sl_dt_fits=sl_dt_fits, pattern_id=pattern_id, wire=show_wires)
+    # plot fitted muon
+    ax = geoplot_utils.sl_muon_fit_ax(ax, sl_dt_fits=sl_dt_fits, pattern_id=pattern_id, wire=show_wires)
+    # axis limits
+    ax.margins(x=0.05, y=0.05)
+    # text labels
+    axbox = ax.get_position()
+    x_topleft = axbox.p0[0]
+    x_topright, y_topleft = axbox.p1[0], axbox.p1[1]
+    ax.text(x_topleft, y_topleft+0.02, "CMS", transform=plt.gcf().transFigure, fontweight="bold")
+    ax.text(x_topleft+0.04, y_topleft+0.02, "Private work", transform=plt.gcf().transFigure, fontstyle="italic", fontsize=10)
+    description = "SL pattern"
+    ax.set_xlabel("$x_\\text{rel}$ [mm]")
+    ax.set_ylabel("$z_\\text{rel}$ [mm]")
+    ax.text(x_topright, y_topleft+0.02, description, transform=plt.gcf().transFigure, horizontalalignment="right")
+    # show/store figure
+    fig.show()
+
+    input("Press enter to exit.")
+    exit()
 
     # create hists for dt hits
     hist_bins = {

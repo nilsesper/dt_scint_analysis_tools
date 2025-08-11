@@ -166,3 +166,75 @@ for sl in params._dt_chamber["sls"].keys():
                 # idx = 5: z center pos
                 _dt_cell_coordinates[sl][ly][wi].append(pos_z+size_z/2)
 
+### dt sl pattern geometry
+# only the marked cells are "valid"
+# ly(z) wi(x) 0   1   2   3        
+#               *this is the reference cell, with rel_wi=0
+# 3   |   |   |*!*|   |   | 
+# 2     |   | - | - |   |    
+# 1   |   | - | - | - |   |
+# 0     | - | - | - | - |    
+# z axis goes up, x axis goes right
+# rel_wi is wire idx relative to reference cell (ly3), and has valid range of [-2,-1,0,1,2]
+_sl_pattern_coordinates = {} # coordinates of sub-coord frame used to fit dt sl patterns: {ly: {rel_wi: [[xmin, xmax], [zmin, zmax], x_center_pos, z_center_pos]}}, only 2 axes since fit is in x-z-projection !!
+for ly in range(params._dt_chamber["sls"][sl]["n_lys"]):
+    _sl_pattern_coordinates[ly] = {}
+    for rel_wi in range(-2,2+1):
+        _sl_pattern_coordinates[ly][rel_wi] = []
+        sl = 1 # choose phi sl
+        # x/y axis projection
+        coord_axis = 0
+        cell_offset = params._dt_chamber["sls"][sl]["ch_offset"][coord_axis] if params._dt_chamber["sls"][sl]["offset_ly"][ly] else 0
+        pos_x = params._dt_chamber["sls"][sl]["ch_spacer"][coord_axis]+rel_wi*(params._dt_chamber["sls"][sl]["ch_size"][coord_axis]+params._dt_chamber["sls"][sl]["ch_spacer"][coord_axis])+cell_offset
+        size_x = params._dt_chamber["sls"][sl]["ch_size"][coord_axis]
+        # z axis
+        coord_axis = 2
+        pos_z = params._dt_chamber["sls"][sl]["ch_spacer"][coord_axis]+ly*(params._dt_chamber["sls"][sl]["ch_size"][coord_axis]+params._dt_chamber["sls"][sl]["ch_spacer"][coord_axis])
+        size_z = params._dt_chamber["sls"][sl]["ch_size"][coord_axis]
+        # fill data into coord map
+        _sl_pattern_coordinates[ly][rel_wi].append([pos_x, pos_x+size_x]) # idx = 0: [xmin, xmax]
+        _sl_pattern_coordinates[ly][rel_wi].append([pos_z, pos_z+size_z]) # idx = 0: [zmin, zmax]
+        _sl_pattern_coordinates[ly][rel_wi].append(pos_x+size_x/2) # idx = 2: x center pos
+        _sl_pattern_coordinates[ly][rel_wi].append(pos_z+size_z/2) # idx = 3: z center pos
+# transform coordinate system from (0,0) at bottom of cell ly=3, rel_wi=0 to (0,0) at center of cell ly=3, rel_wi=0
+_sl_pattern_coordinates_transform = [_sl_pattern_coordinates[3][0][2], _sl_pattern_coordinates[3][0][3]]
+for ly in range(params._dt_chamber["sls"][sl]["n_lys"]):
+    for rel_wi in range(-2,2+1):
+        for i in [0,1]:
+            for j in [0,1]:
+                _sl_pattern_coordinates[ly][rel_wi][i][j] = _sl_pattern_coordinates[ly][rel_wi][i][j] - _sl_pattern_coordinates_transform[i]
+        for i in [2,3]:
+            _sl_pattern_coordinates[ly][rel_wi][i] = _sl_pattern_coordinates[ly][rel_wi][i] - _sl_pattern_coordinates_transform[2-i]
+
+### dt sl pattern fit function
+# use coordinates defined above
+# fit measured timestamps to linear muon track
+# alpha: angle in x-z-plane wrt downward facing muon
+# x0: starting x position of muon at z = z(ly=3, rel_wi=0) = _sl_pattern_coordinates[ly=3][rel_wi=0][3 (z center pos)]
+# muon track: x(z) = x0 + z*tan(alpha)
+# drift times: x_drift = v_drift*t_drift  <=>  t_d = x_d/v_d
+# measured timestamps: ts(ly=0,1,2,3) = t_drift(ly=0,1,2,3) + t0  (t0 = const for all 4 layers but free parameter for each new muon, since no trigger!)
+# assume vdrift = const. with value given in params.py
+# i want to fit the function ts(ly, wi) i.e. the timestamp values depending on the layer & wire 
+# use local coordinate frame where reference cell (rel_wi=0, ly=3) is at (x=0, z=0) in the center
+#   z_cell = (3-ly)*(-_cell_height)  because z axis goes up but ly goes down, therefore minus
+#   x_cell = rel_wi*#####   where rel_wi(ly=X) = wi_X-wi_3 relative wire wrt wi 3 i.e. wire in ly3
+# x(z) = x_cell + lat*x_drift  where lataterality = -1 (l = left of wire) or +1 (r = right of wire)
+# => x(z) = x_cell + lat*v_d*t_d = x_cell + lat*v_d*(ts-t0)  !=   x0 + z*tan(alpha)
+# use x_cell as x parameter and ts as y parameter for fit i.e. reassemble equation:
+# <=> ts(x_cell) = (x0 + z*tan(alpha) - x_cell) * lat/v_d  + t0
+# use functional format compatible with curve_fit i.e. f(x, ...)
+# free parameters of function: t0, x0, tan(alpha) = tan_alpha
+def f_ts_fit(x_cell, t0, x0, tan_alpha, z, laterality):
+    # units: [ts] = 0.78ns = ts_unit, [x_cell] = mm
+    ts_fit = (x0 + z * tan_alpha - x_cell) * laterality / _drift_velocity_mm_per_timestamp + t0
+    return ts_fit
+
+### dt sl pattern fitted muon line: x(z)
+# x(z) = x0 + z*tan(alpha)
+def f_x_muon(z, x0, tan_alpha):
+    x_muon = x0 + z*tan_alpha
+    return x_muon
+
+
+
