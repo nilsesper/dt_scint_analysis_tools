@@ -28,22 +28,9 @@ def cell_pat(orient, sl, ly, wi, *, wire=False, cell_data=None): # sliced cell d
     if cell_data == None: cell_data = {"color": params._color_info["cell"][None], "text": ""}
     ## if the orientation matches the wire direction, draw all cells
     if orient == params._dt_chamber["sls"][sl]["orient"]:
-        # cell color
-        #cell_struct.get_cell_value(sl, ly, wi)
         cell_color = cell_data["color"] #params._color_info["cell"][None]
-        #if value != None: cell_color = cmap(norm(value))
-        # cell position
-        #cell_offset = params._dt_chamber["sls"][sl]["ch_offset"][x_axis] if params._dt_chamber["sls"][sl]["offset_ly"][ly] else 0
-        #pos_x = params._dt_chamber["sls"][sl]["pos"][x_axis]+params._dt_chamber["sls"][sl]["ch_pos"][x_axis]+params._dt_chamber["sls"][sl]["ch_spacer"][x_axis]+wi*(params._dt_chamber["sls"][sl]["ch_size"][x_axis]+params._dt_chamber["sls"][sl]["ch_spacer"][x_axis])+cell_offset
-        #size_x = params._dt_chamber["sls"][sl]["ch_size"][x_axis]
-        #pos_y = params._dt_chamber["sls"][sl]["pos"][y_axis]+params._dt_chamber["sls"][sl]["ch_pos"][y_axis]+params._dt_chamber["sls"][sl]["ch_spacer"][y_axis]+ly*(params._dt_chamber["sls"][sl]["ch_size"][y_axis]+params._dt_chamber["sls"][sl]["ch_spacer"][y_axis])
-        #size_y = params._dt_chamber["sls"][sl]["ch_size"][y_axis]
-        #patches.append( pat.Rectangle((pos_x, pos_y), width=size_x, height=size_y, edgecolor=params._color_info["cell"]["edge"], facecolor=cell_color) )
         patches.append( pat.Rectangle((derived_params._dt_cell_coordinates[sl][ly][wi][x_axis][0], derived_params._dt_cell_coordinates[sl][ly][wi][y_axis][0]), width=(derived_params._dt_cell_coordinates[sl][ly][wi][x_axis][1]-derived_params._dt_cell_coordinates[sl][ly][wi][x_axis][0]), height=(derived_params._dt_cell_coordinates[sl][ly][wi][y_axis][1]-derived_params._dt_cell_coordinates[sl][ly][wi][y_axis][0]), edgecolor=params._color_info["cell"]["edge"], facecolor=cell_color) )
-        # wire (dot)
         if wire:
-            #wire_x = pos_x+(params._dt_chamber["sls"][sl]["ch_size"][x_axis])/2
-            #wire_y = pos_y+(params._dt_chamber["sls"][sl]["ch_size"][y_axis])/2
             wire_x = derived_params._dt_cell_coordinates[sl][ly][wi][x_axis][0]+(params._dt_chamber["sls"][sl]["ch_size"][x_axis])/2
             wire_y = derived_params._dt_cell_coordinates[sl][ly][wi][y_axis][0]+(params._dt_chamber["sls"][sl]["ch_size"][y_axis])/2
             patches.append( pat.Circle((wire_x, wire_y), radius=params._dt_chamber["sls"][sl]["wi_radius"], edgecolor=None, facecolor=params._color_info["cell"]["wire"] ) )
@@ -53,13 +40,6 @@ def cell_pat(orient, sl, ly, wi, *, wire=False, cell_data=None): # sliced cell d
     elif (orient in ["theta", "phi"]) and (wi == 0):
         # cell color
         cell_color = params._color_info["cell"]["side_view"]
-        # cell position
-        #cell_offset = params._dt_chamber["sls"][sl]["ch_offset"][x_axis] if params._dt_chamber["sls"][sl]["offset_ly"][ly] else 0
-        #pos_x = params._dt_chamber["sls"][sl]["pos"][x_axis]+(params._dt_chamber["sls"][sl]["ch_pos"][x_axis]+params._dt_chamber["sls"][sl]["ch_spacer"][x_axis])+wi*(params._dt_chamber["sls"][sl]["ch_size"][x_axis]+params._dt_chamber["sls"][sl]["ch_spacer"][x_axis])+cell_offset
-        #size_x = params._dt_chamber["sls"][sl]["ch_size"][x_axis]
-        #pos_y = params._dt_chamber["sls"][sl]["pos"][y_axis]+(params._dt_chamber["sls"][sl]["ch_pos"][y_axis]+params._dt_chamber["sls"][sl]["ch_spacer"][y_axis])+ly*(params._dt_chamber["sls"][sl]["ch_size"][y_axis]+params._dt_chamber["sls"][sl]["ch_spacer"][y_axis])
-        #size_y = params._dt_chamber["sls"][sl]["ch_size"][y_axis]
-        #patches.append( pat.Rectangle((pos_x, pos_y), width=size_x, height=size_y, edgecolor=params._color_info["cell"]["edge"], facecolor=cell_color) )
         patches.append( pat.Rectangle((derived_params._dt_cell_coordinates[sl][ly][wi][x_axis][0], derived_params._dt_cell_coordinates[sl][ly][wi][y_axis][0]), width=(derived_params._dt_cell_coordinates[sl][ly][wi][x_axis][1]-derived_params._dt_cell_coordinates[sl][ly][wi][x_axis][0]), height=(derived_params._dt_cell_coordinates[sl][ly][wi][y_axis][1]-derived_params._dt_cell_coordinates[sl][ly][wi][y_axis][0]), edgecolor=params._color_info["cell"]["edge"], facecolor=cell_color) )
         # wire (line)
         if wire:
@@ -185,7 +165,21 @@ def sl_muon_fit_ax(ax, sl_dt_fits, pattern_id, *, wire=False, color="red"):
     return ax
 
 ### draw sl projection of muon object
-def sl_muon_proj_ax(ax, muons, muon_id, *, wire=False, color="tab:green"):
+# give no of sl to project to
+def sl_muon_proj_ax(ax, muons, muon_id, sl, *, wire=False, color="tab:green"):
+    z0 = muons[muon_id]["z0"]
+    zstep = 10
+    (x1, y1, z1) = muon_utils.propagate_muon(muon=muon, z=z0+zstep)
+    _y0 = z0
+    _y1 = z1
+    orient = params._dt_chamber["sls"][sl]["orient"]
+    if orient == "phi":
+        _x0 = muons[muon_id]["x0"]
+        _x1 = x1
+    else:
+        _x0 = muons[muon_id]["y0"]
+        _x1 = y1
+    ax.axline((_x0, _y0), (_x1, _y1), c=color)
     return ax
 
 
