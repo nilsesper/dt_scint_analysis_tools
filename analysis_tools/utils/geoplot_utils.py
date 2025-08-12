@@ -123,6 +123,26 @@ def cell_hits_ax(ax, orient, dt_hits, muon_id, *, color="tab:green"):
     ax.scatter(x_pts, y_pts, marker=".", color=color)
     return ax
 
+### draw dt sl fit muon
+def chamber_muon_fit_ax(ax, orient, sl_dt_fits, pattern_id, *, color="red"):
+    _z0 = derived_params._sl_pattern_coordinates[3][0][3] # z_cell (wire position) of ly=3
+    _z1 = derived_params._sl_pattern_coordinates[2][0][3] # z_cell (wire position) of ly=2
+    x0_fit, tan_alpha_fit = sl_dt_fits["x0"][pattern_id], sl_dt_fits["tan_alpha"][pattern_id]
+    # get info about sl position of muon
+    sl = sl_dt_fits["sl"][pattern_id]
+    orient_sl = params._dt_chamber["sls"][sl]["orient"]
+    if orient_sl != orient: return ax # skip if wrong orientation
+    x_axis, y_axis = params._orientation[orient][0], params._orientation[orient][1]
+    # transform coordinates from local coordinate frame (with (0,0) at center (wire) position of cell ly=3, rel_wi=0) into global coordinate frame of dt chamber (used in params.py file)
+    base_wi = sl_dt_fits["wi3"][pattern_id] # wi idx of ly=3 (base wi)
+    _coord_transform = [ derived_params._dt_cell_coordinates[sl][3][base_wi][x_axis+3], derived_params._dt_cell_coordinates[sl][3][base_wi][y_axis+3] ]
+    # calculate muon track in coord frame
+    x0, y0 = derived_params.f_x_muon(z=_z0, x0=x0_fit, tan_alpha=tan_alpha_fit) + _coord_transform[0], _z0 + _coord_transform[1]
+    x1, y1 = derived_params.f_x_muon(z=_z1, x0=x0_fit, tan_alpha=tan_alpha_fit) + _coord_transform[0], _z1 + _coord_transform[1]
+    # draw line
+    ax.axline((x0, y0), (x1, y1), c=color)
+    return ax
+
 ###--------- draw sl pattern fit
 
 # draw one cell as list of patches for sl pattern fit
@@ -142,13 +162,10 @@ def cell_pat_rel_wi(ly, rel_wi, *, wire=False, cell_data=None): # sliced cell da
 
 ### draw empty dt pattern
 sl_pat_cells_to_draw = [
-    {"ly": 3, "rel_wi": rel_wi, "cell_data": {"color": params._color_info["cell"][None], "text": ""}} for rel_wi in [0]
-] + [
-    {"ly": 2, "rel_wi": rel_wi, "cell_data": {"color": params._color_info["cell"][None], "text": ""}} for rel_wi in [-1,0]
-] + [
-    {"ly": 1, "rel_wi": rel_wi, "cell_data": {"color": params._color_info["cell"][None], "text": ""}} for rel_wi in [-1,0,1]
-] + [
-    {"ly": 0, "rel_wi": rel_wi, "cell_data": {"color": params._color_info["cell"][None], "text": ""}} for rel_wi in [-2,-1,0,1]
+    {"ly": 3, "rel_wi": rel_wi, "cell_data": {"color": params._color_info["cell"][None], "text": ""}} for rel_wi in [0]         ] + [
+    {"ly": 2, "rel_wi": rel_wi, "cell_data": {"color": params._color_info["cell"][None], "text": ""}} for rel_wi in [-1,0]      ] + [
+    {"ly": 1, "rel_wi": rel_wi, "cell_data": {"color": params._color_info["cell"][None], "text": ""}} for rel_wi in [-1,0,1]    ] + [
+    {"ly": 0, "rel_wi": rel_wi, "cell_data": {"color": params._color_info["cell"][None], "text": ""}} for rel_wi in [-2,-1,0,1] 
 ]
 def empty_sl_pattern_ax(ax, pat_name, *, wire=False): 
     sl_pat_cells_to_draw_colored = copy.deepcopy(sl_pat_cells_to_draw)
@@ -200,22 +217,7 @@ def sl_muon_proj_ax(ax, muons, sl_dt_fits, pattern_id, *, color="tab:green"):
     else:
         _x0 = y0
         _x1 = y1
-    """
-    z0 = derived_params._dt_cell_coordinates[sl][3][hit_wi][3+x_axis] #derived_params._sl_pattern_coordinates[3][0][3] # z_cell (wire position) of ly=3 of crrect sl
-    z1 = derived_params._dt_cell_coordinates[sl][0][hit_wi][3+x_axis] #derived_params._sl_pattern_coordinates[2][0][3] # z_cell (wire position) of ly=2 of correct sl
-    (x0, y0, z0) = muon_utils.propagate_muon(muons=muons, muon_id=muon_id, z=z0)
-    (x1, y1, z1) = muon_utils.propagate_muon(muons=muons, muon_id=muon_id, z=z1)
-    _y0 = z0
-    _y1 = z1
-    
-    if orient == "phi":
-        _x0 = x0
-        _x1 = x1
-    else:
-        _x0 = y0
-        _x1 = y1
-    """
-    # transform coordinates into local coordinate frame with (0,0) at center (wire) position of cell ly=3, rel_wi=0
+    # transform coordinates from global coordinate frame of dt chamber (used in params.py file) into local coordinate frame (with (0,0) at center (wire) position of cell ly=3, rel_wi=0)
     base_wi = sl_dt_fits["wi3"][pattern_id] # wi idx of ly=3 (base wi)
     _coord_transform = [ derived_params._dt_cell_coordinates[sl][3][base_wi][x_axis+3], derived_params._dt_cell_coordinates[sl][3][base_wi][y_axis+3] ]
     ax.axline((_x0-_coord_transform[0], _y0-_coord_transform[1]), (_x1-_coord_transform[0], _y1-_coord_transform[1]), c=color)
@@ -250,7 +252,7 @@ def sl_dt_hits_proj_ax(ax, dt_hits, sl_dt_fits, pattern_id, *, color="tab:green"
             x_pts2.append( -dd*hit_lat + derived_params._dt_cell_coordinates[sl][hit_ly][hit_wi][3+x_axis] )
             y_pts2.append( derived_params._dt_cell_coordinates[hit_sl][hit_ly][hit_wi][3+y_axis] )
         x_pts2, y_pts2 = np.array(x_pts2), np.array(y_pts2)
-    # transform coordinates into local coordinate frame with (0,0) at center (wire) position of cell ly=3, rel_wi=0
+    # transform coordinates from global coordinate frame of dt chamber (used in params.py file) into local coordinate frame (with (0,0) at center (wire) position of cell ly=3, rel_wi=0)
     base_wi = sl_dt_fits["wi3"][pattern_id] # wi idx of ly=3 (base wi)
     _coord_transform = [ derived_params._dt_cell_coordinates[sl][3][base_wi][x_axis+3], derived_params._dt_cell_coordinates[sl][3][base_wi][y_axis+3] ]
     ax.scatter(x_pts-_coord_transform[0], y_pts-_coord_transform[1], marker=".", color=color)

@@ -50,6 +50,7 @@ _lhc_bunch_count = 3564 # max value of BX + 1 (i.e. conversion factor: _lhc_bunc
 _lhc_orbit_count = 65536 # 2^16, max value of ORBIT + 1
 _ts_type = np.uint64 # data type of timestamp field in hits
 _err_ts = 1 # error of timestamps for fitting (in ts_units)
+_ts_float_type = np.float64 # for fitting, ts type as float
 
 ### dt specific
 # fe conn idx list (key "fe_id")
@@ -160,16 +161,17 @@ _dt_sl_patterns = { # pat_type key in sl patterns is idx of key, i.e. "+a"=0, "-
         # laterality ly 0-3: lrrr lrrl lrll
         "laterality": ([-1,1,1,1], [-1,1,1,-1], [-1,1,-1,-1], )
     },
-    "+d": {
-        "rel_wis": [1,1,0,0],
-        # laterality ly 0-3: llll rrrr rrll llrr rlll lrrr lllr rrrl
-        "laterality": ([-1,-1,-1,-1], [1,1,1,1], [1,1,-1,-1], [-1,-1,1,1], [1,-1,-1,-1], [-1,1,1,1], [-1,-1,-1,1], [1,1,1,-1] )
-    },
-    "-d": {
-        "rel_wis": [-2,-1,-1,0],
-        # laterality ly 0-3: rrrr llll llrr rrll lrrr rlll lllr rrrl
-        "laterality": ([1,1,1,1], [-1,-1,-1,-1], [1,1,-1,-1], [1,1,-1,-1], [-1,1,1,1], [1,-1,-1,-1], [-1,-1,-1,1], [1,1,1,-1] )
-    },
+    ### FOR NOW REJECT "OUTER" +-d PATTERNS: problems due to rrll llrr ambiguity...
+    #"+d": {
+    #    "rel_wis": [1,1,0,0],
+    #    # laterality ly 0-3: llll rrrr rrll llrr rlll lrrr lllr rrrl
+    #    "laterality": ([-1,-1,-1,-1], [1,1,1,1], [1,1,-1,-1], [-1,-1,1,1], [1,-1,-1,-1], [-1,1,1,1],) #[-1,-1,-1,1], [1,1,1,-1] )
+    #},
+    #"-d": {
+    #    "rel_wis": [-2,-1,-1,0],
+    #    # laterality ly 0-3: rrrr llll llrr rrll lrrr rlll lllr rrrl
+    #    "laterality": ([1,1,1,1], [-1,-1,-1,-1], [1,1,-1,-1], [-1,-1,1,1], [-1,1,1,1], [1,-1,-1,-1],) #[-1,-1,-1,1], [1,1,1,-1] )
+    #},
 }
 # timestamp window in which hits of sl must lie in order to be counted as pattern
 _dt_sl_patterns_ts_window = int(400 / 0.78) # in same unit as timestamp (0.78 ns)
@@ -177,8 +179,8 @@ _dt_sl_patterns_ts_window = int(400 / 0.78) # in same unit as timestamp (0.78 ns
 _sl_pattern_keys = { # {key: dtype}
     "sl": np.uint8, # sl of pattern in dt chamber
     "pat_type": np.uint8, # index of string name of pattern (index of key of _dt_sl_patterns)
-    "ts0": _ts_type, # timestamp of ly 0 wire of pattern (= base wire timestamp)
-    "wi0": np.uint8, # wire index of ly 0 wire of pattern (= base wire)
+    "ts0": _ts_type, # timestamp of ly 0 wire of pattern
+    "wi0": np.uint8, # wire index of ly 0 wire of pattern
     "ts1": _ts_type, # timestamp of ly 1 wire of pattern
     "wi1": np.uint8, # wire index of ly 0 wire of pattern
     "ts2": _ts_type, # timestamp of ly 2 wire of pattern
@@ -193,10 +195,15 @@ _drift_velocity = 54.5 # unit: um / ns = 10^-6 / 10 ^-9 m/s = 10^3 m/s
 _sl_fit_keys = { # {key: dtype}
     "laterality": np.uint8, # idx of selected laterality [] in _dt_sl_patterns 
     "t0": np.uint64, # t0 fit param
-    "x0": np.float16, # x0 fit param
-    "tan_alpha": np.float16, # tan(alpha) fit param
-    "chi2/ndf": np.float16, # reduced chi2 value
+    "x0": np.float64, # x0 fit param
+    "tan_alpha": np.float64, # tan(alpha) fit param
+    "chi2/ndf": np.float64, # reduced chi2 value
 }
+# timestamp acceptance interval for sl pattern grouping
+_t0_acceptance_interval = 100 # max temporal distance of t0 values of patterns that should be grouped together, in ts units
+_xproj_acceptance_interval = 50 # max spatial distance of 2 phi muon sl fits along the x axis, when projecting one to the other sl (delta_z(1-2) = z(sl=3.ly=3.wi=wi3_1) - z(sl=3.ly=3.wi=wi3_2)), in mm
+# reco muon z0 value (select base z value for reco muon)
+_muon_reco_z0 = 0 # in mm
 
 ### scintillator specific
 
@@ -211,8 +218,8 @@ _scint_mapping_keys = {
 }
 
 ## use custom coordinate frame
-# x axis: along theta wires
-# y axis: along phi wires
+# x axis: along theta wires, phi sl granularity
+# y axis: along phi wires, theta sl granularity
 # z axis: vertical axis (positive direction up from SL1 to SL 3)
 # global origin: at corner of smallest coordinates of SL1
 
@@ -251,12 +258,13 @@ _color_info = {
 
 ### muon object specific
 _muon_obj_keys = { # SPHERICAL COORDINATES
-    "x0": np.float16, # reference point (x0,y0,z0), in mm
-    "y0": np.float16,
-    "z0": np.float16,
-    "theta": np.float16, # theta angle (angle relative to z axis), in rad
-    "phi": np.float16, # phi angle (angle relative to x axis, between x and y axis), in rad
-    "ts": np.uint64, # timestamp of muon arrival (assume velocity is infinite, therefore during propagation no time passes, is alright here)
+    "x0": np.float64, # reference point (x0,y0,z0), in mm
+    "y0": np.float64,
+    "z0": np.float64,
+    "theta": np.float64, # theta angle (angle relative to z axis), in rad
+    "phi": np.float64, # phi angle (angle relative to x axis, between x and y axis), in rad
+    "ts": _ts_type, # timestamp of muon arrival (assume velocity is infinite, therefore during propagation no time passes, is alright here)
+    "muon_id": np.uint16, # id / idx of correlated muon (used to compare simulation + reconstruction)
 }
 
 ### cosmic muon theta weight for a given theta value

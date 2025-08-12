@@ -35,10 +35,14 @@ def calculate_hist(data, key, bin_centers):
     # check for special keywords
     if type(bin_centers) in [type("")]: # use string keyword for bins option in np.histogram if given
         if bin_centers == "auto":
-            edges = "auto" # automatic binning
+            #edges = "auto" # automatic binning
+            n_auto_bins = 20
+            dmin = np.int64(np.amin(data[key]))
+            dmax = np.int64(np.amax(data[key]))
+            centers = np.linspace(dmin-1, dmax+1, n_auto_bins)
         elif bin_centers == "step1": # automatic binning with bin width of 1
-            dmin = int(np.amin(data[key]))
-            dmax = int(np.amax(data[key]))
+            dmin = np.int64(np.amin(data[key]))
+            dmax = np.int64(np.amax(data[key]))
             centers = np.linspace(dmin-1, dmax+1, dmax-dmin+3)
     # else use given bin centers
     else:

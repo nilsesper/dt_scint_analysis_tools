@@ -30,16 +30,16 @@ def propagate_muon(muons, muon_id, z): # propagate spherical coordinates
 # with spawnpoint range same for all muons: xrange = [xmin, xmax], yrange = [ymin, ymax], z0
 # generate n muons
 # pass separate timestamp for all muons i.e. ts = [ts[i] for i in range(n)]
-def generate_cosmic_muons(n, ts, xrange, yrange, z0, *, silent=False):
+def generate_cosmic_muons(n, ts, xrange, yrange, z0, *, silent=False, thetarange=[0, np.pi/2], phirange=[0,2*np.pi]):
     if not silent: print(f"Generating {n} cosmic muons...")
     muons = {k: np.full(n, 0, dtype=v) for k,v in params._muon_obj_keys.items()}
     muons["x0"] = np.random.uniform(low=xrange[0], high=xrange[1], size=n).astype(dtype=params._muon_obj_keys["x0"])
     muons["y0"] = np.random.uniform(low=yrange[0], high=yrange[1], size=n).astype(dtype=params._muon_obj_keys["y0"]) # x,y uniformly distributed inside xrange, yrange
     muons["z0"] = np.full(n, z0, dtype=params._muon_obj_keys["z0"])
-    muons["theta"] = math_utils.draw_from_pdf(pdf=params.cosmic_muon_theta_weight, val_range=[np.pi/4, np.pi/2], n=n, dtype=params._muon_obj_keys["theta"]) # theta distributed according to distribution
-    #muons["phi"] = np.full(n, 0, dtype=params._muon_obj_keys["phi"]) # phi = 0 fixed
-    muons["phi"] = np.random.uniform(low=0, high=2*np.pi, size=n).astype(dtype=params._muon_obj_keys["phi"]) # phi uniformly distributed
+    muons["theta"] = math_utils.draw_from_pdf(pdf=params.cosmic_muon_theta_weight, val_range=thetarange, n=n, dtype=params._muon_obj_keys["theta"]) # theta distributed according to distribution
+    muons["phi"] = np.random.uniform(low=phirange[0], high=phirange[1], size=n).astype(dtype=params._muon_obj_keys["phi"]) # phi uniformly distributed
     muons["ts"] = np.array(ts).astype(dtype=params._muon_obj_keys["ts"])
+    muons["muon_id"] = np.arange(0, n, dtype=params._muon_obj_keys["muon_id"])
     return muons
 
 ### calculate dt chamber hits caused by muons
@@ -69,7 +69,7 @@ def dt_hits_from_muons(muons, *, silent=False, noise_ampl=0):
                         noise = 0
                         if noise_ampl > 0:
                             noise = np.random.normal(loc=0, scale=1) * noise_ampl # gaussian noise with sigma = noise_ampl, applied on drift distance in unit mm
-                        drift_distance = np.float64(np.abs(hit_coord-wire_coord+noise))
+                        drift_distance = np.float64(np.clip(np.abs(hit_coord-wire_coord+noise), a_min=0, a_max=params._cell_width/2)) # in mm
                         drift_time = np.uint64(np.round(drift_distance / derived_params._drift_velocity_mm_per_timestamp, 0)) # in timestamp units, cast to int value
                         muon_ts = muons["ts"][i]
                         hit_ts = np.uint64(muon_ts + drift_time) # hit timestamp = muon timestamp + drift time

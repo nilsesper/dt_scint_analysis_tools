@@ -64,15 +64,15 @@ def cut_data(data, conditions=[], *, silent=False):
 
 ### sort hits by any key
 # sort hints in ascending order depending on key value
-def sort_by_key(hits, sort_key, *, silent=False):
-    sorted_hits = copy.deepcopy(hits)
-    any_key = list(sorted_hits.keys())[0]
-    n_hits = len(sorted_hits[any_key])
-    if not silent: print(f"Sorting {n_hits} hits by key \"{sort_key}\"...")
-    new_idx_order = np.argsort(sorted_hits[sort_key])
-    for k in hits.keys(): # sort all keys of hit dict depending on order
-        sorted_hits[k] = sorted_hits[k][new_idx_order]
-    return sorted_hits
+def sort_by_key(data, sort_key, *, silent=False):
+    sorted_data = copy.deepcopy(data)
+    any_key = list(sorted_data.keys())[0]
+    n_data = len(sorted_data[any_key])
+    if not silent: print(f"Sorting {n_data} hits by key \"{sort_key}\"...")
+    new_idx_order = np.argsort(data[sort_key])
+    for k in data.keys(): # sort all keys of hit dict depending on order
+        sorted_data[k] = data[k][new_idx_order]
+    return sorted_data
 
 
 
