@@ -193,18 +193,21 @@ def main():
         ax = geoplot_utils.chamber_ax(ax=ax, orient=orient, cell_data=dt_cell_data, wire=show_wires)
         # plot scintillator geometry
         ax = geoplot_utils.scintillator_ax(ax=ax, orient=orient, cell_data=scint_cell_data)
-        # plot muon track
+        # plot muon simulated track
         for i in range(n_muons):
             ax = geoplot_utils.muon_ax(ax=ax, orient=orient, muons=cosmic_muons, muon_id=i, color="tab:green")
-        # plot individual muon hits
+        # plot individual simulated muon dt hits
         for i in range(n_muons):
             ax = geoplot_utils.cell_hits_ax(ax=ax, orient=orient, dt_hits=dt_muon_hits, muon_id=i, color="tab:green")
-        # plot individual muon sl fits
+        # plot individual simulated muon dt sl fits
         for i in range(n_patterns):
             ax = geoplot_utils.chamber_muon_fit_ax(ax=ax, orient=orient, sl_dt_fits=sl_dt_fits, pattern_id=i, color="red")
         # plot reconstructed muon
         for i in range(n_reco_muons):
             ax = geoplot_utils.muon_ax(ax=ax, orient=orient, muons=reco_muons, muon_id=i, color="tab:blue")
+        # plot reconstructed muon scint hits
+        for i in range(n_reco_muons):
+            ax = geoplot_utils.scint_hits_ax(ax=ax, orient=orient, scint_hits=scint_reco_muon_hits, muon_id=i, color="tab:blue")
         # axis limits
         ax.margins(x=0.05, y=0.05)
         # text labels

@@ -194,6 +194,24 @@ def chamber_muon_fit_ax(ax, orient, sl_dt_fits, pattern_id, *, color="red"):
     ax.axline((x0, y0), (x1, y1), c=color)
     return ax
 
+### draw scint hits (if xhit + muon_id is known)
+# for given muon id
+def scint_hits_ax(ax, orient, scint_hits, muon_id, *, color="tab:blue"):
+    n_hits = len(scint_hits["ch"])
+    x_axis, y_axis = params._orientation[orient][0], params._orientation[orient][1]
+    x_pts, y_pts = [], []
+    for i in range(n_hits):
+        if scint_hits["muon_id"][i] != muon_id: continue
+        ly, st = scint_hits["ly"][i], scint_hits["st"][i]
+        if params._scintillator["lys"][ly]["orient"] != orient: continue
+        xhit = scint_hits["xhit"][i]
+        x_pts.append( xhit + derived_params._scintillator_strip_coordinates[ly][st][x_axis][0] ) # x_hit = xhit + x(left / smaller point of scint st)
+        y_pts.append( derived_params._scintillator_strip_coordinates[ly][st][3+y_axis] )
+        #print("cell_hits_ax", dd, hit_lat, derived_params._dt_cell_coordinates[sl][ly][wi][3+x_axis], "=", x_pts)
+    x_pts, y_pts = np.array(x_pts), np.array(y_pts)
+    ax.scatter(x_pts, y_pts, marker=".", color=color)
+    return ax
+
 ###--------- draw sl pattern fit (local sl pattern coord frame)
 
 # draw one cell as list of patches for sl pattern fit

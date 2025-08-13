@@ -78,7 +78,7 @@ def hits_from_muons(muons, *, silent=False):
                 if (x[i] >= derived_params._scintillator_strip_coordinates[ly][st][0][0] and x[i] < derived_params._scintillator_strip_coordinates[ly][st][0][1]) and (y[i] >= derived_params._scintillator_strip_coordinates[ly][st][1][0] and y[i] < derived_params._scintillator_strip_coordinates[ly][st][1][1]):
                     # calculate drift distance
                     hit_coord = x[i] if (params._scintillator["lys"][ly]["orient"] == "phi") else y[i]
-                    xleft_strip_coord = derived_params._scintillator_strip_coordinates[ly][st][0][0] if (params._scintillator["lys"][ly]["orient"]) else derived_params._scintillator_strip_coordinates[ly][st][1][0]
+                    xleft_strip_coord = derived_params._scintillator_strip_coordinates[ly][st][0][0] if (params._scintillator["lys"][ly]["orient"] == "phi") else derived_params._scintillator_strip_coordinates[ly][st][1][0]
                     xhit = np.float64(np.clip(np.abs(hit_coord-xleft_strip_coord), a_min=0, a_max=params._strip_width)) # in mm
                     # drift distance does not make much sense in this context, but want to store coordinate of hit. with dd one can calculate it: x_hit = x_left(smaller x coord) + xhit
                     muon_ts = muons["ts"][i]
