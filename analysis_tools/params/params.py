@@ -199,13 +199,15 @@ _sl_fit_keys = { # {key: dtype}
     "tan_alpha": np.float64, # tan(alpha) fit param
     "chi2/ndf": np.float64, # reduced chi2 value
 }
-# timestamp acceptance interval for sl pattern grouping
-_t0_acceptance_interval = 100 # max temporal distance of t0 values of patterns that should be grouped together, in ts units
+# acceptance interval for dt sl pattern grouping
+_t0_acceptance_interval = 100 # max temporal distance of t0 values of dt sl patterns that should be grouped together, in ts units
 _xproj_acceptance_interval = 50 # max spatial distance of 2 phi muon sl fits along the x axis, when projecting one to the other sl (delta_z(1-2) = z(sl=3.ly=3.wi=wi3_1) - z(sl=3.ly=3.wi=wi3_2)), in mm
 # reco muon z0 value (select base z value for reco muon)
 _muon_reco_z0 = 0 # in mm
 # global time delay for scintillator hits (scint ts = muon ts + _scintillator_delay)
 _scintillator_hit_delay = 10 # timestamp units
+# acceptance interval for scintillator hit grouping
+_scintillator_ts_acceptance_interval = 500 # max temporal distance of ts values of scintillator that should be grouped together, in ts units
 
 ### scintillator specific
 
@@ -265,13 +267,26 @@ _color_info = {
 }
 
 ### muon object specific
-_muon_obj_keys = { # SPHERICAL COORDINATES
+# a muon descibes a muon track
+_muon_obj_keys = {
     "x0": np.float64, # reference point (x0,y0,z0), in mm
     "y0": np.float64,
     "z0": np.float64,
     "theta": np.float64, # theta angle (angle relative to z axis), in rad
     "phi": np.float64, # phi angle (angle relative to x axis, between x and y axis), in rad
     "ts": _ts_type, # timestamp of muon arrival (assume velocity is infinite, therefore during propagation no time passes, is alright here)
+    "muon_id": np.uint16, # id / idx of correlated muon (used to compare simulation + reconstruction)
+}
+
+### muon area object specific
+# a muon area is an x-y rectangle at given z position which describes the area where a muon has been
+_muon_area_obj_keys = {
+    "z0": np.float64, # z reference point, in mm
+    "xmin": np.float64, # smallest allowed x point, in mm -> (x,y) rectangle
+    "xmax": np.float64, # largest allowed x point, in mm
+    "ymin": np.float64, # smallest allowed y point, in mm
+    "ymax": np.float64, # largest allowed y point, in mm 
+    "ts": _ts_type, # timestamp of muon arrival
     "muon_id": np.uint16, # id / idx of correlated muon (used to compare simulation + reconstruction)
 }
 

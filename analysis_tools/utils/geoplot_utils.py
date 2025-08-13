@@ -169,7 +169,6 @@ def cell_hits_ax(ax, orient, dt_hits, muon_id, *, color="tab:green"):
         dd, hit_lat = dt_hits["dd"][i], dt_hits["hit_lat"][i] # hit_lat: hit laterality, dd drift distance
         x_pts.append( dd*hit_lat + derived_params._dt_cell_coordinates[sl][ly][wi][3+x_axis] )
         y_pts.append( derived_params._dt_cell_coordinates[sl][ly][wi][3+y_axis] )
-        #print("cell_hits_ax", dd, hit_lat, derived_params._dt_cell_coordinates[sl][ly][wi][3+x_axis], "=", x_pts)
     x_pts, y_pts = np.array(x_pts), np.array(y_pts)
     ax.scatter(x_pts, y_pts, marker=".", color=color)
     return ax

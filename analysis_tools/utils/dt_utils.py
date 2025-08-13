@@ -339,7 +339,7 @@ def reco_muons_from_sl_fits(fits, *, silent=False, verbose=False):
         reco_muon_list.append({"x0":x0_reco, "y0":y0_reco, "z0":z0_reco, "theta":theta_reco, "phi":phi_reco, "ts":t0_reco, "muon_id":muon_id})
         # !!! for muon the name of the timestamp key is "ts" and not "t0"
     n_reco_muons = len(reco_muon_list)
-    if not silent: print(f"Reconstructed {n_reco_muons} from {n_fits} SL patterns.")
+    if not silent: print(f"Reconstructed {n_reco_muons} muons from {n_fits} SL patterns.")
     reco_muons = {k: np.full(n_reco_muons, 0, dtype=v) for k,v in params._muon_obj_keys.items()}
     for i in range(n_reco_muons):
         for k in params._muon_obj_keys.keys():

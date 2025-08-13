@@ -143,7 +143,11 @@ def main():
     # calculate expected scintillator hits from reco muons
     scint_reco_muon_hits = scint_utils.hits_from_muons(muons=reco_muons)
     print("scint_reco_muon_hits =",scint_reco_muon_hits)
-        
+    
+    # reco muon areas from scintillator hits
+    reco_muon_areas = scint_utils.reco_muon_area_from_hits(hits=scint_reco_muon_hits)
+    print("reco_muon_areas =",reco_muon_areas)
+
     #input("Press enter to exit.")
     #exit()
 
@@ -219,7 +223,7 @@ def main():
         #description = params._dt_chamber["name"]
         description = ""
         if orient == "theta":
-            description += "$x$-$y$-plane (SL-$\\theta$ view)"
+            description += "$y$-$z$-plane (SL-$\\theta$ view)"
             ax.set_xlabel("$y$ [mm]")
             ax.set_ylabel("$z$ [mm]")
         elif orient == "phi":
