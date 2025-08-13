@@ -52,13 +52,21 @@ def main():
 
     # generate cosmic muons
     #dummy_muon = {"x0": 1000, "y0": 1000, "z0": 100, "theta": 10*np.pi/180, "phi": 20*np.pi/180, "ts": 1000}
-    n_muons = 10
+    n_muons = 1
     t_start = 10000
     t_step = 1000
-    cosmic_muons = muon_utils.generate_cosmic_muons(n=n_muons, ts=t_start+t_step*np.arange(0,n_muons), xrange=[200, 2000], yrange=[200, 2300], z0=params._muon_reco_z0, phirange=[0,2*np.pi], thetarange=[0,np.pi/4])
+    cosmic_muons = muon_utils.generate_cosmic_muons(
+        n = n_muons,
+        ts = t_start+t_step*np.arange(0,n_muons),
+        xrange = [ params._scintillator["pos"][0] , params._scintillator["pos"][0]+params._scintillator["size"][0] ],
+        yrange = [ params._scintillator["pos"][1] , params._scintillator["pos"][1]+params._scintillator["size"][1] ],
+        z0 = params._scintillator["pos"][2],
+        phirange = [ 0 , 2*np.pi ],
+        thetarange = [ 0 , np.pi/4 ]
+    )
     
     # propagate cosmic muons through dt chamber
-    dt_muon_hits = muon_utils.dt_hits_from_muons(muons=cosmic_muons, noise_ampl=0)
+    dt_muon_hits = dt_utils.hits_from_muons(muons=cosmic_muons, noise_ampl=0)
     print("dt_muon_hits =",dt_muon_hits)
 
     # treat these dt hits as dummy data -> apply clustering algorithm
@@ -70,7 +78,7 @@ def main():
     n_patterns = len(sl_dt_fits["sl"])
     print("sl_dt_fits =",sl_dt_fits)
 
-    """
+    # plot all fitted patterns
     for pattern_id in range(n_patterns):
         ### plot sl pattern
         show_wires = True
@@ -99,7 +107,6 @@ def main():
         ax.text(x_topright, y_topleft+0.02, description, transform=plt.gcf().transFigure, horizontalalignment="right")
         # show/store figure
         fig.show()
-    """
         
     # reco muons from fitted patterns
     reco_muons = dt_utils.reco_muons_from_sl_fits(fits=sl_dt_fits, verbose=False)
@@ -107,6 +114,7 @@ def main():
     print("reco_muons =",reco_muons)
     print("cosmic_muons =",cosmic_muons)
 
+    """
     # plot differences between sim + reco
     n_hist_bins = 50
     hist_bins = {
@@ -130,7 +138,12 @@ def main():
         hists, edges, centers = hist_utils.calculate_hist(data=reco_muon_delta, key=k, bin_centers=hist_bins[k])
         round_digits = 0 if k in ["ts"] else 2
         hist_utils.plot_1hist(hist=hists, centers=centers, xlabel=k, round_digits=round_digits)
+    """
 
+    # calculate expected scintillator hits from reco muons
+    scint_reco_muon_hits = scint_utils.hits_from_muons(muons=reco_muons)
+    print("scint_reco_muon_hits =",scint_reco_muon_hits)
+        
     #input("Press enter to exit.")
     #exit()
 
@@ -149,28 +162,37 @@ def main():
         hist_utils.plot_1hist(hist=hists, centers=centers, xlabel=k, round_digits=round_digits)
     """
 
-    ### plot chamber
+    ### plot full geometry
 
-    # generate cell data to plot chamber
-    cell_data = dt_utils._chamber_data()
+    # generate dt cell data
+    dt_cell_data = dt_utils._chamber_data()
     ## illustrate patterns that should be recognized
     #for i, (pat_name, pat_rel_wi) in enumerate(params._dt_sl_patterns.items()):
     #    start_wi = 6*i+3
     #    for ly in range(4):
     #        cell_data[1][ly][start_wi+pat_rel_wi[ly]]["color"] = "tab:red"
-    # mark muon hits in chamber
+    # mark dt hits in chamber
     for i in range(len(dt_muon_hits["ch"])):
         sl, ly, wi = dt_muon_hits["sl"][i], dt_muon_hits["ly"][i], dt_muon_hits["wi"][i]
-        cell_data[sl][ly][wi]["color"] = "aqua"
+        dt_cell_data[sl][ly][wi]["color"] = "aqua"
+        
+    # generate scintillator cell data
+    scint_cell_data = scint_utils._scint_data()
+    # mark scint hits in chamber
+    for i in range(len(scint_reco_muon_hits["ch"])):
+        ly, st = scint_reco_muon_hits["ly"][i], scint_reco_muon_hits["st"][i]
+        scint_cell_data[ly][st]["color"] = "aqua"
             
-    ### plot chamber
+    # actual plotting
     show_wires = True
     for orient in ["phi", "theta"]:
         # generate plot
         fig, ax = plt.subplots(1, 1, figsize=(12,4))
         plt.subplots_adjust(left=0.15, bottom=0.15, right=0.95, top=0.85, wspace=0.1, hspace=0.6)
         # plot chamber geometry
-        ax = geoplot_utils.chamber_ax(ax=ax, orient=orient, cell_data=cell_data, wire=show_wires)
+        ax = geoplot_utils.chamber_ax(ax=ax, orient=orient, cell_data=dt_cell_data, wire=show_wires)
+        # plot scintillator geometry
+        ax = geoplot_utils.scintillator_ax(ax=ax, orient=orient, cell_data=scint_cell_data)
         # plot muon track
         for i in range(n_muons):
             ax = geoplot_utils.muon_ax(ax=ax, orient=orient, muons=cosmic_muons, muon_id=i, color="tab:green")
@@ -191,13 +213,14 @@ def main():
         x_topright, y_topleft = axbox.p1[0], axbox.p1[1]
         ax.text(x_topleft, y_topleft+0.02, "CMS", transform=plt.gcf().transFigure, fontweight="bold")
         ax.text(x_topleft+0.04, y_topleft+0.02, "Private work", transform=plt.gcf().transFigure, fontstyle="italic", fontsize=10)
-        description = params._dt_chamber["name"]
+        #description = params._dt_chamber["name"]
+        description = ""
         if orient == "theta":
-            description += ", SL-$\\theta$ view"
+            description += "$x$-$y$-plane (SL-$\\theta$ view)"
             ax.set_xlabel("$y$ [mm]")
             ax.set_ylabel("$z$ [mm]")
         elif orient == "phi":
-            description += ", SL-$\\phi$ view"
+            description += "$x$-$z$-plane (SL-$\\phi$ view)"
             ax.set_xlabel("$x$ [mm]")
             ax.set_ylabel("$z$ [mm]")
         ax.text(x_topright, y_topleft+0.02, description, transform=plt.gcf().transFigure, horizontalalignment="right")

@@ -204,6 +204,8 @@ _t0_acceptance_interval = 100 # max temporal distance of t0 values of patterns t
 _xproj_acceptance_interval = 50 # max spatial distance of 2 phi muon sl fits along the x axis, when projecting one to the other sl (delta_z(1-2) = z(sl=3.ly=3.wi=wi3_1) - z(sl=3.ly=3.wi=wi3_2)), in mm
 # reco muon z0 value (select base z value for reco muon)
 _muon_reco_z0 = 0 # in mm
+# global time delay for scintillator hits (scint ts = muon ts + _scintillator_delay)
+_scintillator_hit_delay = 10 # timestamp units
 
 ### scintillator specific
 
@@ -215,6 +217,12 @@ _scint_mapping_keys = {
     "ly": np.uint8,
     "st": np.uint8,
     "ch_id": np.uint8,
+}
+_scint_other_keys = {
+    "ts": _ts_type,
+    "muon_ts": _ts_type,
+    "xhit": np.float64, # relative hit position: x_hit = xhit + xleft(lower x coord of strip) (in mm)
+    "muon_id": np.uint16, # id / idx of correlated muon
 }
 
 ## use custom coordinate frame
@@ -279,7 +287,7 @@ def cosmic_muon_theta_weight(theta):
 ###############################
 
 ### dt chamber properties: {type: type of chamber (mb1), sls: {sl_id: {type: sl type (phi/theta), n_lys: no. of layers, n_wis: no. of wires, offset_ly: [true if wi of this ly is shifted towards higher wi, for all lys]}}}
-# single cell properties
+# single cell properties (mm)
 _cell_w_spacer = 0 # estimated only from sketch = 1.2
 _cell_h_spacer = 1.5
 _cell_width = 42-_cell_w_spacer # size of cell air volume
@@ -297,7 +305,7 @@ _dt_chamber = {
             "n_wis": 49,
             "offset_ly": [True, False, True, False], # for ly 0,1,2,3: True means shifted to right i.e. towards higher wi idx
             "size": (2126., 2513., 53.5),
-            "pos": (0., 0., 0.),
+            "pos": (1.8, 0., 0.), # corner with smallest coordinates of this sl, *RELATIVE TO* base point of chamber point with smallest coordinates
             "ch_pos": (22.9, 86., 0.), # corner with smallest coordinates of first cell (ly=0,wi=0), *RELATIVE TO* sl point with smallest coordinates
             "ch_spacer": (_cell_w_spacer, 0., _cell_h_spacer), # size of spacer between layers/chambers
             "ch_size": (_cell_width, 2341., _cell_height), # size of cell
@@ -311,7 +319,7 @@ _dt_chamber = {
             "n_wis": 57,
             "offset_ly": [True, False, True, False],
             "size": (2172., 2462.4, 53.5),
-            "pos": (-1.8, 25.3, 181.5),
+            "pos": (0, 25.3, 181.5),
             "ch_pos": (86., 24.6, 0.),
             "ch_spacer": (0., _cell_w_spacer, _cell_h_spacer),
             "ch_size": (2000., _cell_width, _cell_height),
@@ -325,7 +333,7 @@ _dt_chamber = {
             "n_wis": 49,
             "offset_ly": [True, False, True, False],
             "size": (2126., 2513., 53.5),
-            "pos": (21., 0., 235.),
+            "pos": (21.0-1.8, 0., 235.),
             "ch_pos": (22.9, 86., 0.),
             "ch_spacer": (_cell_w_spacer, 0., _cell_h_spacer),
             "ch_size": (_cell_width, 2341., _cell_height),
@@ -337,10 +345,10 @@ _dt_chamber = {
     "n_sl": 3,
     "honeycomb": {
         "size": (2033., 2458., 128.),
-        "pos": (30.7, 27.5, 53.5),
+        "pos": (30.7, 27.5, 53.5), # corner with smallest coordinates of honeycomb, *RELATIVE TO* base point of chamber point with smallest coordinates
     },
     "size": (2172, 2513., 288.5),
-    "pos": (-1.8, 0., 0.),
+    "pos": (0, 0., 0.), # point with smallest coordinates of dt chamber
 }
 
 ### obdt mappings: {fe_conn_name: {chs: (ch list), fe: fec name, sl: superlayer}}, fe conns sorted in order
@@ -397,12 +405,40 @@ _obdt_theta_1_fe_mapping = {
 }
 
 ### scintillator properties: {type: type of scintillator (hodoscope), lys: {ly_id: {type: layer type (strips), orient: orientation of strips (parallel to phi/theta sl)}}}
+# single strip properties (mm)
+_strip_w_spacer = 1.25
+_strip_h_spacer = 0.
+_strip_width = 30.
+_strip_height = 5.
+_strip_length = 500.
+# full scintillator
 _scintillator = {
     "type": "hodoscope",
     "lys": {
-        0: {"type": "strips", "orient": "phi"},
-        1: {"type": "strips", "orient": "theta"},
-    }
+        0: {
+            "type": "strips",
+            "orient": "phi",
+            "size": (0., 0., 0.),
+            "pos": (0., 0., 20.), # corner with smallest coordinates of this layer, *RELATIVE TO* base point of chamber point with smallest coordinates
+            "n_sts": 16, # no of strips
+            "ch_pos": (0., 0., 0.), # corner with smallest coordinates of first strip (st=0), *RELATIVE TO* ly point with smallest coordinates
+            "ch_spacer": (_strip_w_spacer, 0., _strip_h_spacer), # size of spacer between strips
+            "ch_size": (_strip_width, _strip_length, _strip_height), # size of strip
+        },
+        1: {
+            "type": "strips",
+            "orient": "theta",
+            "size": (0., 0., 0.),
+            "pos": (0., 0., 0.), 
+            "n_sts": 16,
+            "ch_pos": (0., 0., 0.),
+            "ch_spacer": (0., _strip_w_spacer, _strip_h_spacer),
+            "ch_size": (_strip_length, _strip_width, _strip_height),
+        },
+    },
+    "n_lys": 2,
+    "size": (550., 550., 40.),
+    "pos": (100., 100., -100.), # point with smallest coordinates of scintillator
 }
 ### mezzanine scintillator mapping: {coinc_ch_name: {ch: ch id, ly: scint layer, st: scint strip}}
 _mezzanine_1_fe_mapping = {

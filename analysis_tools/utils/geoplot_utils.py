@@ -18,7 +18,7 @@ import analysis_tools.utils.muon_utils as muon_utils
 
 ########### helper functions:
 
-###--------- draw full dt chamber
+###--------- draw full dt chamber (global coord frame)
 
 # draw one cell as list of patches
 def cell_pat(orient, sl, ly, wi, *, wire=False, cell_data=None): # sliced cell data for this cell {color, text}
@@ -60,7 +60,7 @@ def superlayer_pat(orient, sl, *, wire=False, cell_data=None): # sliced cell dat
     x_axis, y_axis = params._orientation[orient][0], params._orientation[orient][1] # chamber axis projection (x,y,z) to 2D plot axis (x,y)
     patches = []
     # sl casing
-    patches.append( pat.Rectangle((params._dt_chamber["sls"][sl]["pos"][x_axis], params._dt_chamber["sls"][sl]["pos"][y_axis]), width=params._dt_chamber["sls"][sl]["size"][x_axis], height=params._dt_chamber["sls"][sl]["size"][y_axis], edgecolor=params._color_info["sl"]["edge"], facecolor=params._color_info["sl"]["fill"]) )
+    patches.append( pat.Rectangle((params._dt_chamber["pos"][x_axis]+params._dt_chamber["sls"][sl]["pos"][x_axis], params._dt_chamber["pos"][y_axis]+params._dt_chamber["sls"][sl]["pos"][y_axis]), width=params._dt_chamber["sls"][sl]["size"][x_axis], height=params._dt_chamber["sls"][sl]["size"][y_axis], edgecolor=params._color_info["sl"]["edge"], facecolor=params._color_info["sl"]["fill"]) )
     # layers
     for ly in range(params._dt_chamber["sls"][sl]["n_lys"]):
         patches.extend( layer_pat(orient=orient, sl=sl, ly=ly, wire=wire, cell_data=cell_data[ly]) )
@@ -73,7 +73,7 @@ def chamber_pat(orient, *, wire=False, cell_data=None):  # sliced cell data for 
     # chamber casing
     patches.append( pat.Rectangle((params._dt_chamber["pos"][x_axis], params._dt_chamber["pos"][y_axis]), width=params._dt_chamber["size"][x_axis], height=params._dt_chamber["size"][y_axis], edgecolor=params._color_info["edge"], facecolor=params._color_info["fill"]) )
     # honeycomb
-    patches.append( pat.Rectangle((params._dt_chamber["honeycomb"]["pos"][x_axis], params._dt_chamber["honeycomb"]["pos"][y_axis]), width=params._dt_chamber["honeycomb"]["size"][x_axis], height=params._dt_chamber["honeycomb"]["size"][y_axis], edgecolor=params._color_info["honeycomb"]["edge"], facecolor=params._color_info["honeycomb"]["fill"]) )
+    patches.append( pat.Rectangle((params._dt_chamber["pos"][x_axis]+params._dt_chamber["honeycomb"]["pos"][x_axis], params._dt_chamber["pos"][y_axis]+params._dt_chamber["honeycomb"]["pos"][y_axis]), width=params._dt_chamber["honeycomb"]["size"][x_axis], height=params._dt_chamber["honeycomb"]["size"][y_axis], edgecolor=params._color_info["honeycomb"]["edge"], facecolor=params._color_info["honeycomb"]["fill"]) )
     # superlayers
     for sl in range(1,params._dt_chamber["n_sl"]+1):
         patches.extend( superlayer_pat(orient=orient, sl=sl, wire=wire, cell_data=cell_data[sl]) )
@@ -86,6 +86,57 @@ def chamber_ax(ax, orient, cell_data, *, wire=False):
     for patch in patches:
         ax.add_patch(patch)
     return ax
+
+###--------- draw full scintillator chamber  (global coord frame)
+
+# draw one scintillator strip as list of patches
+def scintillator_strip_pat(orient, ly, st, *, cell_data=None): # sliced cell data for this cell {color, text}
+    x_axis, y_axis = params._orientation[orient][0], params._orientation[orient][1] # chamber axis projection (x,y,z) to 2D plot axis (x,y)
+    patches = []
+    # emtpy cell struct if none is given
+    if cell_data == None: cell_data = {"color": params._color_info["cell"][None], "text": ""}
+    ## if the orientation matches the wire direction, draw all cells
+    if orient == params._scintillator["lys"][ly]["orient"]:
+        cell_color = cell_data["color"] #params._color_info["cell"][None]
+        patches.append( pat.Rectangle((derived_params._scintillator_strip_coordinates[ly][st][x_axis][0], derived_params._scintillator_strip_coordinates[ly][st][y_axis][0]), width=(derived_params._scintillator_strip_coordinates[ly][st][x_axis][1]-derived_params._scintillator_strip_coordinates[ly][st][x_axis][0]), height=(derived_params._scintillator_strip_coordinates[ly][st][y_axis][1]-derived_params._scintillator_strip_coordinates[ly][st][y_axis][0]), edgecolor=params._color_info["cell"]["edge"], facecolor=cell_color) )
+    ## if orientation is flipped, only outline the cells
+    # in order to prevent overlaying objects in the plot only draw wi=0 for each layer from the side
+    # always display the cells with None value, since behind the drawn wi=0 are many others and it is simpler to not draw any data
+    elif (orient in ["theta", "phi"]) and (st == 0):
+        # cell color
+        cell_color = params._color_info["cell"]["side_view"]
+        patches.append( pat.Rectangle((derived_params._scintillator_strip_coordinates[ly][st][x_axis][0], derived_params._scintillator_strip_coordinates[ly][st][y_axis][0]), width=(derived_params._scintillator_strip_coordinates[ly][st][x_axis][1]-derived_params._scintillator_strip_coordinates[ly][st][x_axis][0]), height=(derived_params._scintillator_strip_coordinates[ly][st][y_axis][1]-derived_params._scintillator_strip_coordinates[ly][st][y_axis][0]), edgecolor=params._color_info["cell"]["edge"], facecolor=cell_color) )
+    return patches # return list of mpl patches
+
+# draw one scintillator layer as list of patches
+def scintillator_layer_pat(orient, ly, *, cell_data=None): # sliced cell data for this layer {wi: {color, text}}
+    x_axis, y_axis = params._orientation[orient][0], params._orientation[orient][1] # chamber axis projection (x,y,z) to 2D plot axis (x,y)
+    patches = []
+    # strips
+    for st in range(params._scintillator["lys"][ly]["n_sts"]):
+        patches.extend( scintillator_strip_pat(orient=orient, ly=ly, st=st, cell_data=cell_data[st]) )
+    return patches # return list of mpl patches
+
+# draw one scintillator as list of patches
+def scintillator_pat(orient, *, cell_data=None):  # sliced cell data for this chamber {sl: {ly: {wi: {color, text}}}}
+    x_axis, y_axis = params._orientation[orient][0], params._orientation[orient][1] # chamber axis projection (x,y,z) to 2D plot axis (x,y)
+    patches = []
+    # chamber casing
+    patches.append( pat.Rectangle((params._scintillator["pos"][x_axis], params._scintillator["pos"][y_axis]), width=params._scintillator["size"][x_axis], height=params._scintillator["size"][y_axis], edgecolor=params._color_info["edge"], facecolor=params._color_info["fill"]) )
+    # layers
+    for ly in range(params._scintillator["n_lys"]):
+        patches.extend( scintillator_layer_pat(orient=orient, ly=ly, cell_data=cell_data[ly]) )
+    return patches # return list of mpl patches
+
+### draw scintillator into existing ax (subplot)
+# cell_data: {ly: {st: {"color": color, "text": text}}}
+def scintillator_ax(ax, orient, cell_data):
+    patches = scintillator_pat(orient=orient, cell_data=cell_data)
+    for patch in patches:
+        ax.add_patch(patch)
+    return ax
+
+###--------- draw other things (global coord frame)
 
 ### draw muon track into existing ax (subplot)
 # zrange: [zmin, zmax] of shown muon track
@@ -143,7 +194,7 @@ def chamber_muon_fit_ax(ax, orient, sl_dt_fits, pattern_id, *, color="red"):
     ax.axline((x0, y0), (x1, y1), c=color)
     return ax
 
-###--------- draw sl pattern fit
+###--------- draw sl pattern fit (local sl pattern coord frame)
 
 # draw one cell as list of patches for sl pattern fit
 def cell_pat_rel_wi(ly, rel_wi, *, wire=False, cell_data=None): # sliced cell data for this cell {color, text}

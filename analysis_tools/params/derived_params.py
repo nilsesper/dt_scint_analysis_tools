@@ -57,7 +57,7 @@ for ro_ch in _dt_ro_chs:
                 "ly": ly, # layer
                 "wi": wi, # wire
             }
-# generate inverted remapping table: {sl: {ly: {wi: {ch, ro_ch, conn_id, fe_id, ch_id}}}}
+# generate inverted dt remapping table: {sl: {ly: {wi: {ch, ro_ch, conn_id, fe_id, ch_id}}}}
 _dt_inverted_remap_table = {}
 for ro_ch in _dt_ro_chs:
     for ch in _dt_remap_table[ro_ch].keys():
@@ -89,6 +89,20 @@ for ro_ch in _scint_ro_chs:
             "ly": ly, # layer id
             "st": st, # strip id
         }
+# generate inverted scint remapping table: {ly: {st: {ch, ro_ch, ch_id}}}
+_scint_inverted_remap_table = {}
+for ro_ch in _scint_ro_chs:
+    for ch in _scint_remap_table[ro_ch].keys():
+        ly = _scint_remap_table[ro_ch][ch]["ly"]
+        st = _scint_remap_table[ro_ch][ch]["st"]
+        if ly not in _scint_inverted_remap_table.keys():
+            _scint_inverted_remap_table[ly] = {}
+        _scint_inverted_remap_table[ly][st] = {
+            "ch": ch,
+            "ro_ch": ro_ch,
+        }
+        for k in ["ch_id"]:
+            _scint_inverted_remap_table[ly][st][k] = _scint_remap_table[ro_ch][ch][k]
 
 ### timestamp conversion
 _tdc_to_timestamp = 1
@@ -109,7 +123,7 @@ _drift_velocity_mm_per_timestamp = ( params._drift_velocity * (_ts_unit) * (1e-3
 # idx of pattern name is key pat_type
 _dt_sl_pattern_names = list(params._dt_sl_patterns.keys())
 
-### dt chamber geometry
+### dt chamber geometry --> in global coord frame
 # calculate positions of center axis (height of wires) for all cells
 # allows to easily check if muon has hit chamber
 # _dt_cell_coordinates = {sl: {ly: {wi: [[xmin, xmax], [ymin, ymax], [zmin, zmax], x_center_pos, y_center_pos, z_center_pos]}}}
@@ -124,17 +138,17 @@ for sl in params._dt_chamber["sls"].keys():
                 # idx = 0: x axis (axis = 0)
                 coord_axis = 0
                 cell_offset = params._dt_chamber["sls"][sl]["ch_offset"][coord_axis] if params._dt_chamber["sls"][sl]["offset_ly"][ly] else 0
-                pos_x = params._dt_chamber["sls"][sl]["pos"][coord_axis]+params._dt_chamber["sls"][sl]["ch_pos"][coord_axis]+params._dt_chamber["sls"][sl]["ch_spacer"][coord_axis]+wi*(params._dt_chamber["sls"][sl]["ch_size"][coord_axis]+params._dt_chamber["sls"][sl]["ch_spacer"][coord_axis])+cell_offset
+                pos_x = params._dt_chamber["pos"][coord_axis]+params._dt_chamber["sls"][sl]["pos"][coord_axis]+params._dt_chamber["sls"][sl]["ch_pos"][coord_axis]+params._dt_chamber["sls"][sl]["ch_spacer"][coord_axis]+wi*(params._dt_chamber["sls"][sl]["ch_size"][coord_axis]+params._dt_chamber["sls"][sl]["ch_spacer"][coord_axis])+cell_offset
                 size_x = params._dt_chamber["sls"][sl]["ch_size"][coord_axis]
                 _dt_cell_coordinates[sl][ly][wi].append([pos_x, pos_x+size_x])
                 # idx = 1: y axis (axis = 1) ==> ALL CELLS LOOK THE SAME FOR PHI SL ALONG Y
                 coord_axis = 1
-                pos_y = params._dt_chamber["sls"][sl]["pos"][coord_axis]+params._dt_chamber["sls"][sl]["ch_pos"][coord_axis]+params._dt_chamber["sls"][sl]["ch_spacer"][coord_axis]
+                pos_y = params._dt_chamber["pos"][coord_axis]+params._dt_chamber["sls"][sl]["pos"][coord_axis]+params._dt_chamber["sls"][sl]["ch_pos"][coord_axis]+params._dt_chamber["sls"][sl]["ch_spacer"][coord_axis]
                 size_y = params._dt_chamber["sls"][sl]["ch_size"][coord_axis]
                 _dt_cell_coordinates[sl][ly][wi].append([pos_y, pos_y+size_y])
                 # idx = 2: z axis (axis = 2)
                 coord_axis = 2
-                pos_z = params._dt_chamber["sls"][sl]["pos"][coord_axis]+params._dt_chamber["sls"][sl]["ch_pos"][coord_axis]+params._dt_chamber["sls"][sl]["ch_spacer"][coord_axis]+ly*(params._dt_chamber["sls"][sl]["ch_size"][coord_axis]+params._dt_chamber["sls"][sl]["ch_spacer"][coord_axis])
+                pos_z = params._dt_chamber["pos"][coord_axis]+params._dt_chamber["sls"][sl]["pos"][coord_axis]+params._dt_chamber["sls"][sl]["ch_pos"][coord_axis]+params._dt_chamber["sls"][sl]["ch_spacer"][coord_axis]+ly*(params._dt_chamber["sls"][sl]["ch_size"][coord_axis]+params._dt_chamber["sls"][sl]["ch_spacer"][coord_axis])
                 size_z = params._dt_chamber["sls"][sl]["ch_size"][coord_axis]
                 _dt_cell_coordinates[sl][ly][wi].append([pos_z, pos_z+size_z])
                 # idx = 3: x center pos
@@ -146,18 +160,18 @@ for sl in params._dt_chamber["sls"].keys():
             elif params._dt_chamber["sls"][sl]["orient"] == "theta": # theta wires along x
                 # idx = 0: x axis (axis = 0) ==> ALL CELLS LOOK THE SAME FOR THETA SL ALONG X
                 coord_axis = 0
-                pos_x = params._dt_chamber["sls"][sl]["pos"][coord_axis]+params._dt_chamber["sls"][sl]["ch_pos"][coord_axis]+params._dt_chamber["sls"][sl]["ch_spacer"][coord_axis]
+                pos_x = params._dt_chamber["pos"][coord_axis]+params._dt_chamber["sls"][sl]["pos"][coord_axis]+params._dt_chamber["sls"][sl]["ch_pos"][coord_axis]+params._dt_chamber["sls"][sl]["ch_spacer"][coord_axis]
                 size_x = params._dt_chamber["sls"][sl]["ch_size"][coord_axis]
                 _dt_cell_coordinates[sl][ly][wi].append([pos_x, pos_x+size_x])
                 # idx = 1: y axis (axis = 1)
                 coord_axis = 1
                 cell_offset = params._dt_chamber["sls"][sl]["ch_offset"][coord_axis] if params._dt_chamber["sls"][sl]["offset_ly"][ly] else 0
-                pos_y = params._dt_chamber["sls"][sl]["pos"][coord_axis]+params._dt_chamber["sls"][sl]["ch_pos"][coord_axis]+params._dt_chamber["sls"][sl]["ch_spacer"][coord_axis]+wi*(params._dt_chamber["sls"][sl]["ch_size"][coord_axis]+params._dt_chamber["sls"][sl]["ch_spacer"][coord_axis])+cell_offset
+                pos_y = params._dt_chamber["pos"][coord_axis]+params._dt_chamber["sls"][sl]["pos"][coord_axis]+params._dt_chamber["sls"][sl]["ch_pos"][coord_axis]+params._dt_chamber["sls"][sl]["ch_spacer"][coord_axis]+wi*(params._dt_chamber["sls"][sl]["ch_size"][coord_axis]+params._dt_chamber["sls"][sl]["ch_spacer"][coord_axis])+cell_offset
                 size_y = params._dt_chamber["sls"][sl]["ch_size"][coord_axis]
                 _dt_cell_coordinates[sl][ly][wi].append([pos_y, pos_y+size_y])
                 # idx = 2: z axis (axis = 2)
                 coord_axis = 2
-                pos_z = params._dt_chamber["sls"][sl]["pos"][coord_axis]+params._dt_chamber["sls"][sl]["ch_pos"][coord_axis]+params._dt_chamber["sls"][sl]["ch_spacer"][coord_axis]+ly*(params._dt_chamber["sls"][sl]["ch_size"][coord_axis]+params._dt_chamber["sls"][sl]["ch_spacer"][coord_axis])
+                pos_z = params._dt_chamber["pos"][coord_axis]+params._dt_chamber["sls"][sl]["pos"][coord_axis]+params._dt_chamber["sls"][sl]["ch_pos"][coord_axis]+params._dt_chamber["sls"][sl]["ch_spacer"][coord_axis]+ly*(params._dt_chamber["sls"][sl]["ch_size"][coord_axis]+params._dt_chamber["sls"][sl]["ch_spacer"][coord_axis])
                 size_z = params._dt_chamber["sls"][sl]["ch_size"][coord_axis]
                 _dt_cell_coordinates[sl][ly][wi].append([pos_z, pos_z+size_z])
                 # idx = 3: x center pos
@@ -238,5 +252,58 @@ def f_x_muon(z, x0, tan_alpha):
     x_muon = x0 + z*tan_alpha
     return x_muon
 
+### scintillator geometry --> in global coord frame
+# calculate positions of center axis for all strips
+# allows to easily check if muon has hit scintillator
+# _dt_cell_coordinates = {ly: {st: [[xmin, xmax], [ymin, ymax], [zmin, zmax], x_center_pos, y_center_pos, z_center_pos]}}
+_scintillator_strip_coordinates = {}
+for ly in range(params._scintillator["n_lys"]):
+    _scintillator_strip_coordinates[ly] = {}
+    for st in range(params._scintillator["lys"][ly]["n_sts"]):
+        _scintillator_strip_coordinates[ly][st] = []
+        if params._scintillator["lys"][ly]["orient"] == "phi": # strips along y
+            # idx = 0: x axis (axis = 0)
+            coord_axis = 0
+            pos_x = params._scintillator["pos"][coord_axis]+params._scintillator["lys"][ly]["pos"][coord_axis]+params._scintillator["lys"][ly]["ch_pos"][coord_axis]+params._scintillator["lys"][ly]["ch_spacer"][coord_axis]+st*(params._scintillator["lys"][ly]["ch_size"][coord_axis]+params._scintillator["lys"][ly]["ch_spacer"][coord_axis])
+            size_x = params._scintillator["lys"][ly]["ch_size"][coord_axis]
+            _scintillator_strip_coordinates[ly][st].append([pos_x, pos_x+size_x])
+            # idx = 1: y axis (axis = 1) ==> ALL CELLS LOOK THE SAME FOR PHI SL ALONG Y
+            coord_axis = 1
+            pos_y = params._scintillator["pos"][coord_axis]+params._scintillator["lys"][ly]["pos"][coord_axis]+params._scintillator["lys"][ly]["ch_pos"][coord_axis]+params._scintillator["lys"][ly]["ch_spacer"][coord_axis]
+            size_y = params._scintillator["lys"][ly]["ch_size"][coord_axis]
+            _scintillator_strip_coordinates[ly][st].append([pos_y, pos_y+size_y])
+            # idx = 2: z axis (axis = 2)
+            coord_axis = 2
+            pos_z = params._scintillator["pos"][coord_axis]+params._scintillator["lys"][ly]["pos"][coord_axis]+params._scintillator["lys"][ly]["ch_pos"][coord_axis]+params._scintillator["lys"][ly]["ch_spacer"][coord_axis]+ly*(params._scintillator["lys"][ly]["ch_size"][coord_axis]+params._scintillator["lys"][ly]["ch_spacer"][coord_axis])
+            size_z = params._scintillator["lys"][ly]["ch_size"][coord_axis]
+            _scintillator_strip_coordinates[ly][st].append([pos_z, pos_z+size_z])
+            # idx = 3: x center pos
+            _scintillator_strip_coordinates[ly][st].append(pos_x+size_x/2)
+            # idx = 4: y center pos
+            _scintillator_strip_coordinates[ly][st].append(pos_y+size_y/2)
+            # idx = 5: z center pos
+            _scintillator_strip_coordinates[ly][st].append(pos_z+size_z/2)
+        elif params._scintillator["lys"][ly]["orient"] == "theta": # strips along x
+            # idx = 0: x axis (axis = 0) ==> ALL CELLS LOOK THE SAME FOR THETA SL ALONG X
+            coord_axis = 0
+            pos_x = params._scintillator["pos"][coord_axis]+params._scintillator["lys"][ly]["pos"][coord_axis]+params._scintillator["lys"][ly]["ch_pos"][coord_axis]+params._scintillator["lys"][ly]["ch_spacer"][coord_axis]
+            size_x = params._scintillator["lys"][ly]["ch_size"][coord_axis]
+            _scintillator_strip_coordinates[ly][st].append([pos_x, pos_x+size_x])
+            # idx = 1: y axis (axis = 1)
+            coord_axis = 1
+            pos_y = params._scintillator["pos"][coord_axis]+params._scintillator["lys"][ly]["pos"][coord_axis]+params._scintillator["lys"][ly]["ch_pos"][coord_axis]+params._scintillator["lys"][ly]["ch_spacer"][coord_axis]+st*(params._scintillator["lys"][ly]["ch_size"][coord_axis]+params._scintillator["lys"][ly]["ch_spacer"][coord_axis])
+            size_y = params._scintillator["lys"][ly]["ch_size"][coord_axis]
+            _scintillator_strip_coordinates[ly][st].append([pos_y, pos_y+size_y])
+            # idx = 2: z axis (axis = 2)
+            coord_axis = 2
+            pos_z = params._scintillator["pos"][coord_axis]+params._scintillator["lys"][ly]["pos"][coord_axis]+params._scintillator["lys"][ly]["ch_pos"][coord_axis]+params._scintillator["lys"][ly]["ch_spacer"][coord_axis]+ly*(params._scintillator["lys"][ly]["ch_size"][coord_axis]+params._scintillator["lys"][ly]["ch_spacer"][coord_axis])
+            size_z = params._scintillator["lys"][ly]["ch_size"][coord_axis]
+            _scintillator_strip_coordinates[ly][st].append([pos_z, pos_z+size_z])
+            # idx = 3: x center pos
+            _scintillator_strip_coordinates[ly][st].append(pos_x+size_x/2)
+            # idx = 4: y center pos
+            _scintillator_strip_coordinates[ly][st].append(pos_y+size_y/2)
+            # idx = 5: z center pos
+            _scintillator_strip_coordinates[ly][st].append(pos_z+size_z/2)
 
 
