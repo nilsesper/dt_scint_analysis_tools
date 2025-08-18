@@ -370,7 +370,7 @@ _dt_chamber = {
             "size": (2126., 2513., 53.5),
             "pos": (1.8, 0., 0.), # corner with smallest coordinates of this sl, *RELATIVE TO* base point of chamber point with smallest coordinates
             "ch_pos": (22.9, 86., 0.), # corner with smallest coordinates of first cell (ly=0,wi=0), *RELATIVE TO* sl point with smallest coordinates
-            "ch_spacer": (_cell_w_spacer, 0., _cell_h_spacer), # size of spacer between layers/chambers
+            "ch_spacer": (_cell_w_spacer, _cell_w_spacer, _cell_h_spacer), # size of spacer between layers/chambers
             "ch_size": (_cell_width, 2341., _cell_height), # size of cell
             "ch_offset": (_cell_offset, 0., 0.), # offset of cell between alternating layers
             "wi_radius": _cell_wire_radius, # wire radius to be displayed (much larger than real wire radius)
@@ -384,7 +384,7 @@ _dt_chamber = {
             "size": (2172., 2462.4, 53.5),
             "pos": (0, 25.3, 181.5),
             "ch_pos": (86., 24.6, 0.),
-            "ch_spacer": (0., _cell_w_spacer, _cell_h_spacer),
+            "ch_spacer": (_cell_w_spacer, _cell_w_spacer, _cell_h_spacer), # (0., _cell_w_spacer, _cell_h_spacer),
             "ch_size": (2000., _cell_width, _cell_height),
             "ch_offset": (0., _cell_offset, 0.),
             "wi_radius": _cell_wire_radius,
@@ -398,7 +398,7 @@ _dt_chamber = {
             "size": (2126., 2513., 53.5),
             "pos": (21.0-1.8, 0., 235.),
             "ch_pos": (22.9, 86., 0.),
-            "ch_spacer": (_cell_w_spacer, 0., _cell_h_spacer),
+            "ch_spacer": (_cell_w_spacer, _cell_w_spacer, _cell_h_spacer), # (_cell_w_spacer, 0., _cell_h_spacer)
             "ch_size": (_cell_width, 2341., _cell_height),
             "ch_offset": (_cell_offset, 0., 0.),
             "wi_radius": _cell_wire_radius,
@@ -469,11 +469,11 @@ _obdt_theta_1_fe_mapping = {
 
 ### scintillator properties: {type: type of scintillator (hodoscope), lys: {ly_id: {type: layer type (strips), orient: orientation of strips (parallel to phi/theta sl)}}}
 # single strip properties (mm)
-_strip_w_spacer = 1.25
-_strip_h_spacer = 0.
 _strip_width = 30.
 _strip_height = 5.
 _strip_length = 500.
+_strip_w_spacer = 20/15
+_strip_h_spacer = 0.
 # full scintillator
 _scintillator = {
     "type": "hodoscope",
@@ -482,25 +482,25 @@ _scintillator = {
             "type": "strips",
             "orient": "phi",
             "size": (0., 0., 0.),
-            "pos": (0., 0., 20.), # corner with smallest coordinates of this layer, *RELATIVE TO* base point of chamber point with smallest coordinates
+            "pos": (10., 10., 20.), # corner with smallest coordinates of this layer, *RELATIVE TO* base point of chamber point with smallest coordinates
             "n_sts": 16, # no of strips
             "ch_pos": (0., 0., 0.), # corner with smallest coordinates of first strip (st=0), *RELATIVE TO* ly point with smallest coordinates
-            "ch_spacer": (_strip_w_spacer, 0., _strip_h_spacer), # size of spacer between strips
+            "ch_spacer": (_strip_w_spacer, _strip_w_spacer, _strip_h_spacer), # size of spacer between strips
             "ch_size": (_strip_width, _strip_length, _strip_height), # size of strip
         },
         1: {
             "type": "strips",
             "orient": "theta",
             "size": (0., 0., 0.),
-            "pos": (0., 0., 0.), 
+            "pos": (10., 10., 5.), 
             "n_sts": 16,
             "ch_pos": (0., 0., 0.),
-            "ch_spacer": (0., _strip_w_spacer, _strip_h_spacer),
+            "ch_spacer": (_strip_w_spacer, _strip_w_spacer, _strip_h_spacer),
             "ch_size": (_strip_length, _strip_width, _strip_height),
         },
     },
     "n_lys": 2,
-    "size": (550., 550., 40.),
+    "size": (520., 520., 30.),
     "pos": (100., 100., -100.), # point with smallest coordinates of scintillator
 }
 ### mezzanine scintillator mapping: {coinc_ch_name: {ch: ch id, ly: scint layer, st: scint strip}}

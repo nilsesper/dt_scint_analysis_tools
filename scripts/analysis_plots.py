@@ -18,6 +18,7 @@ if "REPO_PATH" not in os.environ:
     raise Exception(f"REPO_PATH is not in bash environment. Please source env.sh before executing this script!")
 REPO_PATH = os.environ["REPO_PATH"]
 pcl_path = REPO_PATH+"/data_files"
+plot_path = REPO_PATH+"/plots"
 # data input files:
 cosmic_muon_file = pcl_path+"/dummy_cosmic_muons.pcl"
 # dt
@@ -58,14 +59,16 @@ def main():
         "z0": np.linspace(params._scintillator["pos"][2]-10, params._scintillator["pos"][2]+10, n_hist_bins),
         "theta": np.linspace(0, np.pi, n_hist_bins),
         "phi": np.linspace(0, 2*np.pi, n_hist_bins),
+        "ts": np.linspace(0, int(1.05e8), n_hist_bins),
     }
     for k in hist_bins.keys():
         hists, edges, centers, underflow, overflow = hist_utils.calculate_hist(data=cosmic_muons, key=k, bin_centers=hist_bins[k], silent=True)
-        print(f"key \"{k}\": underflow={underflow}, overflow={overflow}")
+        print(f"key \"{k}\": entries={data_utils.length(cosmic_muons)} underflow={underflow}, overflow={overflow}")
         round_digits = 0 if k in ["ts"] else 2
         xlabel = params._key_symbols[k]+"$(\\text{true})$"
         xlabel += " ["+params._key_units[k]+"]" if (params._key_units[k] != "") else ""
-        hist_utils.plot_1hist(hist=hists, centers=centers, xlabel=xlabel, round_digits=round_digits, bin_labels=False, silent=True)
+        plotname =  plot_path+f"/true_muons_{k}.png"
+        hist_utils.plot_1hist(hist=hists, centers=centers, xlabel=xlabel, round_digits=round_digits, bin_labels=False, silent=True, store=plotname)
 
     ### dt hits
     print(f"### dt hits")
@@ -79,14 +82,16 @@ def main():
         "wi": np.arange(0, 70),
         "ly": np.arange(0, 3+1),
         "sl": np.arange(1, 3+1),
+        "ts": np.linspace(0, int(1.05e8), n_hist_bins),
     }
     for k in hist_bins.keys():
         hists, edges, centers, underflow, overflow = hist_utils.calculate_hist(data=cosmic_muon_dt_hits, key=k, bin_centers=hist_bins[k], silent=True)
-        print(f"key \"{k}\": underflow={underflow}, overflow={overflow}")
+        print(f"key \"{k}\": entries={data_utils.length(cosmic_muon_dt_hits)} underflow={underflow}, overflow={overflow}")
         round_digits = 0 if k in ["ts"] else 2
         xlabel = params._key_symbols[k]+"$(\\text{DT})$"
         xlabel += " ["+params._key_units[k]+"]" if (params._key_units[k] != "") else ""
-        hist_utils.plot_1hist(hist=hists, centers=centers, xlabel=xlabel, round_digits=round_digits, bin_labels=False, silent=True)
+        plotname =  plot_path+f"/dt_hits_{k}.png"
+        hist_utils.plot_1hist(hist=hists, centers=centers, xlabel=xlabel, round_digits=round_digits, bin_labels=False, silent=True, store=plotname)
 
     ### dt reco muons
     print(f"### dt reco muons")
@@ -97,14 +102,16 @@ def main():
         "z0": np.linspace(params._scintillator["pos"][2]-10, params._scintillator["pos"][2]+10, n_hist_bins),
         "theta": np.linspace(0, np.pi, n_hist_bins),
         "phi": np.linspace(0, 2*np.pi, n_hist_bins),
+        "ts": np.linspace(0, int(1.05e8), n_hist_bins),
     }
     for k in hist_bins.keys():
         hists, edges, centers, underflow, overflow = hist_utils.calculate_hist(data=cosmic_muon_dt_muons, key=k, bin_centers=hist_bins[k], silent=True)
-        print(f"key \"{k}\": underflow={underflow}, overflow={overflow}")
+        print(f"key \"{k}\": entries={data_utils.length(cosmic_muon_dt_muons)} underflow={underflow}, overflow={overflow}")
         round_digits = 0 if k in ["ts"] else 2
         xlabel = params._key_symbols[k]+"$(\\text{DT})$"
         xlabel += " ["+params._key_units[k]+"]" if (params._key_units[k] != "") else ""
-        hist_utils.plot_1hist(hist=hists, centers=centers, xlabel=xlabel, round_digits=round_digits, bin_labels=False, silent=True)
+        plotname =  plot_path+f"/dt_muons_{k}.png"
+        hist_utils.plot_1hist(hist=hists, centers=centers, xlabel=xlabel, round_digits=round_digits, bin_labels=False, silent=True, store=plotname)
 
     ### dt reco vs. true cosmic muons
     print(f"### dt reco muons vs. cosmic muons")
@@ -128,11 +135,12 @@ def main():
                 reco_muon_delta[k][i] = cosmic_muon_dt_muons[k][i] - cosmic_muons[k][muon_id]
     for k in hist_bins.keys():
         hists, edges, centers, underflow, overflow = hist_utils.calculate_hist(data=reco_muon_delta, key=k, bin_centers=hist_bins[k], silent=True)
-        print(f"key \"{k}\": underflow={underflow}, overflow={overflow}")
+        print(f"key \"{k}\": entries={data_utils.length(reco_muon_delta)} underflow={underflow}, overflow={overflow}")
         round_digits = 0 if k in ["ts"] else 2
         xlabel = params._key_symbols[k]+"$(\\text{DT})-$"+params._key_symbols[k]+"$(\\text{true})$"
         xlabel += " ["+params._key_units[k]+"]" if (params._key_units[k] != "") else ""
-        hist_utils.plot_1hist(hist=hists, centers=centers, xlabel=xlabel, round_digits=round_digits, bin_labels=False, silent=True)
+        plotname =  plot_path+f"/true_vs_dt_muons_{k}.png"
+        hist_utils.plot_1hist(hist=hists, centers=centers, xlabel=xlabel, round_digits=round_digits, bin_labels=False, silent=True, store=plotname)
 
     ### scintillator hits
     print(f"### scintillator hits")
@@ -145,14 +153,16 @@ def main():
         "oc": np.linspace(0, params._lhc_orbit_count, n_hist_bins),
         "ly": np.arange(0, 3+1),
         "st": np.arange(1, 16+1),
+        "ts": np.linspace(0, int(1.05e8), n_hist_bins),
     }
     for k in hist_bins.keys():
         hists, edges, centers, underflow, overflow = hist_utils.calculate_hist(data=cosmic_muon_scint_hits, key=k, bin_centers=hist_bins[k], silent=True)
-        print(f"key \"{k}\": underflow={underflow}, overflow={overflow}")
+        print(f"key \"{k}\": entries={data_utils.length(cosmic_muon_scint_hits)} underflow={underflow}, overflow={overflow}")
         round_digits = 0 if k in ["ts"] else 2
         xlabel = params._key_symbols[k]+"$(\\text{scint})$"
         xlabel += " ["+params._key_units[k]+"]" if (params._key_units[k] != "") else ""
-        hist_utils.plot_1hist(hist=hists, centers=centers, xlabel=xlabel, round_digits=round_digits, bin_labels=False, silent=True)
+        plotname =  plot_path+f"/scint_hits_{k}.png"
+        hist_utils.plot_1hist(hist=hists, centers=centers, xlabel=xlabel, round_digits=round_digits, bin_labels=False, silent=True, store=plotname)
 
     ### scint reco muon areas
     print(f"### scint reco muon areas")
@@ -166,11 +176,12 @@ def main():
     }
     for k in hist_bins.keys():
         hists, edges, centers, underflow, overflow = hist_utils.calculate_hist(data=cosmic_muon_scint_muon_areas, key=k, bin_centers=hist_bins[k], silent=True)
-        print(f"key \"{k}\": underflow={underflow}, overflow={overflow}")
+        print(f"key \"{k}\": entries={data_utils.length(cosmic_muon_scint_muon_areas)} underflow={underflow}, overflow={overflow}")
         round_digits = 0 if k in ["ts"] else 2
         xlabel = params._key_symbols[k]+"$(\\text{scint})$"
         xlabel += " ["+params._key_units[k]+"]" if (params._key_units[k] != "") else ""
-        hist_utils.plot_1hist(hist=hists, centers=centers, xlabel=xlabel, round_digits=round_digits, bin_labels=False, silent=True)
+        plotname =  plot_path+f"/scint_reco_{k}.png"
+        hist_utils.plot_1hist(hist=hists, centers=centers, xlabel=xlabel, round_digits=round_digits, bin_labels=False, silent=True, store=plotname)
 
     ### correlate scintillator & dt reco
 

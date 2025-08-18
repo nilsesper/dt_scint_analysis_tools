@@ -33,12 +33,13 @@ cosmic_muon_scint_hits_file = pcl_path+"/dummy_cosmic_muon_scint_hits.pcl"
 def main():
 
     ## muon gen setup
-    n_muons = 10000 #100000 # no of muons to generate
+    n_muons = 100000 #100000 # no of muons to generate
     t_start = 10000 # timestamp of first muon
     t_step = 1000 # timestamp distance between muons
     # geometrical area where muons should be generated
-    xrange = [ params._scintillator["pos"][0] , params._scintillator["pos"][0]+params._scintillator["size"][0] ]
-    yrange = [ params._scintillator["pos"][1] , params._scintillator["pos"][1]+params._scintillator["size"][1] ]
+    xyspacing = 100
+    xrange = [ params._scintillator["pos"][0]-xyspacing , params._scintillator["pos"][0]+params._scintillator["size"][0]+xyspacing ]
+    yrange = [ params._scintillator["pos"][1]-xyspacing , params._scintillator["pos"][1]+params._scintillator["size"][1]+xyspacing ]
     z0 = params._scintillator["pos"][2]
     phirange = [ 0 , 2*np.pi ]
     thetarange = [ 0 , np.pi/4 ]

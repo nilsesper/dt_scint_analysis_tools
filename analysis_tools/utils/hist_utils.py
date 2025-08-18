@@ -75,7 +75,7 @@ def calculate_hist(data, key, bin_centers, *, silent=False):
 # arguments:
 # hist: histogram entries (bin heights)
 # centers: centers of histograms
-@mpl.rc_context({'font.family': 'sans-serif', 'font.sans-serif': 'Arial', 'font.size': 12})
+@mpl.rc_context({'font.family': 'sans-serif', 'font.size': 12}) # 'font.sans-serif': 'Arial'
 def plot_1hist(hist, centers, *, vmin=None, vmax=None, scale="norm", bin_labels=True, show=True, store=False, xlabel="", rel_spacing=0, round_digits=0, silent=False):
     if not silent: print(f"Plotting one histogram...")
     fig, ax = plt.subplots(1, 1, figsize=(12,8))
@@ -107,6 +107,8 @@ def plot_1hist(hist, centers, *, vmin=None, vmax=None, scale="norm", bin_labels=
             if scale == "log": vmax = np.amax(hist)*np.exp(1.1)
         ax.set_ylim(bottom=vmin, top=vmax)
     if xlabel != "": ax.set_xlabel(xlabel)
+    # tight layout
+    fig.tight_layout()
     # show / save figure
     if show == True: fig.show()
     if store != False: fig.savefig(store)
