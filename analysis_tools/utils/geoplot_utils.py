@@ -153,7 +153,7 @@ def muon_ax(ax, orient, muons, muon_id, *, color="tab:blue"):
     else:
         _x0 = y0
         _x1 = y1
-    ax.axline((_x0, _y0), (_x1, _y1), c=color)
+    ax.axline((_x0, _y0), (_x1, _y1), c=color, linewidth=params._color_info["muon"]["linewidth"])
     return ax
 
 ### draw dt hits (if laterality + drift distance + muon id is known)
@@ -170,7 +170,7 @@ def cell_hits_ax(ax, orient, dt_hits, muon_id, *, color="tab:green"):
         x_pts.append( dd*hit_lat + derived_params._dt_cell_coordinates[sl][ly][wi][3+x_axis] )
         y_pts.append( derived_params._dt_cell_coordinates[sl][ly][wi][3+y_axis] )
     x_pts, y_pts = np.array(x_pts), np.array(y_pts)
-    ax.scatter(x_pts, y_pts, marker=".", color=color)
+    ax.scatter(x_pts, y_pts, marker=".", color=color, s=params._color_info["muon"]["markersize"])
     return ax
 
 ### draw dt sl fit muon
@@ -190,7 +190,7 @@ def chamber_muon_fit_ax(ax, orient, sl_dt_fits, pattern_id, *, color="red"):
     x0, y0 = derived_params.f_x_muon(z=_z0, x0=x0_fit, tan_alpha=tan_alpha_fit) + _coord_transform[0], _z0 + _coord_transform[1]
     x1, y1 = derived_params.f_x_muon(z=_z1, x0=x0_fit, tan_alpha=tan_alpha_fit) + _coord_transform[0], _z1 + _coord_transform[1]
     # draw line
-    ax.axline((x0, y0), (x1, y1), c=color)
+    ax.axline((x0, y0), (x1, y1), c=color, linewidth=params._color_info["muon"]["linewidth"])
     return ax
 
 ### draw scint hits (if xhit + muon_id is known)
@@ -208,7 +208,23 @@ def scint_hits_ax(ax, orient, scint_hits, muon_id, *, color="tab:blue"):
         y_pts.append( derived_params._scintillator_strip_coordinates[ly][st][3+y_axis] )
         #print("cell_hits_ax", dd, hit_lat, derived_params._dt_cell_coordinates[sl][ly][wi][3+x_axis], "=", x_pts)
     x_pts, y_pts = np.array(x_pts), np.array(y_pts)
-    ax.scatter(x_pts, y_pts, marker=".", color=color)
+    ax.scatter(x_pts, y_pts, marker=".", color=color, s=params._color_info["muon"]["markersize"])
+    return ax
+
+### draw muon area (area of muon hit reco from scintillator)
+# for given muon_id
+def scint_muon_area_ax(ax, orient, scint_muon_areas, muon_id, *, color="red"):
+    n_hits = len(scint_muon_areas["ts"])
+    x_axis, y_axis = params._orientation[orient][0], params._orientation[orient][1]
+    patches = []
+    for i in range(n_hits):
+        if scint_muon_areas["muon_id"][i] != muon_id: continue
+        xmin, xmax = (scint_muon_areas["xmin"][i], scint_muon_areas["xmax"][i]) if (x_axis == 0) else (scint_muon_areas["ymin"][i], scint_muon_areas["ymax"][i])
+        z0 = scint_muon_areas["z0"][i]
+        # draw line (side view of muon area)
+        patches.append( pat.Polygon([(xmin, z0), (xmax, z0)], edgecolor=color, facecolor=None, closed=False, visible=True, linewidth=params._color_info["muon"]["linewidth"]) )
+    for patch in patches:
+        ax.add_patch(patch)
     return ax
 
 ###--------- draw sl pattern fit (local sl pattern coord frame)
@@ -263,7 +279,7 @@ def sl_muon_fit_ax(ax, sl_dt_fits, pattern_id, *, color="red"):
     _z0 = derived_params._sl_pattern_coordinates[3][0][3] # z_cell (wire position) of ly=3
     _z1 = derived_params._sl_pattern_coordinates[2][0][3] # z_cell (wire position) of ly=2
     x0_fit, tan_alpha_fit = sl_dt_fits["x0"][pattern_id], sl_dt_fits["tan_alpha"][pattern_id]
-    ax.axline((derived_params.f_x_muon(z=_z0, x0=x0_fit, tan_alpha=tan_alpha_fit), _z0), (derived_params.f_x_muon(z=_z1, x0=x0_fit, tan_alpha=tan_alpha_fit), _z1), c=color)
+    ax.axline((derived_params.f_x_muon(z=_z0, x0=x0_fit, tan_alpha=tan_alpha_fit), _z0), (derived_params.f_x_muon(z=_z1, x0=x0_fit, tan_alpha=tan_alpha_fit), _z1), c=color, linewidth=params._color_info["muon"]["linewidth"])
     return ax
 
 ### draw sl projection of muon object
@@ -288,7 +304,7 @@ def sl_muon_proj_ax(ax, muons, sl_dt_fits, pattern_id, *, color="tab:green"):
     # transform coordinates from global coordinate frame of dt chamber (used in params.py file) into local coordinate frame (with (0,0) at center (wire) position of cell ly=3, rel_wi=0)
     base_wi = sl_dt_fits["wi3"][pattern_id] # wi idx of ly=3 (base wi)
     _coord_transform = [ derived_params._dt_cell_coordinates[sl][3][base_wi][x_axis+3], derived_params._dt_cell_coordinates[sl][3][base_wi][y_axis+3] ]
-    ax.axline((_x0-_coord_transform[0], _y0-_coord_transform[1]), (_x1-_coord_transform[0], _y1-_coord_transform[1]), c=color)
+    ax.axline((_x0-_coord_transform[0], _y0-_coord_transform[1]), (_x1-_coord_transform[0], _y1-_coord_transform[1]), c=color, linewidth=params._color_info["muon"]["linewidth"])
     return ax
 
 ### draw dt hits (if laterality + drift distance + muon id is known) into sl projection
@@ -323,9 +339,9 @@ def sl_dt_hits_proj_ax(ax, dt_hits, sl_dt_fits, pattern_id, *, color="tab:green"
     # transform coordinates from global coordinate frame of dt chamber (used in params.py file) into local coordinate frame (with (0,0) at center (wire) position of cell ly=3, rel_wi=0)
     base_wi = sl_dt_fits["wi3"][pattern_id] # wi idx of ly=3 (base wi)
     _coord_transform = [ derived_params._dt_cell_coordinates[sl][3][base_wi][x_axis+3], derived_params._dt_cell_coordinates[sl][3][base_wi][y_axis+3] ]
-    ax.scatter(x_pts-_coord_transform[0], y_pts-_coord_transform[1], marker=".", color=color)
+    ax.scatter(x_pts-_coord_transform[0], y_pts-_coord_transform[1], marker=".", color=color, s=params._color_info["muon"]["markersize"])
     if other_lat:
-        ax.scatter(x_pts2-_coord_transform[0], y_pts2-_coord_transform[1], marker=".", color="tab:gray")
+        ax.scatter(x_pts2-_coord_transform[0], y_pts2-_coord_transform[1], marker=".", color="tab:gray", s=params._color_info["muon"]["markersize"])
     return ax
 
 

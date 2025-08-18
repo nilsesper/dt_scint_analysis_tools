@@ -264,6 +264,10 @@ _color_info = {
         "side_view": "lightgray",
         "cmap": mpl.colormaps["Reds"],
     },
+    "muon": {
+        "linewidth": 1.5,
+        "markersize": 50,
+    }
 }
 
 ### muon object specific

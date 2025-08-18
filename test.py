@@ -212,6 +212,8 @@ def main():
         # plot reconstructed muon scint hits
         for i in range(n_reco_muons):
             ax = geoplot_utils.scint_hits_ax(ax=ax, orient=orient, scint_hits=scint_reco_muon_hits, muon_id=i, color="tab:blue")
+        # plot reconstructed reconstructed muon area in scintillator
+        ax = geoplot_utils.scint_muon_area_ax(ax=ax, orient=orient, scint_muon_areas=reco_muon_areas, muon_id=i, color="red")
         # axis limits
         ax.margins(x=0.05, y=0.05)
         # text labels
