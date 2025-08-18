@@ -220,7 +220,6 @@ for ly in range(params._dt_chamber["sls"][sl]["n_lys"]):
                 _sl_pattern_coordinates[ly][rel_wi][i][j] = _sl_pattern_coordinates[ly][rel_wi][i][j] - _sl_pattern_coordinates_transform[i]
         for i in [2,3]:
             _sl_pattern_coordinates[ly][rel_wi][i] = _sl_pattern_coordinates[ly][rel_wi][i] - _sl_pattern_coordinates_transform[i-2]
-print(_sl_pattern_coordinates)
 
 ### dt sl pattern fit function
 # use coordinates defined above
@@ -305,5 +304,25 @@ for ly in range(params._scintillator["n_lys"]):
             _scintillator_strip_coordinates[ly][st].append(pos_y+size_y/2)
             # idx = 5: z center pos
             _scintillator_strip_coordinates[ly][st].append(pos_z+size_z/2)
+
+### scintillator sensitive area
+# xmin of first strip, xmax of last strip), same for y axis, mean z of scintillator
+# to be used for cutting reco muons from dt chamber to the muons where one can expect a scintillator hit
+_scintillator_sensitive_coordinates = [] # [[xmin, xmax], [ymin, ymax], zmean] of full scintillator detector area
+xmin, xmax, ymin, ymax, z0 = [], [], [], [], []
+for ly in range(params._scintillator["n_lys"]):
+    for st in range(params._scintillator["lys"][ly]["n_sts"]):
+        if params._scintillator["lys"][ly]["orient"] == "phi":
+            xmin.append(_scintillator_strip_coordinates[ly][st][0][0])
+            xmax.append(_scintillator_strip_coordinates[ly][st][0][1])
+        elif params._scintillator["lys"][ly]["orient"] == "theta":
+            ymin.append(_scintillator_strip_coordinates[ly][st][1][0])
+            ymax.append(_scintillator_strip_coordinates[ly][st][1][1])
+        z0.append(_scintillator_strip_coordinates[ly][st][5])
+_scintillator_sensitive_coordinates = [
+    [np.amin(xmin), np.amax(xmax)],
+    [np.amin(ymin), np.amax(ymax)],
+    np.mean(z0),
+]
 
 

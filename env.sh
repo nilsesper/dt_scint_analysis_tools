@@ -17,6 +17,7 @@ done
 cd "`dirname "${SCRIPT_PATH}"`" > /dev/null
 SCRIPT_PATH="`pwd`";
 REPO_PATH=$SCRIPT_PATH
+export REPO_PATH=${REPO_PATH}
 echo "  REPO_PATH = ${REPO_PATH}"
 
 echo "Adding variables to PYTHONPATH."

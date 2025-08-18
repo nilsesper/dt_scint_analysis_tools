@@ -38,7 +38,7 @@ def extract_scint_hits(hits, *, silent=False):
     if not silent: print(f"Found {n_scint_hits} scintillator hits. Adding scintillator specific keys...")
     # add specific scint keys
     tmp_hits |= {k: np.full(n_scint_hits, 0, dtype=v) for k,v in params._scint_mapping_keys.items()} | {k: np.full(n_hits, 0, dtype=v) for k,v in params._scint_other_keys.items()} 
-    for i in tqdm(range(n_scint_hits)):
+    for i in tqdm(range(n_scint_hits), disable=silent):
         ro_ch = tmp_hits["ro_ch"][i]
         ch = tmp_hits["ch"][i]
         # add keys according to remapping table
@@ -71,7 +71,7 @@ def hits_from_muons(muons, *, silent=False):
         z_pos = derived_params._scintillator_strip_coordinates[ly][z_st_idx][5] # use center z position (idx 5) of each layer
         (x,y,z) = muon_utils.propagate_muons(muons=muons, z=z_pos) # propagate all muons together
         if not silent: print(f"  Progress: LY {ly}...")
-        for st in tqdm(range(params._scintillator["lys"][ly]["n_sts"])):
+        for st in tqdm(range(params._scintillator["lys"][ly]["n_sts"]), disable=silent):
             # check for all muons separately
             for i in range(n_muons):
                 # check if muon propagated inside of x and y range of cell, use >= but < to suppress double hits
@@ -127,7 +127,7 @@ def reco_muon_area_from_hits(hits, *, silent=False, verbose=False):
     # the algorithm can only cope one muon after another (strictly in order), not multiple muon fits simultaneously :(
     last_scint_hits = {ly: None for ly in params._scintillator["lys"].keys()} # last sl pattern for all sls
     ts_ref = 0
-    for i in tqdm(range(n_hits)):
+    for i in tqdm(range(n_hits), disable=silent):
         ### fitted sl pattern grouping
         ly = hits["ly"][i]
         ts = hits["ts"][i]

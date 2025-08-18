@@ -25,7 +25,7 @@ def add_timestamp(hits, *, silent=False):
     ts_hits |= {"ts": np.full(n_hits, 0, dtype=params._ts_type)}
     oc_overflow = 0 # count how many times the orbit counter overflowed -> to have non-jumping but continous timestamp
     last_oc = 0
-    for i in tqdm(range(n_hits)):
+    for i in tqdm(range(n_hits), disable=silent):
         tdc = ts_hits["tdc"][i]
         bx = ts_hits["bx"][i]
         oc = ts_hits["oc"][i]

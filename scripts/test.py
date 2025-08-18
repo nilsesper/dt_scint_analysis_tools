@@ -140,6 +140,9 @@ def main():
         hist_utils.plot_1hist(hist=hists, centers=centers, xlabel=k, round_digits=round_digits)
     """
 
+    # cut reco muons to only the ones that hit the scintillator
+    reco_muons = muon_utils.cut_muons_by_area(muons=reco_muons, xmin=derived_params._scintillator_sensitive_coordinates[0][0], xmax=derived_params._scintillator_sensitive_coordinates[0][1], ymin=derived_params._scintillator_sensitive_coordinates[1][0], ymax=derived_params._scintillator_sensitive_coordinates[1][1], z0=derived_params._scintillator_sensitive_coordinates[2])
+
     # calculate expected scintillator hits from reco muons
     scint_reco_muon_hits = scint_utils.hits_from_muons(muons=reco_muons)
     print("scint_reco_muon_hits =",scint_reco_muon_hits)
@@ -147,6 +150,11 @@ def main():
     # reco muon areas from scintillator hits
     reco_muon_areas = scint_utils.reco_muon_area_from_hits(hits=scint_reco_muon_hits)
     print("reco_muon_areas =",reco_muon_areas)
+
+    #pickle_file = "test.pcl"
+    #data_utils.store_pickle(data=reco_muon_areas, file=pickle_file)
+    #data_utils.load_pickle(file=pickle_file)
+    #print("reco_muon_areas =",reco_muon_areas)
 
     #input("Press enter to exit.")
     #exit()

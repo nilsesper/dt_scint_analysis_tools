@@ -39,7 +39,7 @@ def extract_dt_hits(hits, *, silent=False):
     if not silent: print(f"Found {n_dt_hits} DT hits. Adding DT specific keys...")
     # add specific dt keys
     tmp_hits |= {k: np.full(n_dt_hits, 0, dtype=v) for k,v in params._dt_mapping_keys.items()} | {k: np.full(n_dt_hits, 0, dtype=v) for k,v in params._dt_other_keys.items()}
-    for i in tqdm(range(n_dt_hits)):
+    for i in tqdm(range(n_dt_hits), disable=silent):
         ro_ch = tmp_hits["ro_ch"][i]
         ch = tmp_hits["ch"][i]
         # add keys according to remapping table
@@ -61,23 +61,24 @@ def _empty_dt_chamber_map(dtype, default=0):
     return dt_map
 
 ### find pattern in dt hits for each superlayer separately, within given timestamp range
-# requires timestamps assigned in hits object & sorted hits object wrt timestamps
+# requires timestamps assigned in hits object
 # returns list of found sl patterns with timestamps and pattern info
 #@jit(nopython=True)
 def find_sl_patterns(hits, *, silent=False):
-    silent = False
     pattern_list = []
     n_hits = len(hits["ch"])
     if not silent: print(f"Extract DT superlayer patterns from {n_hits} total hits...")
     last_hit = _empty_dt_chamber_map(dtype=params._ts_type, default=0)
+    # sort hits by timestamp
+    hits = timestamp_utils.sort_by_timestamp(hits=hits, silent=silent)
     # go through separately for each sl
     for sl in params._dt_chamber["sls"].keys():
         if not silent: print(f"  Progress: SL {sl}...")
-        this_sl_hits = data_utils.cut_data(data=hits, conditions=[("sl", "==", sl)])
+        this_sl_hits = data_utils.cut_data(data=hits, conditions=[("sl", "==", sl)], silent=silent)
         n_this_sl_hits = len(this_sl_hits["ch"])
         # max value of wire idx for current sl
         max_wi = params._dt_chamber["sls"][sl]["n_wis"]-1
-        for i in tqdm(range(n_this_sl_hits)):
+        for i in tqdm(range(n_this_sl_hits), disable=silent):
             # update last timestamp of all dt wires
             ly = this_sl_hits["ly"][i]
             wi = this_sl_hits["wi"][i]
@@ -135,7 +136,7 @@ def find_sl_patterns(hits, *, silent=False):
             sl_patterns[f"wi{j}"][i] = pattern_list[i][2][j]
             sl_patterns[f"ts{j}"][i] = pattern_list[i][3][j]
     # sort pattern list by timestamp of wi3 (ts of ly=3 hit, which later serves as reference cell)
-    sl_patterns = data_utils.sort_by_key(data=sl_patterns, sort_key="wi3")
+    sl_patterns = data_utils.sort_by_key(data=sl_patterns, sort_key="wi3", silent=silent)
     return sl_patterns
 
 ### create empty chamber_data object
@@ -159,7 +160,7 @@ def fit_sl_patterns(patterns, *, silent=False, verbose=False):
     # add other keys
     sl_fits |= {k: np.full(n_patterns, 0, dtype=v) for k,v in params._sl_fit_keys.items()}
     # fit all patterns
-    for i in tqdm(range(n_patterns)):
+    for i in tqdm(range(n_patterns), disable=silent):
         pat_type = patterns["pat_type"][i] # idx of key in _dt_sl_patterns
         pat_name = list(params._dt_sl_patterns.keys())[pat_type] # extract pattern name e.g. "+a"
         lats = params._dt_sl_patterns[pat_name]["laterality"] # list of [lat for ly0,1,2,3] laterality lists
@@ -224,7 +225,7 @@ def fit_sl_patterns(patterns, *, silent=False, verbose=False):
 def reco_muons_from_sl_fits(fits, *, silent=False, verbose=False):
     reco_muon_list = []
     # sort fits by t0 value
-    fits = data_utils.sort_by_key(data=fits, sort_key="t0")
+    fits = data_utils.sort_by_key(data=fits, sort_key="t0", silent=silent)
     n_fits = len(fits["t0"])
     if not silent: print(f"Combining {n_fits} fitted SL patterns to reconstruct muons...")
     # extract is of sls in phi & theta orientation
@@ -238,7 +239,7 @@ def reco_muons_from_sl_fits(fits, *, silent=False, verbose=False):
     # the algorithm can only cope one muon after another (strictly in order), not multiple muon fits simultaneously :(
     last_sl_pattern = {sl: None for sl in params._dt_chamber["sls"].keys()} # last sl pattern for all sls
     t0_ref = 0
-    for i in tqdm(range(n_fits)):
+    for i in tqdm(range(n_fits), disable=silent):
         ### fitted sl pattern grouping
         sl = fits["sl"][i]
         t0 = fits["t0"][i]
@@ -362,7 +363,7 @@ def hits_from_muons(muons, *, silent=False, noise_ampl=0):
             z_pos = derived_params._dt_cell_coordinates[sl][ly][z_wi_idx][5] # use center z position (idx 5) of each layer
             (x,y,z) = muon_utils.propagate_muons(muons=muons, z=z_pos) # propagate all muons together
             if not silent: print(f"  Progress: SL {sl}, LY {ly}...")
-            for wi in tqdm(range(params._dt_chamber["sls"][sl]["n_wis"])):
+            for wi in tqdm(range(params._dt_chamber["sls"][sl]["n_wis"]), disable=silent):
                 # check for all muons separately
                 for i in range(n_muons):
                     # check if muon propagated inside of x and y range of cell, use >= but < to suppress double hits

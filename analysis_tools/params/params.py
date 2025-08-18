@@ -73,7 +73,7 @@ _dt_other_keys = {
     "muon_ts": _ts_type,
     "dt": np.uint16, # drift time (in ts units)
     "dd": np.float64, # drift distance (in mm)
-    "muon_id": np.uint16, # id / idx of correlated muon
+    "muon_id": np.uint64, # id / idx of correlated muon
     "hit_lat": np.int8, # hit laterality -1 (l) left of wire, +1 (r) right of wire
 }
 
@@ -187,7 +187,7 @@ _sl_pattern_keys = { # {key: dtype}
     "wi2": np.uint8, # wire index of ly 0 wire of pattern
     "ts3": _ts_type, # timestamp of ly 3 wire of pattern
     "wi3": np.uint8, # wire index of ly 0 wire of pattern
-    "muon_id": np.uint16, # id / idx of correlated muon
+    "muon_id": np.uint64, # id / idx of correlated muon
 }
 # dt drift velocity
 _drift_velocity = 54.5 # unit: um / ns = 10^-6 / 10 ^-9 m/s = 10^3 m/s
@@ -224,7 +224,7 @@ _scint_other_keys = {
     "ts": _ts_type,
     "muon_ts": _ts_type,
     "xhit": np.float64, # relative hit position: x_hit = xhit + xleft(lower x coord of strip) (in mm)
-    "muon_id": np.uint16, # id / idx of correlated muon
+    "muon_id": np.uint64, # id / idx of correlated muon
 }
 
 ## use custom coordinate frame
@@ -279,7 +279,7 @@ _muon_obj_keys = {
     "theta": np.float64, # theta angle (angle relative to z axis), in rad
     "phi": np.float64, # phi angle (angle relative to x axis, between x and y axis), in rad
     "ts": _ts_type, # timestamp of muon arrival (assume velocity is infinite, therefore during propagation no time passes, is alright here)
-    "muon_id": np.uint16, # id / idx of correlated muon (used to compare simulation + reconstruction)
+    "muon_id": np.uint64, # id / idx of correlated muon (used to compare simulation + reconstruction)
 }
 
 ### muon area object specific
@@ -291,7 +291,7 @@ _muon_area_obj_keys = {
     "ymin": np.float64, # smallest allowed y point, in mm
     "ymax": np.float64, # largest allowed y point, in mm 
     "ts": _ts_type, # timestamp of muon arrival
-    "muon_id": np.uint16, # id / idx of correlated muon (used to compare simulation + reconstruction)
+    "muon_id": np.uint64, # id / idx of correlated muon (used to compare simulation + reconstruction)
 }
 
 ### cosmic muon theta weight for a given theta value

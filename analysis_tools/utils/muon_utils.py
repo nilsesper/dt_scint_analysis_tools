@@ -42,9 +42,27 @@ def generate_cosmic_muons(n, ts, xrange, yrange, z0, *, silent=False, thetarange
     muons["muon_id"] = np.arange(0, n, dtype=params._muon_obj_keys["muon_id"])
     return muons
 
-
-
-
+### cut muons by specifying geometrical area (xmin, xmax, ymin, ymax, z0) it has to pass through
+# (ignore timestamp, accept all timestamps)
+def cut_muons_by_area(muons, xmin, xmax, ymin, ymax, z0, *, silent=False):
+    n_muons = len(muons["ts"])
+    mask = np.full(n_muons, True)
+    if not silent: print(f"Cutting {n_muons} muons to geometrical area x=({xmin}, {xmax}) y=({ymin}, {ymax}) z={z0}...")
+    # propagate muons and check if in min/max range -> populate mask
+    (x,y,z) = propagate_muons(muons, z=z0)
+    mask &= (x >= xmin)
+    mask &= (x <= xmax)
+    mask &= (y >= ymin)
+    mask &= (x <= ymax)
+    # apply mask on muons
+    cut_muons = {}
+    for name in muons.keys():
+        cut_muons[name] = copy.deepcopy(muons[name][mask])
+    n_cut_muons = len(cut_muons["ts"])
+    if not silent:
+        if n_muons > 0: print(f"Cut flow: {n_cut_muons} / {n_muons} = {n_cut_muons/n_muons}")
+        else: print(f"Cut flow: {n_cut_muons} / {n_muons}")
+    return cut_muons
 
 
 
