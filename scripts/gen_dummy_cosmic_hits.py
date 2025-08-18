@@ -61,7 +61,7 @@ def main():
 
     ### scint hit gen
     print(f"###### Propagating {n_muons} cosmic muons through scintillator and storing hits to \"{cosmic_muon_scint_hits_file}\"...")
-    # determine dt hits from cosmic muons
+    # determine scint hits from cosmic muons
     scint_cosmic_muon_hits = scint_utils.hits_from_muons(muons=cosmic_muons)
     print("scint_cosmic_muon_hits =",scint_cosmic_muon_hits)
     # store to pcl file

@@ -312,6 +312,15 @@ _key_symbols = {
     "t0": "$T_0$",
     "phi": "$\\phi$",
     "theta": "$\\theta$",
+    "ch": "Channel",
+    "ro_ch": "Readout channel",
+    "tdc": "$TDC$",
+    "bx": "$BX$",
+    "oc": "$OC$",
+    "wi": "Wire",
+    "ly": "Layer",
+    "sl": "Superlayer",
+    "st": "Strip",
 }
 _key_units = {
     "x0": "mm",
@@ -325,6 +334,15 @@ _key_units = {
     "t0": "TU", # timestamp unit: "$0.78\;\\text{ns}$",
     "phi": "rad",
     "theta": "rad",
+    "ch": "",
+    "ro_ch": "",
+    "tdc": "TDCU", # tdc units
+    "bx": "BXU", # bx units
+    "oc": "OCU", # oc units
+    "wi": "",
+    "ly": "",
+    "sl": "",
+    "st": "",
 }
 
 ###############################

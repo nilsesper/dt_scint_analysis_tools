@@ -64,8 +64,8 @@ def main():
     #cosmic_muon_dt_muons = dt_utils.reco_muons_from_sl_fits(fits=cosmic_muon_sl_dt_fits, verbose=False)
     print("cosmic_muon_dt_muons =",cosmic_muon_dt_muons)
     # store to pcl file
-    #data_utils.store_pickle(data=cosmic_muon_sl_dt_patterns, file=cosmic_muon_sl_dt_patterns_file)
-    #data_utils.store_pickle(data=cosmic_muon_sl_dt_fits, file=cosmic_muon_sl_dt_fits_file)
+    data_utils.store_pickle(data=cosmic_muon_sl_dt_patterns, file=cosmic_muon_sl_dt_patterns_file)
+    data_utils.store_pickle(data=cosmic_muon_sl_dt_fits, file=cosmic_muon_sl_dt_fits_file)
     data_utils.store_pickle(data=cosmic_muon_dt_muons, file=cosmic_muon_dt_muons_file)
 
 

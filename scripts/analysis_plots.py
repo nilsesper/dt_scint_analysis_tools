@@ -63,7 +63,29 @@ def main():
         hists, edges, centers, underflow, overflow = hist_utils.calculate_hist(data=cosmic_muons, key=k, bin_centers=hist_bins[k], silent=True)
         print(f"key \"{k}\": underflow={underflow}, overflow={overflow}")
         round_digits = 0 if k in ["ts"] else 2
-        xlabel = params._key_symbols[k]+"$(\\text{true})$ "+"["+params._key_units[k]+"]"
+        xlabel = params._key_symbols[k]+"$(\\text{true})$"
+        xlabel += " ["+params._key_units[k]+"]" if (params._key_units[k] != "") else ""
+        hist_utils.plot_1hist(hist=hists, centers=centers, xlabel=xlabel, round_digits=round_digits, bin_labels=False, silent=True)
+
+    ### dt hits
+    print(f"### dt hits")
+    n_hist_bins = 100
+    hist_bins = {
+        "ro_ch": np.arange(0, 32),
+        "ch": np.arange(0, 255),
+        "tdc": np.arange(0, params._lhc_tdc_count+1),
+        "bx": np.linspace(0, params._lhc_bunch_count, n_hist_bins),
+        "oc": np.linspace(0, params._lhc_orbit_count, n_hist_bins),
+        "wi": np.arange(0, 70),
+        "ly": np.arange(0, 3+1),
+        "sl": np.arange(1, 3+1),
+    }
+    for k in hist_bins.keys():
+        hists, edges, centers, underflow, overflow = hist_utils.calculate_hist(data=cosmic_muon_dt_hits, key=k, bin_centers=hist_bins[k], silent=True)
+        print(f"key \"{k}\": underflow={underflow}, overflow={overflow}")
+        round_digits = 0 if k in ["ts"] else 2
+        xlabel = params._key_symbols[k]+"$(\\text{DT})$"
+        xlabel += " ["+params._key_units[k]+"]" if (params._key_units[k] != "") else ""
         hist_utils.plot_1hist(hist=hists, centers=centers, xlabel=xlabel, round_digits=round_digits, bin_labels=False, silent=True)
 
     ### dt reco muons
@@ -80,7 +102,8 @@ def main():
         hists, edges, centers, underflow, overflow = hist_utils.calculate_hist(data=cosmic_muon_dt_muons, key=k, bin_centers=hist_bins[k], silent=True)
         print(f"key \"{k}\": underflow={underflow}, overflow={overflow}")
         round_digits = 0 if k in ["ts"] else 2
-        xlabel = params._key_symbols[k]+"$(\\text{DT})$ "+"["+params._key_units[k]+"]"
+        xlabel = params._key_symbols[k]+"$(\\text{DT})$"
+        xlabel += " ["+params._key_units[k]+"]" if (params._key_units[k] != "") else ""
         hist_utils.plot_1hist(hist=hists, centers=centers, xlabel=xlabel, round_digits=round_digits, bin_labels=False, silent=True)
 
     ### dt reco vs. true cosmic muons
@@ -107,7 +130,28 @@ def main():
         hists, edges, centers, underflow, overflow = hist_utils.calculate_hist(data=reco_muon_delta, key=k, bin_centers=hist_bins[k], silent=True)
         print(f"key \"{k}\": underflow={underflow}, overflow={overflow}")
         round_digits = 0 if k in ["ts"] else 2
-        xlabel = params._key_symbols[k]+"$(\\text{DT})-$"+params._key_symbols[k]+"$(\\text{true})$ "+"["+params._key_units[k]+"]"
+        xlabel = params._key_symbols[k]+"$(\\text{DT})-$"+params._key_symbols[k]+"$(\\text{true})$"
+        xlabel += " ["+params._key_units[k]+"]" if (params._key_units[k] != "") else ""
+        hist_utils.plot_1hist(hist=hists, centers=centers, xlabel=xlabel, round_digits=round_digits, bin_labels=False, silent=True)
+
+    ### scintillator hits
+    print(f"### scintillator hits")
+    n_hist_bins = 100
+    hist_bins = {
+        "ro_ch": np.arange(0, 32),
+        "ch": np.arange(0, 255),
+        "tdc": np.arange(0, params._lhc_tdc_count+1),
+        "bx": np.linspace(0, params._lhc_bunch_count, n_hist_bins),
+        "oc": np.linspace(0, params._lhc_orbit_count, n_hist_bins),
+        "ly": np.arange(0, 3+1),
+        "st": np.arange(1, 16+1),
+    }
+    for k in hist_bins.keys():
+        hists, edges, centers, underflow, overflow = hist_utils.calculate_hist(data=cosmic_muon_scint_hits, key=k, bin_centers=hist_bins[k], silent=True)
+        print(f"key \"{k}\": underflow={underflow}, overflow={overflow}")
+        round_digits = 0 if k in ["ts"] else 2
+        xlabel = params._key_symbols[k]+"$(\\text{scint})$"
+        xlabel += " ["+params._key_units[k]+"]" if (params._key_units[k] != "") else ""
         hist_utils.plot_1hist(hist=hists, centers=centers, xlabel=xlabel, round_digits=round_digits, bin_labels=False, silent=True)
 
     ### scint reco muon areas
@@ -124,11 +168,11 @@ def main():
         hists, edges, centers, underflow, overflow = hist_utils.calculate_hist(data=cosmic_muon_scint_muon_areas, key=k, bin_centers=hist_bins[k], silent=True)
         print(f"key \"{k}\": underflow={underflow}, overflow={overflow}")
         round_digits = 0 if k in ["ts"] else 2
-        xlabel = params._key_symbols[k]+"$(\\text{scint})$ "+"["+params._key_units[k]+"]"
+        xlabel = params._key_symbols[k]+"$(\\text{scint})$"
+        xlabel += " ["+params._key_units[k]+"]" if (params._key_units[k] != "") else ""
         hist_utils.plot_1hist(hist=hists, centers=centers, xlabel=xlabel, round_digits=round_digits, bin_labels=False, silent=True)
 
     ### correlate scintillator & dt reco
-            
 
 
     input("Press enter to exit.")
