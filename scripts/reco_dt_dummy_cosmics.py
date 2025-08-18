@@ -33,12 +33,13 @@ cosmic_muon_dt_muons_file = pcl_path+"/dummy_cosmic_muon_dt_muons.pcl"
 @mpl.rc_context({'font.family': 'sans-serif', 'font.size': 12}) #'font.sans-serif': 'Arial',
 def main():
 
-    # multiprocessing setup
+    ### multiprocessing setup
     n_processes = 8 # no of processes running in parallel
     n_batches_clustering = 1000 # batch size for hit clustering
     n_batches_sl_fitting = 100 # batch size for sl fitting of hit clusters
     n_batches_muon_reco = 1000 # batch size for dt muon reco
 
+    ### data import
     print(f"###### Importing dummy cosmic data...")
     cosmic_muons = data_utils.load_pickle(file=cosmic_muon_file)
     n_muons = len(cosmic_muons["ts"])
@@ -63,8 +64,8 @@ def main():
     #cosmic_muon_dt_muons = dt_utils.reco_muons_from_sl_fits(fits=cosmic_muon_sl_dt_fits, verbose=False)
     print("cosmic_muon_dt_muons =",cosmic_muon_dt_muons)
     # store to pcl file
-    data_utils.store_pickle(data=cosmic_muon_sl_dt_patterns, file=cosmic_muon_sl_dt_patterns_file)
-    data_utils.store_pickle(data=cosmic_muon_sl_dt_fits, file=cosmic_muon_sl_dt_fits_file)
+    #data_utils.store_pickle(data=cosmic_muon_sl_dt_patterns, file=cosmic_muon_sl_dt_patterns_file)
+    #data_utils.store_pickle(data=cosmic_muon_sl_dt_fits, file=cosmic_muon_sl_dt_fits_file)
     data_utils.store_pickle(data=cosmic_muon_dt_muons, file=cosmic_muon_dt_muons_file)
 
 

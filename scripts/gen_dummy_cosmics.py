@@ -32,6 +32,7 @@ cosmic_muon_scint_hits_file = pcl_path+"/dummy_cosmic_muon_scint_hits.pcl"
 @mpl.rc_context({'font.family': 'sans-serif', 'font.size': 12}) #'font.sans-serif': 'Arial',
 def main():
 
+    ## muon gen setup
     n_muons = 10000 #100000 # no of muons to generate
     t_start = 10000 # timestamp of first muon
     t_step = 1000 # timestamp distance between muons
@@ -42,8 +43,9 @@ def main():
     phirange = [ 0 , 2*np.pi ]
     thetarange = [ 0 , np.pi/4 ]
 
+    ### generate cosmic muons
     print(f"###### Generating {n_muons} cosmic muons and storing them to \"{cosmic_muon_file}\"...")
-    # generate cosmic muons
+    # cosmic muon gen
     cosmic_muons = muon_utils.generate_cosmic_muons(n = n_muons, ts = t_start+t_step*np.arange(0,n_muons), xrange = xrange, yrange = yrange, z0 = z0, phirange = phirange, thetarange = thetarange)
     print("cosmic_muons =",cosmic_muons)
     # store to pcl file

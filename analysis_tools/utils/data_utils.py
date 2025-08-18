@@ -118,4 +118,7 @@ def merge_dataset(split_data, *, silent=False):
         offset += i+1
     return merged_data
 
-
+### get length of data object
+def length(data):
+    any_key = list(data.keys())[0]
+    return len(data[any_key])

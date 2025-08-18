@@ -31,6 +31,7 @@ cosmic_muon_scint_muon_areas_file = pcl_path+"/dummy_cosmic_muon_scint_muon_area
 @mpl.rc_context({'font.family': 'sans-serif', 'font.size': 12}) #'font.sans-serif': 'Arial',
 def main():
 
+    ### data import
     print(f"###### Importing dummy cosmic data...")
     cosmic_muons = data_utils.load_pickle(file=cosmic_muon_file)
     n_muons = len(cosmic_muons["ts"])

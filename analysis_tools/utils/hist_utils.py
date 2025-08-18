@@ -25,9 +25,9 @@ import analysis_tools.utils.muon_utils as muon_utils
 #       special keywords:
 #           auto: leave binning up to np.histogram
 #           step1: bin width is fixed to 1, automatically choose binning from min to max value
-def calculate_hist(data, key, bin_centers):
-    print(f"Calculating histogram for data key \"{key}\"...")
-    hists, edges, centers = [], [], []
+def calculate_hist(data, key, bin_centers, *, silent=False):
+    if not silent: print(f"Calculating histogram for data key \"{key}\"...")
+    hists, edges, centers, underflow, overflow = [], [], [], 0, 0
     ### in case data is empty, return empty arrays
     if len(data[key]) == 0:
         return hists, edges, centers
@@ -55,17 +55,29 @@ def calculate_hist(data, key, bin_centers):
             edges[i] = centers[i]-distance
         edges[len(centers)] = centers[-1]+distance
     ### calculate actual histograms
-    hists, edges = np.histogram(data[key], bins=edges)
+    # create edges w/ over/underflow
+    ou_step = 1
+    ou_clip = [np.amin(edges)-ou_step, np.amax(edges)+ou_step]
+    edges_with_ou = np.array(copy.deepcopy(edges))
+    edges_with_ou = np.insert(edges_with_ou, 0, ou_clip[0])
+    edges_with_ou = np.append(edges_with_ou, ou_clip[1])
+    data_ou_clip = np.clip(data[key], a_min=ou_clip[0], a_max=ou_clip[1])
+    hists_with_ou, edges_with_ou = np.histogram(data_ou_clip, bins=edges_with_ou)
+    underflow = hists_with_ou[0]
+    overflow = hists_with_ou[-1]
+    # calculate hists, bin centers & edges w/o over/underflow
+    hists = hists_with_ou[1:-1]
+    edges = edges_with_ou[1:-1]
     centers = np.array([(edges[i]+edges[i+1])/2 for i in range(len(edges)-1)])
-    return hists, edges, centers
+    return hists, edges, centers, underflow, overflow
 
 ### plot one histogram
 # arguments:
 # hist: histogram entries (bin heights)
 # centers: centers of histograms
 @mpl.rc_context({'font.family': 'sans-serif', 'font.sans-serif': 'Arial', 'font.size': 12})
-def plot_1hist(hist, centers, *, vmin=None, vmax=None, scale="norm", bin_labels=True, show=True, store=False, xlabel="", rel_spacing=0, round_digits=0):
-    print(f"Plotting one histogram...")
+def plot_1hist(hist, centers, *, vmin=None, vmax=None, scale="norm", bin_labels=True, show=True, store=False, xlabel="", rel_spacing=0, round_digits=0, silent=False):
+    if not silent: print(f"Plotting one histogram...")
     fig, ax = plt.subplots(1, 1, figsize=(12,8))
     # plot hist
     barwidth = np.mean(np.diff(centers))*(1-rel_spacing) # relative spacing between bins
@@ -95,5 +107,6 @@ def plot_1hist(hist, centers, *, vmin=None, vmax=None, scale="norm", bin_labels=
             if scale == "log": vmax = np.amax(hist)*np.exp(1.1)
         ax.set_ylim(bottom=vmin, top=vmax)
     if xlabel != "": ax.set_xlabel(xlabel)
+    # show / save figure
     if show == True: fig.show()
     if store != False: fig.savefig(store)

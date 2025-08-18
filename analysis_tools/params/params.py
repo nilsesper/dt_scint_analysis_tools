@@ -202,8 +202,6 @@ _sl_fit_keys = { # {key: dtype}
 # acceptance interval for dt sl pattern grouping
 _t0_acceptance_interval = 100 # max temporal distance of t0 values of dt sl patterns that should be grouped together, in ts units
 _xproj_acceptance_interval = 50 # max spatial distance of 2 phi muon sl fits along the x axis, when projecting one to the other sl (delta_z(1-2) = z(sl=3.ly=3.wi=wi3_1) - z(sl=3.ly=3.wi=wi3_2)), in mm
-# reco muon z0 value (select base z value for reco muon)
-_muon_reco_z0 = 0 # in mm
 # global time delay for scintillator hits (scint ts = muon ts + _scintillator_delay)
 _scintillator_hit_delay = 10 # timestamp units
 # acceptance interval for scintillator hit grouping
@@ -300,6 +298,34 @@ _muon_area_obj_keys = {
 def cosmic_muon_theta_weight(theta):
     norm = np.pi/2 # integral cos²(x) from 0 to pi = pi / 2
     return np.cos(theta)**2 * 1/norm # normalized to 1 for integral from 0 to pi
+
+### general: data key symbols & units for plotting
+_key_symbols = {
+    "x0": "$x_0$",
+    "y0": "$y_0$",
+    "z0": "$z_0$",
+    "xmin": "$x_\\text{min}$",
+    "xmax": "$x_\\text{max}$",
+    "ymin": "$y_\\text{min}$",
+    "ymax": "$y_\\text{max}$",
+    "ts": "$T$",
+    "t0": "$T_0$",
+    "phi": "$\\phi$",
+    "theta": "$\\theta$",
+}
+_key_units = {
+    "x0": "mm",
+    "y0": "mm",
+    "z0": "mm",
+    "xmin": "mm",
+    "xmax": "mm",
+    "ymin": "mm",
+    "ymax": "mm",
+    "ts": "TU", # timestamp unit: "$0.78\;\\text{ns}$",
+    "t0": "TU", # timestamp unit: "$0.78\;\\text{ns}$",
+    "phi": "rad",
+    "theta": "rad",
+}
 
 ###############################
 ### HARDWARE SETUP
@@ -480,7 +506,9 @@ _scint_mapping = {
     25: _mezzanine_2_fe_mapping,
 }
 
-
+### muon reconstruction z position
+# reco muon z0 value (select base z value for reco muon)
+_muon_reco_z0 = _scintillator["pos"][2] # in mm
 
 
 
