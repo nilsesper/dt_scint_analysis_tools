@@ -143,8 +143,8 @@ def scintillator_ax(ax, orient, cell_data):
 def muon_ax(ax, orient, muons, muon_id, *, color="tab:blue"):
     z0 = derived_params._dt_cell_coordinates[3][3][0][5] if orient == "phi" else derived_params._dt_cell_coordinates[2][3][0][5]
     z1 = derived_params._dt_cell_coordinates[1][0][0][5] if orient == "phi" else derived_params._dt_cell_coordinates[2][0][0][5]
-    (x0, y0, z0) = muon_utils.propagate_muon(muons=muons, muon_id=muon_id, z=z0)
-    (x1, y1, z1) = muon_utils.propagate_muon(muons=muons, muon_id=muon_id, z=z1)
+    (x0, y0, z0) = muon_utils.propagate_muon(muons=muons, z=z0, muon_id=muon_id)
+    (x1, y1, z1) = muon_utils.propagate_muon(muons=muons, z=z1, muon_id=muon_id)
     _y0 = z0
     _y1 = z1
     if orient == "phi":
@@ -291,8 +291,8 @@ def sl_muon_proj_ax(ax, muons, sl_dt_fits, pattern_id, *, color="tab:green"):
     x_axis, y_axis = params._orientation[orient][0], params._orientation[orient][1]
     z0 = derived_params._dt_cell_coordinates[sl][3][0][y_axis+3] if orient == "phi" else derived_params._dt_cell_coordinates[sl][3][0][y_axis+3]
     z1 = derived_params._dt_cell_coordinates[sl][0][0][y_axis+3] if orient == "phi" else derived_params._dt_cell_coordinates[sl][0][0][y_axis+3]
-    (x0, y0, z0) = muon_utils.propagate_muon(muons=muons, muon_id=muon_id, z=z0)
-    (x1, y1, z1) = muon_utils.propagate_muon(muons=muons, muon_id=muon_id, z=z1)
+    (x0, y0, z0) = muon_utils.propagate_muon(muons=muons, z=z0, muon_id=muon_id)
+    (x1, y1, z1) = muon_utils.propagate_muon(muons=muons, z=z1, muon_id=muon_id)
     _y0 = z0
     _y1 = z1
     if orient == "phi":

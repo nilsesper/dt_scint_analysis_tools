@@ -288,9 +288,39 @@ _muon_area_obj_keys = {
     "xmax": np.float64, # largest allowed x point, in mm
     "ymin": np.float64, # smallest allowed y point, in mm
     "ymax": np.float64, # largest allowed y point, in mm 
+    "xcenter": np.float64, # center x position of area, in mm
+    "ycenter": np.float64, # center y position of area, in mm
     "ts": _ts_type, # timestamp of muon arrival
     "muon_id": np.uint64, # id / idx of correlated muon (used to compare simulation + reconstruction)
     "pixel": np.uint16, # pixel index of scintillator pixel corresponding to this muon area
+}
+
+### muon correlation object: holds info of 1 muon & 1 muon area
+# has same keys as muon with "m_" prefix
+# has same kes as muon area with "a_" prefix
+_muon_corr_obj_keys = {
+    # muon keys
+    "x0": np.float64, # reference point (x0,y0,z0), in mm
+    "y0": np.float64,
+    "z0": np.float64,
+    "theta": np.float64, # theta angle (angle relative to z axis), in rad
+    "phi": np.float64, # phi angle (angle relative to x axis, between x and y axis), in rad
+    "ts_muon": _ts_type, # timestamp of muon arrival (assume velocity is infinite, therefore during propagation no time passes, is alright here)
+    "muon_id": np.uint64, # id / idx of correlated muon (used to compare simulation + reconstruction)
+    # muon area keys (z0 same as muon)
+    "xmin": np.float64, # smallest allowed x point, in mm -> (x,y) rectangle
+    "xmax": np.float64, # largest allowed x point, in mm
+    "ymin": np.float64, # smallest allowed y point, in mm
+    "ymax": np.float64, # largest allowed y point, in mm 
+    "xcenter": np.float64, # center x position of area, in mm
+    "ycenter": np.float64, # center y position of area, in mm
+    "ts_area": _ts_type, # timestamp of muon arrival
+    "muon_id_area": np.uint64, # id / idx of correlated muon (used to compare simulation + reconstruction)
+    "pixel": np.uint16, # pixel index of scintillator pixel corresponding to this muon area
+    # advances / analysis keys
+    "delta_ts": np.int64, # ts difference = ts_muon - ts_area
+    "delta_xcenter": np.float64, # x deviation = x_muon - x_center_area
+    "delta_ycenter": np.float64, # y deviation = x_muon - x_center_area
 }
 
 ### cosmic muon theta weight for a given theta value
@@ -309,7 +339,11 @@ _key_symbols = {
     "xmax": "$x_\\text{max}$",
     "ymin": "$y_\\text{min}$",
     "ymax": "$y_\\text{max}$",
+    "xcenter": "$x_\\text{center}$",
+    "ycenter": "$y_\\text{center}$",
     "ts": "$T$",
+    "ts_muon": "$T$",
+    "ts_area": "$T$",
     "t0": "$T_0$",
     "phi": "$\\phi$",
     "theta": "$\\theta$",
@@ -323,6 +357,9 @@ _key_symbols = {
     "sl": "Superlayer",
     "st": "Strip",
     "pixel": "Scintillator pixel",
+    "delta_ts": "$T_\\text{muon}-T_\\text{scint}$",
+    "delta_xcenter": "$x_{0,\\text{muon}}-x_{\\text{center},\\text{scint}}$",
+    "delta_ycenter": "$y_{0,\\text{muon}}-y_{\\text{center},\\text{scint}}$",
 }
 _key_units = {
     "x0": "mm",
@@ -332,8 +369,12 @@ _key_units = {
     "xmax": "mm",
     "ymin": "mm",
     "ymax": "mm",
+    "xcenter": "mm",
+    "ycenter": "mm",
     "ts": "TU", # timestamp unit: "$0.78\;\\text{ns}$",
-    "t0": "TU", # timestamp unit: "$0.78\;\\text{ns}$",
+    "ts_muon": "TU",
+    "ts_area": "TU",
+    "t0": "TU",
     "phi": "rad",
     "theta": "rad",
     "ch": "",
@@ -346,12 +387,15 @@ _key_units = {
     "sl": "",
     "st": "",
     "pixel": "",
+    "delta_ts": "TU",
+    "delta_xcenter": "mm",
+    "delta_ycenter": "mm",
 }
 
 ### dt & scintillator muon correlation
 # correlate muon object (dt reco) and muon area (scintillator reco)
 _correlation_ts_window = 1000 # temporal correlation window, in ts units
-_correlation_xy_window = 100 # spatial correlation window, in mm
+_correlation_xy_window = 0 # spatial correlation window, in mm
 
 ###############################
 ### HARDWARE SETUP

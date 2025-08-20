@@ -195,6 +195,8 @@ def reco_muon_area_from_hits(hits, *, silent=False, verbose=False):
         xmax_reco = xmax_phi if (params._orientation["phi"][0] == 0) else xmax_theta
         ymin_reco = xmin_theta if (params._orientation["phi"][0] == 0) else xmin_phi
         ymax_reco = xmax_theta if (params._orientation["phi"][0] == 0) else xmax_phi
+        # not implemented:
+        pixel_index = 0
         """
         #### HARDCODED 2 LAYERS (1 PHI, 1 THETA) OF SCINTILLATOR
         if n_phi_hits != 1 or n_theta_hits != 1:
@@ -210,6 +212,8 @@ def reco_muon_area_from_hits(hits, *, silent=False, verbose=False):
         ly1_st = st_phi if (ly_phi == 1) else st_theta
         pixel_index = derived_params._scint_pixel_mapping[(ly0_st, ly1_st)]
         #### ----      
+        xcenter_reco = np.mean([xmin_reco, xmax_reco])
+        ycenter_reco = np.mean([ymin_reco, ymax_reco])
         ### combine ts to muon arrival time (averaging)
         ts_reco = np.uint64(np.round(np.mean([int(phi_hits[j]["ts"]) for j in range(n_phi_hits)] + [int(theta_hits[j]["ts"]) for j in range(n_theta_hits)]),0))
         ### combine muon_id of hits (if there is one from simulation)
@@ -219,7 +223,7 @@ def reco_muon_area_from_hits(hits, *, silent=False, verbose=False):
             if muon_id != this_muon_id:
                 raise Exception(f"Expect hits of same muon_id {muon_id}, not {this_muon_id}.")
         if verbose: print("muon area reco", ([xmin_reco, xmax_reco], [ymin_reco, ymax_reco], z0_reco, ts_reco, muon_id))
-        reco_muon_area_list.append({"xmin":xmin_reco, "xmax":xmax_reco, "ymin":ymin_reco, "ymax":ymax_reco, "z0":z0_reco, "ts":ts_reco, "muon_id":muon_id, "pixel":pixel_index})
+        reco_muon_area_list.append({"xmin":xmin_reco, "xmax":xmax_reco, "ymin":ymin_reco, "ymax":ymax_reco, "z0":z0_reco, "ts":ts_reco, "muon_id":muon_id, "pixel":pixel_index, "xcenter": xcenter_reco, "ycenter": ycenter_reco})
         # !!! for muon the name of the timestamp key is "ts" and not "t0"
     n_reco_muon_areas = len(reco_muon_area_list)
     if not silent: print(f"Reconstructed {n_reco_muon_areas} muon areas from {n_hits} scintillator hits.")
@@ -229,17 +233,6 @@ def reco_muon_area_from_hits(hits, *, silent=False, verbose=False):
             reco_muon_areas[k][i] = reco_muon_area_list[i][k]
     return reco_muon_areas
 
-### assign pixel indices (defined in derived_params) to muon areas
-def assign_muon_area_pixels(muon_areas, *, silent=False):
-    muon_areas = copy.deepcopy(muon_areas)
-    n_muon_areas = data_utils.length(muon_areas)
-    # add muon area key
-
-    # fill muon areas by comparing muon areas with derived_params pixel coordinates
-    for i in range(n_muon_areas):
-        pass
-
-    return muon_areas
 
 
 

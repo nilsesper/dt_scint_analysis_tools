@@ -52,8 +52,25 @@ def main():
 
 
     ### correlate scintillator & dt reco
-    muon_utils.correlate_muons_and_muon_areas(muons=cosmic_muon_dt_muons, muon_areas=cosmic_muon_scint_muon_areas)
+    cosmic_muon_corr_muons = muon_utils.correlate_muons_and_muon_areas(muons=cosmic_muon_dt_muons, muon_areas=cosmic_muon_scint_muon_areas)
+    print("cosmic_muon_corr_muons =",cosmic_muon_corr_muons)
 
+    ### corr muon plots
+    print(f"### correlated muons plots")
+    n_hist_bins = 100
+    hist_bins = {
+        "delta_xcenter": 30 * np.arange(-n_hist_bins//2,n_hist_bins//2+1,1)/n_hist_bins*2,
+        "delta_ycenter": 30 * np.arange(-n_hist_bins//2,n_hist_bins//2+1,1)/n_hist_bins*2,
+        "delta_ts": np.arange(-30,30+1),
+    }
+    for k in hist_bins.keys():
+        hists, edges, centers, underflow, overflow = hist_utils.calculate_hist(data=cosmic_muon_corr_muons, key=k, bin_centers=hist_bins[k], silent=True)
+        print(f"key \"{k}\": entries={data_utils.length(cosmic_muon_corr_muons)} underflow={underflow}, overflow={overflow}")
+        round_digits = 0 if k in ["ts"] else 2
+        xlabel = params._key_symbols[k]
+        xlabel += " ["+params._key_units[k]+"]" if (params._key_units[k] != "") else ""
+        plotname =  plot_path+f"/corr_muons_{k}.png"
+        hist_utils.plot_1hist(hist=hists, centers=centers, xlabel=xlabel, round_digits=round_digits, bin_labels=False, silent=True, store=plotname)
 
 
 

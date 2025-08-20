@@ -346,7 +346,6 @@ for st0 in range(params._scintillator["lys"][0]["n_sts"]):
 for pixel_index in range(len(ly0_st)):
     _scint_pixel_coordinates[pixel_index] = [ [xmin, xmax], [ymin, ymax], z0 ]
     _scint_pixel_mapping[(ly0_st[pixel_index], ly1_st[pixel_index])] = pixel_index
-print(_scint_pixel_coordinates)
-print(_scint_pixel_mapping)
+
 
 

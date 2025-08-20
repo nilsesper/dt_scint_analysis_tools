@@ -40,10 +40,8 @@ def main():
 
     ### scint reco
     print(f"###### Reconstructing {n_scint_hits} scintillator hits and storing muon areas to \"{cosmic_muon_scint_muon_areas_file}\"...")
-    # reco muon areas from scintillator hits
+    # reco muon areas from scintillator hits (+ assign pixel indices)
     cosmic_muon_scint_muon_areas = scint_utils.reco_muon_area_from_hits(hits=cosmic_muon_scint_hits)
-    # assign pixel indices
-    cosmic_muon_scint_muon_areas = scint_utils.assign_muon_area_pixels(muon_areas=cosmic_muon_scint_muon_areas)
     print("cosmic_muon_scint_muon_areas =",cosmic_muon_scint_muon_areas)
     # store to pcl file
     data_utils.store_pickle(data=cosmic_muon_scint_muon_areas, file=cosmic_muon_scint_muon_areas_file)
