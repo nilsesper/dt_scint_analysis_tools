@@ -173,6 +173,8 @@ def main():
         "ymin": np.linspace(params._scintillator["pos"][1]-10, params._scintillator["pos"][1]+params._scintillator["size"][1]+10, n_hist_bins),
         "ymax": np.linspace(params._scintillator["pos"][1]-10, params._scintillator["pos"][1]+params._scintillator["size"][1]+10, n_hist_bins),
         "z0": np.linspace(params._scintillator["pos"][2]-10, params._scintillator["pos"][2]+params._scintillator["size"][2]+10, n_hist_bins),
+        "ts": np.linspace(0, int(1.05e8), n_hist_bins),
+        "pixel": np.arange(0, 255+1),
     }
     for k in hist_bins.keys():
         hists, edges, centers, underflow, overflow = hist_utils.calculate_hist(data=cosmic_muon_scint_muon_areas, key=k, bin_centers=hist_bins[k], silent=True)
@@ -182,9 +184,6 @@ def main():
         xlabel += " ["+params._key_units[k]+"]" if (params._key_units[k] != "") else ""
         plotname =  plot_path+f"/scint_reco_{k}.png"
         hist_utils.plot_1hist(hist=hists, centers=centers, xlabel=xlabel, round_digits=round_digits, bin_labels=False, silent=True, store=plotname)
-
-    ### correlate scintillator & dt reco
-
 
     input("Press enter to exit.")
     exit()

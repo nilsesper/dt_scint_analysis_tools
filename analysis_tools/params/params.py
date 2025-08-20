@@ -290,6 +290,7 @@ _muon_area_obj_keys = {
     "ymax": np.float64, # largest allowed y point, in mm 
     "ts": _ts_type, # timestamp of muon arrival
     "muon_id": np.uint64, # id / idx of correlated muon (used to compare simulation + reconstruction)
+    "pixel": np.uint16, # pixel index of scintillator pixel corresponding to this muon area
 }
 
 ### cosmic muon theta weight for a given theta value
@@ -321,6 +322,7 @@ _key_symbols = {
     "ly": "Layer",
     "sl": "Superlayer",
     "st": "Strip",
+    "pixel": "Scintillator pixel",
 }
 _key_units = {
     "x0": "mm",
@@ -343,7 +345,13 @@ _key_units = {
     "ly": "",
     "sl": "",
     "st": "",
+    "pixel": "",
 }
+
+### dt & scintillator muon correlation
+# correlate muon object (dt reco) and muon area (scintillator reco)
+_correlation_ts_window = 1000 # temporal correlation window, in ts units
+_correlation_xy_window = 100 # spatial correlation window, in mm
 
 ###############################
 ### HARDWARE SETUP

@@ -134,24 +134,25 @@ def reco_muon_area_from_hits(hits, *, silent=False, verbose=False):
         if ts_ref == 0: # if t0_ref was reset, take first timestamp t0 here as reference (can do this since dataset is ordered...)
             ts_ref = ts
         last_scint_hits[ly] = {k: hits[k][i] for k in hits.keys()} # store current column
-        # continue to "fill up" last_sl_pattern, if next hit also is within time window
+        # continue to "fill up" last_scint_hits, if next hit also is within time window
         if i < n_hits-1: # only do it if there is a "next hit"
             ts_next = hits["ts"][i+1]
             if np.abs(ts_next - ts) <= params._scintillator_ts_acceptance_interval:
                 continue
-        # if not: continue, the combination of collected sl fits starts
+        # if not: continue, the combination of collected ly hits starts
         # check for at least 1 phi + 1 theta pattern within t0 interval
-        # if 2 phi patterns, also accept it
         phi_hits = [last_scint_hits[ly] for ly in params._scintillator["lys"].keys() if (params._scintillator["lys"][ly]["orient"] == "phi" and last_scint_hits[ly] != None)]
         theta_hits = [last_scint_hits[ly] for ly in params._scintillator["lys"].keys() if (params._scintillator["lys"][ly]["orient"] == "theta" and last_scint_hits[ly] != None)]
         # need to reset ts_ref, last_scint_hits afterwards (for next iteration)
-        last_scint_hits = {ly: None for ly in params._scintillator["lys"].keys()} # last sl pattern for all sls
+        last_scint_hits = {ly: None for ly in params._scintillator["lys"].keys()} # last pattern for all lys
         ts_ref = 0
         ### muon area reco
         n_phi_hits, n_theta_hits = len(phi_hits), len(theta_hits)
         ## check for at least 1 phi + 1 theta pattern, else discard and continue
         if n_phi_hits == 0 or n_theta_hits == 0:
             continue
+        """
+        #### GENERIC CODE: GENERATE MUON AREA FROM ARBITRARY NO OF PHI & THETA SCINTILLATOR LAYERS
         ## combine hits within phi plane, if > 1 phi pattern
         ## the resulting (xmin, xmax, z)_phi is in global coord system
         xmin_phi, xmax_phi, z_phi = [], [], []
@@ -194,6 +195,21 @@ def reco_muon_area_from_hits(hits, *, silent=False, verbose=False):
         xmax_reco = xmax_phi if (params._orientation["phi"][0] == 0) else xmax_theta
         ymin_reco = xmin_theta if (params._orientation["phi"][0] == 0) else xmin_phi
         ymax_reco = xmax_theta if (params._orientation["phi"][0] == 0) else xmax_phi
+        """
+        #### HARDCODED 2 LAYERS (1 PHI, 1 THETA) OF SCINTILLATOR
+        if n_phi_hits != 1 or n_theta_hits != 1:
+            raise Exception(f"Using hardcoded reco code for 1 phi + 1 theta scintillator layer. Therefore not allow more than 1 phi, theta hit.")
+        ly_phi, st_phi = phi_hits[0]["ly"], phi_hits[0]["st"]
+        ly_theta, st_theta = theta_hits[0]["ly"], theta_hits[0]["st"]
+        xmin_reco = derived_params._scintillator_strip_coordinates[ly_phi][st_phi][0][0]
+        xmax_reco = derived_params._scintillator_strip_coordinates[ly_phi][st_phi][0][1]
+        ymin_reco = derived_params._scintillator_strip_coordinates[ly_theta][st_theta][1][0]
+        ymax_reco = derived_params._scintillator_strip_coordinates[ly_theta][st_theta][1][1]
+        z0_reco = np.mean([derived_params._scintillator_strip_coordinates[ly_phi][st_phi][5], derived_params._scintillator_strip_coordinates[ly_theta][st_theta][5]])
+        ly0_st = st_phi if (ly_phi == 0) else st_theta
+        ly1_st = st_phi if (ly_phi == 1) else st_theta
+        pixel_index = derived_params._scint_pixel_mapping[(ly0_st, ly1_st)]
+        #### ----      
         ### combine ts to muon arrival time (averaging)
         ts_reco = np.uint64(np.round(np.mean([int(phi_hits[j]["ts"]) for j in range(n_phi_hits)] + [int(theta_hits[j]["ts"]) for j in range(n_theta_hits)]),0))
         ### combine muon_id of hits (if there is one from simulation)
@@ -203,7 +219,7 @@ def reco_muon_area_from_hits(hits, *, silent=False, verbose=False):
             if muon_id != this_muon_id:
                 raise Exception(f"Expect hits of same muon_id {muon_id}, not {this_muon_id}.")
         if verbose: print("muon area reco", ([xmin_reco, xmax_reco], [ymin_reco, ymax_reco], z0_reco, ts_reco, muon_id))
-        reco_muon_area_list.append({"xmin":xmin_reco, "xmax":xmax_reco, "ymin":ymin_reco, "ymax":ymax_reco, "z0":z0_reco, "ts":ts_reco, "muon_id":muon_id})
+        reco_muon_area_list.append({"xmin":xmin_reco, "xmax":xmax_reco, "ymin":ymin_reco, "ymax":ymax_reco, "z0":z0_reco, "ts":ts_reco, "muon_id":muon_id, "pixel":pixel_index})
         # !!! for muon the name of the timestamp key is "ts" and not "t0"
     n_reco_muon_areas = len(reco_muon_area_list)
     if not silent: print(f"Reconstructed {n_reco_muon_areas} muon areas from {n_hits} scintillator hits.")
@@ -213,7 +229,17 @@ def reco_muon_area_from_hits(hits, *, silent=False, verbose=False):
             reco_muon_areas[k][i] = reco_muon_area_list[i][k]
     return reco_muon_areas
 
+### assign pixel indices (defined in derived_params) to muon areas
+def assign_muon_area_pixels(muon_areas, *, silent=False):
+    muon_areas = copy.deepcopy(muon_areas)
+    n_muon_areas = data_utils.length(muon_areas)
+    # add muon area key
 
+    # fill muon areas by comparing muon areas with derived_params pixel coordinates
+    for i in range(n_muon_areas):
+        pass
+
+    return muon_areas
 
 
 

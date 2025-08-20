@@ -7,10 +7,12 @@ import copy
 import os.path
 from tqdm import tqdm
 
-import analysis_tools.params.params as params
-import analysis_tools.params.derived_params as derived_params
 import analysis_tools.utils.timestamp_utils as timestamp_utils
 import analysis_tools.utils.math_utils as math_utils
+import analysis_tools.utils.data_utils as data_utils
+
+import analysis_tools.params.params as params
+import analysis_tools.params.derived_params as derived_params
 
 # -----------------------------------------
 
@@ -64,7 +66,43 @@ def cut_muons_by_area(muons, xmin, xmax, ymin, ymax, z0, *, silent=False):
         else: print(f"Cut flow: {n_cut_muons} / {n_muons}")
     return cut_muons
 
-
+### correlate muons & muon areas
+# correlate 1 muon area object (of scintillator) & 1 muon object (of dt chamber)
+# do correlation according to:
+#   - timestamp (acceptance window params._correlation_ts_window)
+#   - position (?)
+def correlate_muons_and_muon_areas(muons, muon_areas, *, silent=False):
+    n_muons = data_utils.length(muons)
+    n_muon_areas = data_utils.length(muon_areas)
+    # sort both muons & muon areas by timestamp
+    muons = timestamp_utils.sort_by_timestamp(hits=muons, silent=silent)
+    muon_areas = timestamp_utils.sort_by_timestamp(hits=muon_areas, silent=silent)
+    ### correlate muons & muon areas in time (correlate 2 objects which have timestamps with a difference <= params._correlation_ts_window)
+    # collect correlated indices of muons & muon areas
+    ts_correlated_indices = [] # [(im = muon index, ia = muon area index) for correlated muons]
+    # go step by step through muon (area) objects
+    ia = 0 # current muon area object index
+    im = 0 # current muon object index
+    while True:
+        ts_m = muons["ts"][im] # timestamp of current muon
+        ts_a = muon_areas["ts"][ia] # timestamp of current muon area
+        # if current muon is much later than current muon area, go to next muon area
+        if ts_m > ts_a and ts_m-ts_a > params._correlation_ts_window: 
+            ia += 1
+        # if current muon is much earlier than current muon area, go to next muon
+        if ts_m < ts_a and ts_a-ts_m > params._correlation_ts_window:
+            im += 1
+        # if current muon and muon area are within time window, "correlate them together" and go to next muon & muon area
+        # each muon & muon area can therefore only be correlated once
+        if (ts_m > ts_a and ts_m-ts_a <= params._correlation_ts_window) or (ts_m < ts_a and ts_a-ts_m <= params._correlation_ts_window):
+            ts_correlated_indices.append((im, ia))
+            im += 1
+            ia += 1
+        # muon & muon area object list boundaries: break if index out of range
+        if im >= n_muons: break # stop as soon as no more muon are there
+        if ia >= n_muon_areas: break # stop as soon as no more muon areas are there
+    print(ts_correlated_indices)
+    return ts_correlated_indices
 
 
 

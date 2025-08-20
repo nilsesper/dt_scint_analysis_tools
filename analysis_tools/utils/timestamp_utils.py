@@ -20,8 +20,8 @@ import analysis_tools.params.derived_params as derived_params
 # timestamp data type: uint64 i.e. max. value ~1.844e19 timestamp units (0.78 ns) = ~1.438e10 seconds = ~456 days
 def add_timestamp(hits, *, silent=False):
     ts_hits = copy.deepcopy(hits)
-    n_hits = len(ts_hits["ch"])
-    if not silent: print(f"Add converted timestamp to {n_hits} hits...")
+    n_hits = data_utils.length(hits)
+    if not silent: print(f"Add converted timestamp to {n_hits} entries...")
     ts_hits |= {"ts": np.full(n_hits, 0, dtype=params._ts_type)}
     oc_overflow = 0 # count how many times the orbit counter overflowed -> to have non-jumping but continous timestamp
     last_oc = 0
@@ -40,8 +40,8 @@ def add_timestamp(hits, *, silent=False):
 # sort hints in ascending order depending on timestamp value ("ts" key)
 def sort_by_timestamp(hits, *, silent=False):
     sorted_hits = copy.deepcopy(hits)
-    n_hits = len(sorted_hits["ch"])
-    if not silent: print(f"Sorting {n_hits} hits by timestamp...")
+    n_hits = data_utils.length(sorted_hits)
+    if not silent: print(f"Sorting {n_hits} entries by timestamp...")
     new_idx_order = np.argsort(sorted_hits["ts"])
     for k in hits.keys(): # sort all keys of hit dict depending on order in timestamp key
         sorted_hits[k] = sorted_hits[k][new_idx_order]

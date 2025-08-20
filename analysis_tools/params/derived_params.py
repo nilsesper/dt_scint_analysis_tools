@@ -319,10 +319,34 @@ for ly in range(params._scintillator["n_lys"]):
             ymin.append(_scintillator_strip_coordinates[ly][st][1][0])
             ymax.append(_scintillator_strip_coordinates[ly][st][1][1])
         z0.append(_scintillator_strip_coordinates[ly][st][5])
-_scintillator_sensitive_coordinates = [
-    [np.amin(xmin), np.amax(xmax)],
-    [np.amin(ymin), np.amax(ymax)],
-    np.mean(z0),
-]
+_scintillator_sensitive_coordinates = [ [np.amin(xmin), np.amax(xmax)], [np.amin(ymin), np.amax(ymax)], np.mean(z0) ]
+
+### generate all scintillator "pixels" i.e. muon areas by crossing 2 layers
+# and then assign an integer index to all of them
+# for easier handling: use pixel_index instead of always using [[xmin, xmax], [ymin, ymax], z]
+_scint_pixel_coordinates = {} # scintillator pixel coordinates: {pixel_index: muon area [[xmin, xmax], [ymin, ymax], z]
+_scint_pixel_mapping = {} # scintillator (ly0_st, ly1_st) mapping to pixel index: {(st of ly0, st of ly1): pixel_index}
+xmin, xmax, ymin, ymax, z0, ly0_st, ly1_st = [], [], [], [], [], [], []
+# partially hardcoded, only works for 2 layer scintillator setup...
+for st0 in range(params._scintillator["lys"][0]["n_sts"]):
+    for st1 in range(params._scintillator["lys"][1]["n_sts"]):
+        if params._scintillator["lys"][0]["orient"] == "phi":
+            xmin.append(_scintillator_strip_coordinates[0][st0][0][0])
+            xmax.append(_scintillator_strip_coordinates[0][st0][0][1])
+            ymin.append(_scintillator_strip_coordinates[1][st1][1][0])
+            ymax.append(_scintillator_strip_coordinates[1][st1][1][1])
+        elif params._scintillator["lys"][0]["orient"] == "theta":
+            ymin.append(_scintillator_strip_coordinates[0][st0][0][0])
+            ymax.append(_scintillator_strip_coordinates[0][st0][0][1])
+            xmin.append(_scintillator_strip_coordinates[1][st1][1][0])
+            xmax.append(_scintillator_strip_coordinates[1][st1][1][1])
+        z0.append( np.mean([_scintillator_strip_coordinates[0][st0][5], _scintillator_strip_coordinates[1][st1][5]]) )
+        ly0_st.append(st0)
+        ly1_st.append(st1)
+for pixel_index in range(len(ly0_st)):
+    _scint_pixel_coordinates[pixel_index] = [ [xmin, xmax], [ymin, ymax], z0 ]
+    _scint_pixel_mapping[(ly0_st[pixel_index], ly1_st[pixel_index])] = pixel_index
+print(_scint_pixel_coordinates)
+print(_scint_pixel_mapping)
 
 
