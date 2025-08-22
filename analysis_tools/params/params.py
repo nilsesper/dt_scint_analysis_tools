@@ -268,6 +268,11 @@ _color_info = {
     }
 }
 
+### dt & scintillator muon correlation
+# correlate muon object (dt reco) and muon area (scintillator reco)
+_correlation_ts_window = 1000 # temporal correlation window, in ts units
+_correlation_xy_window = 0 # spatial correlation window, in mm
+
 ### muon object specific
 # a muon descibes a muon track
 _muon_obj_keys = {
@@ -391,11 +396,6 @@ _key_units = {
     "delta_xcenter": "mm",
     "delta_ycenter": "mm",
 }
-
-### dt & scintillator muon correlation
-# correlate muon object (dt reco) and muon area (scintillator reco)
-_correlation_ts_window = 1000 # temporal correlation window, in ts units
-_correlation_xy_window = 0 # spatial correlation window, in mm
 
 ###############################
 ### HARDWARE SETUP
