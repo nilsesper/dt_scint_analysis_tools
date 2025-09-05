@@ -326,6 +326,7 @@ _muon_corr_obj_keys = {
     "delta_ts": np.int64, # ts difference = ts_muon - ts_area
     "delta_xcenter": np.float64, # x deviation = x_muon - x_center_area
     "delta_ycenter": np.float64, # y deviation = x_muon - x_center_area
+    "ts_orbit": np.int64, # ts difference of this ts (oc=this_orbit, bx=this_bx, tdc=this_tdc) wrt beginning of orbit (oc=this_orbit, bx=0, tdc=0)
 }
 
 ### cosmic muon theta weight for a given theta value
@@ -365,6 +366,7 @@ _key_symbols = {
     "delta_ts": "$T_\\text{muon}-T_\\text{scint}$",
     "delta_xcenter": "$x_{0,\\text{muon}}-x_{\\text{center},\\text{scint}}$",
     "delta_ycenter": "$y_{0,\\text{muon}}-y_{\\text{center},\\text{scint}}$",
+    "ts_orbit": "$T_\\text{orbit}$",
 }
 _key_units = {
     "x0": "mm",
@@ -395,6 +397,7 @@ _key_units = {
     "delta_ts": "TU",
     "delta_xcenter": "mm",
     "delta_ycenter": "mm",
+    "ts_orbit": "TU",
 }
 
 ###############################

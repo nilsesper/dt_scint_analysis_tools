@@ -54,3 +54,17 @@ def remap_htg_timestamp(ts):
     tdc = (ts % derived_params._bx_to_timestamp) // derived_params._tdc_to_timestamp
     return (oc, bx, tdc)
 
+### calculate time distance (in ts units) relative the start of this orbit (oc=this_orbit, bx=0, tdc=0)
+# store in key "ts_orbit"
+def add_timestamp_this_orbit(hits, *, silent=False):
+    n_hits = data_utils.length(hits)
+    ts_hits = copy.deepcopy(hits)
+    ts_hits |= {"ts_orbit": np.full(n_hits, 0, dtype=params._ts_type)}
+    for i in tqdm(range(n_hits), disable=silent):
+        tdc = ts_hits["tdc"][i]
+        bx = ts_hits["bx"][i]
+        #this_oc = ts_hits["oc"][i]
+        # calculate delta_ts to beginning of orbit
+        ts_hits["ts_orbit"][i] =  tdc * derived_params._tdc_to_timestamp + bx * derived_params._bx_to_timestamp
+    return ts_hits
+
