@@ -112,3 +112,35 @@ def plot_1hist(hist, centers, *, vmin=None, vmax=None, scale="norm", bin_labels=
     # show / save figure
     if show == True: fig.show()
     if store != False: fig.savefig(store)
+
+### determine interval/range of histogram peak
+# give rel_thres to determine where the peak starts & stops relative to the max value of the (whole) histogram
+# returns list of lists indices of hist values / bin centers of all bins belonging to this peak - outer list is for all peaks
+# [[peak indixes] for peaks]
+def find_peak_indices(hist, rel_thres=0.01,*, silent=False):
+    peak_indices = []
+    peak_no = -1
+    current_peak = False
+    n_hist = len(hist)
+    thres = np.amax(hist)*rel_thres
+    for i in range(n_hist):
+        if hist[i] < rel_thres:
+            current_peak = False
+        else:
+            if not current_peak:
+                current_peak = True
+                peak_indices.append([])
+                peak_no += 1
+            peak_indices[peak_no].append(i)
+    peak_indices = [np.array(idx_list) for idx_list in list(peak_indices)]
+    return peak_indices
+
+### calculate histogram peak position with weighted mean (bin centers = x, hist values = weights)
+def weighted_mean_peak_position(hist, centers, err_hist, err_centers, *, silent=False):
+    if len(hist) != len(centers) or len(hist) != len(err_centers) or len(hist) != len(err_hist):
+        raise Exception("All lists must have the same length.")
+    mean = np.sum(centers*hist)/np.sum(hist)
+    err_mean = ( np.sum( ( hist/np.sum(hist) )**2 * err_centers**2 ) + np.sum( ( centers/np.sum(hist) - np.sum(centers*hist)/np.sum(hist)**2 )**2 * err_hist**2 ) )**(1/2)
+    return mean, err_mean
+
+

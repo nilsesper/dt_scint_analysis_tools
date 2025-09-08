@@ -566,6 +566,44 @@ _mezzanine_2_fe_mapping = {
     f"coinc_ch_{i}": {"ly": 1, "st": i, "ch": i} for i in range(16)
 }
 
+### mezzanine input channel mapping (for timing calibration)
+# mapping of input channel = coincidence channel (for timing calibration there is no coincidence programmed)
+# to the fpga pins & banks
+mezzanine_input_mapping = { # ch id = idx of sipm_p/n signal in fw = input ch idx in fw  -->  {silkscreen (e.g. A4), sipm quad id = thres dac id (e.g. 3), thres dac ch (e.g. B)}
+	 0: {'silkscreen': 'A1', 'quad_id': 0, 'thres_dac_ch': 'D', 'fpga_bank': 65, 'pin_inverted': True, 'mctt_instance': 1, 'mctt_input_ch': 0},
+	 1: {'silkscreen': 'A2', 'quad_id': 1, 'thres_dac_ch': 'D', 'fpga_bank': 65, 'pin_inverted': True, 'mctt_instance': 1, 'mctt_input_ch': 1},
+	 2: {'silkscreen': 'A3', 'quad_id': 2, 'thres_dac_ch': 'D', 'fpga_bank': 66, 'pin_inverted': False, 'mctt_instance': 0, 'mctt_input_ch': 0},
+	 3: {'silkscreen': 'A4', 'quad_id': 3, 'thres_dac_ch': 'D', 'fpga_bank': 66, 'pin_inverted': False, 'mctt_instance': 0, 'mctt_input_ch': 1},
+	 4: {'silkscreen': 'A5', 'quad_id': 4, 'thres_dac_ch': 'D', 'fpga_bank': 66, 'pin_inverted': True, 'mctt_instance': 0, 'mctt_input_ch': 2},
+	 5: {'silkscreen': 'A6', 'quad_id': 5, 'thres_dac_ch': 'D', 'fpga_bank': 66, 'pin_inverted': True, 'mctt_instance': 0, 'mctt_input_ch': 3},
+	 6: {'silkscreen': 'A7', 'quad_id': 6, 'thres_dac_ch': 'D', 'fpga_bank': 66, 'pin_inverted': False, 'mctt_instance': 0, 'mctt_input_ch': 4},
+	 7: {'silkscreen': 'A8', 'quad_id': 7, 'thres_dac_ch': 'D', 'fpga_bank': 66, 'pin_inverted': False, 'mctt_instance': 0, 'mctt_input_ch': 5},
+	 8: {'silkscreen': 'B1', 'quad_id': 0, 'thres_dac_ch': 'C', 'fpga_bank': 65, 'pin_inverted': True, 'mctt_instance': 1, 'mctt_input_ch': 2},
+	 9: {'silkscreen': 'B2', 'quad_id': 1, 'thres_dac_ch': 'C', 'fpga_bank': 65, 'pin_inverted': True, 'mctt_instance': 1, 'mctt_input_ch': 3},
+	10: {'silkscreen': 'B3', 'quad_id': 2, 'thres_dac_ch': 'C', 'fpga_bank': 66, 'pin_inverted': False, 'mctt_instance': 0, 'mctt_input_ch': 6},
+	11: {'silkscreen': 'B4', 'quad_id': 3, 'thres_dac_ch': 'C', 'fpga_bank': 66, 'pin_inverted': False, 'mctt_instance': 0, 'mctt_input_ch': 7},
+	12: {'silkscreen': 'B5', 'quad_id': 4, 'thres_dac_ch': 'C', 'fpga_bank': 66, 'pin_inverted': False, 'mctt_instance': 0, 'mctt_input_ch': 8},
+	13: {'silkscreen': 'B6', 'quad_id': 5, 'thres_dac_ch': 'C', 'fpga_bank': 66, 'pin_inverted': True, 'mctt_instance': 0, 'mctt_input_ch': 9},
+	14: {'silkscreen': 'B7', 'quad_id': 6, 'thres_dac_ch': 'C', 'fpga_bank': 66, 'pin_inverted': False, 'mctt_instance': 0, 'mctt_input_ch': 10},
+	15: {'silkscreen': 'B8', 'quad_id': 7, 'thres_dac_ch': 'C', 'fpga_bank': 66, 'pin_inverted': True, 'mctt_instance': 0, 'mctt_input_ch': 11},
+	16: {'silkscreen': 'C1', 'quad_id': 0, 'thres_dac_ch': 'B', 'fpga_bank': 65, 'pin_inverted': True, 'mctt_instance': 1, 'mctt_input_ch': 4},
+	17: {'silkscreen': 'C2', 'quad_id': 1, 'thres_dac_ch': 'B', 'fpga_bank': 65, 'pin_inverted': True, 'mctt_instance': 1, 'mctt_input_ch': 5},
+	18: {'silkscreen': 'C3', 'quad_id': 2, 'thres_dac_ch': 'B', 'fpga_bank': 66, 'pin_inverted': True, 'mctt_instance': 0, 'mctt_input_ch': 12},
+	19: {'silkscreen': 'C4', 'quad_id': 3, 'thres_dac_ch': 'B', 'fpga_bank': 66, 'pin_inverted': True, 'mctt_instance': 0, 'mctt_input_ch': 13},
+	20: {'silkscreen': 'C5', 'quad_id': 4, 'thres_dac_ch': 'B', 'fpga_bank': 66, 'pin_inverted': True, 'mctt_instance': 0, 'mctt_input_ch': 14},
+	21: {'silkscreen': 'C6', 'quad_id': 5, 'thres_dac_ch': 'B', 'fpga_bank': 66, 'pin_inverted': False, 'mctt_instance': 0, 'mctt_input_ch': 15},
+	22: {'silkscreen': 'C7', 'quad_id': 6, 'thres_dac_ch': 'B', 'fpga_bank': 66, 'pin_inverted': False, 'mctt_instance': 0, 'mctt_input_ch': 16},
+	23: {'silkscreen': 'C8', 'quad_id': 7, 'thres_dac_ch': 'B', 'fpga_bank': 66, 'pin_inverted': True, 'mctt_instance': 0, 'mctt_input_ch': 17},
+	24: {'silkscreen': 'D1', 'quad_id': 0, 'thres_dac_ch': 'A', 'fpga_bank': 65, 'pin_inverted': True, 'mctt_instance': 1, 'mctt_input_ch': 6},
+	25: {'silkscreen': 'D2', 'quad_id': 1, 'thres_dac_ch': 'A', 'fpga_bank': 65, 'pin_inverted': True, 'mctt_instance': 1, 'mctt_input_ch': 7},
+	26: {'silkscreen': 'D3', 'quad_id': 2, 'thres_dac_ch': 'A', 'fpga_bank': 66, 'pin_inverted': False, 'mctt_instance': 0, 'mctt_input_ch': 18},
+	27: {'silkscreen': 'D4', 'quad_id': 3, 'thres_dac_ch': 'A', 'fpga_bank': 66, 'pin_inverted': False, 'mctt_instance': 0, 'mctt_input_ch': 19},
+	28: {'silkscreen': 'D5', 'quad_id': 4, 'thres_dac_ch': 'A', 'fpga_bank': 66, 'pin_inverted': True, 'mctt_instance': 0, 'mctt_input_ch': 20},
+	29: {'silkscreen': 'D6', 'quad_id': 5, 'thres_dac_ch': 'A', 'fpga_bank': 66, 'pin_inverted': True, 'mctt_instance': 0, 'mctt_input_ch': 21},
+	30: {'silkscreen': 'D7', 'quad_id': 6, 'thres_dac_ch': 'A', 'fpga_bank': 66, 'pin_inverted': False, 'mctt_instance': 0, 'mctt_input_ch': 22},
+	31: {'silkscreen': 'D8', 'quad_id': 7, 'thres_dac_ch': 'A', 'fpga_bank': 66, 'pin_inverted': False, 'mctt_instance': 0, 'mctt_input_ch': 23},
+}
+
 ### hardware setup
 # dt mapping: {ro_ch: obdt_mapping}
 _dt_mapping = {

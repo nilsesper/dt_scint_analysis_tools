@@ -347,5 +347,32 @@ for pixel_index in range(len(ly0_st)):
     _scint_pixel_coordinates[pixel_index] = [ [xmin, xmax], [ymin, ymax], z0 ]
     _scint_pixel_mapping[(ly0_st[pixel_index], ly1_st[pixel_index])] = pixel_index
 
+### mezzanine input channel mapping (for timing calibration)
+# mapping of input channel = coincidence channel (for timing calibration there is no coincidence programmed)
+# to the fpga pins & banks
+mezzanine_input_bank_mapping = {} # {bank no: [input chs]}
+fpga_banks = list(set([v["fpga_bank"] for v in params.mezzanine_input_mapping.values()]))
+for bank in fpga_banks:
+    mezzanine_input_bank_mapping[bank] = []
+    for k,v in params.mezzanine_input_mapping.items():
+        if v["fpga_bank"] == bank:
+            mezzanine_input_bank_mapping[bank].append(k)
 
+### color wheel for plotting
+# give idx and return tab color
+def color_wheel(i):
+    color_list = [
+        "tab:blue",
+        "tab:red",
+        "tab:green",
+        "tab:orange",
+        "tab:purple",
+        "tab:brown",
+        "tab:pink",
+        "tab:gray",
+        "tab:cyan",
+        "tab:olive"
+    ]
+    i = i % len(color_list)
+    return color_list[i]
 

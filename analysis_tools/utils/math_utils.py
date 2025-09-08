@@ -24,5 +24,11 @@ def draw_from_pdf(pdf, val_range, n=1, *, dtype=np.float64):
         x_arr[i] = x
     return x_arr
 
+### calculate mean with error
+def calculate_mean(data, err_data):
+    n_data = len(data)
+    mean = np.mean(data)
+    err_mean = np.std(data, ddof=1) / np.sqrt(n_data)
+    return mean, err_mean
 
 
