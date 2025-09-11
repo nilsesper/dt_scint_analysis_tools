@@ -30,13 +30,20 @@ def calculate_hist(data, key, bin_centers, *, silent=False):
     hists, edges, centers, underflow, overflow = [], [], [], 0, 0
     ### in case data is empty, return empty arrays
     if len(data[key]) == 0:
-        return hists, edges, centers
+        print("EMPTY HIST DATA !!!")
+        return hists, edges, centers, underflow, overflow
     ### set bins
     # check for special keywords
     if type(bin_centers) in [type("")]: # use string keyword for bins option in np.histogram if given
         if bin_centers == "auto":
             #edges = "auto" # automatic binning
             n_auto_bins = 20
+            dmin = np.int64(np.amin(data[key]))
+            dmax = np.int64(np.amax(data[key]))
+            centers = np.linspace(dmin-1, dmax+1, n_auto_bins)
+        elif "auto" in bin_centers: 
+            # "autoXX" = auto binning with XX bins
+            n_auto_bins = int(bin_centers[4:])
             dmin = np.int64(np.amin(data[key]))
             dmax = np.int64(np.amax(data[key]))
             centers = np.linspace(dmin-1, dmax+1, n_auto_bins)
@@ -76,7 +83,7 @@ def calculate_hist(data, key, bin_centers, *, silent=False):
 # hist: histogram entries (bin heights)
 # centers: centers of histograms
 @mpl.rc_context({'font.family': 'sans-serif', 'font.size': 12}) # 'font.sans-serif': 'Arial'
-def plot_1hist(hist, centers, *, vmin=None, vmax=None, scale="norm", bin_labels=True, show=True, store=False, xlabel="", rel_spacing=0, round_digits=0, silent=False):
+def plot_1hist(hist, centers, *, vmin=None, vmax=None, scale="norm", bin_labels=True, show=True, store=False, xlabel="", rel_spacing=0, round_digits=0, silent=False, title=None):
     if not silent: print(f"Plotting one histogram...")
     fig, ax = plt.subplots(1, 1, figsize=(12,8))
     # plot hist
@@ -107,6 +114,7 @@ def plot_1hist(hist, centers, *, vmin=None, vmax=None, scale="norm", bin_labels=
             if scale == "log": vmax = np.amax(hist)*np.exp(1.1)
         ax.set_ylim(bottom=vmin, top=vmax)
     if xlabel != "": ax.set_xlabel(xlabel)
+    if title != None: ax.set_title(title)
     # tight layout
     fig.tight_layout()
     # show / save figure
@@ -124,7 +132,7 @@ def find_peak_indices(hist, rel_thres=0.01,*, silent=False):
     n_hist = len(hist)
     thres = np.amax(hist)*rel_thres
     for i in range(n_hist):
-        if hist[i] < rel_thres:
+        if hist[i] < thres:
             current_peak = False
         else:
             if not current_peak:

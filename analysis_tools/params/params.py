@@ -206,6 +206,7 @@ _xproj_acceptance_interval = 50 # max spatial distance of 2 phi muon sl fits alo
 _scintillator_hit_delay = 10 # timestamp units
 # acceptance interval for scintillator hit grouping
 _scintillator_ts_acceptance_interval = 500 # max temporal distance of ts values of scintillator that should be grouped together, in ts units
+# 1280 = 1 us , 64 = 50 ns , 500 ~ 391 ns
 
 ### scintillator specific
 
@@ -270,7 +271,7 @@ _color_info = {
 
 ### dt & scintillator muon correlation
 # correlate muon object (dt reco) and muon area (scintillator reco)
-_correlation_ts_window = 1000 # temporal correlation window, in ts units
+_correlation_ts_window = 1280 # = 1 us, temporal correlation window, in ts units
 _correlation_xy_window = 0 # spatial correlation window, in mm
 
 ### muon object specific
@@ -560,11 +561,18 @@ _scintillator = {
 }
 ### mezzanine scintillator mapping: {coinc_ch_name: {ch: ch id, ly: scint layer, st: scint strip}}
 _mezzanine_1_fe_mapping = {
+    f"coinc_ch_{i}": {"ly": 0, "st": i, "ch": i} for i in range(0, 8)
+} | {
+    f"coinc_ch_{16+i}": {"ly": 1, "st": i, "ch": 16+i} for i in range(0, 8)
+}
+"""
+_mezzanine_1_fe_mapping = {
     f"coinc_ch_{i}": {"ly": 0, "st": i, "ch": i} for i in range(16)
 }
 _mezzanine_2_fe_mapping = {
     f"coinc_ch_{i}": {"ly": 1, "st": i, "ch": i} for i in range(16)
 }
+#"""
 
 ### mezzanine input channel mapping (for timing calibration)
 # mapping of input channel = coincidence channel (for timing calibration there is no coincidence programmed)
@@ -613,9 +621,14 @@ _dt_mapping = {
 }
 # scintillator mapping: {ro_ch: mezzanine_mapping}
 _scint_mapping = {
+    27: _mezzanine_1_fe_mapping,
+}
+"""
+_scint_mapping = {
     24: _mezzanine_1_fe_mapping,
     25: _mezzanine_2_fe_mapping,
 }
+"""
 
 ### muon reconstruction z position
 # reco muon z0 value (select base z value for reco muon)
