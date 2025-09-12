@@ -117,92 +117,30 @@ def reco_muon_area_from_hits(hits, *, silent=False, verbose=False):
     n_hits = len(hits["ts"])
     if not silent: print(f"Combining {n_hits} scintillator hits to reconstruct muons...")
     # extract sls in phi & theta orientation
-    phi_lys = [ly for ly in params._scintillator["lys"].keys() if params._scintillator["lys"][ly]["orient"] == "phi"]
-    theta_lys = [ly for ly in params._scintillator["lys"].keys() if params._scintillator["lys"][ly]["orient"] == "theta"]
+    phi_ly_idx = 0 if (params._scintillator["lys"][0]["orient"] == "phi") else 1
+    theta_ly_idx = 0 if (params._scintillator["lys"][0]["orient"] == "theta") else 1
     # grouping by timestamp, check if the ts timestamps of the htis are within given acceptance interval params._scintillator_ts_acceptance_interval
-    # if multiple hits per orientation, combine them
-    # combine the hits in theta + phi
     # calculate muon area object (xrange, yrange, z, ts) where muon should have been
     # NOTE:
     # the algorithm can only cope one muon after another (strictly in order), not multiple muon fits simultaneously :(
+    # HARDCODED TO 2 LAYERS IN OPPOSITE ORIENTATION
     last_scint_hits = {ly: None for ly in params._scintillator["lys"].keys()} # last sl pattern for all sls
     ts_ref = 0
     for i in tqdm(range(n_hits), disable=silent):
         ### fitted sl pattern grouping
         ly = hits["ly"][i]
         ts = hits["ts"][i]
-        if ts_ref == 0: # if t0_ref was reset, take first timestamp t0 here as reference (can do this since dataset is ordered...)
-            ts_ref = ts
+        # store data of cur hit
         last_scint_hits[ly] = {k: hits[k][i] for k in hits.keys()} # store current column
-        # continue to "fill up" last_scint_hits, if next hit also is within time window
-        if i < n_hits-1: # only do it if there is a "next hit"
-            ts_next = hits["ts"][i+1]
-            if np.abs(ts_next - ts) <= params._scintillator_ts_acceptance_interval:
-                continue
-        # if not: continue, the combination of collected ly hits starts
-        # check for at least 1 phi + 1 theta pattern within t0 interval
-        phi_hits = [last_scint_hits[ly] for ly in params._scintillator["lys"].keys() if (params._scintillator["lys"][ly]["orient"] == "phi" and last_scint_hits[ly] != None)]
-        theta_hits = [last_scint_hits[ly] for ly in params._scintillator["lys"].keys() if (params._scintillator["lys"][ly]["orient"] == "theta" and last_scint_hits[ly] != None)]
-        # need to reset ts_ref, last_scint_hits afterwards (for next iteration)
-        last_scint_hits = {ly: None for ly in params._scintillator["lys"].keys()} # last pattern for all lys
-        ts_ref = 0
-        ### muon area reco
-        n_phi_hits, n_theta_hits = len(phi_hits), len(theta_hits)
-        ## check for at least 1 phi + 1 theta pattern, else discard and continue
-        if n_phi_hits == 0 or n_theta_hits == 0:
+        ### check continue conditions
+        if None in last_scint_hits.values(): # if not have hits of 2 different layers then continue
             continue
-        """
-        #### GENERIC CODE: GENERATE MUON AREA FROM ARBITRARY NO OF PHI & THETA SCINTILLATOR LAYERS
-        ## combine hits within phi plane, if > 1 phi pattern
-        ## the resulting (xmin, xmax, z)_phi is in global coord system
-        xmin_phi, xmax_phi, z_phi = [], [], []
-        phi_axis = params._orientation["phi"][0]
-        for j in range(n_phi_hits):
-            ly = phi_hits[j]["ly"]
-            st = phi_hits[j]["st"]
-            xmin_phi.append( derived_params._scintillator_strip_coordinates[ly][st][phi_axis][0] ) # min x value
-            xmax_phi.append( derived_params._scintillator_strip_coordinates[ly][st][phi_axis][1] ) # max x value
-            z_phi.append( derived_params._scintillator_strip_coordinates[ly][st][5] ) # center z value
-            if verbose: print("phi", ([xmin_phi, xmax_phi], z_phi))
-        # combine if compatible, by averaging z and selecting tightest x interval
-        z_phi = np.mean(z_phi)
-        xmin_phi = np.amax(xmin_phi)
-        xmax_phi = np.amin(xmax_phi)
-        if xmax_phi <= xmin_phi:
-            raise Exception(f"xmin_phi = {xmin_phi} must not be larger or equal to xmax_phi = {xmax_phi}.")
-        if verbose: print("phi comb", ([xmin_phi, xmax_phi], z_phi))
-        ## combine hits within phi plane, if > 1 phi pattern
-        ## the resulting (xmin, xmax, z)_phi is in global coord system
-        xmin_theta, xmax_theta, z_theta = [], [], []
-        theta_axis = params._orientation["theta"][0]
-        for j in range(n_theta_hits):
-            ly = theta_hits[j]["ly"]
-            st = theta_hits[j]["st"]
-            xmin_theta.append( derived_params._scintillator_strip_coordinates[ly][st][theta_axis][0] ) # min x value
-            xmax_theta.append( derived_params._scintillator_strip_coordinates[ly][st][theta_axis][1] ) # max x value
-            z_theta.append( derived_params._scintillator_strip_coordinates[ly][st][5] ) # center z value
-            if verbose: print("theta", ([xmin_theta, xmax_theta], z_theta))
-        # combine if compatible, by averaging z and selecting tightest x interval
-        z_theta = np.mean(z_theta)
-        xmin_theta = np.amax(xmin_theta)
-        xmax_theta = np.amin(xmax_theta)
-        if xmax_theta <= xmin_theta:
-            raise Exception(f"xmin_theta = {xmin_theta} must not be larger or equal to xmax_theta = {xmax_theta}.")
-        if verbose: print("phi comb", ([xmin_theta, xmax_theta], z_theta))
-        ### combine theta + phi and finally form a muon area object
-        z0_reco = np.mean([z_theta, z_phi]) # average z
-        xmin_reco = xmin_phi if (params._orientation["phi"][0] == 0) else xmin_theta
-        xmax_reco = xmax_phi if (params._orientation["phi"][0] == 0) else xmax_theta
-        ymin_reco = xmin_theta if (params._orientation["phi"][0] == 0) else xmin_phi
-        ymax_reco = xmax_theta if (params._orientation["phi"][0] == 0) else xmax_phi
-        # not implemented:
-        pixel_index = 0
-        """
-        #### HARDCODED 2 LAYERS (1 PHI, 1 THETA) OF SCINTILLATOR
-        if n_phi_hits != 1 or n_theta_hits != 1:
-            raise Exception(f"Using hardcoded reco code for 1 phi + 1 theta scintillator layer. Therefore not allow more than 1 phi, theta hit.")
-        ly_phi, st_phi = phi_hits[0]["ly"], phi_hits[0]["st"]
-        ly_theta, st_theta = theta_hits[0]["ly"], theta_hits[0]["st"]
+        if np.abs(int(last_scint_hits[0]["ts"]) - int(last_scint_hits[1]["ts"])) > params._scintillator_ts_acceptance_interval: # if 2 hits not within time interval, continue
+            continue
+        ### if not continue: have found 2 matching hits in different layers
+        ### muon area reco
+        ly_phi, st_phi = last_scint_hits[phi_ly_idx]["ly"], last_scint_hits[phi_ly_idx]["st"]
+        ly_theta, st_theta = last_scint_hits[theta_ly_idx]["ly"], last_scint_hits[theta_ly_idx]["st"]
         xmin_reco = derived_params._scintillator_strip_coordinates[ly_phi][st_phi][0][0]
         xmax_reco = derived_params._scintillator_strip_coordinates[ly_phi][st_phi][0][1]
         ymin_reco = derived_params._scintillator_strip_coordinates[ly_theta][st_theta][1][0]
@@ -215,16 +153,21 @@ def reco_muon_area_from_hits(hits, *, silent=False, verbose=False):
         xcenter_reco = np.mean([xmin_reco, xmax_reco])
         ycenter_reco = np.mean([ymin_reco, ymax_reco])
         ### combine ts to muon arrival time (averaging)
-        ts_reco = np.uint64(np.round(np.mean([int(phi_hits[j]["ts"]) for j in range(n_phi_hits)] + [int(theta_hits[j]["ts"]) for j in range(n_theta_hits)]),0))
+        ts_phi, ts_theta = last_scint_hits[phi_ly_idx]["ts"], last_scint_hits[theta_ly_idx]["ts"]
+        ts_reco = np.uint64(np.round(np.mean([ts_phi, ts_theta]), 0))
+        ### calculate ts difference between hits in both layers (absolute value)
+        ly_delta_ts = np.uint64(np.abs(int(ts_phi) - int(ts_theta)))
         ### combine muon_id of hits (if there is one from simulation)
         # raise error of muon_id of combined sl patters is not single value
-        muon_id = phi_hits[0]["muon_id"]
-        for this_muon_id in [phi_hits[j]["muon_id"] for j in range(n_phi_hits)] + [theta_hits[j]["muon_id"] for j in range(n_theta_hits)]:
-            if muon_id != this_muon_id:
-                raise Exception(f"Expect hits of same muon_id {muon_id}, not {this_muon_id}.")
+        muon_id =  last_scint_hits[phi_ly_idx]["muon_id"]
+        if muon_id != last_scint_hits[theta_ly_idx]["muon_id"]:
+            raise Exception(f"Expect hits of same muon_id {muon_id}, not {last_scint_hits[theta_ly_idx]['muon_id']}.")
         if verbose: print("muon area reco", ([xmin_reco, xmax_reco], [ymin_reco, ymax_reco], z0_reco, ts_reco, muon_id))
-        reco_muon_area_list.append({"xmin":xmin_reco, "xmax":xmax_reco, "ymin":ymin_reco, "ymax":ymax_reco, "z0":z0_reco, "ts":ts_reco, "muon_id":muon_id, "pixel":pixel_index, "xcenter": xcenter_reco, "ycenter": ycenter_reco})
+        reco_muon_area_list.append({"xmin":xmin_reco, "xmax":xmax_reco, "ymin":ymin_reco, "ymax":ymax_reco, "z0":z0_reco, "ts":ts_reco, "muon_id":muon_id, "pixel":pixel_index, "xcenter": xcenter_reco, "ycenter": ycenter_reco, "ly_delta_ts": ly_delta_ts})
         # !!! for muon the name of the timestamp key is "ts" and not "t0"
+        ##### need to reset ts_ref, last_scint_hits afterwards (for next iteration)
+        last_scint_hits = {ly: None for ly in params._scintillator["lys"].keys()} # last hit for all lys
+    # store in proper format
     n_reco_muon_areas = len(reco_muon_area_list)
     if not silent: print(f"Reconstructed {n_reco_muon_areas} muon areas from {n_hits} scintillator hits.")
     reco_muon_areas = {k: np.full(n_reco_muon_areas, 0, dtype=v) for k,v in params._muon_area_obj_keys.items()}

@@ -205,8 +205,8 @@ _xproj_acceptance_interval = 50 # max spatial distance of 2 phi muon sl fits alo
 # global time delay for scintillator hits (scint ts = muon ts + _scintillator_delay)
 _scintillator_hit_delay = 10 # timestamp units
 # acceptance interval for scintillator hit grouping
-_scintillator_ts_acceptance_interval = 500 # max temporal distance of ts values of scintillator that should be grouped together, in ts units
-# 1280 = 1 us , 64 = 50 ns , 500 ~ 391 ns
+_scintillator_ts_acceptance_interval = 16 # max temporal distance of ts values of scintillator that should be grouped together, in ts units
+# 1280 = 1 us , 64 = 50 ns , 500 ~ 391 ns , 16 = 12.5 ns , 32 = 25 ns
 
 ### scintillator specific
 
@@ -299,6 +299,7 @@ _muon_area_obj_keys = {
     "ts": _ts_type, # timestamp of muon arrival
     "muon_id": np.uint64, # id / idx of correlated muon (used to compare simulation + reconstruction)
     "pixel": np.uint16, # pixel index of scintillator pixel corresponding to this muon area
+    "ly_delta_ts": np.uint64, # ts difference between two hits in the layers
 }
 
 ### muon correlation object: holds info of 1 muon & 1 muon area
@@ -368,6 +369,7 @@ _key_symbols = {
     "delta_xcenter": "$x_{0,\\text{muon}}-x_{\\text{center},\\text{scint}}$",
     "delta_ycenter": "$y_{0,\\text{muon}}-y_{\\text{center},\\text{scint}}$",
     "ts_orbit": "$T_\\text{orbit}$",
+    "ly_delta_ts": "$\\Delta T$",
 }
 _key_units = {
     "x0": "mm",
@@ -399,6 +401,7 @@ _key_units = {
     "delta_xcenter": "mm",
     "delta_ycenter": "mm",
     "ts_orbit": "TU",
+    "ly_delta_ts": "TU",
 }
 
 ###############################

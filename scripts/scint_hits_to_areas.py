@@ -41,11 +41,6 @@ def main():
 
     ### data import
     print(f"###### Importing all data...")
-    # scint
-    scint_hits = data_utils.load_pickle(file=scint_hits_file)
-
-    ### data import
-    print(f"###### Importing dummy cosmic data...")
     scint_hits = data_utils.load_pickle(file=scint_hits_file)
     n_scint_hits = len(scint_hits["ts"])
 

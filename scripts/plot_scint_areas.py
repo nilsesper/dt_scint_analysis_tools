@@ -66,6 +66,7 @@ def main():
         "z0": np.linspace(params._scintillator["pos"][2]-10, params._scintillator["pos"][2]+params._scintillator["size"][2]+10, n_hist_bins),
         "ts": "auto200",
         "pixel": np.arange(0, 255+1),
+        "ly_delta_ts": "step1",
     }
     for k in hist_bins.keys():
         hists, edges, centers, underflow, overflow = hist_utils.calculate_hist(data=scint_areas, key=k, bin_centers=hist_bins[k], silent=True)
@@ -76,10 +77,11 @@ def main():
         plotname = False
         if store_plots != None:
             plotname = store_plots+f"/scint_reco_{k}.png"
-        hist_utils.plot_1hist(hist=hists, centers=centers, xlabel=xlabel, round_digits=round_digits, bin_labels=False, silent=True, store=plotname)
+        hist_utils.plot_1hist(hist=hists, centers=centers, xlabel=xlabel, round_digits=round_digits, bin_labels=False, silent=True, store=plotname, show=show_plots)
         
-        ### 2d plot of pixel occupancy
+        ### 2d plots of pixels
         if k == "pixel":
+            # occupancy
             px_matrix = np.zeros((16, 16))
             fig, ax = plt.subplots(1, 1, figsize=(10,8))
             for st0 in range(16):
@@ -91,7 +93,24 @@ def main():
             ax.set_ylabel("Strip (Layer 0)")
             cbar = fig.colorbar(imshow_obj, ax=ax, fraction=0.05)
             fig.tight_layout()
-            fig.show()
+            if show_plots:
+                fig.show()
+            # rate (in hits / min)
+            duration = 0.78e-9 * (np.amax(scint_areas["ts"]) - np.amin(scint_areas["ts"])) / 60 # mins
+            px_matrix = np.zeros((16, 16))
+            fig, ax = plt.subplots(1, 1, figsize=(10,8))
+            for st0 in range(16):
+                for st1 in range(16):
+                    px = derived_params._scint_pixel_mapping[(st0, st1)]
+                    px_matrix[st0][st1] = hists[px] / duration
+            imshow_obj = ax.imshow(px_matrix)
+            ax.set_xlabel("Strip (Layer 1)")
+            ax.set_ylabel("Strip (Layer 0)")
+            cbar = fig.colorbar(imshow_obj, ax=ax, fraction=0.05)
+            cbar.set_label("1/min")
+            fig.tight_layout()
+            if show_plots:
+                fig.show()
 
     input("Press enter to exit.")
     exit()
