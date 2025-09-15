@@ -13,6 +13,7 @@ import numpy as np
 _dt_ro_chs = list(params._dt_mapping.keys())
 # list of ro_chs used for scintillator
 _scint_ro_chs = list(params._scint_mapping.keys())
+_raw_scint_ro_chs = list(params._raw_scint_mapping.keys())
 
 ### ch lists
 # list of allowed channels for dt chamber, by ro_ch
@@ -23,12 +24,21 @@ for ro_ch in _dt_ro_chs:
         ch_list.extend(fe_mapping["chs"])
     _dt_chs_by_ro_ch[ro_ch] = ch_list
 # list of allowed channels for scintillator, by ro_ch
+# scint hits
 _scint_chs_by_ro_ch = {}
 for ro_ch in _scint_ro_chs:
     ch_list = []
     for ch_name, ch_mapping in params._scint_mapping[ro_ch].items():
         ch_list.append(ch_mapping["ch"])
     _scint_chs_by_ro_ch[ro_ch] = ch_list
+# raw scint hits
+_raw_scint_chs_by_ro_ch = {}
+for ro_ch in _scint_ro_chs:
+    ch_list = []
+    for ch_name, ch_mapping in params._raw_scint_mapping[ro_ch].items():
+        ch_list.append(ch_mapping["ch"])
+    _raw_scint_chs_by_ro_ch[ro_ch] = ch_list
+
 
 ### dumpfile keys
 _dumpfile_keys = list(params._htg_keys.keys())
@@ -76,6 +86,7 @@ for ro_ch in _dt_ro_chs:
             _dt_inverted_remap_table[sl][ly][wi][k] = _dt_remap_table[ro_ch][ch][k]
 
 ### generate scint remapping table: {ro_ch: {ch: {scint_keys: mapping value}}
+## scint hits
 _scint_keys = list(params._scint_mapping_keys.keys()) # ly, st, ch_id
 _scint_remap_table = {}
 for ro_ch in _scint_ro_chs:
@@ -103,6 +114,39 @@ for ro_ch in _scint_ro_chs:
         }
         for k in ["ch_id"]:
             _scint_inverted_remap_table[ly][st][k] = _scint_remap_table[ro_ch][ch][k]
+## raw scint hits
+_raw_scint_keys = list(params._raw_scint_mapping_keys.keys()) # ly, st, ch_id
+_raw_scint_remap_table = {}
+for ro_ch in _scint_ro_chs:
+    _raw_scint_remap_table[ro_ch] = {}
+    for ch_id, (ch_name, ch_mapping) in enumerate(params._raw_scint_mapping[ro_ch].items()):
+        ly = ch_mapping["ly"]
+        st = ch_mapping["st"]
+        ch = ch_mapping["ch"]
+        sipm = ch_mapping["sipm"]
+        _raw_scint_remap_table[ro_ch][ch] = {
+            "ch_id": ch_id, # idx of coinc channel name in mapping dict
+            "ly": ly, # layer id
+            "st": st, # strip id
+            "sipm": sipm, # sipm id (0 or 1)
+        }
+# generate inverted scint remapping table: {ly: {st: {sipm: {ch, ro_ch, ch_id}}}}
+_raw_scint_inverted_remap_table = {}
+for ro_ch in _raw_scint_ro_chs:
+    for ch in _raw_scint_remap_table[ro_ch].keys():
+        ly = _raw_scint_remap_table[ro_ch][ch]["ly"]
+        st = _raw_scint_remap_table[ro_ch][ch]["st"]
+        sipm = _raw_scint_remap_table[ro_ch][ch]["sipm"]
+        if ly not in _raw_scint_inverted_remap_table.keys():
+            _raw_scint_inverted_remap_table[ly] = {}
+        if st not in _raw_scint_inverted_remap_table[ly].keys():
+            _raw_scint_inverted_remap_table[ly][st] = {}
+        _raw_scint_inverted_remap_table[ly][st][sipm] = {
+            "ch": ch,
+            "ro_ch": ro_ch,
+        }
+        for k in ["ch_id"]:
+            _raw_scint_inverted_remap_table[ly][st][sipm][k] = _raw_scint_remap_table[ro_ch][ch][k]
 
 ### timestamp conversion
 _tdc_to_timestamp = 1

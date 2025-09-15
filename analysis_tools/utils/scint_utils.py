@@ -16,6 +16,8 @@ import analysis_tools.params.derived_params as derived_params
 
 # -----------------------------------------
 
+##### FUNCTIONS FOR SCINTILLATOR HITS = STRIP HITS (with 2 sipm coincidence of sipms of same strip)
+
 ### extract scintillator hits from hit data
 # cut away all hit data not from scintillator
 # add scintillator specific keys to hits
@@ -107,7 +109,7 @@ def hits_from_muons(muons, *, silent=False):
     scint_hits = timestamp_utils.sort_by_timestamp(hits=scint_hits)
     return scint_hits
 
-### group scintillator hits and then reco area of muon hit from scintillator hits
+### group scintillator hits with strip coincidence and then reco area of muon hit from scintillator hits
 # group together if hits of all layers are close enough in time
 # return x and y interval and z coordinate (mean of z pos of layers) that the hit could have been (by assessing all layers hit)
 def reco_muon_area_from_hits(hits, *, silent=False, verbose=False):
@@ -125,7 +127,6 @@ def reco_muon_area_from_hits(hits, *, silent=False, verbose=False):
     # the algorithm can only cope one muon after another (strictly in order), not multiple muon fits simultaneously :(
     # HARDCODED TO 2 LAYERS IN OPPOSITE ORIENTATION
     last_scint_hits = {ly: None for ly in params._scintillator["lys"].keys()} # last sl pattern for all sls
-    ts_ref = 0
     for i in tqdm(range(n_hits), disable=silent):
         ### fitted sl pattern grouping
         ly = hits["ly"][i]
@@ -163,7 +164,20 @@ def reco_muon_area_from_hits(hits, *, silent=False, verbose=False):
         if muon_id != last_scint_hits[theta_ly_idx]["muon_id"]:
             raise Exception(f"Expect hits of same muon_id {muon_id}, not {last_scint_hits[theta_ly_idx]['muon_id']}.")
         if verbose: print("muon area reco", ([xmin_reco, xmax_reco], [ymin_reco, ymax_reco], z0_reco, ts_reco, muon_id))
-        reco_muon_area_list.append({"xmin":xmin_reco, "xmax":xmax_reco, "ymin":ymin_reco, "ymax":ymax_reco, "z0":z0_reco, "ts":ts_reco, "muon_id":muon_id, "pixel":pixel_index, "xcenter": xcenter_reco, "ycenter": ycenter_reco, "ly_delta_ts": ly_delta_ts})
+        ### store reco obj
+        reco_muon_area_list.append({
+            "xmin": xmin_reco, 
+            "xmax": xmax_reco, 
+            "ymin": ymin_reco, 
+            "ymax": ymax_reco, 
+            "z0": z0_reco, 
+            "ts": ts_reco,
+            "muon_id": muon_id, 
+            "pixel": pixel_index, 
+            "xcenter": xcenter_reco, 
+            "ycenter": ycenter_reco, 
+            "ly_delta_ts": ly_delta_ts
+        })
         # !!! for muon the name of the timestamp key is "ts" and not "t0"
         ##### need to reset ts_ref, last_scint_hits afterwards (for next iteration)
         last_scint_hits = {ly: None for ly in params._scintillator["lys"].keys()} # last hit for all lys
@@ -176,7 +190,122 @@ def reco_muon_area_from_hits(hits, *, silent=False, verbose=False):
             reco_muon_areas[k][i] = reco_muon_area_list[i][k]
     return reco_muon_areas
 
+###### FUNCTIONS FOR RAW SCINTILLATOR HITS = SIPM HITS (individual sipm hits, no coincidence criterea applied)
 
+### extract raw scintillator hits from hit data
+# cut away all hit data not from scintillator
+# add scintillator specific keys to hits
+# take information about this mapping from params.py
+def extract_raw_scint_hits(hits, *, silent=False):
+    tmp_hits = copy.deepcopy(hits)
+    n_hits = len(tmp_hits["ch"])
+    if not silent: print(f"Extract raw scintillator hits from {n_hits} total hits...")
+    # calculate mask to apply to cut away all hits not belonging to dt chamber (wrong ro_ch or invalid ch)
+    scint_mask = np.full(n_hits, False, dtype=np.bool)
+    for ro_ch in derived_params._raw_scint_ro_chs:
+        tmp_mask = np.ma.isin(tmp_hits["ro_ch"], [ro_ch])
+        tmp_mask &= np.ma.isin(tmp_hits["ch"], derived_params._raw_scint_chs_by_ro_ch[ro_ch])
+        scint_mask |= tmp_mask
+    # apply mask
+    for k in tmp_hits.keys():
+        tmp_hits[k] = tmp_hits[k][scint_mask]
+    n_scint_hits = len(tmp_hits["ch"])
+    if not silent: print(f"Cut flow: {n_scint_hits}/{n_hits} = {n_scint_hits/n_hits}")
+    if not silent: print(f"Found {n_scint_hits} raw scintillator hits. Adding raw scintillator specific keys...")
+    # add specific scint keys
+    tmp_hits |= {k: np.full(n_scint_hits, 0, dtype=v) for k,v in params._raw_scint_mapping_keys.items()} | {k: np.full(n_hits, 0, dtype=v) for k,v in params._raw_scint_other_keys.items()} 
+    for i in tqdm(range(n_scint_hits), disable=silent):
+        ro_ch = tmp_hits["ro_ch"][i]
+        ch = tmp_hits["ch"][i]
+        # add keys according to remapping table
+        for k in derived_params._raw_scint_keys:
+            tmp_hits[k][i] = derived_params._raw_scint_remap_table[ro_ch][ch][k]
+    # add timestamp and sort by timestamp
+    tmp_hits = timestamp_utils.add_timestamp(hits=tmp_hits)
+    tmp_hits = timestamp_utils.sort_by_timestamp(hits=tmp_hits)
+    return tmp_hits
 
+### match raw scint hits (single sipm hits) to scint hits (2 sipm coincidences of strips)
+# apply coincidence criterea
+# hardcoded to use sipms 0 and 1 (2-fold coincidence)
+# coincidence window hardcoded at params._raw_scintillator_ts_acceptance_interval
+def reco_hits_from_raw_hits(hits, *, silent=False):
+    scint_hit_list = []
+    # sort hits by timestamp
+    hits = data_utils.sort_by_key(data=hits, sort_key="ts")
+    n_hits = len(hits["ts"])
+    if not silent: print(f"Combining {n_hits} raw scintillator hits to scintillator hits...")
+    # for all strips separately
+    for ly in params._scintillator["lys"].keys():
+        for st in range(params._scintillator["lys"][ly]["n_sts"]):
+            st_hits = data_utils.cut_data(data=hits, conditions=[("ly","==",ly), ("st","==",st)])
+            # match hits of same ly, st for sipm = 0 and sipm = 1 if within temporal coincidence window
+            SIPMS = [0, 1]
+            last_hits = {sipm: None for sipm in SIPMS}
+            ts0_old, ts1_old, ts_reco_old = None, None, None
+            for i in range(data_utils.length(st_hits)):
+                sipm = st_hits["sipm"][i]
+                ts = st_hits["ts"][i]
+                # store data of cur hit
+                last_hits[sipm] = {k: st_hits[k][i] for k in hits.keys()} # store current column
+                ### check continue conditions
+                if None in last_hits.values(): # if not have hits of 2 different layers then continue
+                    continue
+                if np.abs(int(last_hits[0]["ts"]) - int(last_hits[1]["ts"])) > params._raw_scintillator_ts_acceptance_interval: # if 2 hits not within time interval, continue
+                    continue
+                ### if not continue: have found 2 matching hits of same strip
+                #--- build scintillator hit from this object
+                ### combine ts time (averaging)
+                ts0, ts1 = last_hits[0]["ts"], last_hits[1]["ts"]
+                ts_reco = np.uint64(np.round(np.mean([ts0, ts1]), 0))
+                (oc_reco, bx_reco, tdc_reco) = timestamp_utils.remap_htg_timestamp(ts_reco)
+                ### calculate ts difference between hits (absolute value)
+                sipm_delta_ts = np.uint64(np.abs(int(ts0) - int(ts1)))
+                ### calculate ts difference to last hit of this strip / of this sipm (to check ringing)
+                st_delta_last_ts0, st_delta_last_ts1, st_delta_last_ts = 0, 0, 0
+                if ts0_old != None:
+                    st_delta_last_ts0 = np.uint64(np.abs(int(ts0) - int(ts0_old)))
+                    st_delta_last_ts1 = np.uint64(np.abs(int(ts1) - int(ts1_old)))
+                    st_delta_last_ts = np.uint64(np.abs(int(ts_reco) - int(ts_reco_old)))
+                ts0_old, ts1_old, ts_reco_old = ts0, ts1, ts_reco
+                ### combine muon_id of hits (if there is one from simulation)
+                # raise error of muon_id of combined sl patters is not single value
+                muon_id =  last_hits[0]["muon_id"]
+                if muon_id != last_hits[1]["muon_id"]:
+                    raise Exception(f"Expect hits of same muon_id {muon_id}, not {last_hits[1]['muon_id']}.")
+                ### scint ch_id if coincidence would have been active
+                # extract from scint mapping table 
+                scint_ch_id = derived_params._scint_inverted_remap_table[ly][st]["ch_id"]
+                scint_ch = derived_params._scint_inverted_remap_table[ly][st]["ch"]
+                ### store reco obj
+                scint_hit_list.append({
+                    "sipm_delta_ts": sipm_delta_ts,
+                    "ly": ly,
+                    "st": st,
+                    "ts": ts_reco,
+                    "ch_id": scint_ch_id,
+                    "muon_id": muon_id,
+                    "ro_ch": last_hits[0]["ro_ch"],
+                    "muon_ts": last_hits[0]["muon_ts"],
+                    "xhit": last_hits[0]["xhit"],
+                    "oc": oc_reco,
+                    "bx": bx_reco,
+                    "tdc": tdc_reco,
+                    "ch": scint_ch,
+                    "st_delta_last_ts0": st_delta_last_ts0,
+                    "st_delta_last_ts1": st_delta_last_ts1,
+                    "st_delta_last_ts": st_delta_last_ts,
+                })
+                ##### need to reset ts_ref, last_scint_hits afterwards (for next iteration)
+                last_hits = {sipm: None for sipm in SIPMS}
+    # store in proper format
+    n_scint_hits = len(scint_hit_list)
+    if not silent: print(f"Reconstructed {n_scint_hits} scintillator hits from {n_hits} raw scintillator hits.")
+    scint_keys_types = copy.deepcopy(params._scint_mapping_keys) | copy.deepcopy(params._scint_other_keys) | copy.deepcopy(params._htg_keys)
+    scint_hits = {k: np.full(n_scint_hits, 0, dtype=v) for k,v in scint_keys_types.items()}
+    for i in range(n_scint_hits):
+        for k in scint_keys_types.keys():
+            scint_hits[k][i] = scint_hit_list[i][k]
+    return scint_hits
 
 

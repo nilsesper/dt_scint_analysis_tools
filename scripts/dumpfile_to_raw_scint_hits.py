@@ -1,5 +1,6 @@
 #################################################################
-### import dumpfile and extract scintillator hits
+### import dumpfile and extract raw scintillator hits
+# raw hits = recorded hits without coincidence on fpga
 # store scintillator hits as pkl file
 #################################################################
 
@@ -29,14 +30,14 @@ def main():
         help     = "input file path: dumpfile recorded by htg box (txt file)",
     )
     parser.add_argument(
-        "--scint_hits_file",
+        "--raw_scint_hits_file",
         type     = str,
-        help     = "output file path: scintillator hits (pcl file)",
+        help     = "output file path: raw scintillator hits (pcl file)",
     )
     # ---
     args = parser.parse_args()
     input_dumpfile = args.input_dumpfile
-    scint_hits_file = args.scint_hits_file
+    raw_scint_hits_file = args.raw_scint_hits_file
 
     #################
 
@@ -46,16 +47,16 @@ def main():
     print("dumpfile_hits =",dumpfile_hits)
 
     ### extract scintillator hit
-    print(f"###### Extracting scintillator hits...")
-    scint_hits = scint_utils.extract_scint_hits(hits=dumpfile_hits)
-    print("scint_hits =",scint_hits)
+    print(f"###### Extracting raw scintillator hits...")
+    raw_scint_hits = scint_utils.extract_raw_scint_hits(hits=dumpfile_hits)
+    print("raw_scint_hits =",raw_scint_hits)
     # add timestamp and sort by timestamp
-    scint_hits = timestamp_utils.add_timestamp(hits=scint_hits)
-    scint_hits = timestamp_utils.sort_by_timestamp(hits=scint_hits)
+    raw_scint_hits = timestamp_utils.add_timestamp(hits=raw_scint_hits)
+    raw_scint_hits = timestamp_utils.sort_by_timestamp(hits=raw_scint_hits)
 
     ### store to pcl file
-    print(f"###### Storing data to file \"{scint_hits_file}\"...")
-    data_utils.store_pickle(data=scint_hits, file=scint_hits_file)
+    print(f"###### Storing data to file \"{raw_scint_hits_file}\"...")
+    data_utils.store_pickle(data=raw_scint_hits, file=raw_scint_hits_file)
 
 
 

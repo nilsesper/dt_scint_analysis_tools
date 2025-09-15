@@ -204,22 +204,42 @@ _t0_acceptance_interval = 100 # max temporal distance of t0 values of dt sl patt
 _xproj_acceptance_interval = 50 # max spatial distance of 2 phi muon sl fits along the x axis, when projecting one to the other sl (delta_z(1-2) = z(sl=3.ly=3.wi=wi3_1) - z(sl=3.ly=3.wi=wi3_2)), in mm
 # global time delay for scintillator hits (scint ts = muon ts + _scintillator_delay)
 _scintillator_hit_delay = 10 # timestamp units
-# acceptance interval for scintillator hit grouping
-_scintillator_ts_acceptance_interval = 16 # max temporal distance of ts values of scintillator that should be grouped together, in ts units
+# acceptance interval for scintillator hits (2 sipm coincidence of strips) -> muon areas (2 strip coincidence) grouping
+_scintillator_ts_acceptance_interval = 1280 #32 # max temporal distance of ts values of scintillator that should be grouped together, in ts units
 # 1280 = 1 us , 64 = 50 ns , 500 ~ 391 ns , 16 = 12.5 ns , 32 = 25 ns
+# acceptance interval for raw scintillator hits (single sipm hits) -> scintillator hits (2 sipm coincidence of strips) grouping
+_raw_scintillator_ts_acceptance_interval = _scintillator_ts_acceptance_interval # in ts units
 
 ### scintillator specific
 
 ### scintillator hit format:
 ### - htg origin: {"oc", "bx", "tdc", "ch"}
-### - added scintillator mapping: {"ly": 0-1 scintillator layer, "st": 0-15 strip in layer, "ch_id": idx of coinc ch name in dict}
+### - added scintillator mapping: {"ly": 0-1 scintillator layer, "st": 0-15 strip in layer, "sipm": 0-1 id of sipm of this strip (if data without strip coicidence is given), "ch_id": idx of coinc ch name in dict}
 ### - added timestamp: {"ts": converted timestamp from oc,bx,tdc}
+## scint hits: coincidence of 2 sipms of strip
 _scint_mapping_keys = {
     "ly": np.uint8,
     "st": np.uint8,
     "ch_id": np.uint8,
 }
 _scint_other_keys = {
+    "ts": _ts_type,
+    "muon_ts": _ts_type,
+    "xhit": np.float64, # relative hit position: x_hit = xhit + xleft(lower x coord of strip) (in mm)
+    "muon_id": np.uint64, # id / idx of correlated muon
+    "sipm_delta_ts": _ts_type, # ts difference between two sipm hits of the strip
+    "st_delta_last_ts0": _ts_type, # time difference to last scint hit for sipm0 hit ts
+    "st_delta_last_ts1": _ts_type, # time difference to last scint hit for sipm1 hit ts
+    "st_delta_last_ts": _ts_type, # time difference to last scint hit (mean ts)
+}
+## raw scint hits: single sipm hits
+_raw_scint_mapping_keys = {
+    "ly": np.uint8,
+    "st": np.uint8,
+    "sipm": np.uint8,
+    "ch_id": np.uint8,
+}
+_raw_scint_other_keys = {
     "ts": _ts_type,
     "muon_ts": _ts_type,
     "xhit": np.float64, # relative hit position: x_hit = xhit + xleft(lower x coord of strip) (in mm)
@@ -369,7 +389,11 @@ _key_symbols = {
     "delta_xcenter": "$x_{0,\\text{muon}}-x_{\\text{center},\\text{scint}}$",
     "delta_ycenter": "$y_{0,\\text{muon}}-y_{\\text{center},\\text{scint}}$",
     "ts_orbit": "$T_\\text{orbit}$",
-    "ly_delta_ts": "$\\Delta T$",
+    "ly_delta_ts": "$\\Delta T_\\text{layers}$",
+    "sipm_delta_ts": "$\\Delta T_\\text{SiPMs}$",
+    "st_delta_last_ts0": "$\\Delta T_\\text{strip, SiPM 0}$",
+    "st_delta_last_ts1": "$\\Delta T_\\text{strip, SiPM 1}$",
+    "st_delta_last_ts": "$\\Delta T_\\text{strip}$",
 }
 _key_units = {
     "x0": "mm",
@@ -402,6 +426,10 @@ _key_units = {
     "delta_ycenter": "mm",
     "ts_orbit": "TU",
     "ly_delta_ts": "TU",
+    "sipm_delta_ts": "TU",
+    "st_delta_last_ts0": "TU",
+    "st_delta_last_ts1": "TU",
+    "st_delta_last_ts": "TU",
 }
 
 ###############################
@@ -563,19 +591,22 @@ _scintillator = {
     "pos": (100., 100., -100.), # point with smallest coordinates of scintillator
 }
 ### mezzanine scintillator mapping: {coinc_ch_name: {ch: ch id, ly: scint layer, st: scint strip}}
-_mezzanine_1_fe_mapping = {
+# configuration with strip coincidence
+_mezzanine_1_fe_mapping_strip_coinc = {
     f"coinc_ch_{i}": {"ly": 0, "st": i, "ch": i} for i in range(0, 8)
 } | {
     f"coinc_ch_{16+i}": {"ly": 1, "st": i, "ch": 16+i} for i in range(0, 8)
 }
-"""
-_mezzanine_1_fe_mapping = {
-    f"coinc_ch_{i}": {"ly": 0, "st": i, "ch": i} for i in range(16)
+# configuration without any coincidence
+_mezzanine_1_fe_mapping_no_coinc = {
+    f"coinc_ch_{i}": {"ly": 0, "st": i, "ch": i, "sipm": 0} for i in range(0, 8)
+} | {
+    f"coinc_ch_{8+i}": {"ly": 0, "st": i, "ch": 8+i, "sipm": 1} for i in range(0, 8)
+} | {
+    f"coinc_ch_{16+i}": {"ly": 1, "st": i, "ch": 16+i, "sipm": 0} for i in range(0, 8)
+} | {
+    f"coinc_ch_{24+i}": {"ly": 1, "st": i, "ch": 24+i, "sipm": 1} for i in range(0, 8)
 }
-_mezzanine_2_fe_mapping = {
-    f"coinc_ch_{i}": {"ly": 1, "st": i, "ch": i} for i in range(16)
-}
-#"""
 
 ### mezzanine input channel mapping (for timing calibration)
 # mapping of input channel = coincidence channel (for timing calibration there is no coincidence programmed)
@@ -616,22 +647,21 @@ mezzanine_input_mapping = { # ch id = idx of sipm_p/n signal in fw = input ch id
 }
 
 ### hardware setup
-# dt mapping: {ro_ch: obdt_mapping}
+## dt mapping: {ro_ch: obdt_mapping}
 _dt_mapping = {
     8: _obdt_phi_1_fe_mapping,
     10: _obdt_phi_2_fe_mapping,
     14: _obdt_theta_1_fe_mapping,
 }
-# scintillator mapping: {ro_ch: mezzanine_mapping}
+## scintillator mapping: {ro_ch: mezzanine_mapping}
+# coincidence strips = 2 sipm coincidence hits
 _scint_mapping = {
-    27: _mezzanine_1_fe_mapping,
+    27: _mezzanine_1_fe_mapping_strip_coinc,
 }
-"""
-_scint_mapping = {
-    24: _mezzanine_1_fe_mapping,
-    25: _mezzanine_2_fe_mapping,
+# no coincidence = raw sipm hits
+_raw_scint_mapping = {
+    27: _mezzanine_1_fe_mapping_no_coinc,
 }
-"""
 
 ### muon reconstruction z position
 # reco muon z0 value (select base z value for reco muon)

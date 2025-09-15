@@ -96,7 +96,7 @@ def main():
             if show_plots:
                 fig.show()
             # rate (in hits / min)
-            duration = 0.78e-9 * (np.amax(scint_areas["ts"]) - np.amin(scint_areas["ts"])) / 60 # mins
+            duration = 0.78e-9 * (np.amax(scint_areas["ts"]) - np.amin(scint_areas["ts"])) # secs
             px_matrix = np.zeros((16, 16))
             fig, ax = plt.subplots(1, 1, figsize=(10,8))
             for st0 in range(16):
@@ -107,7 +107,7 @@ def main():
             ax.set_xlabel("Strip (Layer 1)")
             ax.set_ylabel("Strip (Layer 0)")
             cbar = fig.colorbar(imshow_obj, ax=ax, fraction=0.05)
-            cbar.set_label("1/min")
+            cbar.set_label("Hz")
             fig.tight_layout()
             if show_plots:
                 fig.show()
