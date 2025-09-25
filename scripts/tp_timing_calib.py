@@ -131,7 +131,7 @@ def main():
     """
     ### plot testpulse timing for all channels separately
     print(f"### tp timing plots")
-    for ch in [0]: #range(n_chs):
+    for ch in [1, 13]: #range(n_chs):
         hist_bins = {
             "ts_orbit": "step1",
         }
@@ -142,7 +142,7 @@ def main():
             xlabel = params._key_symbols[k]
             xlabel += " ["+params._key_units[k]+"]" if (params._key_units[k] != "") else ""
             #plotname =  plot_path+f"/corr_muons_{k}.png"
-            hist_utils.plot_1hist(hist=hists, centers=centers, xlabel=xlabel, round_digits=round_digits, bin_labels=False, silent=True, show=True)#, store=plotname)
+            hist_utils.plot_1hist(hist=hists, centers=centers, xlabel=xlabel, round_digits=round_digits, bin_labels=False, silent=True, show=True, title=f"ch{ch}")#, store=plotname)
     #"""
     
     ### plot testpulse timing for all peak positions

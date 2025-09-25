@@ -80,12 +80,34 @@ def cut_muons_by_area(muons, xmin, xmax, ymin, ymax, z0, *, silent=False):
 #   - timestamp (timestamps of muon & muon area must have abs difference <= params._correlation_ts_window)
 #   - position (propagate muon to same z as muon area, then:
 #               x position of muon must be within [xmin-params._correlation_xy_window, ymin+params._correlation_xy_window], same for y)
-def correlate_muons_and_muon_areas(muons, muon_areas, *, silent=False):
+# alignment offset is space-time offset between DT muons and scintillator muon_areas:
+#   alignment_offset in space-time = (x0, y0, z0, t0)
+#   - x0, y0, z0: spatial alignment offset between specified scintillator position & scintillator position that the DT muons are propagated to
+#   - t0: temporal alignment offset between scintillator timestamp & DT muon timestamp
+#   per definition: X0 = X(DT muon) - X(scintillator)   for X = [x0,y0,z0,t0]
+#   -> X(scintillator)_after_alignment != X(DT)
+#   -> X(scintillator)_after_alignment = X(scintillator)_before_alignment + X0
+def correlate_muons_and_muon_areas(muons, muon_areas, alignment_offset=(0., 0., 0., 0.), *, silent=False):
     n_muons = data_utils.length(muons)
     n_muon_areas = data_utils.length(muon_areas)
     # sort both muons & muon areas by timestamp
     muons = timestamp_utils.sort_by_timestamp(hits=muons, silent=silent)
     muon_areas = timestamp_utils.sort_by_timestamp(hits=muon_areas, silent=silent)
+    # copy objects
+    muons = copy.deepcopy(muons)
+    muon_areas = copy.deepcopy(muon_areas)
+    ### apply alignment constants to muon areas
+    # X(scintillator)_after_alignment = X(scintillator)_before_alignment + X0
+    x_alignment, y_alignment, z_alignment = alignment_offset[0:3]
+    ts_alignment = np.int64(np.round(alignment_offset[3], 0))
+    for ia in range(n_muon_areas):
+        muon_areas["xmin"][ia] = muon_areas["xmin"][ia] + x_alignment
+        muon_areas["xmax"][ia] = muon_areas["xmax"][ia] + x_alignment
+        muon_areas["ymin"][ia] = muon_areas["ymin"][ia] + y_alignment
+        muon_areas["ymax"][ia] = muon_areas["ymax"][ia] + y_alignment
+        muon_areas["z0"][ia] = muon_areas["z0"][ia] + z_alignment
+        muon_areas["ts"][ia] = muon_areas["ts"][ia] + ts_alignment
+    ### continue with these corrected/aligned muon areas
     ### correlate muons & muon areas in time (correlate 2 objects which have timestamps with a difference <= params._correlation_ts_window)
     # collect correlated indices of muons & muon areas
     correlated_indices = [] # [(im = muon index, ia = muon area index) for correlated muons]
@@ -97,7 +119,7 @@ def correlate_muons_and_muon_areas(muons, muon_areas, *, silent=False):
         # break if index out of range
         if im >= n_muons: break # stop as soon as no more muon are there
         if ia >= n_muon_areas: break # stop as soon as no more muon areas are there
-        ### correlation in time
+        ### correlation in time (respect alignment)
         ts_m = muons["ts"][im] # timestamp of current muon
         ts_a = muon_areas["ts"][ia] # timestamp of current muon area
         # if current muon is much later than current muon area, go to next muon area
@@ -111,7 +133,8 @@ def correlate_muons_and_muon_areas(muons, muon_areas, *, silent=False):
         ### correlation in space
         # propagate muon to same z as muon area
         z0 = muon_areas["z0"][ia]
-        xmin, xmax, ymin, ymax = muon_areas["xmin"][ia], muon_areas["xmax"][ia], muon_areas["ymin"][ia], muon_areas["ymax"][ia]
+        xmin, xmax = muon_areas["xmin"][ia], muon_areas["xmax"][ia]
+        ymin, ymax = muon_areas["ymin"][ia], muon_areas["ymax"][ia]
         (xm, ym, zm) = propagate_muon(muons=muons, z=z0, idx=im)
         # if muon is not within coordinates of muon area plus/minus specified xy tolerance, go to next muon & next muon area 
         # !!!! THIS IS NOT OPTIMAL YET !!!!
@@ -133,7 +156,8 @@ def correlate_muons_and_muon_areas(muons, muon_areas, *, silent=False):
         (im, ia) = correlated_indices[i] # extract muon & muon area index
         # propagate muon to same z as muon area
         z0 = muon_areas["z0"][ia]
-        xmin, xmax, ymin, ymax = muon_areas["xmin"][ia], muon_areas["xmax"][ia], muon_areas["ymin"][ia], muon_areas["ymax"][ia]
+        xmin, xmax = muon_areas["xmin"][ia], muon_areas["xmax"][ia]
+        ymin, ymax = muon_areas["ymin"][ia], muon_areas["ymax"][ia]
         (xm, ym, zm) = propagate_muon(muons=muons, z=z0, idx=im)
         # fill muon indices
         for k in ["theta", "phi", "muon_id"]:

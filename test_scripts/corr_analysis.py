@@ -52,7 +52,7 @@ def main():
 
 
     ### correlate scintillator & dt reco
-    cosmic_muon_corr_muons = muon_utils.correlate_muons_and_muon_areas(muons=cosmic_muon_dt_muons, muon_areas=cosmic_muon_scint_muon_areas)
+    cosmic_muon_corr_muons = muon_utils.correlate_muons_and_muon_areas(muons=cosmic_muon_dt_muons, muon_areas=cosmic_muon_scint_muon_areas, alignment_offset=(0., 0., 0., 0))
     print("cosmic_muon_corr_muons =",cosmic_muon_corr_muons)
 
     ### corr muon plots
@@ -61,7 +61,7 @@ def main():
     hist_bins = {
         "delta_xcenter": 30 * np.arange(-n_hist_bins//2,n_hist_bins//2+1,1)/n_hist_bins*2,
         "delta_ycenter": 30 * np.arange(-n_hist_bins//2,n_hist_bins//2+1,1)/n_hist_bins*2,
-        "delta_ts": np.arange(-30,30+1),
+        "delta_ts": "step1",#np.arange(-30,30+1),
     }
     for k in hist_bins.keys():
         hists, edges, centers, underflow, overflow = hist_utils.calculate_hist(data=cosmic_muon_corr_muons, key=k, bin_centers=hist_bins[k], silent=True)
@@ -72,7 +72,12 @@ def main():
         plotname =  plot_path+f"/corr_muons_{k}.png"
         hist_utils.plot_1hist(hist=hists, centers=centers, xlabel=xlabel, round_digits=round_digits, bin_labels=False, silent=True, store=plotname)
 
-
+        mean, err_mean = hist_utils.weighted_mean_peak_position(hist=hists, centers=centers, err_hist=np.sqrt(hists), err_centers=np.zeros(len(centers)))
+        print(f"-> weighted mean \"{k}\":  {mean} +- {err_mean} {params._key_units[k]}")
+    print( np.sum( cosmic_muon_corr_muons["x0"]-cosmic_muon_corr_muons["xmin"] < 0 ) )
+    print( np.sum( cosmic_muon_corr_muons["x0"]-cosmic_muon_corr_muons["xmax"] > 0 ) )
+    print( np.sum( cosmic_muon_corr_muons["y0"]-cosmic_muon_corr_muons["ymin"] < 0 ) )
+    print( np.sum( cosmic_muon_corr_muons["y0"]-cosmic_muon_corr_muons["ymax"] > 0 ) )
 
     input("Press enter to exit.")
     exit()

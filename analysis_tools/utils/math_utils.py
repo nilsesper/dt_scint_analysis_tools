@@ -32,4 +32,3 @@ def calculate_mean_std(data, err_data):
     err_mean = std / np.sqrt(n_data)
     return mean, std, err_mean
 
-

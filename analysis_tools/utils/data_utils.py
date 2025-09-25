@@ -115,7 +115,8 @@ def merge_dataset(split_data, *, silent=False):
         for k in split_data[part].keys():
             for i in range(n_data_parts[part]):
                 merged_data[k][i+offset] = copy.deepcopy(split_data[part][k][i])
-        offset += i+1
+        if n_data_parts[part] > 0:
+            offset += i+1
     return merged_data
 
 ### get length of data object

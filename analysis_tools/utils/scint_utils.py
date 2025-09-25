@@ -223,6 +223,40 @@ def extract_raw_scint_hits(hits, *, silent=False):
     # add timestamp and sort by timestamp
     tmp_hits = timestamp_utils.add_timestamp(hits=tmp_hits)
     tmp_hits = timestamp_utils.sort_by_timestamp(hits=tmp_hits)
+    # apply dead time constraint to all individual channels (if specified dead time is > 0)
+    if params._raw_scintillator_ts_individual_dead_time > 0:
+        print(f"apply dead time constraint for all individual channels of {params._raw_scintillator_ts_individual_dead_time} TU")
+        cut_tmp_hits = {}
+        for ly in derived_params._scint_inverted_remap_table.keys():
+            cut_tmp_hits[ly] = {}
+            for st in derived_params._scint_inverted_remap_table[ly].keys():
+                cut_tmp_hits[ly][st] = {}
+                for sipm in [0,1]:
+                    print(ly, st, sipm)
+                    cut_tmp_hits[ly][st][sipm] = data_utils.cut_data(data=tmp_hits, conditions=[("ly","==",ly),("st","==",st), ("sipm","==",sipm)])
+                    n_cut_hits = len(cut_tmp_hits[ly][st][sipm]["ts"])
+                    allowed_indices = []
+                    ts_list = np.array(cut_tmp_hits[ly][st][sipm]["ts"])
+                    if len(ts_list) > 0:
+                        cur_ts = ts_list[0]
+                        for i in range(n_cut_hits):
+                            if int(ts_list[i]) - int(cur_ts) < params._raw_scintillator_ts_individual_dead_time:
+                                continue
+                            cur_ts = ts_list[i]
+                            allowed_indices.append(i)
+                    for k in cut_tmp_hits[ly][st][sipm].keys():
+                        cut_tmp_hits[ly][st][sipm][k] = cut_tmp_hits[ly][st][sipm][k][allowed_indices]
+                    n_cut_hits_after = len(cut_tmp_hits[ly][st][sipm]['ts'])
+                    print(f"ly{ly} st{st} sipm{sipm} dead time cut flow: {n_cut_hits_after} / {n_cut_hits} = {n_cut_hits_after/max(1,n_cut_hits)}")
+        # merge back to tmp_hits
+        print("merging data after applying individual dead time...")
+        merge_data = []
+        for ly in derived_params._scint_inverted_remap_table.keys():
+            for st in derived_params._scint_inverted_remap_table[ly].keys():
+                for sipm in [0,1]:
+                    merge_data.append(cut_tmp_hits[ly][st][sipm])
+        tmp_hits = data_utils.merge_dataset(split_data=merge_data)
+        tmp_hits = timestamp_utils.sort_by_timestamp(hits=tmp_hits)
     return tmp_hits
 
 ### match raw scint hits (single sipm hits) to scint hits (2 sipm coincidences of strips)
@@ -279,7 +313,6 @@ def reco_hits_from_raw_hits(hits, *, silent=False):
                 scint_ch = derived_params._scint_inverted_remap_table[ly][st]["ch"]
                 ### store reco obj
                 scint_hit_list.append({
-                    "sipm_delta_ts": sipm_delta_ts,
                     "ly": ly,
                     "st": st,
                     "ts": ts_reco,
@@ -292,6 +325,7 @@ def reco_hits_from_raw_hits(hits, *, silent=False):
                     "bx": bx_reco,
                     "tdc": tdc_reco,
                     "ch": scint_ch,
+                    "sipm_delta_ts": sipm_delta_ts,
                     "st_delta_last_ts0": st_delta_last_ts0,
                     "st_delta_last_ts1": st_delta_last_ts1,
                     "st_delta_last_ts": st_delta_last_ts,

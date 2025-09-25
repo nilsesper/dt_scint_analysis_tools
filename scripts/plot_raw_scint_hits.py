@@ -55,21 +55,22 @@ def main():
     # scint
     raw_scint_hits = data_utils.load_pickle(file=raw_scint_hits_file)
 
-    ### scintillator hits
-    print(f"### scintillator hits")
+    ### raw scintillator hits
+    print(f"### raw scintillator hits")
     n_hist_bins = 100
-    hist_bins = {
-        "ro_ch": np.arange(0, 32),
-        "ch": np.arange(0, 255),
-        "tdc": np.arange(0, params._lhc_tdc_count+1),
-        "bx": np.linspace(0, params._lhc_bunch_count, n_hist_bins),
-        "oc": np.linspace(0, params._lhc_orbit_count, n_hist_bins),
-        "ly": np.arange(0, 1+1),
-        "st": np.arange(0, 16+1),
-        "ts": "auto200",
-    }
-    for k in hist_bins.keys():
-        hists, edges, centers, underflow, overflow = hist_utils.calculate_hist(data=raw_scint_hits, key=k, bin_centers=hist_bins[k], silent=True)
+    hist_bins = [
+        { "ro_ch": np.arange(0, 32) },
+        { "ch": np.arange(0, 255) },
+        { "tdc": np.arange(0, params._lhc_tdc_count+1) },
+        { "bx": np.linspace(0, params._lhc_bunch_count, n_hist_bins) },
+        { "oc": np.linspace(0, params._lhc_orbit_count, n_hist_bins) },
+        { "ly": np.arange(0, 1+1) },
+        { "st": np.arange(0, 16+1) },
+        { "ts": "auto200" },
+    ]
+    for hist_bin in hist_bins:
+        k, b = list(hist_bin.keys())[0], list(hist_bin.values())[0]
+        hists, edges, centers, underflow, overflow = hist_utils.calculate_hist(data=raw_scint_hits, key=k, bin_centers=b, silent=True)
         print(f"key \"{k}\": entries={data_utils.length(raw_scint_hits)} underflow={underflow}, overflow={overflow}")
         round_digits = 0 if k in ["ts"] else 2
         xlabel = params._key_symbols[k]+"$(\\text{scint})$"
@@ -117,6 +118,38 @@ def main():
     print("channel rates in Hz:")
     for ch in range(32):
         print(f"  ch {ch:2d}: {ch_rate_list[ch]:6.2f} Hz")
+
+    ## plot hit differences
+    # for each sipm separately
+    other_data_dict = {}
+    for ly in range(2):
+        for st in range(8):
+            for sipm in range(2):
+                if not (ly in [0] and st in [0,1] and sipm in [0]): continue
+                raw_scint_hits_cut = data_utils.cut_data(data=raw_scint_hits, conditions=[("ly","==",ly), ("st","==",st), ("sipm","==",sipm)])
+                n_hits = data_utils.length(data=raw_scint_hits_cut)
+                # calculate ts difference
+                last_ts = None
+                other_data_dict[f"delta_ts_ly{ly}_st{st}_sipm{sipm}"] = np.zeros(n_hits)
+                for i in range(1,n_hits):
+                    cur_ts = raw_scint_hits_cut["ts"][i]
+                    last_ts = raw_scint_hits_cut["ts"][i-1]
+                    other_data_dict[f"delta_ts_ly{ly}_st{st}_sipm{sipm}"][i] = np.uint64(int(cur_ts)-int(last_ts))
+    # plot
+    hist_bins = [
+        { f"delta_ts_ly{ly}_st{st}_sipm{sipm}": np.linspace(0, 1000000, 500) } for ly in range(2) for st in range(8) for sipm in range(2)
+    ]
+    for hist_bin in [{f"delta_ts_ly0_st{i}_sipm0": np.linspace(0, 500, 500)} for i in range(2)] + [{f"delta_ts_ly0_st{i}_sipm0": np.linspace(0, 1000000, 500)} for i in range(2)]: #hist_bins:
+        k, b = list(hist_bin.keys())[0], list(hist_bin.values())[0]
+        hists, edges, centers, underflow, overflow = hist_utils.calculate_hist(data=other_data_dict, key=k, bin_edges=b, silent=True) # bin_edges
+        print(f"key \"{k}\": entries={data_utils.length(raw_scint_hits)} underflow={underflow}, overflow={overflow}")
+        round_digits = 0 if k in ["ts"] else 2
+        xlabel = k + " [TU]"
+        plotname = False
+        if store_plots != None:
+            plotname = store_plots+f"/scint_raw_{k}.png"
+        hist_utils.plot_1hist(hist=hists, centers=centers, xlabel=xlabel, round_digits=round_digits, bin_labels=False, silent=True, store=plotname, show=show_plots)
+
 
     input("Press enter to exit.")
     exit()

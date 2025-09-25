@@ -205,10 +205,12 @@ _xproj_acceptance_interval = 50 # max spatial distance of 2 phi muon sl fits alo
 # global time delay for scintillator hits (scint ts = muon ts + _scintillator_delay)
 _scintillator_hit_delay = 10 # timestamp units
 # acceptance interval for scintillator hits (2 sipm coincidence of strips) -> muon areas (2 strip coincidence) grouping
-_scintillator_ts_acceptance_interval = 1280 #32 # max temporal distance of ts values of scintillator that should be grouped together, in ts units
+_scintillator_ts_acceptance_interval = 625 #64 #1250 #64 #32 # max temporal distance of ts values of scintillator that should be grouped together, in ts units
 # 1280 = 1 us , 64 = 50 ns , 500 ~ 391 ns , 16 = 12.5 ns , 32 = 25 ns
 # acceptance interval for raw scintillator hits (single sipm hits) -> scintillator hits (2 sipm coincidence of strips) grouping
 _raw_scintillator_ts_acceptance_interval = _scintillator_ts_acceptance_interval # in ts units
+# apply dead time for all channels individually (if value > 0)
+_raw_scintillator_ts_individual_dead_time = 1250 #0 #1250 # in ts units
 
 ### scintillator specific
 
@@ -244,6 +246,7 @@ _raw_scint_other_keys = {
     "muon_ts": _ts_type,
     "xhit": np.float64, # relative hit position: x_hit = xhit + xleft(lower x coord of strip) (in mm)
     "muon_id": np.uint64, # id / idx of correlated muon
+    "delta_last_ts":_ts_type, # difference in ts units to last hit
 }
 
 ## use custom coordinate frame
@@ -291,8 +294,8 @@ _color_info = {
 
 ### dt & scintillator muon correlation
 # correlate muon object (dt reco) and muon area (scintillator reco)
-_correlation_ts_window = 1280 # = 1 us, temporal correlation window, in ts units
-_correlation_xy_window = 0 # spatial correlation window, in mm
+_correlation_ts_window = 128 # = 100 ns, 1280 = 1 us, temporal correlation window, in ts units
+_correlation_xy_window = 15 # spatial correlation window, in mm
 
 ### muon object specific
 # a muon descibes a muon track
@@ -599,13 +602,13 @@ _mezzanine_1_fe_mapping_strip_coinc = {
 }
 # configuration without any coincidence
 _mezzanine_1_fe_mapping_no_coinc = {
-    f"coinc_ch_{i}": {"ly": 0, "st": i, "ch": i, "sipm": 0} for i in range(0, 8)
+    f"coinc_ch_{i}": {"ly": 0, "st": i, "ch": i, "sipm": 0} for i in range(0, 8) # ly0, sipm0
 } | {
-    f"coinc_ch_{8+i}": {"ly": 0, "st": i, "ch": 8+i, "sipm": 1} for i in range(0, 8)
+    f"coinc_ch_{8+i}": {"ly": 0, "st": i, "ch": 8+i, "sipm": 1} for i in range(0, 8) # ly0, sipm1
 } | {
-    f"coinc_ch_{16+i}": {"ly": 1, "st": i, "ch": 16+i, "sipm": 0} for i in range(0, 8)
+    f"coinc_ch_{16+i}": {"ly": 1, "st": i, "ch": 16+i, "sipm": 0} for i in range(0, 8) # ly1, sipm0
 } | {
-    f"coinc_ch_{24+i}": {"ly": 1, "st": i, "ch": 24+i, "sipm": 1} for i in range(0, 8)
+    f"coinc_ch_{24+i}": {"ly": 1, "st": i, "ch": 24+i, "sipm": 1} for i in range(0, 8) # ly1, sipm1
 }
 
 ### mezzanine input channel mapping (for timing calibration)

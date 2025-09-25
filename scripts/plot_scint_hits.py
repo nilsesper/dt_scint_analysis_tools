@@ -67,10 +67,10 @@ def main():
         "ly": np.arange(0, 1+1),
         "st": np.arange(0, 16+1),
         "ts": "auto200",
-        "sipm_delta_ts": "step1",
-        "st_delta_last_ts0": np.arange(0, 1000+1),
-        "st_delta_last_ts1": np.arange(0, 1000+1),
-        "st_delta_last_ts": np.arange(0, 1000+1),
+        "sipm_delta_ts": np.linspace(0, 1000, 500), #"auto1000",
+        "st_delta_last_ts0": "auto1000",
+        "st_delta_last_ts1": "auto1000",
+        "st_delta_last_ts": "auto1000", #np.arange(0, 1000+1),
     }
     for k in hist_bins.keys():
         hists, edges, centers, underflow, overflow = hist_utils.calculate_hist(data=scint_hits, key=k, bin_centers=hist_bins[k], silent=True)
@@ -81,7 +81,7 @@ def main():
         plotname = False
         if store_plots != None:
             plotname = store_plots+f"/scint_hits_{k}.png"
-        hist_utils.plot_1hist(hist=hists, centers=centers, xlabel=xlabel, round_digits=round_digits, bin_labels=False, silent=True, store=plotname, show=show_plots)
+        hist_utils.plot_1hist(hist=hists, centers=centers, xlabel=xlabel, round_digits=round_digits, bin_labels=False, silent=True, store=plotname, show=show_plots) # scale="log"
     
     """
     ## separate for both scintillator layers
@@ -110,6 +110,7 @@ def main():
             hist_utils.plot_1hist(hist=hists, centers=centers, xlabel=xlabel, round_digits=round_digits, bin_labels=False, silent=True, store=plotname, show=show_plots, title=f"Layer {ly}")
     """
             
+    """
     ### for each channel separately
     for ly in [0,1]:
         for st in range(8):
@@ -133,7 +134,7 @@ def main():
                 if store_plots != None:
                     plotname = store_plots+f"/scint_hits_{k}.png"
                 hist_utils.plot_1hist(hist=hists, centers=centers, xlabel=xlabel, round_digits=round_digits, bin_labels=False, silent=True, store=plotname, show=show_plots, title=f"ly{ly} st{st}")
-
+    """
 
     input("Press enter to exit.")
     exit()

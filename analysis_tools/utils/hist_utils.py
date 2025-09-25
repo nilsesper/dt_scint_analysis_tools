@@ -25,7 +25,7 @@ import analysis_tools.utils.muon_utils as muon_utils
 #       special keywords:
 #           auto: leave binning up to np.histogram
 #           step1: bin width is fixed to 1, automatically choose binning from min to max value
-def calculate_hist(data, key, bin_centers, *, silent=False):
+def calculate_hist(data, key, *, bin_centers=None, bin_edges=None, silent=False):
     if not silent: print(f"Calculating histogram for data key \"{key}\"...")
     hists, edges, centers, underflow, overflow = [], [], [], 0, 0
     ### in case data is empty, return empty arrays
@@ -33,34 +33,40 @@ def calculate_hist(data, key, bin_centers, *, silent=False):
         print("EMPTY HIST DATA !!!")
         return hists, edges, centers, underflow, overflow
     ### set bins
-    # check for special keywords
-    if type(bin_centers) in [type("")]: # use string keyword for bins option in np.histogram if given
-        if bin_centers == "auto":
-            #edges = "auto" # automatic binning
-            n_auto_bins = 20
-            dmin = np.int64(np.amin(data[key]))
-            dmax = np.int64(np.amax(data[key]))
-            centers = np.linspace(dmin-1, dmax+1, n_auto_bins)
-        elif "auto" in bin_centers: 
-            # "autoXX" = auto binning with XX bins
-            n_auto_bins = int(bin_centers[4:])
-            dmin = np.int64(np.amin(data[key]))
-            dmax = np.int64(np.amax(data[key]))
-            centers = np.linspace(dmin-1, dmax+1, n_auto_bins)
-        elif bin_centers == "step1": # automatic binning with bin width of 1
-            dmin = np.int64(np.amin(data[key]))
-            dmax = np.int64(np.amax(data[key]))
-            centers = np.linspace(dmin-1, dmax+1, dmax-dmin+3)
-    # else use given bin centers
-    else:
-        centers = bin_centers
-    # calculate edges from centers
-    distance = np.mean(np.diff(centers))/2
-    if edges != "auto":
-        edges = np.zeros(len(centers)+1)
-        for i in range(len(centers)):
-            edges[i] = centers[i]-distance
-        edges[len(centers)] = centers[-1]+distance
+    # BIN CENTERS
+    if type(bin_centers) != type(None):
+        # check for special keywords
+        if type(bin_centers) in [type("")]: # use string keyword for bins option in np.histogram if given
+            if bin_centers == "auto":
+                #edges = "auto" # automatic binning
+                n_auto_bins = 20
+                dmin = np.int64(np.amin(data[key]))
+                dmax = np.int64(np.amax(data[key]))
+                centers = np.linspace(dmin-1, dmax+1, n_auto_bins)
+            elif "auto" in bin_centers: 
+                # "autoXX" = auto binning with XX bins
+                n_auto_bins = int(bin_centers[4:])
+                dmin = np.int64(np.amin(data[key]))
+                dmax = np.int64(np.amax(data[key]))
+                centers = np.linspace(dmin-1, dmax+1, n_auto_bins)
+            elif bin_centers == "step1": # automatic binning with bin width of 1
+                dmin = np.int64(np.amin(data[key]))
+                dmax = np.int64(np.amax(data[key]))
+                centers = np.linspace(dmin-1, dmax+1, dmax-dmin+3)
+        # else use given bin centers
+        else:
+            centers = bin_centers
+        # calculate edges from centers
+        distance = np.mean(np.diff(centers))/2
+        if edges != "auto":
+            edges = np.zeros(len(centers)+1)
+            for i in range(len(centers)):
+                edges[i] = centers[i]-distance
+            edges[len(centers)] = centers[-1]+distance
+    # BIN EDGES
+    elif type(bin_edges) != type(None):
+        edges = bin_edges
+    # ---
     ### calculate actual histograms
     # create edges w/ over/underflow
     ou_step = 1
