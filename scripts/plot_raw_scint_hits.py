@@ -125,7 +125,7 @@ def main():
     for ly in range(2):
         for st in range(8):
             for sipm in range(2):
-                if not (ly in [0] and st in [0,1] and sipm in [0]): continue
+                if not (ly in [0] and st in [0,1] and sipm in [0,1]): continue
                 raw_scint_hits_cut = data_utils.cut_data(data=raw_scint_hits, conditions=[("ly","==",ly), ("st","==",st), ("sipm","==",sipm)])
                 n_hits = data_utils.length(data=raw_scint_hits_cut)
                 # calculate ts difference
@@ -139,7 +139,7 @@ def main():
     hist_bins = [
         { f"delta_ts_ly{ly}_st{st}_sipm{sipm}": np.linspace(0, 1000000, 500) } for ly in range(2) for st in range(8) for sipm in range(2)
     ]
-    for hist_bin in [{f"delta_ts_ly0_st{i}_sipm0": np.linspace(0, 500, 500)} for i in range(2)] + [{f"delta_ts_ly0_st{i}_sipm0": np.linspace(0, 1000000, 500)} for i in range(2)]: #hist_bins:
+    for hist_bin in [{f"delta_ts_ly0_st{i}_sipm{j}": np.linspace(0, 500, 500)} for i in range(2) for j in range(2)] + [{f"delta_ts_ly0_st{i}_sipm{j}": np.linspace(0, 1000000, 500)} for i in range(2) for j in range(2)]: #hist_bins:
         k, b = list(hist_bin.keys())[0], list(hist_bin.values())[0]
         hists, edges, centers, underflow, overflow = hist_utils.calculate_hist(data=other_data_dict, key=k, bin_edges=b, silent=True) # bin_edges
         print(f"key \"{k}\": entries={data_utils.length(raw_scint_hits)} underflow={underflow}, overflow={overflow}")

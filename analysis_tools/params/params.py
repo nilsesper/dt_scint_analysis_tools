@@ -202,7 +202,7 @@ _sl_fit_keys = { # {key: dtype}
 # acceptance interval for dt sl pattern grouping
 _t0_acceptance_interval = 100 # max temporal distance of t0 values of dt sl patterns that should be grouped together, in ts units
 _xproj_acceptance_interval = 50 # max spatial distance of 2 phi muon sl fits along the x axis, when projecting one to the other sl (delta_z(1-2) = z(sl=3.ly=3.wi=wi3_1) - z(sl=3.ly=3.wi=wi3_2)), in mm
-# global time delay for scintillator hits (scint ts = muon ts + _scintillator_delay)
+# global time delay for scintillator hits by muons (scint ts = muon ts + _scintillator_delay)
 _scintillator_hit_delay = 10 # timestamp units
 # acceptance interval for scintillator hits (2 sipm coincidence of strips) -> muon areas (2 strip coincidence) grouping
 _scintillator_ts_acceptance_interval = 625 #64 #1250 #64 #32 # max temporal distance of ts values of scintillator that should be grouped together, in ts units
@@ -210,7 +210,7 @@ _scintillator_ts_acceptance_interval = 625 #64 #1250 #64 #32 # max temporal dist
 # acceptance interval for raw scintillator hits (single sipm hits) -> scintillator hits (2 sipm coincidence of strips) grouping
 _raw_scintillator_ts_acceptance_interval = _scintillator_ts_acceptance_interval # in ts units
 # apply dead time for all channels individually (if value > 0)
-_raw_scintillator_ts_individual_dead_time = 1250 #0 #1250 # in ts units
+_raw_scintillator_ts_individual_dead_time = 40 #1250 #0 #1250 # in ts units
 
 ### scintillator specific
 

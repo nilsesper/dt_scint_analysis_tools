@@ -46,8 +46,9 @@ def extract_scint_hits(hits, *, silent=False):
         # add keys according to remapping table
         for k in derived_params._scint_keys:
             tmp_hits[k][i] = derived_params._scint_remap_table[ro_ch][ch][k]
-    # add timestamp and sort by timestamp
+    # add timestamp
     tmp_hits = timestamp_utils.add_timestamp(hits=tmp_hits)
+    # sort by timestamp
     tmp_hits = timestamp_utils.sort_by_timestamp(hits=tmp_hits)
     return tmp_hits
 
@@ -232,7 +233,6 @@ def extract_raw_scint_hits(hits, *, silent=False):
             for st in derived_params._scint_inverted_remap_table[ly].keys():
                 cut_tmp_hits[ly][st] = {}
                 for sipm in [0,1]:
-                    print(ly, st, sipm)
                     cut_tmp_hits[ly][st][sipm] = data_utils.cut_data(data=tmp_hits, conditions=[("ly","==",ly),("st","==",st), ("sipm","==",sipm)])
                     n_cut_hits = len(cut_tmp_hits[ly][st][sipm]["ts"])
                     allowed_indices = []
@@ -256,6 +256,7 @@ def extract_raw_scint_hits(hits, *, silent=False):
                 for sipm in [0,1]:
                     merge_data.append(cut_tmp_hits[ly][st][sipm])
         tmp_hits = data_utils.merge_dataset(split_data=merge_data)
+        print("sort data by timestamp...")
         tmp_hits = timestamp_utils.sort_by_timestamp(hits=tmp_hits)
     return tmp_hits
 

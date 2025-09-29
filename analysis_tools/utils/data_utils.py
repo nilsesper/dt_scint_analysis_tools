@@ -95,6 +95,7 @@ def load_pickle(file, *, silent=False):
 # to be calculated in parallel
 def split_dataset(data, n_parts, *, silent=False):
     split_data = [{} for i in range(n_parts)]
+    if not silent: print(f"Splitting dataset into {n_parts} parts...")
     for k in data.keys():
         split_array = np.array_split(data[k], n_parts) # near-equal array division
         for i in range(n_parts):
@@ -111,7 +112,8 @@ def merge_dataset(split_data, *, silent=False):
     n_data = np.sum(n_data_parts) # total no of data entries
     merged_data = {k: np.full(n_data, 0, dtype=v.dtype) for k,v in split_data[0].items()}
     offset = 0
-    for part in range(n_parts):
+    if not silent: print(f"Merging dataset from {n_parts} parts into one...")
+    for part in tqdm(range(n_parts), disable=silent):
         for k in split_data[part].keys():
             for i in range(n_data_parts[part]):
                 merged_data[k][i+offset] = copy.deepcopy(split_data[part][k][i])

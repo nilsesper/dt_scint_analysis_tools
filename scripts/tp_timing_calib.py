@@ -128,12 +128,12 @@ def main():
         # calculate global mean
         mean_ts_valid, err_mean_ts_valid, _ = math_utils.calculate_mean_std(data=tp_ts_valid, err_data=err_tp_ts_valid)
 
-    """
+    #"""
     ### plot testpulse timing for all channels separately
     print(f"### tp timing plots")
-    for ch in [1, 13]: #range(n_chs):
+    for ch in [29,30]: #range(n_chs):
         hist_bins = {
-            "ts_orbit": "step1",
+            "ts_orbit": np.arange(1000, 5000) #"step1",
         }
         for k in hist_bins.keys():
             hists, edges, centers, underflow, overflow = hist_utils.calculate_hist(data=tp_ch[ch], key=k, bin_centers=hist_bins[k], silent=True)
