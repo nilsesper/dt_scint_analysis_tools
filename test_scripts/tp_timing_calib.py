@@ -1,7 +1,5 @@
 #################################################################
-### generate expected scintillator hits from reconstructed muons
-# generate muon area objects from reco dt muon objects
-# to later compare dt and scint hits (as muon area objects)
+### tp timing calib
 #################################################################
 
 import os
@@ -95,6 +93,8 @@ def main():
         hists, edges, centers, underflow, overflow = hist_utils.calculate_hist(data=tp_ch[ch], key="ts_orbit", bin_centers="step1", silent=True)
         # select first peak of histogram (with lowest ts), the higher ts hits are due to ringing of the testpulse circuit
         peak_indices = hist_utils.find_peak_indices(hist=hists, rel_thres=0.2) # 20% of max amplitude for peak
+        if len(peak_indices) == 0:
+            continue
         sel_peak_indices = peak_indices[0] # first peak
         hists_peak, centers_peak = hists[sel_peak_indices], centers[sel_peak_indices]
         err_hists_peak = np.sqrt(hists_peak)
@@ -108,6 +108,7 @@ def main():
         mean_bank[i], err_mean_bank[i], _ = math_utils.calculate_mean_std(data=tp_ts[ch_list], err_data=err_tp_ts[ch_list])
     # calculate global mean
     mean_ts, err_mean_ts, _ = math_utils.calculate_mean_std(data=tp_ts, err_data=err_tp_ts)
+
     ## validationfile
     if args.validationfile:
         tp_ch_valid = [None for ch in range(n_chs)] # hits of each input channel
@@ -128,10 +129,10 @@ def main():
         # calculate global mean
         mean_ts_valid, err_mean_ts_valid, _ = math_utils.calculate_mean_std(data=tp_ts_valid, err_data=err_tp_ts_valid)
 
-    #"""
+    """
     ### plot testpulse timing for all channels separately
     print(f"### tp timing plots")
-    for ch in [29,30]: #range(n_chs):
+    for ch in range(n_chs): #[29,30]
         hist_bins = {
             "ts_orbit": np.arange(1000, 5000) #"step1",
         }

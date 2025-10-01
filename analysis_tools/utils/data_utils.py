@@ -121,6 +121,15 @@ def merge_dataset(split_data, *, silent=False):
             offset += i+1
     return merged_data
 
+### restrict data to last X entries
+def restrict_to_last_entries(data, n_keep=1, *, silent=False):
+    n_data = length(data)
+    restricted_data = copy.deepcopy(data) 
+    for k in restricted_data.keys():
+        if n_data > n_keep:
+            restricted_data[k] = restricted_data[k][-n_keep:-1]
+    return restricted_data
+
 ### get length of data object
 def length(data):
     any_key = list(data.keys())[0]

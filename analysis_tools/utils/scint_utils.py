@@ -10,6 +10,7 @@ from tqdm import tqdm
 import analysis_tools.utils.data_utils as data_utils
 import analysis_tools.utils.timestamp_utils as timestamp_utils
 import analysis_tools.utils.muon_utils as muon_utils
+import analysis_tools.utils.hist_utils as hist_utils
 
 import analysis_tools.params.params as params
 import analysis_tools.params.derived_params as derived_params
@@ -342,5 +343,40 @@ def reco_hits_from_raw_hits(hits, *, silent=False):
         for k in scint_keys_types.keys():
             scint_hits[k][i] = scint_hit_list[i][k]
     return scint_hits
+
+### extract timestamps of testpulse hits for full readout system
+def analyze_testpulses(hits, *, rel_thres=0.2, accept_ts_range=[2000, 3500], silent=False):
+    tp_timing = {}
+    for ly in derived_params._scint_inverted_remap_table.keys():
+            tp_timing[ly] = {}
+            for st in derived_params._scint_inverted_remap_table[ly].keys():
+                tp_timing[ly][st] = {}
+                for sipm in [0,1]:
+                    ch_ts_mean, ch_ts_err = 0, 0 # default valzes
+                    # select hits of one channel
+                    ch_hits = data_utils.cut_data(data=hits, conditions=[("ly","==",ly),("st","==",st),("sipm","==",sipm)], silent=True)
+                    if data_utils.length(ch_hits) > 0:
+                        # calculate histogram of hit timing (bin width = 1 ts unit)
+                        hists, edges, centers, underflow, overflow = hist_utils.calculate_hist(data=ch_hits, key="ts_orbit", bin_centers="step1", silent=True)
+                        # select first peak of histogram (with lowest ts), the higher ts hits are due to ringing of the testpulse circuit
+                        peak_indices = hist_utils.find_peak_indices(hist=hists, rel_thres=rel_thres) # 20% of max amplitude for peak
+                        if len(peak_indices) > 0:
+                            sel_peak_indices = peak_indices[0] # first peak
+                            hists_peak, centers_peak = hists[sel_peak_indices], centers[sel_peak_indices]
+                            err_hists_peak = np.sqrt(hists_peak)
+                            err_centers_peak = np.full( len(centers_peak), 8/np.sqrt(12) )
+                            # calculate peak position (weighted mean)
+                            ch_ts_mean, ch_ts_err = hist_utils.weighted_mean_peak_position(hist=hists_peak, centers=centers_peak, err_hist=err_hists_peak, err_centers=err_centers_peak)
+                            # reject data if tp ts mean outside ts accept range
+                            if ch_ts_mean < accept_ts_range[0] or ch_ts_mean > accept_ts_range[1]:
+                                ch_ts_mean, ch_ts_err = 0, 0
+                    # store result
+                    tp_timing[ly][st][sipm] = {"tp_ts_mean": ch_ts_mean, "tp_ts_err": ch_ts_err}    
+    return tp_timing
+
+
+
+
+
 
 

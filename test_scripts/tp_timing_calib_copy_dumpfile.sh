@@ -17,7 +17,7 @@ fi
 ~/utils/scp_dumpfile_from_rack.sh ${args[0]}.txt ~/masterarbeit/zynq_read-out_software/output/
 
 # do analysis
-python scripts/tp_timing_calib.py --inputfile ~/masterarbeit/zynq_read-out_software/output/${args[0]}.txt --create_calib
+python test_scripts/tp_timing_calib.py --inputfile ~/masterarbeit/zynq_read-out_software/output/${args[0]}.txt --create_calib
 
 
 

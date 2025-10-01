@@ -136,6 +136,8 @@ def find_peak_indices(hist, rel_thres=0.01,*, silent=False):
     peak_no = -1
     current_peak = False
     n_hist = len(hist)
+    if n_hist == 0:
+        return []
     thres = np.amax(hist)*rel_thres
     for i in range(n_hist):
         if hist[i] < thres:

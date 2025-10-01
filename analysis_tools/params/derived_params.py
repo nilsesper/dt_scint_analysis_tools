@@ -49,6 +49,7 @@ _dt_remap_table = {}
 for ro_ch in _dt_ro_chs:
     _dt_remap_table[ro_ch] = {}
     for conn_id, (fe_connector_name, fe) in enumerate(params._dt_mapping[ro_ch].items()):
+        if fe["fe"] == None: continue
         fe_id = params._fe_idx_list.index(fe["fe"])
         sl = fe["sl"]
         # translate to ly, wi
@@ -130,7 +131,7 @@ for ro_ch in _scint_ro_chs:
             "st": st, # strip id
             "sipm": sipm, # sipm id (0 or 1)
         }
-# generate inverted scint remapping table: {ly: {st: {sipm: {ch, ro_ch, ch_id}}}}
+# generate inverted raw scint remapping table: {ly: {st: {sipm: {ch, ro_ch, ch_id}}}}
 _raw_scint_inverted_remap_table = {}
 for ro_ch in _raw_scint_ro_chs:
     for ch in _raw_scint_remap_table[ro_ch].keys():
@@ -419,4 +420,17 @@ def color_wheel(i):
     ]
     i = i % len(color_list)
     return color_list[i]
+
+### marker wheel for plotting
+# give idx and return tab color
+def marker_wheel(i):
+    marker_list = [
+        "o",
+        ">",
+        "v",
+        "d",
+        "P",
+    ]
+    i = i % len(marker_list)
+    return marker_list[i]
 
