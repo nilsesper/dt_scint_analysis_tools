@@ -1,5 +1,8 @@
 #################################################################
 ### timing calibration of scintillator readout system
+# with simultaneous testpulses sent to all input channels
+# plot tp timing
+# calculate timing correction to be set for the registers in the delay ip in the fpga
 #################################################################
 
 import os
@@ -31,7 +34,6 @@ calib_path = REPO_PATH+"/calibration_files"
 def main():
 
     ### constants
-    ts_no_digits = 1
     dump = True
 
     ### argparse

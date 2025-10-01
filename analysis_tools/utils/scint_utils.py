@@ -274,66 +274,107 @@ def reco_hits_from_raw_hits(hits, *, silent=False):
     # for all strips separately
     for ly in params._scintillator["lys"].keys():
         for st in range(params._scintillator["lys"][ly]["n_sts"]):
-            st_hits = data_utils.cut_data(data=hits, conditions=[("ly","==",ly), ("st","==",st)])
-            # match hits of same ly, st for sipm = 0 and sipm = 1 if within temporal coincidence window
-            SIPMS = [0, 1]
-            last_hits = {sipm: None for sipm in SIPMS}
-            ts0_old, ts1_old, ts_reco_old = None, None, None
-            for i in range(data_utils.length(st_hits)):
-                sipm = st_hits["sipm"][i]
-                ts = st_hits["ts"][i]
-                # store data of cur hit
-                last_hits[sipm] = {k: st_hits[k][i] for k in hits.keys()} # store current column
-                ### check continue conditions
-                if None in last_hits.values(): # if not have hits of 2 different layers then continue
-                    continue
-                if np.abs(int(last_hits[0]["ts"]) - int(last_hits[1]["ts"])) > params._raw_scintillator_ts_acceptance_interval: # if 2 hits not within time interval, continue
-                    continue
-                ### if not continue: have found 2 matching hits of same strip
-                #--- build scintillator hit from this object
-                ### combine ts time (averaging)
-                ts0, ts1 = last_hits[0]["ts"], last_hits[1]["ts"]
-                ts_reco = np.uint64(np.round(np.mean([ts0, ts1]), 0))
-                (oc_reco, bx_reco, tdc_reco) = timestamp_utils.remap_htg_timestamp(ts_reco)
-                ### calculate ts difference between hits (absolute value)
-                sipm_delta_ts = np.uint64(np.abs(int(ts0) - int(ts1)))
-                ### calculate ts difference to last hit of this strip / of this sipm (to check ringing)
-                st_delta_last_ts0, st_delta_last_ts1, st_delta_last_ts = 0, 0, 0
-                if ts0_old != None:
-                    st_delta_last_ts0 = np.uint64(np.abs(int(ts0) - int(ts0_old)))
-                    st_delta_last_ts1 = np.uint64(np.abs(int(ts1) - int(ts1_old)))
-                    st_delta_last_ts = np.uint64(np.abs(int(ts_reco) - int(ts_reco_old)))
-                ts0_old, ts1_old, ts_reco_old = ts0, ts1, ts_reco
-                ### combine muon_id of hits (if there is one from simulation)
-                # raise error of muon_id of combined sl patters is not single value
-                muon_id =  last_hits[0]["muon_id"]
-                if muon_id != last_hits[1]["muon_id"]:
-                    raise Exception(f"Expect hits of same muon_id {muon_id}, not {last_hits[1]['muon_id']}.")
-                ### scint ch_id if coincidence would have been active
-                # extract from scint mapping table 
-                scint_ch_id = derived_params._scint_inverted_remap_table[ly][st]["ch_id"]
-                scint_ch = derived_params._scint_inverted_remap_table[ly][st]["ch"]
-                ### store reco obj
-                scint_hit_list.append({
-                    "ly": ly,
-                    "st": st,
-                    "ts": ts_reco,
-                    "ch_id": scint_ch_id,
-                    "muon_id": muon_id,
-                    "ro_ch": last_hits[0]["ro_ch"],
-                    "muon_ts": last_hits[0]["muon_ts"],
-                    "xhit": last_hits[0]["xhit"],
-                    "oc": oc_reco,
-                    "bx": bx_reco,
-                    "tdc": tdc_reco,
-                    "ch": scint_ch,
-                    "sipm_delta_ts": sipm_delta_ts,
-                    "st_delta_last_ts0": st_delta_last_ts0,
-                    "st_delta_last_ts1": st_delta_last_ts1,
-                    "st_delta_last_ts": st_delta_last_ts,
-                })
-                ##### need to reset ts_ref, last_scint_hits afterwards (for next iteration)
+            # check sipm masking
+            if ly in params._scint_masked_sipms.keys() and st in params._scint_masked_sipms[ly].keys():
+            ### use only 1 sipm of strip if other was masked (in params._scint_masked_sipms)
+                masked_sipm = params._scint_masked_sipms[ly][st]
+                unmasked_sipm = 1 if (params._scint_masked_sipms[ly][st] == 0) else 0
+                st_hits = data_utils.cut_data(data=hits, conditions=[("ly","==",ly), ("st","==",st), ("sipm","==",unmasked_sipm)])
+                for i in range(data_utils.length(st_hits)):
+                    sipm = st_hits["sipm"][i]
+                    ts = st_hits["ts"][i]
+                    ### combine ts time (averaging)
+                    ts_reco = np.uint64(ts)
+                    (oc_reco, bx_reco, tdc_reco) = timestamp_utils.remap_htg_timestamp(ts_reco)
+                    ### calculate ts difference between hits (absolute value)
+                    sipm_delta_ts = np.uint64(0)
+                    ### calculate ts difference to last hit of this strip / of this sipm (to check ringing)
+                    st_delta_last_ts0, st_delta_last_ts1, st_delta_last_ts = 0, 0, 0
+                    ### scint ch_id if coincidence would have been active
+                    # extract from scint mapping table 
+                    scint_ch_id = derived_params._scint_inverted_remap_table[ly][st]["ch_id"]
+                    scint_ch = derived_params._scint_inverted_remap_table[ly][st]["ch"]
+                    ### store reco obj
+                    scint_hit_list.append({
+                        "ly": ly,
+                        "st": st,
+                        "ts": ts_reco,
+                        "ch_id": scint_ch_id,
+                        "muon_id": st_hits["muon_id"][i],
+                        "ro_ch": st_hits["ro_ch"][i],
+                        "muon_ts": st_hits["muon_ts"][i],
+                        "xhit": st_hits["xhit"][i],
+                        "oc": oc_reco,
+                        "bx": bx_reco,
+                        "tdc": tdc_reco,
+                        "ch": scint_ch,
+                        "sipm_delta_ts": sipm_delta_ts,
+                        "st_delta_last_ts0": st_delta_last_ts0,
+                        "st_delta_last_ts1": st_delta_last_ts1,
+                        "st_delta_last_ts": st_delta_last_ts,
+                    })
+            else:
+            ### build coincidence from 2 sipms of strip
+                st_hits = data_utils.cut_data(data=hits, conditions=[("ly","==",ly), ("st","==",st)])
+                # match hits of same ly, st for sipm = 0 and sipm = 1 if within temporal coincidence window
+                SIPMS = [0, 1]
                 last_hits = {sipm: None for sipm in SIPMS}
+                ts0_old, ts1_old, ts_reco_old = None, None, None
+                for i in range(data_utils.length(st_hits)):
+                    sipm = st_hits["sipm"][i]
+                    ts = st_hits["ts"][i]
+                    # store data of cur hit
+                    last_hits[sipm] = {k: st_hits[k][i] for k in hits.keys()} # store current column
+                    ### check continue conditions
+                    if None in last_hits.values(): # if not have hits of 2 different layers then continue
+                        continue
+                    if np.abs(int(last_hits[0]["ts"]) - int(last_hits[1]["ts"])) > params._raw_scintillator_ts_acceptance_interval: # if 2 hits not within time interval, continue
+                        continue
+                    ### if not continue: have found 2 matching hits of same strip
+                    #--- build scintillator hit from this object
+                    ### combine ts time (averaging)
+                    ts0, ts1 = last_hits[0]["ts"], last_hits[1]["ts"]
+                    ts_reco = np.uint64(np.round(np.mean([ts0, ts1]), 0))
+                    (oc_reco, bx_reco, tdc_reco) = timestamp_utils.remap_htg_timestamp(ts_reco)
+                    ### calculate ts difference between hits (absolute value)
+                    sipm_delta_ts = np.uint64(np.abs(int(ts0) - int(ts1)))
+                    ### calculate ts difference to last hit of this strip / of this sipm (to check ringing)
+                    st_delta_last_ts0, st_delta_last_ts1, st_delta_last_ts = 0, 0, 0
+                    if ts0_old != None:
+                        st_delta_last_ts0 = np.uint64(np.abs(int(ts0) - int(ts0_old)))
+                        st_delta_last_ts1 = np.uint64(np.abs(int(ts1) - int(ts1_old)))
+                        st_delta_last_ts = np.uint64(np.abs(int(ts_reco) - int(ts_reco_old)))
+                    ts0_old, ts1_old, ts_reco_old = ts0, ts1, ts_reco
+                    ### combine muon_id of hits (if there is one from simulation)
+                    # raise error of muon_id of combined sl patters is not single value
+                    muon_id =  last_hits[0]["muon_id"]
+                    if muon_id != last_hits[1]["muon_id"]:
+                        raise Exception(f"Expect hits of same muon_id {muon_id}, not {last_hits[1]['muon_id']}.")
+                    ### scint ch_id if coincidence would have been active
+                    # extract from scint mapping table 
+                    scint_ch_id = derived_params._scint_inverted_remap_table[ly][st]["ch_id"]
+                    scint_ch = derived_params._scint_inverted_remap_table[ly][st]["ch"]
+                    ### store reco obj
+                    scint_hit_list.append({
+                        "ly": ly,
+                        "st": st,
+                        "ts": ts_reco,
+                        "ch_id": scint_ch_id,
+                        "muon_id": muon_id,
+                        "ro_ch": last_hits[0]["ro_ch"],
+                        "muon_ts": last_hits[0]["muon_ts"],
+                        "xhit": last_hits[0]["xhit"],
+                        "oc": oc_reco,
+                        "bx": bx_reco,
+                        "tdc": tdc_reco,
+                        "ch": scint_ch,
+                        "sipm_delta_ts": sipm_delta_ts,
+                        "st_delta_last_ts0": st_delta_last_ts0,
+                        "st_delta_last_ts1": st_delta_last_ts1,
+                        "st_delta_last_ts": st_delta_last_ts,
+                    })
+                    ##### need to reset ts_ref, last_scint_hits afterwards (for next iteration)
+                    last_hits = {sipm: None for sipm in SIPMS}
     # store in proper format
     n_scint_hits = len(scint_hit_list)
     if not silent: print(f"Reconstructed {n_scint_hits} scintillator hits from {n_hits} raw scintillator hits.")

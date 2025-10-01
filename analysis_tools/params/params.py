@@ -199,18 +199,22 @@ _sl_fit_keys = { # {key: dtype}
     "tan_alpha": np.float64, # tan(alpha) fit param
     "chi2/ndf": np.float64, # reduced chi2 value
 }
+
+## when reconstructing hits
 # acceptance interval for dt sl pattern grouping
 _t0_acceptance_interval = 100 # max temporal distance of t0 values of dt sl patterns that should be grouped together, in ts units
 _xproj_acceptance_interval = 50 # max spatial distance of 2 phi muon sl fits along the x axis, when projecting one to the other sl (delta_z(1-2) = z(sl=3.ly=3.wi=wi3_1) - z(sl=3.ly=3.wi=wi3_2)), in mm
-# global time delay for scintillator hits by muons (scint ts = muon ts + _scintillator_delay)
-_scintillator_hit_delay = 10 # timestamp units
 # acceptance interval for scintillator hits (2 sipm coincidence of strips) -> muon areas (2 strip coincidence) grouping
 _scintillator_ts_acceptance_interval = 625 #64 #1250 #64 #32 # max temporal distance of ts values of scintillator that should be grouped together, in ts units
 # 1280 = 1 us , 64 = 50 ns , 500 ~ 391 ns , 16 = 12.5 ns , 32 = 25 ns
 # acceptance interval for raw scintillator hits (single sipm hits) -> scintillator hits (2 sipm coincidence of strips) grouping
 _raw_scintillator_ts_acceptance_interval = _scintillator_ts_acceptance_interval # in ts units
 # apply dead time for all channels individually (if value > 0)
-_raw_scintillator_ts_individual_dead_time = 40 #1250 #0 #1250 # in ts units
+_raw_scintillator_ts_individual_dead_time = 64 #1250 #0 #1250 # in ts units
+
+## when simulating muon hits
+# global time delay for scintillator hits by muons (scint ts = muon ts + _scintillator_delay)
+_scintillator_hit_delay = 10 # timestamp units
 
 ### scintillator specific
 
@@ -594,6 +598,7 @@ _scintillator = {
     "pos": (100., 100., -100.), # point with smallest coordinates of scintillator
 }
 ### mezzanine scintillator mapping: {coinc_ch_name: {ch: ch id, ly: scint layer, st: scint strip}}
+## scint hits
 # configuration with strip coincidence
 _mezzanine_1_fe_mapping_strip_coinc = {
     f"coinc_ch_{i}": {"ly": 0, "st": i, "ch": i} for i in range(0, 8) # ly0
@@ -605,6 +610,7 @@ _mezzanine_2_fe_mapping_strip_coinc = {
 } | {
     f"coinc_ch_{16+i}": {"ly": 1, "st": 8+i, "ch": 16+i} for i in range(0, 8) # ly1
 }
+## raw scint hits
 # configuration without any coincidence
 _mezzanine_1_fe_mapping_no_coinc = {
     f"coinc_ch_{i}": {"ly": 0, "st": i, "ch": i, "sipm": 0} for i in range(0, 8) # ly0, sipm0
@@ -623,6 +629,19 @@ _mezzanine_2_fe_mapping_no_coinc = {
     f"coinc_ch_{16+i}": {"ly": 1, "st": 8+i, "ch": 16+i, "sipm": 0} for i in range(0, 8) # ly1, sipm0
 } | {
     f"coinc_ch_{24+i}": {"ly": 1, "st": 8+i, "ch": 24+i, "sipm": 1} for i in range(0, 8) # ly1, sipm1
+}
+# map of masked channels in detector (noisy/dead), if for this (ly, st) the sipm is listed here, the other sipm hits are used as strip hit (scint hit) without sipm coincidence
+# if one does not list it here, then the strip will be dead when one of its sipms is masked
+# if both sipms are masked, do not put it here since the strip is dead anyway
+_scint_masked_sipms = { # {ly: {st: sipm}} which is masked, use only other sipm
+    0: {
+        5: 1, # mez1 ro_ch27 ch6
+        #6: 0-1, # mez1 ro_ch27 ch13-14
+    },
+    1: {
+        5: 1, # mez1 ro_ch27 ch29
+        6: 1, # mez1 ro_ch27 ch30
+    },
 }
 
 ### mezzanine input channel mapping (for timing calibration)

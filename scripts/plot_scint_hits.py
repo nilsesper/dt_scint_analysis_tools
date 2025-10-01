@@ -83,19 +83,61 @@ def main():
             plotname = store_plots+f"/scint_hits_{k}.png"
         hist_utils.plot_1hist(hist=hists, centers=centers, xlabel=xlabel, round_digits=round_digits, bin_labels=False, silent=True, store=plotname, show=show_plots) # scale="log"
     
+    ### 2d plots of layers
+    for ly in range(2):
+        hist_bins = {
+            "st": np.arange(0, 16+1),
+        }
+        scint_hits_cut = data_utils.cut_data(data=scint_hits, conditions=[("ly","==",ly)])
+        for k in hist_bins.keys():
+            hists, edges, centers, underflow, overflow = hist_utils.calculate_hist(data=scint_hits_cut, key=k, bin_centers=hist_bins[k], silent=True)
+            print(f"key \"{k}\": entries={data_utils.length(scint_hits_cut)} underflow={underflow}, overflow={overflow}")
+            if k == "st":
+                # occupancy
+                px_matrix = np.zeros((16, 16))
+                fig, ax = plt.subplots(1, 1, figsize=(10,8))
+                for st0 in range(16):
+                    for st1 in range(16):
+                        px = derived_params._scint_pixel_mapping[(st0, st1)]
+                        px_matrix[st0][st1] = hists[st0] if (ly == 0) else hists[st1]
+                imshow_obj = ax.imshow(px_matrix)
+                ax.set_xlabel("Strip (Layer 1)")
+                ax.set_ylabel("Strip (Layer 0)")
+                cbar = fig.colorbar(imshow_obj, ax=ax, fraction=0.05)
+                fig.tight_layout()
+                if show_plots:
+                    fig.show()
+                # rate (in hits / min)
+                duration = 0.78e-9 * (np.amax(scint_hits["ts"]) - np.amin(scint_hits["ts"])) # secs
+                px_matrix = np.zeros((16, 16))
+                fig, ax = plt.subplots(1, 1, figsize=(10,8))
+                for st0 in range(16):
+                    for st1 in range(16):
+                        px = derived_params._scint_pixel_mapping[(st0, st1)]
+                        px_matrix[st0][st1] = hists[st0] / duration if (ly == 0) else hists[st1] / duration
+                imshow_obj = ax.imshow(px_matrix)
+                ax.set_xlabel("Strip (Layer 1)")
+                ax.set_ylabel("Strip (Layer 0)")
+                cbar = fig.colorbar(imshow_obj, ax=ax, fraction=0.05)
+                cbar.set_label("Hz")
+                fig.tight_layout()
+                if show_plots:
+                    fig.show()
+
+
     """
     ## separate for both scintillator layers
     for ly in [0,1]:
         n_hist_bins = 100
         hist_bins = {
-            "ro_ch": np.arange(0, 32),
-            "ch": np.arange(0, 255),
-            "tdc": np.arange(0, params._lhc_tdc_count+1),
-            "bx": np.linspace(0, params._lhc_bunch_count, n_hist_bins),
-            "oc": np.linspace(0, params._lhc_orbit_count, n_hist_bins),
-            "ly": np.arange(0, 1+1),
+            #"ro_ch": np.arange(0, 32),
+            #"ch": np.arange(0, 255),
+            #"tdc": np.arange(0, params._lhc_tdc_count+1),
+            #"bx": np.linspace(0, params._lhc_bunch_count, n_hist_bins),
+            #"oc": np.linspace(0, params._lhc_orbit_count, n_hist_bins),
+            #"ly": np.arange(0, 1+1),
             "st": np.arange(0, 16+1),
-            "ts": "auto200",
+            #"ts": "auto200",
         }
         scint_hits_cut = data_utils.cut_data(data=scint_hits, conditions=[("ly","==",ly)])
         for k in hist_bins.keys():
@@ -106,9 +148,9 @@ def main():
             xlabel += " ["+params._key_units[k]+"]" if (params._key_units[k] != "") else ""
             plotname = False
             if store_plots != None:
-                plotname = store_plots+f"/scint_hits_{k}.png"
+                plotname = store_plots+f"/scint_hits_ly{ly}_{k}.png"
             hist_utils.plot_1hist(hist=hists, centers=centers, xlabel=xlabel, round_digits=round_digits, bin_labels=False, silent=True, store=plotname, show=show_plots, title=f"Layer {ly}")
-    """
+    #"""
             
     """
     ### for each channel separately
@@ -134,7 +176,7 @@ def main():
                 if store_plots != None:
                     plotname = store_plots+f"/scint_hits_{k}.png"
                 hist_utils.plot_1hist(hist=hists, centers=centers, xlabel=xlabel, round_digits=round_digits, bin_labels=False, silent=True, store=plotname, show=show_plots, title=f"ly{ly} st{st}")
-    """
+    #"""
 
     input("Press enter to exit.")
     exit()
