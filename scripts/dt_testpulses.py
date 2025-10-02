@@ -34,6 +34,7 @@ def main():
 
     ### constants
     dump = True
+    plot_hists = True
 
     ### argparse
     parser = argparse.ArgumentParser()
@@ -48,9 +49,41 @@ def main():
 
     ### data import
     print(f"###### Importing dumpfile of testpulse run...")
-    
+    tp_dumpfile_hits = data_utils.import_raw(file_name=tp_dumpfile_name) # dummy_filename, data_filename
+    print("tp_dumpfile_hits =",tp_dumpfile_hits)
 
+    ### extract dt hits
+    tp_hits = dt_utils.extract_dt_hits(hits=tp_dumpfile_hits)
+    tp_hits = timestamp_utils.sort_by_timestamp(hits=tp_hits)
+    tp_hits = timestamp_utils.add_timestamp_this_orbit(hits=tp_hits)
+    print("tp_hits =",tp_hits)
+
+    ### analyze timing of all fe connectors of all superlayers individually
+    print(f"###### Analyzing testpulse hits for all frontend connectors of all superlayers...")
+    rel_thres = 0.2
+    tp_timing = dt_utils.analyze_testpulses(tp_hits, rel_thres=rel_thres, plot_hists=plot_hists)
+    print("tp_timing =",tp_timing)
     
+    ### plot distribution of tp timing
+    # plot timing as scatter
+    # do not plot rejected/dead channels (which have tp_ts_mean = 0)
+    fig, ax = plt.subplots(1, 1, figsize=(12,8))
+    for sl in params._dt_chamber["sls"].keys():
+        fe_id_list_plot, tp_ts_mean, tp_ts_err = [], [], []
+        for fe_id in derived_params._dt_fe_id_remap_table[sl]:
+            if tp_timing[sl][int(fe_id)]["tp_ts_mean"] > 0:
+                tp_ts_mean.append(tp_timing[sl][int(fe_id)]["tp_ts_mean"])
+                tp_ts_err.append(tp_timing[sl][int(fe_id)]["tp_ts_err"])
+                fe_id_list_plot.append(int(fe_id))
+        ax.errorbar(x=np.array(fe_id_list_plot)-0.2+0.1*sl, y=tp_ts_mean, yerr=tp_ts_err, color=derived_params.color_wheel(sl-1), linestyle="", marker="o", markersize=5, label=f"Superlayer {sl}")
+        ax.set_xlabel(f"Frontend connector ID")
+        ylabel = params._key_symbols["ts_orbit"]
+        ylabel += " ["+params._key_units["ts_orbit"]+"]" if (params._key_units["ts_orbit"] != "") else ""
+        ax.set_ylabel(ylabel)
+        ax.set_title(f"Testpulse timing distribution (DT chamber)")
+        ax.legend()
+        fig.tight_layout()
+        fig.show()
 
 
 if __name__ == "__main__":

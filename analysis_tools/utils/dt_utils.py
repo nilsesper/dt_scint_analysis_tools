@@ -11,6 +11,7 @@ from scipy.optimize import curve_fit
 import analysis_tools.utils.data_utils as data_utils
 import analysis_tools.utils.timestamp_utils as timestamp_utils
 import analysis_tools.utils.muon_utils as muon_utils
+import analysis_tools.utils.hist_utils as hist_utils
 
 import analysis_tools.params.params as params
 import analysis_tools.params.derived_params as derived_params
@@ -403,5 +404,39 @@ def hits_from_muons(muons, *, silent=False, noise_ampl=0):
     # sort hits by their timestamp value
     dt_hits = timestamp_utils.sort_by_timestamp(hits=dt_hits)
     return dt_hits
+
+### extract timestamps of testpulse hits for full readout system
+# fe connector granularity
+def analyze_testpulses(hits, *, rel_thres=0.2, plot_hists=False, silent=False):
+    tp_timing = {}
+    for sl in params._dt_chamber["sls"].keys():
+        tp_timing[sl] = {}
+        for fe_id in derived_params._dt_fe_id_remap_table[sl]:
+            tp_timing[sl][int(fe_id)] = {}
+            ch_ts_mean, ch_ts_err = 0, 0 # default values
+            # select hits of one channel
+            fec_hits = data_utils.cut_data(data=hits, conditions=[("sl","==",sl),("fe_id","==",fe_id)], silent=True)
+            if data_utils.length(fec_hits) > 0:
+                # calculate histogram of hit timing (bin width = 1 ts unit)
+                hists, edges, centers, underflow, overflow = hist_utils.calculate_hist(data=fec_hits, key="ts_orbit", bin_centers="step1", silent=True)
+                # plot hist if desired
+                if plot_hists:
+                    xlabel = params._key_symbols["ts_orbit"]
+                    xlabel += " ["+params._key_units["ts_orbit"]+"]" if (params._key_units["ts_orbit"] != "") else ""
+                    hist_utils.plot_1hist(hist=hists, centers=centers, xlabel=xlabel, round_digits=0, bin_labels=False, silent=True, show=True, title=f"Testpulse timing (SL {sl}, FEC ID {fe_id})")        
+                # select first peak of histogram (with lowest ts), the higher ts hits are due to ringing of the testpulse circuit
+                peak_indices = hist_utils.find_peak_indices(hist=hists, rel_thres=rel_thres) # 20% of max amplitude for peak
+                if len(peak_indices) > 0:
+                    sel_peak_indices = peak_indices[0] # first peak
+                    hists_peak, centers_peak = hists[sel_peak_indices], centers[sel_peak_indices]
+                    err_hists_peak = np.sqrt(hists_peak)
+                    err_centers_peak = np.full( len(centers_peak), 8/np.sqrt(12) )
+                    # calculate peak position (weighted mean)
+                    ch_ts_mean, ch_ts_err = hist_utils.weighted_mean_peak_position(hist=hists_peak, centers=centers_peak, err_hist=err_hists_peak, err_centers=err_centers_peak)
+            # store result
+            tp_timing[sl][int(fe_id)] = {"tp_ts_mean": ch_ts_mean, "tp_ts_err": ch_ts_err}    
+    return tp_timing
+
+
 
 

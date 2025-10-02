@@ -35,6 +35,7 @@ def main():
 
     ### constants
     dump = True
+    plot_hists = True
 
     ### argparse
     parser = argparse.ArgumentParser()
@@ -92,10 +93,10 @@ def main():
     ### analyze timing of all raw scint channels individually
     print(f"###### Analyzing testpulse hits for all input channels...")
     rel_thres = 0.2
-    tp_timing = scint_utils.analyze_testpulses(tp_hits, rel_thres=rel_thres)
+    tp_timing = scint_utils.analyze_testpulses(tp_hits, rel_thres=rel_thres, plot_hists=plot_hists)
     print("tp_timing =",tp_timing)
     if args.validationfile:
-        tp_validation_timing = scint_utils.analyze_testpulses(tp_validation_hits, rel_thres=rel_thres, accept_ts_range=[0, 100000])
+        tp_validation_timing = scint_utils.analyze_testpulses(tp_validation_hits, rel_thres=rel_thres, plot_hists=plot_hists)
         print("tp_validation_timing =",tp_validation_timing)
 
     ### remap tp_timing from (ly,st,sipm) back to (ro_ch,ch) which is more convenient and needed in the end anyway

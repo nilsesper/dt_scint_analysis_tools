@@ -69,7 +69,9 @@ for ro_ch in _dt_ro_chs:
                 "wi": wi, # wire
             }
 # generate inverted dt remapping table: {sl: {ly: {wi: {ch, ro_ch, conn_id, fe_id, ch_id}}}}
+# generate fec table {sl: [fe_ids]}
 _dt_inverted_remap_table = {}
+_dt_fe_id_remap_table = {}
 for ro_ch in _dt_ro_chs:
     for ch in _dt_remap_table[ro_ch].keys():
         sl = _dt_remap_table[ro_ch][ch]["sl"]
@@ -83,8 +85,17 @@ for ro_ch in _dt_ro_chs:
             "ch": ch,
             "ro_ch": ro_ch,
         }
+        # inverted remap table
         for k in ["conn_id", "fe_id", "ch_id"]:
             _dt_inverted_remap_table[sl][ly][wi][k] = _dt_remap_table[ro_ch][ch][k]
+        # fec table
+        if sl not in _dt_fe_id_remap_table.keys():
+            _dt_fe_id_remap_table[sl] = []
+        fe_id = _dt_remap_table[ro_ch][ch]["fe_id"]
+        if fe_id not in _dt_fe_id_remap_table[sl]:
+            _dt_fe_id_remap_table[sl].append(fe_id)
+for sl in params._dt_chamber["sls"].keys():
+    _dt_fe_id_remap_table[sl] = np.sort( _dt_fe_id_remap_table[sl])
 
 ### generate scint remapping table: {ro_ch: {ch: {scint_keys: mapping value}}
 ## scint hits
