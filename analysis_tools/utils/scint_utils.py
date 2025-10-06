@@ -225,6 +225,7 @@ def extract_raw_scint_hits(hits, *, silent=False):
     # add timestamp and sort by timestamp
     tmp_hits = timestamp_utils.add_timestamp(hits=tmp_hits)
     tmp_hits = timestamp_utils.sort_by_timestamp(hits=tmp_hits)
+    ### -----------------------
     # apply dead time constraint to all individual channels (if specified dead time is > 0)
     if params._raw_scintillator_ts_individual_dead_time > 0:
         print(f"apply dead time constraint for all individual channels of {params._raw_scintillator_ts_individual_dead_time} TU")

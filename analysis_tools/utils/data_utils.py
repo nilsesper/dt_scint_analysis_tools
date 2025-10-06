@@ -116,10 +116,10 @@ def merge_dataset(split_data, *, silent=False):
     for part in tqdm(range(n_parts), disable=silent):
         for k in split_data[part].keys():
             for i in range(n_data_parts[part]):
-                merged_data[k][i+offset] = copy.deepcopy(split_data[part][k][i])
+                merged_data[k][i+offset] = split_data[part][k][i]
         if n_data_parts[part] > 0:
             offset += i+1
-    return merged_data
+    return copy.deepcopy(merged_data)
 
 ### restrict data to last X entries
 def restrict_to_last_entries(data, n_keep=1, *, silent=False):
@@ -129,6 +129,15 @@ def restrict_to_last_entries(data, n_keep=1, *, silent=False):
         if n_data > n_keep:
             restricted_data[k] = restricted_data[k][-n_keep:-1]
     return restricted_data
+
+### cut first X entries of dumpfile
+def cut_first_entries(data, n_cut=1, *, silent=False):
+    n_data = length(data) 
+    cut_data = copy.deepcopy(data) 
+    for k in cut_data.keys():
+        if n_data > n_cut:
+            cut_data[k] = data[k][n_cut-1:-1]
+    return cut_data
 
 ### get length of data object
 def length(data):

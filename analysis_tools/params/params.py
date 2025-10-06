@@ -10,11 +10,13 @@ import matplotlib as mpl
 ### htg box data
 # dumpfile data field masks
 _htg_shifted_mask = {
-    "ch":                                                            0b11111111, # bits 7:0 [8]
-    "bx":                                                0b11111111111100000000, # bits 19:8 [12]
-    "tdc":                                          0b1111100000000000000000000, # bits 24:20 [5]
-    "oc":                    0b111111111111111100000000000000000000000000000000, # bits 47:32 [16]
+    "ch":                                                            0b0000000000000000000000000000000000000000000000000000000011111111, # bits 7:0 [8]
+    "bx":                                                0b0000000000000000000000000000000000000000000011111111111100000000, # bits 19:8 [12]
+    "tdc":                                          0b0000000000000000000000000000000000000001111100000000000000000000, # bits 24:20 [5]
+    "oc":                    #0b111111111111111100000000000000000000000000000000, # bits 47:32 [16]
+    0b0000001111111111111111111111111100000000000000000000000000000000, # bits 57:32 [26]
     "ro_ch": 0b1111110000000000000000000000000000000000000000000000000000000000, # bits 63:58 [6]
+
     # for 16 ch htg: 0b1111110000000000000000000000000000000000000000000000000000000000
     # for 4 ch htg:  0b111110000000000000000000000000000000000000000000000000000000000
 }
@@ -27,6 +29,8 @@ _htg_mask = {
     "ro_ch": 0b111111, # 6 bit
 }
 """
+# no of ro_chs in htg firmware
+_htg_n_ro_chs = 28
 # dumpfile data fields bitshift
 _htg_bitshift = {
     "ch": 0,
@@ -40,17 +44,24 @@ _htg_keys = {
     "ch": np.uint8,
     "bx": np.uint16,
     "tdc": np.uint8,
-    "oc": np.uint16,
+    "oc": np.uint32,
     "ro_ch": np.uint8,
 }
+
+### dumpfile import
+# no of hits to skip in dumpfile since expect them to be old hits still in htg buffer
+_dumpfile_hits_to_skip = 50000
 
 ### timestamp conversion
 _lhc_tdc_count = 32 # max value of TDC + 1  (i.e. conversion factor: _lhc_tdc_count TDC = 1 BX)
 _lhc_bunch_count = 3564 # max value of BX + 1 (i.e. conversion factor: _lhc_bunch_count BX = 1 ORBIT)
-_lhc_orbit_count = 65536 # 2^16, max value of ORBIT + 1
+#_lhc_orbit_count = 65536 # 2^16, max value of ORBIT + 1
+_lhc_orbit_count = 2**26 # = 67108864 = 2^26, max value of ORBIT + 1
 _ts_type = np.uint64 # data type of timestamp field in hits
-_err_ts = 1 # error of timestamps for fitting (in ts_units)
+_err_ts = int(1 / 0.78) #1 # error of timestamps for fitting (in ts_units)
 _ts_float_type = np.float64 # for fitting, ts type as float
+
+_oc_difference_for_overflow = 50000 # difference between oc and last oc for oc overflow to be triggered
 
 ### dt specific
 # fe conn idx list (key "fe_id")
@@ -173,8 +184,6 @@ _dt_sl_patterns = { # pat_type key in sl patterns is idx of key, i.e. "+a"=0, "-
     #    "laterality": ([1,1,1,1], [-1,-1,-1,-1], [1,1,-1,-1], [-1,-1,1,1], [-1,1,1,1], [1,-1,-1,-1],) #[-1,-1,-1,1], [1,1,1,-1] )
     #},
 }
-# timestamp window in which hits of sl must lie in order to be counted as pattern
-_dt_sl_patterns_ts_window = int(400 / 0.78) # in same unit as timestamp (0.78 ns)
 # sl_pattern keys
 _sl_pattern_keys = { # {key: dtype}
     "sl": np.uint8, # sl of pattern in dt chamber
@@ -187,6 +196,7 @@ _sl_pattern_keys = { # {key: dtype}
     "wi2": np.uint8, # wire index of ly 0 wire of pattern
     "ts3": _ts_type, # timestamp of ly 3 wire of pattern
     "wi3": np.uint8, # wire index of ly 0 wire of pattern
+    "muon_ts": _ts_type, # timestamp of simulated correlated muon
     "muon_id": np.uint64, # id / idx of correlated muon
 }
 # dt drift velocity
@@ -198,19 +208,28 @@ _sl_fit_keys = { # {key: dtype}
     "x0": np.float64, # x0 fit param
     "tan_alpha": np.float64, # tan(alpha) fit param
     "chi2/ndf": np.float64, # reduced chi2 value
+    "theta_proj": np.float64, # "projected" theta angle from tan_alpha (just for first checks, not used in further analysis)
 }
 
 ## when reconstructing hits
+# --- dt
+# apply dead time for all channels individually (if value > 0)
+_dt_ts_individual_dead_time = 0 #1250 #800 # in ts units
+# timestamp window in which hits of sl must lie in order to be counted as pattern
+_dt_sl_patterns_ts_window = 1250 #int(400 / 0.78) # in same unit as timestamp (0.78 ns)
 # acceptance interval for dt sl pattern grouping
 _t0_acceptance_interval = 100 # max temporal distance of t0 values of dt sl patterns that should be grouped together, in ts units
 _xproj_acceptance_interval = 50 # max spatial distance of 2 phi muon sl fits along the x axis, when projecting one to the other sl (delta_z(1-2) = z(sl=3.ly=3.wi=wi3_1) - z(sl=3.ly=3.wi=wi3_2)), in mm
+_dt_max_drift_time = 500 # max drift time measured from time of muon arrival t0 in the sl pattern fit
+_dt_t0_tolerance = 10 # tolerance between ts_min of 4 hits in superlayer & ts_min+_dt_max_drift_time which the muon arrival time t0 should take in the sl pattern fit
+# --- scint
 # acceptance interval for scintillator hits (2 sipm coincidence of strips) -> muon areas (2 strip coincidence) grouping
 _scintillator_ts_acceptance_interval = 625 #64 #1250 #64 #32 # max temporal distance of ts values of scintillator that should be grouped together, in ts units
 # 1280 = 1 us , 64 = 50 ns , 500 ~ 391 ns , 16 = 12.5 ns , 32 = 25 ns
 # acceptance interval for raw scintillator hits (single sipm hits) -> scintillator hits (2 sipm coincidence of strips) grouping
 _raw_scintillator_ts_acceptance_interval = _scintillator_ts_acceptance_interval # in ts units
 # apply dead time for all channels individually (if value > 0)
-_raw_scintillator_ts_individual_dead_time = 64 #1250 #0 #1250 # in ts units
+_raw_scintillator_ts_individual_dead_time = 0 # 0, 64, 1250 # in ts units
 
 ## when simulating muon hits
 # global time delay for scintillator hits by muons (scint ts = muon ts + _scintillator_delay)
@@ -401,6 +420,15 @@ _key_symbols = {
     "st_delta_last_ts0": "$\\Delta T_\\text{strip, SiPM 0}$",
     "st_delta_last_ts1": "$\\Delta T_\\text{strip, SiPM 1}$",
     "st_delta_last_ts": "$\\Delta T_\\text{strip}$",
+    "laterality": "Laterality",
+    "t0": "$T_0$",
+    "tan_alpha": "$\\text{tan}\\alpha$",
+    "chi2/ndf": "$\\chi^2/n_\\text{df}$",
+    "pat_type": "SL pattern type",
+    "theta_proj": "$\\theta_\\text{proj}$",
+    "wi3": "Wire, Layer 3",
+    "ts3": "$T_\\text{Wire, Layer 3}$",
+    "muon_ts": "$T_\\text{muon}$",
 }
 _key_units = {
     "x0": "mm",
@@ -437,6 +465,15 @@ _key_units = {
     "st_delta_last_ts0": "TU",
     "st_delta_last_ts1": "TU",
     "st_delta_last_ts": "TU",
+    "laterality": "",
+    "t0": "TU",
+    "tan_alpha": "",
+    "chi2/ndf": "",
+    "pat_type": "",
+    "theta_proj": "rad",
+    "wi3": "",
+    "ts3": "TU",
+    "muon_ts": "TU",
 }
 
 ###############################
@@ -459,7 +496,7 @@ _dt_chamber = {
         1: {
             "orient": "phi",
             "n_lys": 4,
-            "n_wis": 49,
+            "n_wis": 50,
             "offset_ly": [True, False, True, False], # for ly 0,1,2,3: True means shifted to right i.e. towards higher wi idx
             "size": (2126., 2513., 53.5),
             "pos": (1.8, 0., 0.), # corner with smallest coordinates of this sl, *RELATIVE TO* base point of chamber point with smallest coordinates
@@ -487,7 +524,7 @@ _dt_chamber = {
         3: {
             "orient": "phi",
             "n_lys": 4,
-            "n_wis": 49,
+            "n_wis": 50,
             "offset_ly": [True, False, True, False],
             "size": (2126., 2513., 53.5),
             "pos": (21.0-1.8, 0., 235.),
@@ -512,7 +549,7 @@ _dt_chamber = {
 _obdt_phi_1_fe_mapping = { # need to mask connectors J25, J26, J27
     'J23': {"label": 11, "sl": 1, "fe": "6A", "chs": (158, 159, 160, 161, 162, 163, 164, 165, 166, 167, 168, 169, 204, 205, 206, 207)},
     'J24': {"label": 12, "sl": 1, "fe": "6B", "chs": ( 62,  63,  64,  65,  66,  67,  68,  69,  70,  71,  72,  73,  74,  75,  76,  77)},
-    'J25': {"label": 13, "sl": 1, "fe": None, "chs": (110, 111, 112, 113, 114, 115, 116, 117, 118, 119, 120, 121, 122, 123, 124, 125)},
+    'J25': {"label": 13, "sl": 1, "fe": "7A", "chs": (110, 111, 112, 113, 114, 115, 116, 117, 118, 119, 120, 121, 122, 123, 124, 125)},
     'J26': {"label": 14, "sl": 1, "fe": None, "chs": (186, 187, 188, 189, 190, 191, 192, 193, 194, 195, 196, 197, 198, 199, 200, 201)},
     'J27': {"label": 15, "sl": 1, "fe": None, "chs": (224, 225, 226, 227, 228, 229, 230, 231, 232, 233, 234, 235, 236, 237, 238, 239)},
     'J28': {"label": 10, "sl": 1, "fe": "5B", "chs": (126, 127, 128, 129, 130, 131, 132, 133, 134, 135, 136, 137, 138, 139, 140, 141)},
@@ -529,7 +566,7 @@ _obdt_phi_1_fe_mapping = { # need to mask connectors J25, J26, J27
 _obdt_phi_2_fe_mapping = { # need to mask connectors J25, J26, J27
     'J23': {"label": 11, "sl": 3, "fe": "6A", "chs": (158, 159, 160, 161, 162, 163, 164, 165, 166, 167, 168, 169, 204, 205, 206, 207)},
     'J24': {"label": 12, "sl": 3, "fe": "6B", "chs": ( 62,  63,  64,  65,  66,  67,  68,  69,  70,  71,  72,  73,  74,  75,  76,  77)},
-    'J25': {"label": 13, "sl": 3, "fe": None, "chs": (110, 111, 112, 113, 114, 115, 116, 117, 118, 119, 120, 121, 122, 123, 124, 125)},
+    'J25': {"label": 13, "sl": 3, "fe": "7A", "chs": (110, 111, 112, 113, 114, 115, 116, 117, 118, 119, 120, 121, 122, 123, 124, 125)},
     'J26': {"label": 14, "sl": 3, "fe": None, "chs": (186, 187, 188, 189, 190, 191, 192, 193, 194, 195, 196, 197, 198, 199, 200, 201)},
     'J27': {"label": 15, "sl": 3, "fe": None, "chs": (224, 225, 226, 227, 228, 229, 230, 231, 232, 233, 234, 235, 236, 237, 238, 239)},
     'J28': {"label": 10, "sl": 3, "fe": "5B", "chs": (126, 127, 128, 129, 130, 131, 132, 133, 134, 135, 136, 137, 138, 139, 140, 141)},
@@ -559,6 +596,61 @@ _obdt_theta_1_fe_mapping = {
     'jin7a': {"label": "Jin7", "sl": 2, "fe": "7A", "chs": ( 72,  67, 165,  71,  61,  73,  82,  81,  83,  75,  78, 166, 168,  77,  56,  74)},
     'jin7b': {"label": "Jin7", "sl": 2, "fe": "7B", "chs": (169,  58,  60,  57,  86,  55,  85,  87,  89, 172, 174, 187, 175,  84,  88, 186)},
     'jin8a': {"label": "Jin8", "sl": 2, "fe": "8A", "chs": (191, 190, 188, 189, 239, 239, 239, 239, 239, 239, 239, 239, 239, 239, 239, 239)},
+}
+
+## dt chamber testpulses
+# testpulse timing offset correction
+# {sl: {fe: additional delay (in ts units), through longer cables or different tp latency}}
+_old_tp_cable_add_latency = 8 / 0.78 # ts units
+_theta_tp_add_latency = 0 / 0.78 # ts units
+_tp_time_offset = {
+    1: { # phi sl 1
+        "1A": 0,
+        "1B": 0,
+        "2A": 0,
+        "2B": 0,
+        "3A": 0,
+        "3B": 0,
+        "4A": 0,
+        "4B": 0,
+        "5A": 0,
+        "5B": 0,
+        "6A": 0,
+        "6B": 0,
+        "7A": 0,
+    },
+    2: { # theta sl
+        "1A": _theta_tp_add_latency + 0,
+        "1B": _theta_tp_add_latency + 0,
+        "2A": _theta_tp_add_latency + 0,
+        "2B": _theta_tp_add_latency + 0,
+        "3A": _theta_tp_add_latency + 0,
+        "3B": _theta_tp_add_latency + 0,
+        "4A": _theta_tp_add_latency + 0,
+        "4B": _theta_tp_add_latency + 0,
+        "5A": _theta_tp_add_latency + _old_tp_cable_add_latency,
+        "5B": _theta_tp_add_latency + _old_tp_cable_add_latency,
+        "6A": _theta_tp_add_latency + _old_tp_cable_add_latency,
+        "6B": _theta_tp_add_latency + _old_tp_cable_add_latency,
+        "7A": _theta_tp_add_latency + _old_tp_cable_add_latency,
+        "7B": _theta_tp_add_latency + _old_tp_cable_add_latency,
+        "8A": _theta_tp_add_latency + _old_tp_cable_add_latency,
+    },
+    3: { # phi sl 2
+        "1A": 0,
+        "1B": 0,
+        "2A": 0,
+        "2B": 0,
+        "3A": 0,
+        "3B": 0,
+        "4A": 0,
+        "4B": 0,
+        "5A": 0,
+        "5B": 0,
+        "6A": 0,
+        "6B": 0,
+        "7A": 0,
+    }
 }
 
 ### scintillator properties: {type: type of scintillator (hodoscope), lys: {ly_id: {type: layer type (strips), orient: orientation of strips (parallel to phi/theta sl)}}}
@@ -639,7 +731,7 @@ _scint_masked_sipms = { # {ly: {st: sipm}} which is masked, use only other sipm
         #6: 0-1, # mez1 ro_ch27 ch13-14
     },
     1: {
-        5: 1, # mez1 ro_ch27 ch29
+        #5: 1, # mez1 ro_ch27 ch29
         6: 1, # mez1 ro_ch27 ch30
     },
 }

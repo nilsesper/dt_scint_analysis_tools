@@ -15,8 +15,9 @@ fi
 
 # copy dumpfile from rack
 ~/utils/scp_dumpfile_from_rack.sh ${args[0]}.txt ~/masterarbeit/zynq_read-out_software/output/
+~/utils/scp_dumpfile_from_rack.sh ${args[0]}_validation.txt ~/masterarbeit/zynq_read-out_software/output/
 
 # do analysis
-python scripts/scint_calib_testpulses.py --inputfile ~/masterarbeit/zynq_read-out_software/output/${args[0]}.txt --create_calib
+python scripts/testpulses/scint_calib_testpulses.py --inputfile ~/masterarbeit/zynq_read-out_software/output/${args[0]}.txt --validationfile ~/masterarbeit/zynq_read-out_software/output/${args[0]}_validation.txt
 
 

@@ -43,12 +43,50 @@ def extract_dt_hits(hits, *, silent=False):
     for i in tqdm(range(n_dt_hits), disable=silent):
         ro_ch = tmp_hits["ro_ch"][i]
         ch = tmp_hits["ch"][i]
+        # skip hit if from "invalid" unconnected channel
+        if ch not in derived_params._dt_remap_table[ro_ch].keys():
+            continue
         # add keys according to remapping table
         for k in params._dt_mapping_keys.keys():
             tmp_hits[k][i] = derived_params._dt_remap_table[ro_ch][ch][k]
     # add timestamp and sort by timestamp
     tmp_hits = timestamp_utils.add_timestamp(hits=tmp_hits)
     tmp_hits = timestamp_utils.sort_by_timestamp(hits=tmp_hits)
+    ### -----------------------
+    # apply dead time constraint to all individual channels (if specified dead time is > 0)
+    if params._dt_ts_individual_dead_time > 0:
+        print(f"apply dead time constraint for all individual channels of {params._dt_ts_individual_dead_time} TU")
+        cut_tmp_hits = {}
+        for sl in derived_params._dt_inverted_remap_table.keys():
+            cut_tmp_hits[sl] = {}
+            for ly in derived_params._dt_inverted_remap_table[sl].keys():
+                cut_tmp_hits[sl][ly] = {}
+                for wi in derived_params._dt_inverted_remap_table[sl][ly].keys():
+                    cut_tmp_hits[sl][ly][wi] = data_utils.cut_data(data=tmp_hits, conditions=[("sl","==",sl),("ly","==",ly),("wi","==",wi)])
+                    n_cut_hits = len(cut_tmp_hits[sl][ly][wi]["ts"])
+                    allowed_indices = []
+                    ts_list = np.array(cut_tmp_hits[sl][ly][wi]["ts"])
+                    if len(ts_list) > 0:
+                        cur_ts = ts_list[0]
+                        for i in range(n_cut_hits):
+                            if int(ts_list[i]) - int(cur_ts) < params._dt_ts_individual_dead_time:
+                                continue
+                            cur_ts = ts_list[i]
+                            allowed_indices.append(i)
+                    for k in cut_tmp_hits[sl][ly][wi].keys():
+                        cut_tmp_hits[sl][ly][wi][k] = cut_tmp_hits[sl][ly][wi][k][allowed_indices]
+                    n_cut_hits_after = len(cut_tmp_hits[sl][ly][wi]['ts'])
+                    print(f"sl{sl} ly{ly} wi{wi} dead time cut flow: {n_cut_hits_after} / {n_cut_hits} = {n_cut_hits_after/max(1,n_cut_hits)}")
+        # merge back to tmp_hits
+        print("merging data after applying individual dead time...")
+        merge_data = []
+        for sl in derived_params._dt_inverted_remap_table.keys():
+            for ly in derived_params._dt_inverted_remap_table[sl].keys():
+                for wi in derived_params._dt_inverted_remap_table[sl][ly].keys():
+                    merge_data.append(cut_tmp_hits[sl][ly][wi])
+        tmp_hits = data_utils.merge_dataset(split_data=merge_data)
+        print("sort data by timestamp...")
+        tmp_hits = timestamp_utils.sort_by_timestamp(hits=tmp_hits)
     return tmp_hits
 
 ### helper: return 3d object to store one value of specified data type for dt chamber
@@ -85,6 +123,7 @@ def find_sl_patterns(hits, *, silent=False):
             wi = this_sl_hits["wi"][i]
             ts = this_sl_hits["ts"][i]
             muon_id = this_sl_hits["muon_id"][i]
+            muon_ts = this_sl_hits["muon_ts"][i]
             last_hit[sl][ly][wi] = ts
             # check for any pattern only in current superlayer since only in this superlayer something changed wrt to last iteration
             # loop over all possible patterns
@@ -117,11 +156,14 @@ def find_sl_patterns(hits, *, silent=False):
                     pat_ts_diff[4] = pat_ts[1]-pat_ts[3] if pat_ts[1]>pat_ts[3] else pat_ts[3]-pat_ts[1]
                     pat_ts_diff[5] = pat_ts[2]-pat_ts[3] if pat_ts[2]>pat_ts[3] else pat_ts[3]-pat_ts[2]
                     #pat_ts_diff2 = pat_ts - pat_ts.reshape(-1,1)
+                    #print(f"last_hit = {last_hit}")
+                    #print(f"pat_ts_diff = {pat_ts_diff}")
                     # no pattern found within time window, continue
                     if np.sum(pat_ts_diff > params._dt_sl_patterns_ts_window) > 0:
                         continue
+                    #print(pat_wi, pat_ts)
                     # if valid pattern, store it
-                    pattern_list.append([sl, pat_type, pat_wi, pat_ts, muon_id])
+                    pattern_list.append([sl, pat_type, pat_wi, pat_ts, muon_id, muon_ts])
                     # reset the cells which have triggered a pattern (set value to 0)
                     for ly, wi in enumerate(pat_wi):
                         last_hit[sl][ly][wi] = 0
@@ -133,6 +175,7 @@ def find_sl_patterns(hits, *, silent=False):
         sl_patterns["sl"][i] = pattern_list[i][0]
         sl_patterns["pat_type"][i] = pattern_list[i][1]
         sl_patterns["muon_id"][i] = pattern_list[i][4]
+        sl_patterns["muon_ts"][i] = pattern_list[i][5]
         for j in range(4):
             sl_patterns[f"wi{j}"][i] = pattern_list[i][2][j]
             sl_patterns[f"ts{j}"][i] = pattern_list[i][3][j]
@@ -169,39 +212,54 @@ def fit_sl_patterns(patterns, *, silent=False, verbose=False):
         # arguments are arrays with len=4 i.e. for each layer one hit
         # idx of array = ly idx
         z_arr, x_cell = np.full(4, 0, dtype=np.float64), np.full(4, 0, dtype=np.float64)
-        for ly in range(4):
+        for ly in list(range(4)):
             z_arr[ly] = derived_params._sl_pattern_coordinates[ly][0][3] #-1*(3-ly)*params._cell_height # z coord for ly0,1,2,3. note coordinate system with ly3 = (z=0)
             rel_wi = params._dt_sl_patterns[pat_name]["rel_wis"][ly]
             x_cell[ly] = derived_params._sl_pattern_coordinates[ly][rel_wi][2] # x values for fit => x positions of wires / cell centers for each layer, depends on pattern layout
-        ts = np.array([patterns[f"ts{ly}"][i] for ly in range(4)], dtype=params._ts_float_type) # y values for fit => timestamps for hits of each layer
+        ts = np.array([np.float64(patterns[f"ts{ly}"][i]) for ly in range(4)], dtype=params._ts_float_type) # y values for fit => timestamps for hits of each layer
         err_ts = np.full(4, params._err_ts, dtype=np.float64) # ts uncertainty
-        t0_start = ts[3] # assume ts of ly=3 rel_wi=0 (reference cell) as t0 starting point
+        t0_start = np.float64(np.amin(ts)) #[3] # assume ts of ly=3 rel_wi=0 (reference cell) as t0 starting point
         x0_start = derived_params._sl_pattern_coordinates[3][0][2] # center of ly=3 rel_wi=0 (reference cell)
         tan_alpha_start = 0 # assume straight down muon as start
         p0 = [t0_start, x0_start, tan_alpha_start] # fit start values
+        ts_min = np.uint64(np.amin(ts))
         # define parameter bounds
         p_bounds = [
-            (np.uint64(t0_start-np.amin([t0_start, params._dt_sl_patterns_ts_window])), derived_params._sl_pattern_coordinates[3][0][0][0], -np.inf), # lower limit for (t0, x0, tan_alpha)
-            (np.uint64(t0_start+params._dt_sl_patterns_ts_window), derived_params._sl_pattern_coordinates[3][0][0][1], np.inf), # upper limit for (t0, x0, tan_alpha)
+            (ts_min-params._dt_max_drift_time-params._dt_t0_tolerance, derived_params._sl_pattern_coordinates[3][0][0][0], -np.inf), # lower limit for (t0, x0, tan_alpha)
+            (ts_min+params._dt_t0_tolerance, derived_params._sl_pattern_coordinates[3][0][0][1], np.inf), # upper limit for (t0, x0, tan_alpha)
         ]
         lat_fits = []
         lat_chi2 = []
-        if verbose: print(f"  Fitting pattern {i}...")
+        if verbose: print(f" ********** Fitting pattern {i}...")
         for lat_id, lat in enumerate(lats): # lat_id = idx of laterality list for given pattern
             laterality = np.array(lat)
             # prepare fit function:
             def f_ts_fit_wparams(x_cell, t0, x0, tan_alpha):
                 return derived_params.f_ts_fit(x_cell, t0, x0, tan_alpha, z=z_arr, laterality=laterality)
-            # execute fit, store results:
-            popt, pcov = curve_fit(f=f_ts_fit_wparams, xdata=x_cell, ydata=ts, p0=p0, sigma=err_ts, absolute_sigma=True, bounds=p_bounds)
+            # execute fit, store results: parameters = (t0, x0, tan_alpha)
+            popt, pcov, infodict, mesg, _ = curve_fit(f=f_ts_fit_wparams, xdata=x_cell, ydata=ts, p0=p0, sigma=err_ts, absolute_sigma=True, bounds=p_bounds, full_output=True, verbose=2*int(verbose), xtol=1e-6, ftol=1e-6) 
+            # method="trf", x_scale="jac", max_nfev=10000, tr_solver="exact", verbose=2, diff_step=0.1, jac="cs"
+            # ftol=1e-8, xtol=1e-8, gtol=1e-8, x_scale=[1e-10, 1e10, 1e10]
             t0_fit, x0_fit, tan_alpha_fit = popt
             ndf = 4 - 3 # no data - no params = 4 - 3
-            chi2ndf = np.sum((f_ts_fit_wparams(x_cell, t0_fit, x0_fit, tan_alpha_fit) - ts)**2 / err_ts**2) / ndf
-            lat_fits.append({"laterality": lat_id, "t0": t0_fit, "x0": x0_fit, "tan_alpha": tan_alpha_fit, "chi2/ndf": chi2ndf})
+            ts_fit = np.float64(f_ts_fit_wparams(x_cell, t0_fit, x0_fit, tan_alpha_fit))
+            ts_residuals = np.float64(f_ts_fit_wparams(x_cell, t0_fit, x0_fit, tan_alpha_fit)) - np.float64(ts)
+            chi2ndf = np.sum(ts_residuals**2 / err_ts**2) / ndf
+            theta_proj = np.arctan(tan_alpha_fit) # projected angle relative to z axis (not further used, only as interesting validation parameter)
+            lat_fits.append({"laterality": lat_id, "t0": t0_fit, "x0": x0_fit, "tan_alpha": tan_alpha_fit, "chi2/ndf": chi2ndf, "theta_proj": theta_proj})
             if chi2ndf == np.inf: # penalize inf chi2 with high value
                 chi2ndf = np.iinfo(np.float64).max
             lat_chi2.append(np.float64(chi2ndf))
-            if verbose: print("  Fitting:",{"pattern_id": i, "pattern_name": pat_name, "laterality": lat_id, "t0": t0_fit, "x0": x0_fit, "tan_alpha": tan_alpha_fit, "bounds": p_bounds, "chi2/ndf": chi2ndf})
+            if verbose:
+                print(f" **** Pattern name {pat_name}, laterality {lat_id}:")
+                print(f"    Data x:", [x_cell[i] for i in range(4)])
+                print(f"    Data y:", [ts[i] for i in range(4)])
+                print(f"    Error y:", [err_ts[i] for i in range(4)])
+                print(f"    Fit input:",{ "p0": p0, "bounds": p_bounds})
+                print(f"    Fitted y:", [ts_fit[i] for i in range(4)])
+                print(f"    Residuals y:", [ts_residuals[i] for i in range(4)])
+                print(f"    Result:",{"popt": popt, "infodict": infodict, "mesg": mesg})
+                print(f"    Values:",{"t0": t0_fit, "x0": x0_fit, "tan_alpha": tan_alpha_fit, "chi2/ndf": chi2ndf, "theta_proj": theta_proj})
         # round chi2 value to given fixed digits
         for j in range(len(lat_chi2)):
             lat_chi2[j] = float('{:0.3e}'.format(lat_chi2[j])) # round to 4 significant digits in total
@@ -411,19 +469,15 @@ def analyze_testpulses(hits, *, rel_thres=0.2, plot_hists=False, silent=False):
     tp_timing = {}
     for sl in params._dt_chamber["sls"].keys():
         tp_timing[sl] = {}
-        for fe_id in derived_params._dt_fe_id_remap_table[sl]:
+        if not silent: print(f"Analyzing testpulses for SL {sl}.")
+        for fe_id in tqdm(derived_params._dt_fe_id_remap_table[sl], disable=silent):
             tp_timing[sl][int(fe_id)] = {}
             ch_ts_mean, ch_ts_err = 0, 0 # default values
             # select hits of one channel
             fec_hits = data_utils.cut_data(data=hits, conditions=[("sl","==",sl),("fe_id","==",fe_id)], silent=True)
             if data_utils.length(fec_hits) > 0:
                 # calculate histogram of hit timing (bin width = 1 ts unit)
-                hists, edges, centers, underflow, overflow = hist_utils.calculate_hist(data=fec_hits, key="ts_orbit", bin_centers="step1", silent=True)
-                # plot hist if desired
-                if plot_hists:
-                    xlabel = params._key_symbols["ts_orbit"]
-                    xlabel += " ["+params._key_units["ts_orbit"]+"]" if (params._key_units["ts_orbit"] != "") else ""
-                    hist_utils.plot_1hist(hist=hists, centers=centers, xlabel=xlabel, round_digits=0, bin_labels=False, silent=True, show=True, title=f"Testpulse timing (SL {sl}, FEC ID {fe_id})")        
+                hists, edges, centers, underflow, overflow = hist_utils.calculate_hist(data=fec_hits, key="ts_orbit", bin_centers="step1", silent=True)      
                 # select first peak of histogram (with lowest ts), the higher ts hits are due to ringing of the testpulse circuit
                 peak_indices = hist_utils.find_peak_indices(hist=hists, rel_thres=rel_thres) # 20% of max amplitude for peak
                 if len(peak_indices) > 0:
@@ -433,6 +487,13 @@ def analyze_testpulses(hits, *, rel_thres=0.2, plot_hists=False, silent=False):
                     err_centers_peak = np.full( len(centers_peak), 8/np.sqrt(12) )
                     # calculate peak position (weighted mean)
                     ch_ts_mean, ch_ts_err = hist_utils.weighted_mean_peak_position(hist=hists_peak, centers=centers_peak, err_hist=err_hists_peak, err_centers=err_centers_peak)
+                # plot hist if desired
+                plot_hists = True if fe_id == 0 else False ### HARDCODED FOR NOW
+                if plot_hists:
+                    hists, edges, centers, underflow, overflow = hist_utils.calculate_hist(data=fec_hits, key="ts_orbit", bin_centers=np.arange(0,4000+1), silent=True)
+                    xlabel = params._key_symbols["ts_orbit"]
+                    xlabel += " ["+params._key_units["ts_orbit"]+"]" if (params._key_units["ts_orbit"] != "") else ""
+                    hist_utils.plot_1hist(hist=hists, centers=centers, xlabel=xlabel, round_digits=0, bin_labels=False, silent=True, show=True, title=f"Testpulse timing (SL {sl}, FEC ID {fe_id})")  
             # store result
             tp_timing[sl][int(fe_id)] = {"tp_ts_mean": ch_ts_mean, "tp_ts_err": ch_ts_err}    
     return tp_timing
