@@ -45,9 +45,15 @@ def main():
         type     = str,
         help     = "input dumpfile path (with recorded testpulses)",
     )
+    parser.add_argument(
+        "--dt_tp_corrections_file",
+        type     = str,
+        help     = "output: path of generated testpulse timing corrections for all chamber channels",
+    )
     # ---
     args = parser.parse_args()
     tp_dumpfile_name = args.inputfile
+    dt_tp_corrections_file = args.dt_tp_corrections_file
 
     ### data import
     print(f"###### Importing dumpfile of testpulse run...")
@@ -68,10 +74,9 @@ def main():
     rel_thres = 0.2
     if granularity == "fec": # fe conn granularity
         tp_timing = dt_utils.analyze_testpulses(tp_hits, rel_thres=rel_thres, plot_hists=plot_hists, correct_for_offsets=correct_for_offsets)
-        print("tp_timing =",tp_timing)
     elif granularity == "wi": # wire granularity
         tp_timing = dt_utils.analyze_testpulses_per_wire(tp_hits, rel_thres=rel_thres, plot_hists=plot_hists, correct_for_offsets=correct_for_offsets)
-        print("tp_timing =",tp_timing)
+    print("tp_timing =",tp_timing)
     
     ### plot distribution of tp timing
     # plot timing as scatter
@@ -85,7 +90,7 @@ def main():
                     tp_ts_mean.append(tp_timing[sl][int(fe_id)]["tp_ts_mean"])
                     tp_ts_err.append(tp_timing[sl][int(fe_id)]["tp_ts_err"])
                     fe_id_list_plot.append(int(fe_id))
-            ax.errorbar(x=np.array(fe_id_list_plot)-0.2+0.1*sl, y=tp_ts_mean, yerr=tp_ts_err, color=derived_params.color_wheel(sl-1), linestyle="", marker="o", markersize=5, label=f"Superlayer {sl}")
+            ax.errorbar(x=np.array(fe_id_list_plot)-0.2+0.1*sl, y=tp_ts_mean, yerr=tp_ts_err, color=derived_params.color_wheel(sl), linestyle="", marker="o", markersize=5, label=f"SL {sl}")
             ax.set_xlabel(f"Frontend connector ID")
             ylabel = params._key_symbols["ts_orbit"]
             ylabel += " ["+params._key_units["ts_orbit"]+"]" if (params._key_units["ts_orbit"] != "") else ""
@@ -104,7 +109,7 @@ def main():
                         tp_ts_mean.append(tp_timing[sl][ly][wi]["tp_ts_mean"])
                         tp_ts_err.append(tp_timing[sl][ly][wi]["tp_ts_err"])
                         wi_list_plot.append(wi)
-                ax.errorbar(x=np.array(wi_list_plot)+0.01*(-6+(4*sl+ly)), y=tp_ts_mean, yerr=tp_ts_err, color=derived_params.color_wheel(4*sl+ly-1), linestyle="", marker="o", markersize=5, label=f"SL {sl} LY {ly}")
+                ax.errorbar(x=np.array(wi_list_plot)+0.03*(-6+(4*sl+ly)), y=tp_ts_mean, yerr=tp_ts_err, color=derived_params.color_wheel(sl), linestyle="", marker=derived_params.marker_wheel(ly), markersize=5, label=f"SL {sl} LY {ly}")
                 ax.set_xlabel(f"Wire")
                 ylabel = params._key_symbols["ts_orbit"]
                 ylabel += " ["+params._key_units["ts_orbit"]+"]" if (params._key_units["ts_orbit"] != "") else ""
@@ -113,6 +118,32 @@ def main():
                 ax.legend()
             fig.tight_layout()
             fig.show()
+
+    ### convert channel timing corrections from tp timing object
+    # each sl will be treated separately
+    # --> only the channels within the sl are aligned after applying this correction, BUT A TIMING OFFSET BETWEEN THE SUPERLAYERS REMAINS (to be corrected in a later step) !!!
+    dt_tp_corrections = dt_utils.calculate_sl_tp_corrections(tp_timing=tp_timing)
+    print("dt_tp_corrections =",dt_tp_corrections)
+
+    ### plot channel timing corrections
+    fig, ax = plt.subplots(1, 1, figsize=(12,8))
+    for sl in params._dt_chamber["sls"].keys():
+        for ly in derived_params._dt_inverted_remap_table[sl].keys():
+            ts_corr = np.array([dt_tp_corrections[sl][ly][wi]["ts_corr"] for wi in derived_params._dt_inverted_remap_table[sl][ly].keys()])
+            err_ts_corr = np.array([dt_tp_corrections[sl][ly][wi]["err_ts_corr"] for wi in derived_params._dt_inverted_remap_table[sl][ly].keys()])
+            wi_list = np.array(list(derived_params._dt_inverted_remap_table[sl][ly].keys()))
+            ax.errorbar(x=wi_list+0.03*(-6+(4*sl+ly)), y=ts_corr, yerr=err_ts_corr, color=derived_params.color_wheel(sl), linestyle="", marker=derived_params.marker_wheel(ly), markersize=5, label=f"SL {sl} LY {ly}")
+            ax.set_xlabel(f"Wire")
+            ax.set_ylabel("$T_\\text{corr}$ [TU]")
+            ax.set_title(f"Extracted timing correction")
+            ax.legend()
+        fig.tight_layout()
+        fig.show()
+
+    ### store to pcl file
+    print(f"###### Storing extracted testpulse timing corrections to \"{dt_tp_corrections_file}\"...")
+    data_utils.store_pickle(data=dt_tp_corrections, file=dt_tp_corrections_file)
+
 
 
 if __name__ == "__main__":

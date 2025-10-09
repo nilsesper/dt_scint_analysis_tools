@@ -141,8 +141,8 @@ def find_sl_patterns(hits, *, dt_sl_patterns=params._dt_sl_patterns, silent=Fals
                         pat_wi[ly] = base_wi+rel_wi_idx
                     # skip if last hit has nothing to do with the pattern (i.e. skip if last hit is not in current pattern)
                     #print(pat_wi[last_hit_ly], last_hit_wi)
-                    #if pat_wi[last_hit_ly] != last_hit_wi:
-                    #    continue
+                    if pat_wi[last_hit_ly] != last_hit_wi:
+                        continue
                     # skip if wire index out of range
                     if np.sum(pat_wi < 0) > 0 or np.sum(pat_wi > max_wi) > 0:
                         continue
@@ -170,8 +170,8 @@ def find_sl_patterns(hits, *, dt_sl_patterns=params._dt_sl_patterns, silent=Fals
                     # if valid pattern, store it
                     pattern_list.append([sl, pat_type, pat_wi, pat_ts, muon_id, muon_ts])
                     # reset the cells which have triggered a pattern (set value to 0)
-                    for ly, wi in enumerate(pat_wi):
-                        last_hit[sl][ly][wi] = 0
+                    #for ly, wi in enumerate(pat_wi):
+                    #    last_hit[sl][ly][wi] = 0
     # convert collected pattern_list to proper output format
     n_patterns = len(pattern_list)
     if not silent: print(f"Found {n_patterns} DT superlayer patterns.")
@@ -232,11 +232,23 @@ def fit_sl_patterns(patterns, *, silent=False, verbose=False):
             laterality = np.array(lat)
             # prepare fit initial params & parameter bounds
                 #t0_start = np.float64(np.amin(ts)) - params._dt_max_drift_time/2 # t0 starting point
-            t0_start = np.clip(a = 1/4*ts[3] + 1/4*ts[1] + 1/2*ts[2] - 1/2*params._dt_max_drift_time , a_min=ts_min-params._dt_max_drift_time-params._dt_t0_tolerance/2, a_max=ts_min+params._dt_t0_tolerance/2)
+            t0_start = np.clip(a = np.mean([
+                    1/4*ts[3] + 1/4*ts[1] + 1/2*ts[2] - 1/2*params._dt_max_drift_time ,
+                    1/4*ts[2] + 1/4*ts[0] + 1/2*ts[1] - 1/2*params._dt_max_drift_time ,
+                ]),
+                a_min=ts_min-params._dt_max_drift_time-params._dt_t0_tolerance/2, a_max=ts_min+params._dt_t0_tolerance/2
+            )
                 #x0_start = derived_params._sl_pattern_coordinates[3][0][2] # center of ly=3 rel_wi=0 (reference cell)
-            x0_start = np.clip(a = (ts[3] - t0_start)*0.78e-9 * params._drift_velocity*1e3 *1e3 *laterality[3], a_min=derived_params._sl_pattern_coordinates[3][0][0][0], a_max=derived_params._sl_pattern_coordinates[3][0][0][1])
+            x0_start = np.clip(a = np.mean([
+                    (ts[3] - t0_start)*0.78e-9 * params._drift_velocity*1e3 *1e3 *laterality[3] 
+                ]),
+                a_min=derived_params._sl_pattern_coordinates[3][0][0][0], a_max=derived_params._sl_pattern_coordinates[3][0][0][1]
+            )
                 #tan_alpha_start = 0 # assume straight down muon as start
-            tan_alpha_start = (ts[1]-ts[3])*0.78e-9 * params._drift_velocity*1e3 / (2*params._cell_height*1e-3)
+            tan_alpha_start = np.mean( [ 
+                    (ts[1]-ts[3])*0.78e-9 * params._drift_velocity*1e3 / (2*params._cell_height*1e-3) *laterality[3],
+                    (ts[0]-ts[2])*0.78e-9 * params._drift_velocity*1e3 / (2*params._cell_height*1e-3) *laterality[3],    
+            ] )
             p0 = np.float64([t0_start, x0_start, tan_alpha_start]) # fit start values
             # define parameter bounds
             p_bounds = np.float64([
@@ -569,6 +581,36 @@ def analyze_testpulses_per_wire(hits, *, rel_thres=0.2, plot_hists=False, correc
                     tp_timing[sl][ly][wi] = {"tp_ts_mean": ch_ts_mean_corr, "tp_ts_err": ch_ts_err_corr}  
     return tp_timing
 
+### calculate corrections to channel timing from the testpulse timing of the channels
+# do not globally align the superlayers, but only the channels within the superlayer...
+# align channels to average time of superlayer
+# corrections in dt_tp_corrections should be applied with a plus sign
+#   as follows: ts(wi)_corrected = ts(wi)_uncorrected + correction(wi)
+#   ( since correction(wi) = ts_target=ts(wi)_corrected - ts(wi)_uncorrected )
+def calculate_sl_tp_corrections(tp_timing, *, silent=False):
+    dt_tp_corrections = {}
+    if not silent: print(f"Calculating corrections to the timestamps of all channels based on the testpulse response time - separately for each SL...")
+    for sl in params._dt_chamber["sls"].keys():
+        dt_tp_corrections[sl] = {}
+        # do this step independently for each superlayer (therefore only local timing alignment within superlayer will be acheived when applying this correction later to data)
+        # calculate target timing: mean of sl timing of testpulses
+        sl_ts_target = 0
+        n_ts_chs = 0
+        for ly in derived_params._dt_inverted_remap_table[sl].keys():
+            dt_tp_corrections[sl][ly] = {}
+            for wi in tqdm(derived_params._dt_inverted_remap_table[sl][ly].keys(), disable=silent):
+                ch_ts_mean, ch_ts_err = tp_timing[sl][ly][wi]["tp_ts_mean"], tp_timing[sl][ly][wi]["tp_ts_err"]
+                if ch_ts_mean != 0:
+                    n_ts_chs += 1
+                    sl_ts_target += ch_ts_mean
+        sl_ts_target /= n_ts_chs # average timing
+        # calculate corrections for individual channels
+        for ly in derived_params._dt_inverted_remap_table[sl].keys():
+            for wi in tqdm(derived_params._dt_inverted_remap_table[sl][ly].keys(), disable=silent):
+                ch_ts_mean, ch_ts_err = tp_timing[sl][ly][wi]["tp_ts_mean"], tp_timing[sl][ly][wi]["tp_ts_err"]
+                dt_tp_corrections[sl][ly][wi] = {"ts_corr": sl_ts_target - ch_ts_mean, "err_ts_corr": ch_ts_err}
+    return dt_tp_corrections
+
 ### add noise hits to dt cells,  separately for all channels
 # ref_cell_noise_rate = cell noise rate in Hz
 # ts_range = [ts_min, ts_max] where noise should be added
@@ -654,6 +696,7 @@ def add_secondary_hits(hits, *, secondary_hit_window, secondary_hit_probability,
     ### sort hits by timestamp
     hits = timestamp_utils.sort_by_timestamp(hits=hits)
     return hits
+
 
 
 

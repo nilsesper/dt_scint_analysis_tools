@@ -44,7 +44,7 @@ _htg_keys = {
     "ch": np.uint8,
     "bx": np.uint16,
     "tdc": np.uint8,
-    "oc": np.uint32,
+    "oc": np.uint64,
     "ro_ch": np.uint8,
 }
 

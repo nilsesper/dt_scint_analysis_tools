@@ -56,10 +56,14 @@ def main():
     sl_fits = data_utils.load_pickle(file=sl_fits_file)
     
     # do cut if desired
-    #sl_fits = data_utils.cut_data(data=sl_fits, conditions=[("pat_type","==",0)])
-    sl_fits = data_utils.cut_data(data=sl_fits, conditions=[("chi2/ndf","<",1000)])
+    #sl_fits = data_utils.cut_data(data=sl_fits, conditions=[("pat_type","in",[0,1])])
+    #sl_fits = data_utils.cut_data(data=sl_fits, conditions=[("chi2/ndf","<",100), ]) #("sl","==",2)
 
     n_sl_fits = data_utils.length(sl_fits)
+
+    ### measurement duration
+    duration = 0.78e-9 * (np.amax(sl_fits["ts0"]) - np.amin(sl_fits["ts0"])) # secs
+    print(f"measurement duration = {duration} s")
 
     ### sl fits
     print(f"### sl fits")
@@ -71,8 +75,7 @@ def main():
         "wi3": np.arange(0, 60+1),
         "x0": "auto200",
         "tan_alpha": "auto200",
-        "chi2/ndf": "auto200",
-        "chi2/ndf": np.arange(0,1000+1),
+        "chi2/ndf": "auto1000", #np.arange(0,1000+1),
         "theta_proj": "auto200",
     }
     for k in hist_bins.keys():
@@ -128,7 +131,7 @@ def main():
     xlabel = f"{k} [TU]"
     hist_utils.plot_1hist(hist=hists, centers=centers, xlabel=xlabel, round_digits=round_digits, bin_labels=False, silent=True, store=plotname, show=show_plots) # scale="log"
 
-    #"""
+    """
     ### plots of some sl fits
     # plot all fitted patterns
     for pattern_id in range(n_sl_fits):
@@ -167,6 +170,14 @@ def main():
         fig.show()
     #"""
 
+    #"""
+    ### rate of fits
+    for sl in range(1,4):
+        sl_patterns_cut = data_utils.cut_data(data=sl_fits, conditions=[("sl","==",sl)], silent=True)
+        pattern_count = data_utils.length(sl_patterns_cut)
+        pattern_rate = pattern_count / duration
+        print(f"sl={sl} sl fit rate: {pattern_rate:.03f} Hz")
+    #"""
 
 
     input("Press enter to exit.")

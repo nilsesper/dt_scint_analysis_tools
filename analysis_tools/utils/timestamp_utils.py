@@ -27,7 +27,7 @@ def add_timestamp(hits, *, silent=False):
     separate_ts_hits = []
     for ro_ch in tqdm(range(params._htg_n_ro_chs), disable=silent):
         # split dataset
-        ts_hits_ro = data_utils.cut_data(data=ts_hits, conditions=[("ro_ch","==",ro_ch)], silent=False)
+        ts_hits_ro = data_utils.cut_data(data=ts_hits, conditions=[("ro_ch","==",ro_ch)], silent=True)
         n_hits_ro = data_utils.length(ts_hits_ro)
         # assign timestamps
         oc_overflow = 0 # count how many times the orbit counter overflowed -> to have non-jumping but continous timestamp
