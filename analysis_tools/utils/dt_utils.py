@@ -224,25 +224,25 @@ def fit_sl_patterns(patterns, *, silent=False, verbose=False):
             x_cell[ly] = derived_params._sl_pattern_coordinates[ly][rel_wi][2] # x values for fit => x positions of wires / cell centers for each layer, depends on pattern layout
         ts = np.array([np.float64(patterns[f"ts{ly}"][i]) for ly in range(4)], dtype=params._ts_float_type) # y values for fit => timestamps for hits of each layer
         err_ts = np.full(4, params._err_ts, dtype=np.float64) # ts uncertainty
-        #t0_start = np.float64(np.amin(ts)) - params._dt_max_drift_time/2 # t0 starting point
-        t0_start = 1/4*ts[3] + 1/4*ts[1] + 1/2*ts[2] - 1/2*params._dt_max_drift_time
-        #x0_start = derived_params._sl_pattern_coordinates[3][0][2] # center of ly=3 rel_wi=0 (reference cell)
-        x0_start = (ts[3] - t0_start)*0.78e-9 * params._drift_velocity*1e3 *1e3 # mm
-        #tan_alpha_start = 0 # assume straight down muon as start
-        tan_alpha_start = (ts[1]-ts[3])*0.78e-9 * params._drift_velocity*1e3 / (2*params._cell_height*1e-3)
-        p0 = np.float64([t0_start, x0_start, tan_alpha_start]) # fit start values
-        
         ts_min = np.amin(ts)
-        # define parameter bounds
-        p_bounds = np.float64([
-            (ts_min-params._dt_max_drift_time-params._dt_t0_tolerance-5000, derived_params._sl_pattern_coordinates[3][0][0][0]-5000, params._dt_tan_alpha_range[0]), # lower limit for (t0, x0, tan_alpha)
-            (ts_min+params._dt_t0_tolerance+5000, derived_params._sl_pattern_coordinates[3][0][0][1]+5000, params._dt_tan_alpha_range[1]), # upper limit for (t0, x0, tan_alpha)
-        ])
         lat_fits = []
         lat_chi2 = []
         if verbose: print(f"\n ********** Fitting pattern {i}:")
         for lat_id, lat in enumerate(lats): # lat_id = idx of laterality list for given pattern
             laterality = np.array(lat)
+            # prepare fit initial params & parameter bounds
+                #t0_start = np.float64(np.amin(ts)) - params._dt_max_drift_time/2 # t0 starting point
+            t0_start = np.clip(a = 1/4*ts[3] + 1/4*ts[1] + 1/2*ts[2] - 1/2*params._dt_max_drift_time , a_min=ts_min-params._dt_max_drift_time-params._dt_t0_tolerance/2, a_max=ts_min+params._dt_t0_tolerance/2)
+                #x0_start = derived_params._sl_pattern_coordinates[3][0][2] # center of ly=3 rel_wi=0 (reference cell)
+            x0_start = np.clip(a = (ts[3] - t0_start)*0.78e-9 * params._drift_velocity*1e3 *1e3 *laterality[3], a_min=derived_params._sl_pattern_coordinates[3][0][0][0], a_max=derived_params._sl_pattern_coordinates[3][0][0][1])
+                #tan_alpha_start = 0 # assume straight down muon as start
+            tan_alpha_start = (ts[1]-ts[3])*0.78e-9 * params._drift_velocity*1e3 / (2*params._cell_height*1e-3)
+            p0 = np.float64([t0_start, x0_start, tan_alpha_start]) # fit start values
+            # define parameter bounds
+            p_bounds = np.float64([
+                (ts_min-params._dt_max_drift_time-params._dt_t0_tolerance, derived_params._sl_pattern_coordinates[3][0][0][0]-1, params._dt_tan_alpha_range[0]), # lower limit for (t0, x0, tan_alpha)
+                (ts_min+params._dt_t0_tolerance, derived_params._sl_pattern_coordinates[3][0][0][1]+1, params._dt_tan_alpha_range[1]), # upper limit for (t0, x0, tan_alpha)
+            ])
             # prepare fit function:
             def f_ts_fit_wparams(ly, t0, x0, tan_alpha):
                 ly = np.uint64(ly)

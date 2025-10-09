@@ -57,6 +57,7 @@ def main():
     
     # do cut if desired
     #sl_fits = data_utils.cut_data(data=sl_fits, conditions=[("pat_type","==",0)])
+    sl_fits = data_utils.cut_data(data=sl_fits, conditions=[("chi2/ndf","<",1000)])
 
     n_sl_fits = data_utils.length(sl_fits)
 
@@ -71,6 +72,7 @@ def main():
         "x0": "auto200",
         "tan_alpha": "auto200",
         "chi2/ndf": "auto200",
+        "chi2/ndf": np.arange(0,1000+1),
         "theta_proj": "auto200",
     }
     for k in hist_bins.keys():
@@ -112,6 +114,20 @@ def main():
             hist_utils.plot_1hist(hist=hists, centers=centers, xlabel=xlabel, round_digits=round_digits, bin_labels=False, silent=True, store=plotname, show=show_plots, title=f"sl {sl}") # scale="log"
     #"""
 
+    ### fitted drift times
+    additional_data = {}
+    k = f"td"
+    additional_data[k] = np.zeros(n_sl_fits*4)
+    for ly in range(4):
+        for i in range(n_sl_fits):    
+            additional_data[k][i+ly*n_sl_fits] = int(sl_fits[f"ts{ly}"][i]) - sl_fits[f"t0"][i]
+    hist_bins = np.arange(0,2000) #"auto200"
+    # plot
+    hists, edges, centers, underflow, overflow = hist_utils.calculate_hist(data=additional_data, key=k, bin_centers=hist_bins, silent=True)
+    print(f"key \"{k}\": entries={data_utils.length(additional_data)} underflow={underflow}, overflow={overflow}")
+    xlabel = f"{k} [TU]"
+    hist_utils.plot_1hist(hist=hists, centers=centers, xlabel=xlabel, round_digits=round_digits, bin_labels=False, silent=True, store=plotname, show=show_plots) # scale="log"
+
     #"""
     ### plots of some sl fits
     # plot all fitted patterns
@@ -150,20 +166,6 @@ def main():
         # show/store figure
         fig.show()
     #"""
-
-    ### fitted drift times
-    additional_data = {}
-    k = f"td"
-    additional_data[k] = np.zeros(n_sl_fits*4)
-    for ly in range(4):
-        for i in range(n_sl_fits):    
-            additional_data[k][i+ly*n_sl_fits] = int(sl_fits[f"ts{ly}"][i]) - sl_fits[f"t0"][i]
-    hist_bins = np.arange(0,2000) #"auto200"
-    # plot
-    hists, edges, centers, underflow, overflow = hist_utils.calculate_hist(data=additional_data, key=k, bin_centers=hist_bins, silent=True)
-    print(f"key \"{k}\": entries={data_utils.length(additional_data)} underflow={underflow}, overflow={overflow}")
-    xlabel = f"{k} [TU]"
-    hist_utils.plot_1hist(hist=hists, centers=centers, xlabel=xlabel, round_digits=round_digits, bin_labels=False, silent=True, store=plotname, show=show_plots) # scale="log"
 
 
 
