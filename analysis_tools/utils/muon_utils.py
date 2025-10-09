@@ -49,7 +49,7 @@ def generate_cosmic_muons(n, ts, xrange, yrange, z0, *, silent=False, thetarange
     muons["theta"] = math_utils.draw_from_pdf(pdf=params.cosmic_muon_theta_weight, val_range=thetarange, n=n, dtype=params._muon_obj_keys["theta"]) # theta distributed according to distribution
     muons["phi"] = np.random.uniform(low=phirange[0], high=phirange[1], size=n).astype(dtype=params._muon_obj_keys["phi"]) # phi uniformly distributed
     muons["ts"] = np.array(ts).astype(dtype=params._muon_obj_keys["ts"])
-    muons["muon_id"] = np.arange(0, n, dtype=params._muon_obj_keys["muon_id"])
+    muons["muon_id"] = np.arange(1, n+1, dtype=params._muon_obj_keys["muon_id"]) # muon_id starts at 1 (muon_id 0 for data and noise)
     return muons
 
 ### cut muons by specifying geometrical area (xmin, xmax, ymin, ymax, z0) it has to pass through

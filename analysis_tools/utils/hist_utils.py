@@ -89,7 +89,7 @@ def calculate_hist(data, key, *, bin_centers=None, bin_edges=None, silent=False)
 # hist: histogram entries (bin heights)
 # centers: centers of histograms
 @mpl.rc_context({'font.family': 'sans-serif', 'font.size': 12}) # 'font.sans-serif': 'Arial'
-def plot_1hist(hist, centers, *, vmin=None, vmax=None, scale="norm", bin_labels=True, show=True, store=False, xlabel="", rel_spacing=0, round_digits=0, silent=False, title=None):
+def plot_1hist(hist, centers, *, vmin=None, vmax=None, scale="norm", bin_labels=True, show=True, store=False, xlabel="", ylabel="", rel_spacing=0, round_digits=0, silent=False, title=None):
     if not silent: print(f"Plotting one histogram...")
     fig, ax = plt.subplots(1, 1, figsize=(12,8))
     # plot hist
@@ -120,6 +120,7 @@ def plot_1hist(hist, centers, *, vmin=None, vmax=None, scale="norm", bin_labels=
             if scale == "log": vmax = np.amax(hist)*np.exp(1.1)
         ax.set_ylim(bottom=vmin, top=vmax)
     if xlabel != "": ax.set_xlabel(xlabel)
+    if ylabel != "": ax.set_ylabel(ylabel)
     if title != None: ax.set_title(title)
     # tight layout
     fig.tight_layout()

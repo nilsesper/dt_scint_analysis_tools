@@ -60,6 +60,7 @@ for ro_ch in _dt_ro_chs:
             ly = [3,1,2,0][ch_id & 3]
             wi = (ch_id >> 2) + wireoffset
             ch = fe["chs"][ch_id]
+            if wi >= params._dt_chamber["sls"][sl]["n_wis"]: continue
             _dt_remap_table[ro_ch][ch] = {
                 "conn_id": conn_id, # idx of conn name "J35" in fe_mapping dict
                 "fe_id": fe_id, # idx of fe conn name "1A" in order starting at 1A
@@ -68,6 +69,12 @@ for ro_ch in _dt_ro_chs:
                 "ly": ly, # layer
                 "wi": wi, # wire
             }
+
+## print dt chamber mapping
+#for ro_ch in _dt_ro_chs:
+#    for ch in _dt_remap_table[ro_ch].keys():
+#        print(f"ro_ch={ro_ch}, ch={ch}, map={_dt_remap_table[ro_ch][ch]}")
+
 # generate inverted dt remapping table: {sl: {ly: {wi: {ch, ro_ch, conn_id, fe_id, ch_id}}}}
 # generate fec table {sl: [fe_ids]}
 _dt_inverted_remap_table = {}
@@ -96,6 +103,12 @@ for ro_ch in _dt_ro_chs:
             _dt_fe_id_remap_table[sl].append(fe_id)
 for sl in params._dt_chamber["sls"].keys():
     _dt_fe_id_remap_table[sl] = np.sort( _dt_fe_id_remap_table[sl])
+
+## print dt chamber (inverted) mapping
+#for sl in _dt_inverted_remap_table.keys():
+#    for ly in _dt_inverted_remap_table[sl].keys():
+#        for wi in _dt_inverted_remap_table[sl][ly].keys():
+#            print(f"sl={sl} ly={ly} wi={wi} map={_dt_inverted_remap_table[sl][ly][wi]}")
 
 ### generate scint remapping table: {ro_ch: {ch: {scint_keys: mapping value}}
 ## scint hits
@@ -172,7 +185,7 @@ _max_ts_value = np.iinfo(params._ts_type).max # max value of ts
 ### drift velocity conversion
 # conversion from um / ns = 10^3 m/s to mm / ts_unit
 # ts_unit = _ts_unit = 0.78 ns
-_drift_velocity_mm_per_timestamp = ( params._drift_velocity * (_ts_unit) * (1e-3) ) # unit calc: mm/tsu = um/ns * 0.78*ns/tsu * 1e-3*mm/um
+_drift_velocity_mm_per_timestamp = np.float64( params._drift_velocity * (_ts_unit) * (1e-3) ) # unit calc: mm/tsu = um/ns * 0.78*ns/tsu * 1e-3*mm/um
 # final unit: [_drift_velocity_mm_per_timestamp] = mm / ts_unit
 
 ### dt sl patterns

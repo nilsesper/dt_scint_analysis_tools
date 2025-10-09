@@ -33,18 +33,26 @@ def main():
         type     = str,
         help     = "output file path: sl fits (pcl file)",
     )
+    ###
+    parser.add_argument(
+        "--verbose",
+        action   = "store_true",
+        help     = "print info",
+    )
     # ---
     args = parser.parse_args()
     sl_patterns_file = args.sl_patterns_file
     sl_fits_file = args.sl_fits_file
+    verbose = False
+    if args.verbose:
+        verbose = True
 
     #################
 
     ### multiprocessing setup
     n_processes = 8 *2 # no of processes running in parallel
-    n_batches_sl_fitting = 1000 # batch size for sl fitting of hit clusters
-    verbose = True
-    do_multiprocessing = True and not verbose
+    n_batches_sl_fitting = 10000 # batch size for sl fitting of hit clusters
+    do_multiprocessing = not verbose
 
     ### data import
     print(f"###### Importing dt hits...")
@@ -57,6 +65,8 @@ def main():
         sl_fits = process_utils.multiprocess_data(n_processes=n_processes, n_batches=n_batches_sl_fitting, function=dt_utils.fit_sl_patterns, data=sl_patterns, data_key="patterns", kwargs={}, mute=True)
     else: # without multiprocessing
         sl_fits = dt_utils.fit_sl_patterns(patterns=sl_patterns, verbose=verbose)
+    # sort by t0 (muon arrival time)
+    sl_patterns = data_utils.sort_by_key(data=sl_fits, sort_key="t0")
     print("sl_fits =",sl_fits)
 
     ### store to pcl file

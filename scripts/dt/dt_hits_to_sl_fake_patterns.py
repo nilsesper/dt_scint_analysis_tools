@@ -1,6 +1,7 @@
 #################################################################
 ### cluster dt hits to sl clusters
 # store sl clusters pcl file
+# create fake patterns to analyze noise coincidences / fakes in chamber
 #################################################################
 
 import os
@@ -70,18 +71,18 @@ def main():
 
     ### dt reco
     # apply clustering algorithm
-    print(f"### DT hit clustering for each superlayer...")
+    print(f"### DT hit clustering for each superlayer for fake patterns...")
     if do_multiprocessing:
-        sl_patterns = process_utils.multiprocess_data(n_processes=n_processes, n_batches=n_batches_clustering, function=dt_utils.find_sl_patterns, data=dt_hits, data_key="hits", kwargs={"verbose": verbose}, mute=True)
+        sl_fake_patterns = process_utils.multiprocess_data(n_processes=n_processes, n_batches=n_batches_clustering, function=dt_utils.find_sl_patterns, data=dt_hits, data_key="hits", kwargs={"verbose": verbose, "dt_sl_patterns": params._dt_sl_fake_patterns}, mute=True)
     else:
-        sl_patterns = dt_utils.find_sl_patterns(hits=dt_hits, verbose=verbose)
+        sl_fake_patterns = dt_utils.find_sl_patterns(hits=dt_hits, verbose=verbose, dt_sl_patterns=params._dt_sl_fake_patterns)
     # sort by ts3 (reference timestamp)
-    sl_patterns = data_utils.sort_by_key(data=sl_patterns, sort_key="ts3")
-    print("sl_patterns =",sl_patterns)
+    sl_fake_patterns = data_utils.sort_by_key(data=sl_fake_patterns, sort_key="ts3")
+    print("sl_fake_patterns =",sl_fake_patterns)
 
     ### store to pcl file
-    print(f"###### Storing SL patterns to file \"{sl_patterns_file}\"...")
-    data_utils.store_pickle(data=sl_patterns, file=sl_patterns_file)
+    print(f"###### Storing fake SL patterns to file \"{sl_patterns_file}\"...")
+    data_utils.store_pickle(data=sl_fake_patterns, file=sl_patterns_file)
 
 
 

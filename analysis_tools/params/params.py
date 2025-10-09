@@ -58,7 +58,6 @@ _lhc_bunch_count = 3564 # max value of BX + 1 (i.e. conversion factor: _lhc_bunc
 #_lhc_orbit_count = 65536 # 2^16, max value of ORBIT + 1
 _lhc_orbit_count = 2**26 # = 67108864 = 2^26, max value of ORBIT + 1
 _ts_type = np.uint64 # data type of timestamp field in hits
-_err_ts = int(1 / 0.78) #1 # error of timestamps for fitting (in ts_units)
 _ts_float_type = np.float64 # for fitting, ts type as float
 
 _oc_difference_for_overflow = 50000 # difference between oc and last oc for oc overflow to be triggered
@@ -133,11 +132,12 @@ _dt_other_keys = {
 # 
 # (!) depends on ly_indent = _dt_chamber["sls"][sl]["ly_indent"]
 # with ly_indent = [True, False, True, False] (order is ly 0-3) we have: (z axis goes upwards)
-# ly  wi 0   1   2   3        
-# 3   | - | - | - | - |  
-# 2     | - | - | - | - | -  
-# 1   | - | - | - | - |
-# 0     | - | - | - | - | -  
+# ly  rel_wi   -2  -1   0   1         
+# 3           | - | - | O | - | - 
+# 2           - | - | - | - | - | -  
+# 1           | - | - | - | - | - 
+# 0           - | - | - | - | - | -  
+#     rel_wi     -2  -1   0   1   
 #
 # use layer 3 (top layer) as reference where relative wire index is fixed to 0
 _dt_sl_patterns = { # pat_type key in sl patterns is idx of key, i.e. "+a"=0, "-a"=1 etc.
@@ -184,6 +184,60 @@ _dt_sl_patterns = { # pat_type key in sl patterns is idx of key, i.e. "+a"=0, "-
     #    "laterality": ([1,1,1,1], [-1,-1,-1,-1], [1,1,-1,-1], [-1,-1,1,1], [-1,1,1,1], [1,-1,-1,-1],) #[-1,-1,-1,1], [1,1,1,-1] )
     #},
 }
+
+### dt fake hit patterns (to check for number of noise-induced patterns)
+# reference is on top (highest z coordinate i.e. ly 3)
+# higher wi index towards right -->
+# ly  [+fA]    ref              [-fA]    ref            (f: "fake" pattern)
+# 3   | - | - | O | - | - |     | - | - | O | - | - |
+# 2   - | O | - | - | - | -     - | - | - | - | O | -
+# 1   | - | - | - | O | - |     | - | O | - | - | - |
+# 0   - | - | O | - | - | -     - | - | - | O | - | -
+#
+# ly  [+fB]    ref              [-fB]    ref            (f: "fake" pattern)
+# 3   | - | - | O | - | - |     | - | - | O | - | - |
+# 2   - | - | O | - | - | -     - | - | - | O | - | -
+# 1   | - | - | - | O | - |     | - | O | - | - | - |
+# 0   - | - | - | O | - | -     - | - | O | - | - | -
+#
+# ly  [+fC]    ref              [-fC]    ref            (f: "fake" pattern)
+# 3   | - | - | O | - | - |     | - | - | O | - | - |
+# 2   - | O | - | - | - | -     - | - | - | - | O | -
+# 1   | - | - | O | - | - |     | - | - | O | - | - |
+# 0   - | O | - | - | - | -     - | - | - | - | O | -
+#
+# (!) depends on ly_indent = _dt_chamber["sls"][sl]["ly_indent"]
+# with ly_indent = [True, False, True, False] (order is ly 0-3) we have: (z axis goes upwards)
+# ly  rel_wi   -2  -1   0   1         
+# 3           | - | - | O | - | - 
+# 2           - | - | - | - | - | -  
+# 1           | - | - | - | - | - 
+# 0           - | - | - | - | - | -  
+#     rel_wi     -2  -1   0   1   
+#
+# use layer 3 (top layer) as reference where relative wire index is fixed to 0
+_dt_sl_fake_patterns = { # pat_type key in sl patterns is idx of key, i.e. "+a"=0, "-a"=1 etc.
+    # order in lists: ly 0,1,2,3
+    "+fa": {
+        "rel_wis": [-1,0,-2,0], # list of relative wire index of layers 0-3
+    },
+    "-fa":{
+        "rel_wis": [0,-1,1,0],
+    },
+    "+fb": {
+        "rel_wis": [0,1,-1,0],
+    },
+    "-fb": {
+        "rel_wis": [-1,-1,0,0],
+    },
+    "+fc": {
+        "rel_wis": [-2,0,-2,0],
+    },
+    "-fc": {
+        "rel_wis": [1,0,1,0],
+    },
+}
+
 # sl_pattern keys
 _sl_pattern_keys = { # {key: dtype}
     "sl": np.uint8, # sl of pattern in dt chamber
@@ -197,10 +251,11 @@ _sl_pattern_keys = { # {key: dtype}
     "ts3": _ts_type, # timestamp of ly 3 wire of pattern
     "wi3": np.uint8, # wire index of ly 0 wire of pattern
     "muon_ts": _ts_type, # timestamp of simulated correlated muon
+    #"muon_x0": np.float64, # x0 of simulated correlated muon
+    #"muon_tan_alpha": np.float64, # tan_alpha of simulated correlated muon
     "muon_id": np.uint64, # id / idx of correlated muon
 }
-# dt drift velocity
-_drift_velocity = 54.5 # unit: um / ns = 10^-6 / 10 ^-9 m/s = 10^3 m/s
+
 # sl fit keys (fit list also also keeps sl_pattern_keys)
 _sl_fit_keys = { # {key: dtype}
     "laterality": np.uint8, # idx of selected laterality [] in _dt_sl_patterns 
@@ -212,16 +267,24 @@ _sl_fit_keys = { # {key: dtype}
 }
 
 ## when reconstructing hits
+
+# dt drift velocity
+_drift_velocity = 54.5 # unit: um / ns = 10^-6 / 10 ^-9 m/s = 10^3 m/s
+_dt_cell_width = 42 # mm
+
 # --- dt
 # apply dead time for all channels individually (if value > 0)
-_dt_ts_individual_dead_time = 0 #1250 #800 # in ts units
+_dt_ts_individual_dead_time = 0 #600 #600 #1250 #800 #0 # in ts units
 # timestamp window in which hits of sl must lie in order to be counted as pattern
-_dt_sl_patterns_ts_window = 1250 #int(400 / 0.78) # in same unit as timestamp (0.78 ns)
+_dt_sl_patterns_ts_window = 520 #int(400 / 0.78) # in same unit as timestamp (0.78 ns)
 # acceptance interval for dt sl pattern grouping
-_t0_acceptance_interval = 100 # max temporal distance of t0 values of dt sl patterns that should be grouped together, in ts units
+_t0_acceptance_interval = 100 # max temporal distance of t0 values of dt sl pattern fits that should be grouped together, in ts units
 _xproj_acceptance_interval = 50 # max spatial distance of 2 phi muon sl fits along the x axis, when projecting one to the other sl (delta_z(1-2) = z(sl=3.ly=3.wi=wi3_1) - z(sl=3.ly=3.wi=wi3_2)), in mm
-_dt_max_drift_time = 500 # max drift time measured from time of muon arrival t0 in the sl pattern fit
-_dt_t0_tolerance = 10 # tolerance between ts_min of 4 hits in superlayer & ts_min+_dt_max_drift_time which the muon arrival time t0 should take in the sl pattern fit
+_dt_max_drift_time = int((_dt_cell_width*1e-3/2) / (_drift_velocity*1e3) / 0.78e-9) # max drift time measured from time of muon arrival t0 in the sl pattern fit
+_dt_t0_tolerance = 10 # tolerance which the muon arrival time t0 should take in the sl pattern fit, between ts_min of 4 hits in superlayer & ts_min+_dt_max_drift_time
+_dt_tan_alpha_range = [-100, 100] # allowed range of tan alpha sl pattern fit parameter
+_err_ts = 5 #1 # error of timestamps for fitting (in ts_units)
+
 # --- scint
 # acceptance interval for scintillator hits (2 sipm coincidence of strips) -> muon areas (2 strip coincidence) grouping
 _scintillator_ts_acceptance_interval = 625 #64 #1250 #64 #32 # max temporal distance of ts values of scintillator that should be grouped together, in ts units
@@ -232,6 +295,7 @@ _raw_scintillator_ts_acceptance_interval = _scintillator_ts_acceptance_interval 
 _raw_scintillator_ts_individual_dead_time = 0 # 0, 64, 1250 # in ts units
 
 ## when simulating muon hits
+
 # global time delay for scintillator hits by muons (scint ts = muon ts + _scintillator_delay)
 _scintillator_hit_delay = 10 # timestamp units
 
@@ -496,7 +560,7 @@ _dt_chamber = {
         1: {
             "orient": "phi",
             "n_lys": 4,
-            "n_wis": 50,
+            "n_wis": 49,
             "offset_ly": [True, False, True, False], # for ly 0,1,2,3: True means shifted to right i.e. towards higher wi idx
             "size": (2126., 2513., 53.5),
             "pos": (1.8, 0., 0.), # corner with smallest coordinates of this sl, *RELATIVE TO* base point of chamber point with smallest coordinates
@@ -524,7 +588,7 @@ _dt_chamber = {
         3: {
             "orient": "phi",
             "n_lys": 4,
-            "n_wis": 50,
+            "n_wis": 49,
             "offset_ly": [True, False, True, False],
             "size": (2126., 2513., 53.5),
             "pos": (21.0-1.8, 0., 235.),
@@ -581,20 +645,20 @@ _obdt_phi_2_fe_mapping = { # need to mask connectors J25, J26, J27
     'J37': {"label":  5, "sl": 3, "fe": "3A", "chs": ( 14,  15,  16,  17,  18,  19,  20,  21,  22,  23,  24,  25,  26,  27,  28,  29)},
 }
 _obdt_theta_1_fe_mapping = {
-    'jin1a': {"label": "Jin1", "sl": 2, "fe": "1A", "chs": ( 33,  34,  31,  30,  35,  28,  32,  29,  26,  24,  27,   5,  25,   3,   4,   0)},
-    'jin1b': {"label": "Jin1", "sl": 2, "fe": "1B", "chs": (  2,   1,  94,   7,   9, 155,  63,  65, 153,  17,  16,  20,  18,  19,  22,  21)},
-    'jin2a': {"label": "Jin2", "sl": 2, "fe": "2A", "chs": (157, 151, 150, 227,  11,   8,   6,  10, 154, 152, 226, 146, 147, 122, 120, 116)},
-    'jin2b': {"label": "Jin2", "sl": 2, "fe": "2B", "chs": (224, 133, 118, 119, 117, 115, 101, 100, 102,  99, 107, 105, 103, 106, 214, 211)},
-    'jin3a': {"label": "Jin3", "sl": 2, "fe": "3A", "chs": (210, 218, 220, 225, 215, 104, 199, 213, 212, 201, 202, 196, 198, 200, 121, 124)},
-    'jin3b': {"label": "Jin3", "sl": 2, "fe": "3B", "chs": ( 45, 194, 125, 126, 123, 139, 140, 144, 148, 149, 222, 193, 203, 192, 223,  46)},
-    'jin4a': {"label": "Jin4", "sl": 2, "fe": "4A", "chs": (216, 197, 195,  54,  47,  49,  44,  48,  38, 108, 109, 111, 110,  36, 112, 113)},
-    'jin4b': {"label": "Jin4", "sl": 2, "fe": "4B", "chs": ( 37, 114, 132, 128, 129, 130, 127, 131,  51,  50, 208,  52,  53,  41,  39, 205)},
-    'jin5a': {"label": "Jin5", "sl": 2, "fe": "5A", "chs": ( 23,  14,  12,  15,  13, 221, 219, 217, 207, 209,  93, 206,  62,  69,  80,  79)},
-    'jin5b': {"label": "Jin5", "sl": 2, "fe": "5B", "chs": ( 76, 204,  42,  59,  40,  43, 180, 181, 178, 176, 177, 179, 162, 160, 182, 161)},
-    'jin6a': {"label": "Jin6", "sl": 2, "fe": "6A", "chs": (135, 183, 138, 163, 185, 184, 167, 164, 145, 137, 134, 136, 170, 142, 143, 141)},
-    'jin6b': {"label": "Jin6", "sl": 2, "fe": "6B", "chs": (171, 156, 158, 159,  66,  90,  92,  91,  64,  68,  95,  97,  70, 173,  96,  98)},
-    'jin7a': {"label": "Jin7", "sl": 2, "fe": "7A", "chs": ( 72,  67, 165,  71,  61,  73,  82,  81,  83,  75,  78, 166, 168,  77,  56,  74)},
-    'jin7b': {"label": "Jin7", "sl": 2, "fe": "7B", "chs": (169,  58,  60,  57,  86,  55,  85,  87,  89, 172, 174, 187, 175,  84,  88, 186)},
+    'jin1a': {"label": "Jin1", "sl": 2, "fe": "3A", "chs": ( 33,  34,  31,  30,  35,  28,  32,  29,  26,  24,  27,   5,  25,   3,   4,   0)},
+    'jin1b': {"label": "Jin1", "sl": 2, "fe": "3B", "chs": (  2,   1,  94,   7,   9, 155,  63,  65, 153,  17,  16,  20,  18,  19,  22,  21)},
+    'jin2a': {"label": "Jin2", "sl": 2, "fe": "4A", "chs": (157, 151, 150, 227,  11,   8,   6,  10, 154, 152, 226, 146, 147, 122, 120, 116)},
+    'jin2b': {"label": "Jin2", "sl": 2, "fe": "4B", "chs": (224, 133, 118, 119, 117, 115, 101, 100, 102,  99, 107, 105, 103, 106, 214, 211)},
+    'jin3a': {"label": "Jin3", "sl": 2, "fe": "7A", "chs": (210, 218, 220, 225, 215, 104, 199, 213, 212, 201, 202, 196, 198, 200, 121, 124)},
+    'jin3b': {"label": "Jin3", "sl": 2, "fe": "7B", "chs": ( 45, 194, 125, 126, 123, 139, 140, 144, 148, 149, 222, 193, 203, 192, 223,  46)},
+    'jin4a': {"label": "Jin4", "sl": 2, "fe": "6A", "chs": (216, 197, 195,  54,  47,  49,  44,  48,  38, 108, 109, 111, 110,  36, 112, 113)},
+    'jin4b': {"label": "Jin4", "sl": 2, "fe": "6B", "chs": ( 37, 114, 132, 128, 129, 130, 127, 131,  51,  50, 208,  52,  53,  41,  39, 205)},
+    'jin5a': {"label": "Jin5", "sl": 2, "fe": "1A", "chs": ( 23,  14,  12,  15,  13, 221, 219, 217, 207, 209,  93, 206,  62,  69,  80,  79)},
+    'jin5b': {"label": "Jin5", "sl": 2, "fe": "1B", "chs": ( 76, 204,  42,  59,  40,  43, 180, 181, 178, 176, 177, 179, 162, 160, 182, 161)},
+    'jin6a': {"label": "Jin6", "sl": 2, "fe": "2A", "chs": (135, 183, 138, 163, 185, 184, 167, 164, 145, 137, 134, 136, 170, 142, 143, 141)},
+    'jin6b': {"label": "Jin6", "sl": 2, "fe": "2B", "chs": (171, 156, 158, 159,  66,  90,  92,  91,  64,  68,  95,  97,  70, 173,  96,  98)},
+    'jin7a': {"label": "Jin7", "sl": 2, "fe": "5A", "chs": ( 72,  67, 165,  71,  61,  73,  82,  81,  83,  75,  78, 166, 168,  77,  56,  74)},
+    'jin7b': {"label": "Jin7", "sl": 2, "fe": "5B", "chs": (169,  58,  60,  57,  86,  55,  85,  87,  89, 172, 174, 187, 175,  84,  88, 186)},
     'jin8a': {"label": "Jin8", "sl": 2, "fe": "8A", "chs": (191, 190, 188, 189, 239, 239, 239, 239, 239, 239, 239, 239, 239, 239, 239, 239)},
 }
 
@@ -603,7 +667,10 @@ _obdt_theta_1_fe_mapping = {
 # {sl: {fe: additional delay (in ts units), through longer cables or different tp latency}}
 _old_tp_cable_add_latency = 8 / 0.78 # ts units
 _theta_tp_add_latency = 0 / 0.78 # ts units
-_tp_time_offset = {
+# the value in the _tp_time_offset map will be subtracted from the extracted tp timestamps / time positions
+# (i.e. the values in this map here describe the time it takes "longer" than 0 offset)
+_tp_time_offset_err = 1 # error on offset correction, in ts units
+_tp_time_offset = { # in ts units
     1: { # phi sl 1
         "1A": 0,
         "1B": 0,

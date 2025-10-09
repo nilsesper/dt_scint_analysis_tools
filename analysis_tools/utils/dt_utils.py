@@ -62,7 +62,7 @@ def extract_dt_hits(hits, *, silent=False):
             for ly in derived_params._dt_inverted_remap_table[sl].keys():
                 cut_tmp_hits[sl][ly] = {}
                 for wi in derived_params._dt_inverted_remap_table[sl][ly].keys():
-                    cut_tmp_hits[sl][ly][wi] = data_utils.cut_data(data=tmp_hits, conditions=[("sl","==",sl),("ly","==",ly),("wi","==",wi)])
+                    cut_tmp_hits[sl][ly][wi] = data_utils.cut_data(data=tmp_hits, conditions=[("sl","==",sl),("ly","==",ly),("wi","==",wi)], silent=True)
                     n_cut_hits = len(cut_tmp_hits[sl][ly][wi]["ts"])
                     allowed_indices = []
                     ts_list = np.array(cut_tmp_hits[sl][ly][wi]["ts"])
@@ -103,18 +103,19 @@ def _empty_dt_chamber_map(dtype, default=0):
 # requires timestamps assigned in hits object
 # returns list of found sl patterns with timestamps and pattern info
 #@jit(nopython=True)
-def find_sl_patterns(hits, *, silent=False):
+# can pass different dt_sl_patterns dictionaries (e.g. fake patterns)
+def find_sl_patterns(hits, *, dt_sl_patterns=params._dt_sl_patterns, silent=False, verbose=False):
     pattern_list = []
     n_hits = len(hits["ch"])
     if not silent: print(f"Extract DT superlayer patterns from {n_hits} total hits...")
     last_hit = _empty_dt_chamber_map(dtype=params._ts_type, default=0)
-    # sort hits by timestamp
-    hits = timestamp_utils.sort_by_timestamp(hits=hits, silent=silent)
     # go through separately for each sl
     for sl in params._dt_chamber["sls"].keys():
         if not silent: print(f"  Progress: SL {sl}...")
         this_sl_hits = data_utils.cut_data(data=hits, conditions=[("sl", "==", sl)], silent=silent)
         n_this_sl_hits = len(this_sl_hits["ch"])
+        # sort hits by timestamp
+        this_sl_hits = timestamp_utils.sort_by_timestamp(hits=this_sl_hits, silent=silent)
         # max value of wire idx for current sl
         max_wi = params._dt_chamber["sls"][sl]["n_wis"]-1
         for i in tqdm(range(n_this_sl_hits), disable=silent):
@@ -124,18 +125,24 @@ def find_sl_patterns(hits, *, silent=False):
             ts = this_sl_hits["ts"][i]
             muon_id = this_sl_hits["muon_id"][i]
             muon_ts = this_sl_hits["muon_ts"][i]
+            if verbose: print(f"hit: sl={sl} ly={ly} wi={wi} ts={ts}")
             last_hit[sl][ly][wi] = ts
+            last_hit_ly, last_hit_wi = ly, wi
             # check for any pattern only in current superlayer since only in this superlayer something changed wrt to last iteration
-            # loop over all possible patterns
-            for pat_type, pat_name in enumerate(params._dt_sl_patterns.keys()): # pat_idcs = [rel idx wrt base wi for lys 0,1,2,3], pat_type = idx of key in _dt_sl_patterns dict
-                # extract pattern relative wire indices
-                pat_idcs = params._dt_sl_patterns[pat_name]["rel_wis"]
-                # loop over all possible base wires
-                for base_wi in range(max_wi+1):
+            # loop over all possible base wires (max. +- 3 away from wire coordinate, no matter which layer)
+            for base_wi in range(0, max_wi+1):
+                # loop over all possible patterns
+                for pat_type, pat_name in enumerate(dt_sl_patterns.keys()): # pat_idcs = [rel idx wrt base wi for lys 0,1,2,3], pat_type = idx of key in dt_sl_patterns dict
+                    # extract pattern relative wire indices
+                    pat_idcs = dt_sl_patterns[pat_name]["rel_wis"]
                     # calculate relevant wire idcs of all 4 layers for given pattern
                     pat_wi = np.full(4, 0, dtype=np.int16) # wi idx of ly 0-3 of pattern
                     for ly, rel_wi_idx in enumerate(pat_idcs):
                         pat_wi[ly] = base_wi+rel_wi_idx
+                    # skip if last hit has nothing to do with the pattern (i.e. skip if last hit is not in current pattern)
+                    #print(pat_wi[last_hit_ly], last_hit_wi)
+                    #if pat_wi[last_hit_ly] != last_hit_wi:
+                    #    continue
                     # skip if wire index out of range
                     if np.sum(pat_wi < 0) > 0 or np.sum(pat_wi > max_wi) > 0:
                         continue
@@ -143,25 +150,23 @@ def find_sl_patterns(hits, *, silent=False):
                     # collect timestamps of relevant hits for pattern
                     pat_ts = np.full(4, 0, dtype=params._ts_type)
                     for ly in range(4):
-                        pat_ts[ly] = last_hit[sl][ly][ pat_wi[ly] ]
+                        pat_ts[ly] = int(last_hit[sl][ly][ pat_wi[ly] ])
                     # skip if any ts is exactly zero (this is simply the initialization/reset value)
                     if np.sum(pat_ts == 0) > 0:
                         continue
                     # check if timestamps are within specified range
                     pat_ts_diff = np.full(6, 0, dtype=params._ts_type)
-                    pat_ts_diff[0] = pat_ts[0]-pat_ts[1] if pat_ts[0]>pat_ts[1] else pat_ts[1]-pat_ts[0]
-                    pat_ts_diff[1] = pat_ts[0]-pat_ts[2] if pat_ts[0]>pat_ts[2] else pat_ts[2]-pat_ts[0]
-                    pat_ts_diff[2] = pat_ts[0]-pat_ts[3] if pat_ts[0]>pat_ts[3] else pat_ts[3]-pat_ts[0]
-                    pat_ts_diff[3] = pat_ts[1]-pat_ts[2] if pat_ts[1]>pat_ts[2] else pat_ts[2]-pat_ts[1]
-                    pat_ts_diff[4] = pat_ts[1]-pat_ts[3] if pat_ts[1]>pat_ts[3] else pat_ts[3]-pat_ts[1]
-                    pat_ts_diff[5] = pat_ts[2]-pat_ts[3] if pat_ts[2]>pat_ts[3] else pat_ts[3]-pat_ts[2]
-                    #pat_ts_diff2 = pat_ts - pat_ts.reshape(-1,1)
-                    #print(f"last_hit = {last_hit}")
-                    #print(f"pat_ts_diff = {pat_ts_diff}")
+                    pat_ts_diff[0] = np.abs(int(pat_ts[0])-int(pat_ts[1]))
+                    pat_ts_diff[1] = np.abs(int(pat_ts[0])-int(pat_ts[2]))
+                    pat_ts_diff[2] = np.abs(int(pat_ts[0])-int(pat_ts[3]))
+                    pat_ts_diff[3] = np.abs(int(pat_ts[1])-int(pat_ts[2]))
+                    pat_ts_diff[4] = np.abs(int(pat_ts[1])-int(pat_ts[3]))
+                    pat_ts_diff[5] = np.abs(int(pat_ts[2])-int(pat_ts[3]))
+                    if verbose: print(f"check pat: sl={sl}, pat_type={pat_type}, pat_wi={pat_wi}, pat_ts={pat_ts}, pat_ts_diff={pat_ts_diff}")
                     # no pattern found within time window, continue
                     if np.sum(pat_ts_diff > params._dt_sl_patterns_ts_window) > 0:
                         continue
-                    #print(pat_wi, pat_ts)
+                    if verbose: print(f"found pat: sl={sl}, pat_wi={pat_wi}, pat_ts={pat_ts}")
                     # if valid pattern, store it
                     pattern_list.append([sl, pat_type, pat_wi, pat_ts, muon_id, muon_ts])
                     # reset the cells which have triggered a pattern (set value to 0)
@@ -212,38 +217,44 @@ def fit_sl_patterns(patterns, *, silent=False, verbose=False):
         # arguments are arrays with len=4 i.e. for each layer one hit
         # idx of array = ly idx
         z_arr, x_cell = np.full(4, 0, dtype=np.float64), np.full(4, 0, dtype=np.float64)
-        for ly in list(range(4)):
+        lys = np.arange(0, 4)
+        for ly in lys:
             z_arr[ly] = derived_params._sl_pattern_coordinates[ly][0][3] #-1*(3-ly)*params._cell_height # z coord for ly0,1,2,3. note coordinate system with ly3 = (z=0)
             rel_wi = params._dt_sl_patterns[pat_name]["rel_wis"][ly]
             x_cell[ly] = derived_params._sl_pattern_coordinates[ly][rel_wi][2] # x values for fit => x positions of wires / cell centers for each layer, depends on pattern layout
         ts = np.array([np.float64(patterns[f"ts{ly}"][i]) for ly in range(4)], dtype=params._ts_float_type) # y values for fit => timestamps for hits of each layer
         err_ts = np.full(4, params._err_ts, dtype=np.float64) # ts uncertainty
-        t0_start = np.float64(np.amin(ts)) #[3] # assume ts of ly=3 rel_wi=0 (reference cell) as t0 starting point
-        x0_start = derived_params._sl_pattern_coordinates[3][0][2] # center of ly=3 rel_wi=0 (reference cell)
-        tan_alpha_start = 0 # assume straight down muon as start
-        p0 = [t0_start, x0_start, tan_alpha_start] # fit start values
-        ts_min = np.uint64(np.amin(ts))
+        #t0_start = np.float64(np.amin(ts)) - params._dt_max_drift_time/2 # t0 starting point
+        t0_start = 1/4*ts[3] + 1/4*ts[1] + 1/2*ts[2] - 1/2*params._dt_max_drift_time
+        #x0_start = derived_params._sl_pattern_coordinates[3][0][2] # center of ly=3 rel_wi=0 (reference cell)
+        x0_start = (ts[3] - t0_start)*0.78e-9 * params._drift_velocity*1e3 *1e3 # mm
+        #tan_alpha_start = 0 # assume straight down muon as start
+        tan_alpha_start = (ts[1]-ts[3])*0.78e-9 * params._drift_velocity*1e3 / (2*params._cell_height*1e-3)
+        p0 = np.float64([t0_start, x0_start, tan_alpha_start]) # fit start values
+        
+        ts_min = np.amin(ts)
         # define parameter bounds
-        p_bounds = [
-            (ts_min-params._dt_max_drift_time-params._dt_t0_tolerance, derived_params._sl_pattern_coordinates[3][0][0][0], -np.inf), # lower limit for (t0, x0, tan_alpha)
-            (ts_min+params._dt_t0_tolerance, derived_params._sl_pattern_coordinates[3][0][0][1], np.inf), # upper limit for (t0, x0, tan_alpha)
-        ]
+        p_bounds = np.float64([
+            (ts_min-params._dt_max_drift_time-params._dt_t0_tolerance-5000, derived_params._sl_pattern_coordinates[3][0][0][0]-5000, params._dt_tan_alpha_range[0]), # lower limit for (t0, x0, tan_alpha)
+            (ts_min+params._dt_t0_tolerance+5000, derived_params._sl_pattern_coordinates[3][0][0][1]+5000, params._dt_tan_alpha_range[1]), # upper limit for (t0, x0, tan_alpha)
+        ])
         lat_fits = []
         lat_chi2 = []
-        if verbose: print(f" ********** Fitting pattern {i}...")
+        if verbose: print(f"\n ********** Fitting pattern {i}:")
         for lat_id, lat in enumerate(lats): # lat_id = idx of laterality list for given pattern
             laterality = np.array(lat)
             # prepare fit function:
-            def f_ts_fit_wparams(x_cell, t0, x0, tan_alpha):
-                return derived_params.f_ts_fit(x_cell, t0, x0, tan_alpha, z=z_arr, laterality=laterality)
+            def f_ts_fit_wparams(ly, t0, x0, tan_alpha):
+                ly = np.uint64(ly)
+                return derived_params.f_ts_fit(x_cell=x_cell[ly], t0=t0, x0=x0, tan_alpha=tan_alpha, z=z_arr[ly], laterality=laterality[ly])
             # execute fit, store results: parameters = (t0, x0, tan_alpha)
-            popt, pcov, infodict, mesg, _ = curve_fit(f=f_ts_fit_wparams, xdata=x_cell, ydata=ts, p0=p0, sigma=err_ts, absolute_sigma=True, bounds=p_bounds, full_output=True, verbose=2*int(verbose), xtol=1e-6, ftol=1e-6) 
+            popt, pcov, infodict, mesg, _ = curve_fit(f=f_ts_fit_wparams, xdata=lys, ydata=ts, p0=p0, sigma=err_ts, absolute_sigma=True, bounds=p_bounds, full_output=True, verbose=2*int(verbose), ) # xtol=1e-6, ftol=1e-6 
             # method="trf", x_scale="jac", max_nfev=10000, tr_solver="exact", verbose=2, diff_step=0.1, jac="cs"
             # ftol=1e-8, xtol=1e-8, gtol=1e-8, x_scale=[1e-10, 1e10, 1e10]
             t0_fit, x0_fit, tan_alpha_fit = popt
             ndf = 4 - 3 # no data - no params = 4 - 3
-            ts_fit = np.float64(f_ts_fit_wparams(x_cell, t0_fit, x0_fit, tan_alpha_fit))
-            ts_residuals = np.float64(f_ts_fit_wparams(x_cell, t0_fit, x0_fit, tan_alpha_fit)) - np.float64(ts)
+            ts_fit = f_ts_fit_wparams(lys, t0_fit, x0_fit, tan_alpha_fit)
+            ts_residuals = ts_fit - np.float64(ts)
             chi2ndf = np.sum(ts_residuals**2 / err_ts**2) / ndf
             theta_proj = np.arctan(tan_alpha_fit) # projected angle relative to z axis (not further used, only as interesting validation parameter)
             lat_fits.append({"laterality": lat_id, "t0": t0_fit, "x0": x0_fit, "tan_alpha": tan_alpha_fit, "chi2/ndf": chi2ndf, "theta_proj": theta_proj})
@@ -252,7 +263,7 @@ def fit_sl_patterns(patterns, *, silent=False, verbose=False):
             lat_chi2.append(np.float64(chi2ndf))
             if verbose:
                 print(f" **** Pattern name {pat_name}, laterality {lat_id}:")
-                print(f"    Data x:", [x_cell[i] for i in range(4)])
+                print(f"    Data x:", [lys[i] for i in range(4)])
                 print(f"    Data y:", [ts[i] for i in range(4)])
                 print(f"    Error y:", [err_ts[i] for i in range(4)])
                 print(f"    Fit input:",{ "p0": p0, "bounds": p_bounds})
@@ -260,6 +271,7 @@ def fit_sl_patterns(patterns, *, silent=False, verbose=False):
                 print(f"    Residuals y:", [ts_residuals[i] for i in range(4)])
                 print(f"    Result:",{"popt": popt, "infodict": infodict, "mesg": mesg})
                 print(f"    Values:",{"t0": t0_fit, "x0": x0_fit, "tan_alpha": tan_alpha_fit, "chi2/ndf": chi2ndf, "theta_proj": theta_proj})
+                print(f"\n    Chi2 / Ndf: {chi2ndf}\n")
         # round chi2 value to given fixed digits
         for j in range(len(lat_chi2)):
             lat_chi2[j] = float('{:0.3e}'.format(lat_chi2[j])) # round to 4 significant digits in total
@@ -465,7 +477,7 @@ def hits_from_muons(muons, *, silent=False, noise_ampl=0):
 
 ### extract timestamps of testpulse hits for full readout system
 # fe connector granularity
-def analyze_testpulses(hits, *, rel_thres=0.2, plot_hists=False, silent=False):
+def analyze_testpulses(hits, *, rel_thres=0.2, plot_hists=False, correct_for_offsets=True, silent=False):
     tp_timing = {}
     for sl in params._dt_chamber["sls"].keys():
         tp_timing[sl] = {}
@@ -496,8 +508,152 @@ def analyze_testpulses(hits, *, rel_thres=0.2, plot_hists=False, silent=False):
                     hist_utils.plot_1hist(hist=hists, centers=centers, xlabel=xlabel, round_digits=0, bin_labels=False, silent=True, show=True, title=f"Testpulse timing (SL {sl}, FEC ID {fe_id})")  
             # store result
             tp_timing[sl][int(fe_id)] = {"tp_ts_mean": ch_ts_mean, "tp_ts_err": ch_ts_err}    
+    ## correct for offsets if desired
+    if correct_for_offsets:
+        if not silent: print(f"Correcting global/constant offsets between superlayers and fe connectors...")
+        for sl in params._dt_chamber["sls"].keys():
+            for fe_id in tqdm(derived_params._dt_fe_id_remap_table[sl], disable=silent):
+                ch_ts_mean, ch_ts_err = tp_timing[sl][int(fe_id)]["tp_ts_mean"], tp_timing[sl][int(fe_id)]["tp_ts_err"]
+                fe_name = params._fe_idx_list[ derived_params._dt_inverted_remap_table[sl][ly][wi]["fe_id"] ]
+                ch_ts_mean_corr = ch_ts_mean - params._tp_time_offset[sl][fe_name]
+                ch_ts_err_corr = np.sqrt(params._tp_time_offset_err**2 + ch_ts_err**2)
+                ch_ts_err_corr = np.sqrt(params._tp_time_offset_err**2 + ch_ts_err**2)
+                tp_timing[sl][int(fe_id)] = {"tp_ts_mean": ch_ts_mean_corr, "tp_ts_err": ch_ts_err_corr}    
     return tp_timing
 
+### extract timestamps of testpulse hits for full readout system
+# single channel (wire) granularity
+def analyze_testpulses_per_wire(hits, *, rel_thres=0.2, plot_hists=False, correct_for_offsets=True, silent=False):
+    tp_timing = {}
+    for sl in params._dt_chamber["sls"].keys():
+        tp_timing[sl] = {}
+        for ly in derived_params._dt_inverted_remap_table[sl].keys():
+            if not silent: print(f"Analyzing testpulses for SL {sl} LY {ly}.")
+            tp_timing[sl][ly] = {}
+            for wi in tqdm(derived_params._dt_inverted_remap_table[sl][ly].keys(), disable=silent):
+                tp_timing[sl][ly][wi] = {}
+                ch_ts_mean, ch_ts_err = 0, 0 # default values
+                # select hits of one channel
+                fec_hits = data_utils.cut_data(data=hits, conditions=[("sl","==",sl),("ly","==",ly), ("wi","==",wi)], silent=True)
+                if data_utils.length(fec_hits) > 0:
+                    # calculate histogram of hit timing (bin width = 1 ts unit)
+                    hists, edges, centers, underflow, overflow = hist_utils.calculate_hist(data=fec_hits, key="ts_orbit", bin_centers="step1", silent=True)      
+                    # select first peak of histogram (with lowest ts), the higher ts hits are due to ringing of the testpulse circuit
+                    peak_indices = hist_utils.find_peak_indices(hist=hists, rel_thres=rel_thres) # 20% of max amplitude for peak
+                    if len(peak_indices) > 0:
+                        sel_peak_indices = peak_indices[0] # first peak
+                        hists_peak, centers_peak = hists[sel_peak_indices], centers[sel_peak_indices]
+                        err_hists_peak = np.sqrt(hists_peak)
+                        err_centers_peak = np.full( len(centers_peak), 8/np.sqrt(12) )
+                        # calculate peak position (weighted mean)
+                        ch_ts_mean, ch_ts_err = hist_utils.weighted_mean_peak_position(hist=hists_peak, centers=centers_peak, err_hist=err_hists_peak, err_centers=err_centers_peak)
+                    # plot hist if desired
+                    plot_hists = True if wi == 0 else False ### HARDCODED FOR NOW
+                    if plot_hists:
+                        hists, edges, centers, underflow, overflow = hist_utils.calculate_hist(data=fec_hits, key="ts_orbit", bin_centers=np.arange(0,4000+1), silent=True)
+                        xlabel = params._key_symbols["ts_orbit"]
+                        xlabel += " ["+params._key_units["ts_orbit"]+"]" if (params._key_units["ts_orbit"] != "") else ""
+                        hist_utils.plot_1hist(hist=hists, centers=centers, xlabel=xlabel, round_digits=0, bin_labels=False, silent=True, show=True, title=f"Testpulse timing (SL {sl}, LY {ly}, WI {wi})")  
+                # store result
+                tp_timing[sl][ly][wi] = {"tp_ts_mean": ch_ts_mean, "tp_ts_err": ch_ts_err}    
+    ## correct for offsets if desired
+    if correct_for_offsets:
+        if not silent: print(f"Correcting global/constant offsets between superlayers and fe connectors...")
+        for sl in params._dt_chamber["sls"].keys():
+            for ly in derived_params._dt_inverted_remap_table[sl].keys():
+                for wi in tqdm(derived_params._dt_inverted_remap_table[sl][ly].keys(), disable=silent):
+                    ch_ts_mean, ch_ts_err = tp_timing[sl][ly][wi]["tp_ts_mean"], tp_timing[sl][ly][wi]["tp_ts_err"]
+                    fe_name = params._fe_idx_list[ derived_params._dt_inverted_remap_table[sl][ly][wi]["fe_id"] ]
+                    ch_ts_mean_corr = ch_ts_mean - params._tp_time_offset[sl][fe_name]
+                    ch_ts_err_corr = np.sqrt(params._tp_time_offset_err**2 + ch_ts_err**2)
+                    tp_timing[sl][ly][wi] = {"tp_ts_mean": ch_ts_mean_corr, "tp_ts_err": ch_ts_err_corr}  
+    return tp_timing
+
+### add noise hits to dt cells,  separately for all channels
+# ref_cell_noise_rate = cell noise rate in Hz
+# ts_range = [ts_min, ts_max] where noise should be added
+def add_noise(hits, *, ts_range, ref_cell_noise_rate, silent=False):
+    t_start = ts_range[0]
+    t_sim = ts_range[1]-ts_range[0]
+    noise_hit_list = []
+    for sl in derived_params._dt_inverted_remap_table.keys():
+        for ly in derived_params._dt_inverted_remap_table[sl].keys():
+            if not silent: print(f"  Progress: SL {sl}, LY {ly}...")
+            for wi in tqdm(derived_params._dt_inverted_remap_table[sl][ly].keys(), disable=silent):
+                noise_rate = ref_cell_noise_rate * 0.78e-9 # 1/tu
+                noise_lambda = noise_rate * t_sim # expected muon count in simulation time
+                # number of muons in time interval is poisson distributed
+                n_noise = np.random.poisson(lam = noise_lambda)
+                # simulate: for poisson, the time between events is exponentially distributed (!)
+                inter_arrival_times = np.random.exponential(1.0 / noise_rate, n_noise) # in tu
+                # generate muon timestamps from time differences between muon events
+                noise_ts = t_start + np.cumsum(inter_arrival_times) # timestamp units
+                ### generate dt_hits subset object with only noise hits
+                noise_hits = {k: np.full(n_noise, 0, dtype=v) for k,v in params._htg_keys.items()} | {k: np.full(n_noise, 0, dtype=v) for k,v in params._dt_mapping_keys.items()} | {k: np.full(n_noise, 0, dtype=v) for k,v in params._dt_other_keys.items()} 
+                for i in range(n_noise):
+                    # copy existing keys
+                    noise_hits["sl"][i] = sl
+                    noise_hits["ly"][i] = ly
+                    noise_hits["wi"][i] = wi
+                    ts = noise_ts[i]
+                    noise_hits["ts"][i] = ts
+                    (oc, bx, tdc) = timestamp_utils.remap_htg_timestamp(ts)
+                    noise_hits["oc"][i], noise_hits["bx"][i], noise_hits["tdc"][i] = oc, bx, tdc
+                    # default values for other things
+                    for k in ["dt", "dd", "muon_id", "hit_lat"]:
+                        noise_hits[k][i] = 0
+                    # map back htg parameters
+                    for k in ["ro_ch", "ch", "fe_id", "conn_id", "ch_id"]:
+                        noise_hits[k][i] = derived_params._dt_inverted_remap_table[sl][ly][wi][k]
+                # store subset of noise hits for this cell
+                noise_hit_list.append(noise_hits)
+    ### merge noise of all cells and previous hits
+    noise_hit_list.append( copy.deepcopy(hits) )
+    hits = data_utils.merge_dataset(split_data=noise_hit_list)
+    ### sort hits by timestamp
+    hits = timestamp_utils.sort_by_timestamp(hits=hits)
+    return hits
+
+### add secondary hits which follow the "real" dt hits
+# physics: delta ray or photo-inization
+# at a given probability, a second hit occurs
+# it will be generated in a uniformly distributed time window which can be specified
+def add_secondary_hits(hits, *, secondary_hit_window, secondary_hit_probability, silent=False):
+    n_hits = data_utils.length(hits)
+    t_sec_min, t_sec_max = secondary_hit_window
+    secondary_hit_list = []
+    for i in tqdm(range(n_hits), disable=silent):
+        sl, ly, wi = hits["sl"][i], hits["ly"][i], hits["wi"][i]
+        primary_ts = hits["ts"][i]
+        # uniform probability sampling if secondary hit should be generated
+        if np.random.uniform(low=0, high=1) < secondary_hit_probability:
+            # uniform probability sampling for timing of secondary hit within window
+            secondary_ts = primary_ts + np.random.uniform(low=t_sec_min, high=t_sec_max)
+            secondary_hit_list.append([sl, ly, wi, secondary_ts])
+    n_secondaries = len(secondary_hit_list)
+    ### generate dt_hits subset object with only noise hits
+    secondary_hits = {k: np.full(n_secondaries, 0, dtype=v) for k,v in params._htg_keys.items()} | {k: np.full(n_secondaries, 0, dtype=v) for k,v in params._dt_mapping_keys.items()} | {k: np.full(n_secondaries, 0, dtype=v) for k,v in params._dt_other_keys.items()} 
+    for i in range(n_secondaries):
+        # copy existing keys
+        secondary_hits["sl"][i] = secondary_hit_list[i][0]
+        secondary_hits["ly"][i] = secondary_hit_list[i][1]
+        secondary_hits["wi"][i] = secondary_hit_list[i][2]
+        ts = secondary_hit_list[i][3]
+        secondary_hits["ts"][i] = ts
+        (oc, bx, tdc) = timestamp_utils.remap_htg_timestamp(ts)
+        secondary_hits["oc"][i], secondary_hits["bx"][i], secondary_hits["tdc"][i] = oc, bx, tdc
+        # default values for other things
+        for k in ["dt", "dd", "muon_id", "hit_lat"]:
+            secondary_hits[k][i] = 0
+        # map back htg parameters
+        for k in ["ro_ch", "ch", "fe_id", "conn_id", "ch_id"]:
+            secondary_hits[k][i] = derived_params._dt_inverted_remap_table[sl][ly][wi][k]
+    ### merge secondary hits of all cells and previous hits
+    merge_list = [hits, secondary_hits]
+    hits = data_utils.merge_dataset(split_data=merge_list)
+    ### sort hits by timestamp
+    hits = timestamp_utils.sort_by_timestamp(hits=hits)
+    return hits
 
 
 
