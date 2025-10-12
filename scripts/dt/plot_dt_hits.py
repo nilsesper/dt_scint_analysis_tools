@@ -38,6 +38,11 @@ def main():
         type     = str,
         help     = "output directory: give argument if plots should be stores, specify output path for plots here",
     )
+    parser.add_argument(
+        "--simulation",
+        action   = "store_true",
+        help     = "print info",
+    )
     # ---
     args = parser.parse_args()
     dt_hits_file = args.dt_hits_file
@@ -47,6 +52,9 @@ def main():
     store_plots = None
     if args.store_plots:
         store_plots = args.store_plots
+    simulation = False
+    if args.simulation:
+        simulation = True
 
     #################
 
@@ -70,6 +78,14 @@ def main():
         "wi": np.arange(0, 100+1),
         "ts": "auto200",
     }
+    if simulation:
+        hist_bins |= {
+            "muon_ts": "auto200",
+            "muon_dt": "auto200",
+            "muon_dd": "auto200",
+            "muon_lat": "auto200",
+            "muon_tan_alpha": "auto200",
+        }
     for k in hist_bins.keys():
         hists, edges, centers, underflow, overflow = hist_utils.calculate_hist(data=dt_hits, key=k, bin_centers=hist_bins[k], silent=True)
         print(f"key \"{k}\": entries={data_utils.length(dt_hits)} underflow={underflow}, overflow={overflow}")
@@ -148,8 +164,9 @@ def main():
                 hist_utils.plot_1hist(hist=rate_hists, centers=centers, xlabel=xlabel, round_digits=round_digits, bin_labels=False, silent=True, store=plotname, show=show_plots, title=f"ro_ch {ro_ch} (rate [Hz])") # scale="log"
     #"""
 
-    #"""
+    """
     #### time difference between hits of same channel
+    print("Plotting time differences between hits of same wire...")
     k = f"delta_ts"
     ch_list = []
     # time difference between hits
@@ -165,7 +182,7 @@ def main():
                     sub_list[k].append( int(dt_hits_cut[f"ts"][i]) - int(dt_hits_cut["ts"][i-1]) )
                 sub_list[k] = np.array(sub_list[k])
                 ch_list.append(sub_list)
-    additional_data = data_utils.merge_dataset(split_data=ch_list)
+    additional_data = data_utils.merge_dataset(split_data=ch_list, silent=True)
 
     # plot
 

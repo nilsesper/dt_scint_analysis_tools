@@ -38,6 +38,11 @@ def main():
         type     = str,
         help     = "output directory: give argument if plots should be stores, specify output path for plots here",
     )
+    parser.add_argument(
+        "--simulation",
+        action   = "store_true",
+        help     = "print info",
+    )
     # ---
     args = parser.parse_args()
     sl_fits_file = args.sl_fits_file
@@ -47,6 +52,9 @@ def main():
     store_plots = None
     if args.store_plots:
         store_plots = args.store_plots
+    simulation = False
+    if args.simulation:
+        simulation = True
 
     #################
 
@@ -56,8 +64,17 @@ def main():
     sl_fits = data_utils.load_pickle(file=sl_fits_file)
     
     # do cut if desired
-    #sl_fits = data_utils.cut_data(data=sl_fits, conditions=[("pat_type","in",[0,1])])
-    #sl_fits = data_utils.cut_data(data=sl_fits, conditions=[("chi2/ndf","<",100), ]) #("sl","==",2)
+    #sl_fits = data_utils.cut_data(data=sl_fits, conditions=[("pat_type","in",[0])])
+    #sl_fits = data_utils.cut_data(data=sl_fits, conditions=[("laterality","in",[1])])
+    sl_fits = data_utils.cut_data(data=sl_fits, conditions=[
+        ("chi2/ndf","<",10),
+        ("x0","<=",21), ("x0",">=",-21),
+        #("tan_alpha","<=",2), ("tan_alpha",">=",-2),
+        ("dt0",">=",0), ("dt0","<=",params._dt_max_drift_time),
+        ("dt1",">=",0), ("dt1","<=",params._dt_max_drift_time),
+        ("dt2",">=",0), ("dt2","<=",params._dt_max_drift_time),
+        ("dt3",">=",0), ("dt3","<=",params._dt_max_drift_time),
+    ])
 
     n_sl_fits = data_utils.length(sl_fits)
 
@@ -76,7 +93,10 @@ def main():
         "x0": "auto200",
         "tan_alpha": "auto200",
         "chi2/ndf": "auto1000", #np.arange(0,1000+1),
-        "theta_proj": "auto200",
+        "dt0": "auto200",
+        "dt1": "auto200",
+        "dt2": "auto200",
+        "dt3": "auto200",
     }
     for k in hist_bins.keys():
         hists, edges, centers, underflow, overflow = hist_utils.calculate_hist(data=sl_fits, key=k, bin_centers=hist_bins[k], silent=True)
@@ -90,6 +110,20 @@ def main():
             plotname = store_plots+f"/sl_fits_{k}.png"
         hist_utils.plot_1hist(hist=hists, centers=centers, xlabel=xlabel, round_digits=round_digits, bin_labels=False, silent=True, store=plotname, show=show_plots) # scale="log"
 
+    ### fitted drift times
+    additional_data = {}
+    k = f"dt"
+    additional_data[k] = np.zeros(n_sl_fits*4)
+    for ly in range(4):
+        for i in range(n_sl_fits):    
+            additional_data[k][i+ly*n_sl_fits] = sl_fits[f"dt{ly}"][i]
+    hist_bins = "auto200"
+    # plot
+    hists, edges, centers, underflow, overflow = hist_utils.calculate_hist(data=additional_data, key=k, bin_centers=hist_bins, silent=True)
+    print(f"key \"{k}\": entries={data_utils.length(additional_data)} underflow={underflow}, overflow={overflow}")
+    xlabel = params._key_symbols[k]+"$(\\text{DT})$"
+    xlabel += " ["+params._key_units[k]+"]" if (params._key_units[k] != "") else ""
+    hist_utils.plot_1hist(hist=hists, centers=centers, xlabel=xlabel, round_digits=round_digits, bin_labels=False, silent=True, store=plotname, show=show_plots) # scale="log"
 
     """
     ### plots of superlayers & layers
@@ -116,20 +150,6 @@ def main():
                 plotname = store_plots+f"/sl_fits_sl{sl}.png"
             hist_utils.plot_1hist(hist=hists, centers=centers, xlabel=xlabel, round_digits=round_digits, bin_labels=False, silent=True, store=plotname, show=show_plots, title=f"sl {sl}") # scale="log"
     #"""
-
-    ### fitted drift times
-    additional_data = {}
-    k = f"td"
-    additional_data[k] = np.zeros(n_sl_fits*4)
-    for ly in range(4):
-        for i in range(n_sl_fits):    
-            additional_data[k][i+ly*n_sl_fits] = int(sl_fits[f"ts{ly}"][i]) - sl_fits[f"t0"][i]
-    hist_bins = np.arange(0,2000) #"auto200"
-    # plot
-    hists, edges, centers, underflow, overflow = hist_utils.calculate_hist(data=additional_data, key=k, bin_centers=hist_bins, silent=True)
-    print(f"key \"{k}\": entries={data_utils.length(additional_data)} underflow={underflow}, overflow={overflow}")
-    xlabel = f"{k} [TU]"
-    hist_utils.plot_1hist(hist=hists, centers=centers, xlabel=xlabel, round_digits=round_digits, bin_labels=False, silent=True, store=plotname, show=show_plots) # scale="log"
 
     """
     ### plots of some sl fits
@@ -177,6 +197,112 @@ def main():
         pattern_count = data_utils.length(sl_patterns_cut)
         pattern_rate = pattern_count / duration
         print(f"sl={sl} sl fit rate: {pattern_rate:.03f} Hz")
+    #"""
+
+
+    #"""
+    if simulation:
+        ### simulation keys
+        print(f"### sl pattern / fit simulation keys")
+        hist_bins = {
+            "muon_ts": "auto200",
+            "muon_lat_id": "step1",
+            "muon_x0": "auto200",
+            "muon_tan_alpha": "auto200",
+            "muon_id": "auto200",
+            "muon_dt0": "auto200",
+            "muon_dt1": "auto200",
+            "muon_dt2": "auto200",
+            "muon_dt3": "auto200",
+        }
+        for k in hist_bins.keys():
+            hists, edges, centers, underflow, overflow = hist_utils.calculate_hist(data=sl_fits, key=k, bin_centers=hist_bins[k], silent=True)
+            print(f"key \"{k}\": entries={data_utils.length(sl_fits)} underflow={underflow}, overflow={overflow}")
+            round_digits = 0 if k in ["ts"] else 2
+            xlabel = params._key_symbols[k]+"$(\\text{DT})$"
+            xlabel += " ["+params._key_units[k]+"]" if (params._key_units[k] != "") else ""
+            plotname = False
+            if store_plots != None:
+                plotname = store_plots+f"/sl_patterns_{k}.png"
+            hist_utils.plot_1hist(hist=hists, centers=centers, xlabel=xlabel, round_digits=round_digits, bin_labels=False, silent=True, store=plotname, show=show_plots) # scale="log"
+        ## simulated muon drift times
+        additional_data = {}
+        k = f"dt"
+        additional_data[k] = np.zeros(n_sl_fits*4)
+        for ly in range(4):
+            for i in range(n_sl_fits):    
+                additional_data[k][i+ly*n_sl_fits] = sl_fits[f"muon_dt{ly}"][i]
+        hist_bins = "auto200"
+        # plot
+        hists, edges, centers, underflow, overflow = hist_utils.calculate_hist(data=additional_data, key=k, bin_centers=hist_bins, silent=True)
+        print(f"key \"{k}\": entries={data_utils.length(additional_data)} underflow={underflow}, overflow={overflow}")
+        xlabel = params._key_symbols[k]+"$(\\text{DT})$"
+        xlabel += " ["+params._key_units[k]+"]" if (params._key_units[k] != "") else ""
+        hist_utils.plot_1hist(hist=hists, centers=centers, xlabel=xlabel, round_digits=round_digits, bin_labels=False, silent=True, store=plotname, show=show_plots) # scale="log"
+
+
+        ### simulation fit difference
+        print(f"### sl fit difference to simulation")
+        additional_data = {}
+        hist_bins = {
+            ("t0", "muon_ts"): "auto200",
+            ("x0", "muon_x0"): "auto200",
+            ("tan_alpha", "muon_tan_alpha"): "auto200",
+        }
+        for k1,k2 in hist_bins.keys():
+            # calculate
+            k = f"{k1} - {k2}"
+            additional_data[k] = np.zeros(n_sl_fits*4)
+            for i in range(n_sl_fits):
+                if k1 == "t0":
+                    additional_data[k][i+ly*n_sl_fits] = int(sl_fits[k1][i]) - int(sl_fits[k2][i])
+                else:
+                    additional_data[k][i+ly*n_sl_fits] = sl_fits[k1][i] - sl_fits[k2][i]
+            # plot
+            hists, edges, centers, underflow, overflow = hist_utils.calculate_hist(data=additional_data, key=k, bin_centers=hist_bins[(k1,k2)], silent=True)
+            print(f"key \"{k}\": entries={data_utils.length(sl_fits)} underflow={underflow}, overflow={overflow}")
+            if len(hists) == 0: continue
+            round_digits = 0 if k in ["ts"] else 2
+            xlabel = k
+            plotname = False
+            if store_plots != None: 
+                plotname = store_plots+f"/sl_fits_{k}.png"
+            hist_utils.plot_1hist(hist=hists, centers=centers, xlabel=xlabel, round_digits=round_digits, bin_labels=False, silent=True, store=plotname, show=show_plots) # scale="log"
+    #"""
+    
+
+    """
+    # meantimer testing
+    additional_data = {}
+
+    # Tmuon = 1/4 T3 + 1/4 T1 + 1/2 T2 - 1/2 tmax
+    k = f"meantimer(123)_t0 - t0_muon"
+    additional_data[k] = 1/4*np.float64(sl_fits[f"ts3"]) + 1/4*np.float64(sl_fits[f"ts1"]) + 1/2*np.float64(sl_fits[f"ts2"]) - 1/2*params._dt_max_drift_time - sl_fits[f"muon_ts"]
+    hist_bins = "auto200"
+    # plot
+    hists, edges, centers, underflow, overflow = hist_utils.calculate_hist(data=additional_data, key=k, bin_centers=hist_bins, silent=True)
+    print(f"key \"{k}\": entries={data_utils.length(sl_fits)} underflow={underflow}, overflow={overflow}")
+    xlabel = f"{k} [TU]"
+    hist_utils.plot_1hist(hist=hists, centers=centers, xlabel=xlabel, round_digits=round_digits, bin_labels=False, silent=True, store=plotname, show=show_plots) # scale="log"
+
+    # Tmuon = 1/4 T2 + 1/4 T0 + 1/2 T1 - 1/2 tmax
+    k = f"meantimer(012)_t0 - t0_muon"
+    additional_data[k] = 1/4*np.float64(sl_fits[f"ts2"]) + 1/4*np.float64(sl_fits[f"ts0"]) + 1/2*np.float64(sl_fits[f"ts1"]) - 1/2*params._dt_max_drift_time - sl_fits[f"muon_ts"]
+    hist_bins = "auto200"
+    # plot
+    hists, edges, centers, underflow, overflow = hist_utils.calculate_hist(data=additional_data, key=k, bin_centers=hist_bins, silent=True)
+    print(f"key \"{k}\": entries={data_utils.length(sl_fits)} underflow={underflow}, overflow={overflow}")
+    xlabel = f"{k} [TU]"
+    hist_utils.plot_1hist(hist=hists, centers=centers, xlabel=xlabel, round_digits=round_digits, bin_labels=False, silent=True, store=plotname, show=show_plots) # scale="log"
+
+    k = f"meantimer(123)_t0 - meantimer(012)_t0"
+    additional_data[k] = ( 1/4*np.float64(sl_fits[f"ts3"]) + 1/4*np.float64(sl_fits[f"ts1"]) + 1/2*np.float64(sl_fits[f"ts2"]) - 1/2*params._dt_max_drift_time ) - ( 1/4*np.float64(sl_fits[f"ts2"]) + 1/4*np.float64(sl_fits[f"ts0"]) + 1/2*np.float64(sl_fits[f"ts1"]) - 1/2*params._dt_max_drift_time )
+    hist_bins = "auto200"
+    # plot
+    hists, edges, centers, underflow, overflow = hist_utils.calculate_hist(data=additional_data, key=k, bin_centers=hist_bins, silent=True)
+    print(f"key \"{k}\": entries={data_utils.length(sl_fits)} underflow={underflow}, overflow={overflow}")
+    xlabel = f"{k} [TU]"
+    hist_utils.plot_1hist(hist=hists, centers=centers, xlabel=xlabel, round_digits=round_digits, bin_labels=False, silent=True, store=plotname, show=show_plots) # scale="log"
     #"""
 
 

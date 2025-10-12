@@ -38,6 +38,11 @@ def main():
         type     = str,
         help     = "output directory: give argument if plots should be stores, specify output path for plots here",
     )
+    parser.add_argument(
+        "--simulation",
+        action   = "store_true",
+        help     = "print info",
+    )
     # ---
     args = parser.parse_args()
     sl_patterns_file = args.sl_patterns_file
@@ -47,6 +52,9 @@ def main():
     store_plots = None
     if args.store_plots:
         store_plots = args.store_plots
+    simulation = False
+    if args.simulation:
+        simulation = True
 
     #################
 
@@ -56,7 +64,7 @@ def main():
     sl_patterns = data_utils.load_pickle(file=sl_patterns_file)
     
     ## cut if desired
-    #sl_patterns = data_utils.cut_data(data=sl_patterns, conditions=[("pat_type","in",[2])])
+    #sl_patterns = data_utils.cut_data(data=sl_patterns, conditions=[("pat_type","in",[0,1]), ])
 
     ### measurement duration
     duration = 0.78e-9 * (np.amax(sl_patterns["ts0"]) - np.amin(sl_patterns["ts0"])) # secs
@@ -69,8 +77,27 @@ def main():
         "pat_type": np.arange(10), # index of string name of pattern (index of key of _dt_sl_patterns)
         "wi3": np.arange(0, 80+1),
         "ts3": "auto200",
-        #"muon_ts": "auto200",
     }
+    if simulation:
+        hist_bins |= {
+            "muon_ts": "auto200",
+            "muon_lat_id": "step1",
+            "muon_x0": "auto200",
+            "muon_tan_alpha": "auto200",
+            "muon_id": "auto200",
+            "muon_dt0": "auto200",
+            "muon_dt1": "auto200",
+            "muon_dt2": "auto200",
+            "muon_dt3": "auto200",
+            "muon_dd0": "auto200",
+            "muon_dd1": "auto200",
+            "muon_dd2": "auto200",
+            "muon_dd3": "auto200",
+            "muon_lat0": "step1",
+            "muon_lat1": "step1",
+            "muon_lat2": "step1",
+            "muon_lat3": "step1",
+        }
     for k in hist_bins.keys():
         if k == "pat_type":
             hists, edges, centers, underflow, overflow = hist_utils.calculate_hist(data=sl_patterns, key=k, bin_centers=hist_bins[k], silent=True)
@@ -93,7 +120,9 @@ def main():
             if store_plots != None:
                 plotname = store_plots+f"/sl_patterns_{k}.png"
             hist_utils.plot_1hist(hist=hists, centers=centers, xlabel=xlabel, round_digits=round_digits, bin_labels=False, silent=True, store=plotname, show=show_plots) # scale="log"
-    # time difference between hits
+
+    """
+    ### time difference between hits
     additional_data = {}
     for wi in [2,1,0]:
         k = f"diff_ts_wi{wi}-wi3"
@@ -107,16 +136,16 @@ def main():
         print(f"key \"{k}\": entries={data_utils.length(sl_patterns)} underflow={underflow}, overflow={overflow}")
         xlabel = f"{k} [TU]"
         hist_utils.plot_1hist(hist=hists, centers=centers, xlabel=xlabel, round_digits=round_digits, bin_labels=False, silent=True, store=plotname, show=show_plots) # scale="log"
-    
+    #"""
+        
+    #"""
     # meantimer testing
     additional_data = {}
     n_sl_patterns = data_utils.length(sl_patterns)
 
-    # t0 = - 1/2*td_max + 1/4*ts3 + 1/4*ts1 + 1/2 ts2
-    k = f"meantimer_t0 - muon_ts"
-    additional_data[k] = np.zeros(n_sl_patterns)
-    for i in range(n_sl_patterns):
-        additional_data[k][i] = 1/4*int(sl_patterns[f"ts3"][i]) + 1/4*int(sl_patterns["ts1"][i]) + 1/2*int(sl_patterns["ts2"][i]) - 1/2*params._dt_max_drift_time - int(sl_patterns["muon_ts"][i])
+    # Tmuon = 1/4 T3 + 1/4 T1 + 1/2 T2 - 1/2 tmax
+    k = f"meantimer(123)_t0"
+    additional_data[k] = 1/4*np.float64(sl_patterns[f"ts3"]) + 1/4*np.float64(sl_patterns[f"ts1"]) + 1/2*np.float64(sl_patterns[f"ts2"]) - 1/2*params._dt_max_drift_time
     hist_bins = "auto200"
     # plot
     hists, edges, centers, underflow, overflow = hist_utils.calculate_hist(data=additional_data, key=k, bin_centers=hist_bins, silent=True)
@@ -124,12 +153,9 @@ def main():
     xlabel = f"{k} [TU]"
     hist_utils.plot_1hist(hist=hists, centers=centers, xlabel=xlabel, round_digits=round_digits, bin_labels=False, silent=True, store=plotname, show=show_plots) # scale="log"
     
-    # tan(alpha) = (ts1 - ts3) * vd / (2*h_cell)
-    k = f"meantimer_tan_alpha"
-    additional_data[k] = np.zeros(n_sl_patterns)
-    for i in range(n_sl_patterns):
-        additional_data[k][i] = (int(sl_patterns[f"ts1"][i]) - int(sl_patterns[f"ts3"][i]))*0.78e-9 * params._drift_velocity*1e3 / (2*params._cell_height*1e-3) #- int(sl_patterns[f"tan_alpha"][i])
-    print(additional_data[k])
+    # Tmuon = 1/4 T2 + 1/4 T0 + 1/2 T1 - 1/2 tmax
+    k = f"meantimer(012)_t0"
+    additional_data[k] = 1/4*np.float64(sl_patterns[f"ts2"]) + 1/4*np.float64(sl_patterns[f"ts0"]) + 1/2*np.float64(sl_patterns[f"ts1"]) - 1/2*params._dt_max_drift_time
     hist_bins = "auto200"
     # plot
     hists, edges, centers, underflow, overflow = hist_utils.calculate_hist(data=additional_data, key=k, bin_centers=hist_bins, silent=True)
@@ -137,7 +163,57 @@ def main():
     xlabel = f"{k} [TU]"
     hist_utils.plot_1hist(hist=hists, centers=centers, xlabel=xlabel, round_digits=round_digits, bin_labels=False, silent=True, store=plotname, show=show_plots) # scale="log"
 
+    # difference between Tmuon meantimers
+    k = f"meantimer(123)_t0 - meantimer(012)_t0"
+    additional_data[k] = additional_data["meantimer(123)_t0"] - additional_data["meantimer(012)_t0"]
+    hist_bins = "auto200"
+    # plot
+    hists, edges, centers, underflow, overflow = hist_utils.calculate_hist(data=additional_data, key=k, bin_centers=hist_bins, silent=True)
+    print(f"key \"{k}\": entries={data_utils.length(sl_patterns)} underflow={underflow}, overflow={overflow}")
+    xlabel = f"{k} [TU]"
+    hist_utils.plot_1hist(hist=hists, centers=centers, xlabel=xlabel, round_digits=round_digits, bin_labels=False, silent=True, store=plotname, show=show_plots) # scale="log"
 
+    # tan(alpha) = (T1 – T3) vd / 2h
+    k = f"meantimer(13)_tan_alpha"
+    additional_data[k] = (np.float64(sl_patterns[f"ts1"]) - np.float64(sl_patterns[f"ts3"]))*0.78e-9 * params._drift_velocity*1e3 / (2*params._cell_height*1e-3) #- int(sl_patterns[f"tan_alpha"][i])
+    hist_bins = "auto200"
+    # plot
+    hists, edges, centers, underflow, overflow = hist_utils.calculate_hist(data=additional_data, key=k, bin_centers=hist_bins, silent=True)
+    print(f"key \"{k}\": entries={data_utils.length(sl_patterns)} underflow={underflow}, overflow={overflow}")
+    xlabel = f"{k} [TU]"
+    hist_utils.plot_1hist(hist=hists, centers=centers, xlabel=xlabel, round_digits=round_digits, bin_labels=False, silent=True, store=plotname, show=show_plots) # scale="log"
+
+    # tan(alpha) = (T0 – T2) vd / 2h
+    k = f"meantimer(02)_tan_alpha"
+    additional_data[k] = (np.float64(sl_patterns[f"ts0"]) - np.float64(sl_patterns[f"ts2"]))*0.78e-9 * params._drift_velocity*1e3 / (2*params._cell_height*1e-3)
+    hist_bins = "auto200"
+    # plot
+    hists, edges, centers, underflow, overflow = hist_utils.calculate_hist(data=additional_data, key=k, bin_centers=hist_bins, silent=True)
+    print(f"key \"{k}\": entries={data_utils.length(sl_patterns)} underflow={underflow}, overflow={overflow}")
+    xlabel = f"{k} [TU]"
+    hist_utils.plot_1hist(hist=hists, centers=centers, xlabel=xlabel, round_digits=round_digits, bin_labels=False, silent=True, store=plotname, show=show_plots) # scale="log"
+
+    # difference between tan_alpha meantimers
+    k = f"meantimer(13)_tan_alpha - meantimer(02)_tan_alpha"
+    additional_data[k] = additional_data["meantimer(13)_tan_alpha"] - additional_data["meantimer(02)_tan_alpha"]
+    hist_bins = "auto200"
+    # plot
+    hists, edges, centers, underflow, overflow = hist_utils.calculate_hist(data=additional_data, key=k, bin_centers=hist_bins, silent=True)
+    print(f"key \"{k}\": entries={data_utils.length(sl_patterns)} underflow={underflow}, overflow={overflow}")
+    xlabel = f"{k} [TU]"
+    hist_utils.plot_1hist(hist=hists, centers=centers, xlabel=xlabel, round_digits=round_digits, bin_labels=False, silent=True, store=plotname, show=show_plots) # scale="log"
+
+    # x0 = (T3 – Tmuon) vd sgn(alpha)
+    k = f"meantimer(3)_x0"
+    additional_data[k] = (np.float64(sl_patterns[f"ts3"]) - additional_data[f"meantimer(123)_t0"])*0.78e-9 * params._drift_velocity*1e3 * np.sign(additional_data[f"meantimer(13)_tan_alpha"]) *1e3
+    hist_bins = "auto200"
+    # plot
+    hists, edges, centers, underflow, overflow = hist_utils.calculate_hist(data=additional_data, key=k, bin_centers=hist_bins, silent=True)
+    print(f"key \"{k}\": entries={data_utils.length(sl_patterns)} underflow={underflow}, overflow={overflow}")
+    xlabel = f"{k} [TU]"
+    hist_utils.plot_1hist(hist=hists, centers=centers, xlabel=xlabel, round_digits=round_digits, bin_labels=False, silent=True, store=plotname, show=show_plots) # scale="log"
+    #"""
+    
     
     """
     ### plots of superlayers

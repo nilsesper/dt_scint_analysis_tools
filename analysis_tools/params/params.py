@@ -81,10 +81,11 @@ _dt_mapping_keys = { # {key: dtype}
 _dt_other_keys = {
     "ts": _ts_type,
     "muon_ts": _ts_type,
-    "dt": np.uint16, # drift time (in ts units)
-    "dd": np.float64, # drift distance (in mm)
+    "muon_dt": np.float64, # drift time (in ts units)
+    "muon_dd": np.float64, # drift distance (in mm)
     "muon_id": np.uint64, # id / idx of correlated muon
-    "hit_lat": np.int8, # hit laterality -1 (l) left of wire, +1 (r) right of wire
+    "muon_lat": np.int8, # hit laterality -1 (l) left of wire, +1 (r) right of wire
+    "muon_tan_alpha": np.float64, # simulated correlated muon tan_alpha
 }
 
 ### dt hit patterns per superlayer
@@ -250,20 +251,73 @@ _sl_pattern_keys = { # {key: dtype}
     "wi2": np.uint8, # wire index of ly 0 wire of pattern
     "ts3": _ts_type, # timestamp of ly 3 wire of pattern
     "wi3": np.uint8, # wire index of ly 0 wire of pattern
-    "muon_ts": _ts_type, # timestamp of simulated correlated muon
-    #"muon_x0": np.float64, # x0 of simulated correlated muon
-    #"muon_tan_alpha": np.float64, # tan_alpha of simulated correlated muon
+    # simulation keys
+    "muon_ts": _ts_type, # ts of correlated muon
+    "muon_dt0": np.float64, # drift time (in ts units) for sim muon hit in ly 0
+    "muon_dt1": np.float64, # drift time (in ts units) for sim muon hit in ly 1
+    "muon_dt2": np.float64, # drift time (in ts units) for sim muon hit in ly 2
+    "muon_dt3": np.float64, # drift time (in ts units) for sim muon hit in ly 3
+    "muon_dd0": np.float64, # drift distance (in mm) for sim muon hit in ly 0
+    "muon_dd1": np.float64, # drift distance (in mm) for sim muon hit in ly 1
+    "muon_dd2": np.float64, # drift distance (in mm) for sim muon hit in ly 2
+    "muon_dd3": np.float64, # drift distance (in mm) for sim muon hit in ly 3
     "muon_id": np.uint64, # id / idx of correlated muon
+    "muon_lat0": np.int8, # lat of correlated muon hit in ly0
+    "muon_lat1": np.int8, # lat of correlated muon hit in ly1
+    "muon_lat2": np.int8, # lat of correlated muon hit in ly2
+    "muon_lat3": np.int8, # lat of correlated muon hit in ly3
+    "muon_lat_id": np.int8, # hit laterality -1 (l) left of wire, +1 (r) right of wire
+    "muon_tan_alpha": np.float64, # simulated correlated muon tan_alpha
+    "muon_x0": np.float64, # simulated correlated muon x0
 }
 
 # sl fit keys (fit list also also keeps sl_pattern_keys)
 _sl_fit_keys = { # {key: dtype}
+    # best fit
     "laterality": np.uint8, # idx of selected laterality [] in _dt_sl_patterns 
     "t0": np.uint64, # t0 fit param
     "x0": np.float64, # x0 fit param
     "tan_alpha": np.float64, # tan(alpha) fit param
     "chi2/ndf": np.float64, # reduced chi2 value
-    "theta_proj": np.float64, # "projected" theta angle from tan_alpha (just for first checks, not used in further analysis)
+    "dt0": np.float64, # estimated drift time t0-ts for ly0
+    "dt1": np.float64, # estimated drift time t0-ts for ly1
+    "dt2": np.float64, # estimated drift time t0-ts for ly2
+    "dt3": np.float64, # estimated drift time t0-ts for ly3
+} # sl fits also have pattern keys already i.e. "muon_XXX" keys
+_sl_fit_other_keys = {
+    # other laterality fits
+    "lat0_t0": np.uint64, # t0 fit param for laterality index 0
+    "lat0_x0": np.float64, # x0 fit param for laterality index 0
+    "lat0_tan_alpha": np.float64, # tan(alpha) fit param for laterality index 0
+    "lat0_chi2/ndf": np.float64, # reduced chi2 value for laterality index 0
+    "lat0_dt0": np.uint64, # estimated drift time for ly0 for laterality index 0
+    "lat0_dt1": np.uint64, # estimated drift time for ly1 for laterality index 0
+    "lat0_dt2": np.uint64, # estimated drift time for ly2 for laterality index 0
+    "lat0_dt3": np.uint64, # estimated drift time for ly3 for laterality index 0
+    "lat1_t0": np.uint64, # t0 fit param for laterality index 1
+    "lat1_x0": np.float64, # x0 fit param for laterality index 1
+    "lat1_tan_alpha": np.float64, # tan(alpha) fit param for laterality index 1
+    "lat1_chi2/ndf": np.float64, # reduced chi2 value for laterality index 1
+    "lat1_dt0": np.uint64, # estimated drift time for ly0 for laterality index 1
+    "lat1_dt1": np.uint64, # estimated drift time for ly1 for laterality index 1
+    "lat1_dt2": np.uint64, # estimated drift time for ly2 for laterality index 1
+    "lat1_dt3": np.uint64, # estimated drift time for ly3 for laterality index 1
+    "lat2_t0": np.uint64, # t0 fit param for laterality index 2
+    "lat2_x0": np.float64, # x0 fit param for laterality index 2
+    "lat2_tan_alpha": np.float64, # tan(alpha) fit param for laterality index 2
+    "lat2_chi2/ndf": np.float64, # reduced chi2 value for laterality index 2
+    "lat2_dt0": np.uint64, # estimated drift time for ly0 for laterality index 2
+    "lat2_dt1": np.uint64, # estimated drift time for ly1 for laterality index 2
+    "lat2_dt2": np.uint64, # estimated drift time for ly2 for laterality index 2
+    "lat2_dt3": np.uint64, # estimated drift time for ly3 for laterality index 2
+    "lat3_t0": np.uint64, # t0 fit param for laterality index 3
+    "lat3_x0": np.float64, # x0 fit param for laterality index 3
+    "lat3_tan_alpha": np.float64, # tan(alpha) fit param for laterality index 3
+    "lat3_chi2/ndf": np.float64, # reduced chi2 value for laterality index 3
+    "lat3_dt0": np.uint64, # estimated drift time for ly0 for laterality index 3
+    "lat3_dt1": np.uint64, # estimated drift time for ly1 for laterality index 3
+    "lat3_dt2": np.uint64, # estimated drift time for ly2 for laterality index 3
+    "lat3_dt3": np.uint64, # estimated drift time for ly3 for laterality index 3
 }
 
 ## when reconstructing hits
@@ -275,15 +329,15 @@ _dt_cell_width = 42 # mm
 # --- dt
 # apply dead time for all channels individually (if value > 0)
 _dt_ts_individual_dead_time = 0 #600 #600 #1250 #800 #0 # in ts units
-# timestamp window in which hits of sl must lie in order to be counted as pattern
-_dt_sl_patterns_ts_window = 520 #int(400 / 0.78) # in same unit as timestamp (0.78 ns)
 # acceptance interval for dt sl pattern grouping
 _t0_acceptance_interval = 100 # max temporal distance of t0 values of dt sl pattern fits that should be grouped together, in ts units
 _xproj_acceptance_interval = 50 # max spatial distance of 2 phi muon sl fits along the x axis, when projecting one to the other sl (delta_z(1-2) = z(sl=3.ly=3.wi=wi3_1) - z(sl=3.ly=3.wi=wi3_2)), in mm
 _dt_max_drift_time = int((_dt_cell_width*1e-3/2) / (_drift_velocity*1e3) / 0.78e-9) # max drift time measured from time of muon arrival t0 in the sl pattern fit
 _dt_t0_tolerance = 10 # tolerance which the muon arrival time t0 should take in the sl pattern fit, between ts_min of 4 hits in superlayer & ts_min+_dt_max_drift_time
-_dt_tan_alpha_range = [-100, 100] # allowed range of tan alpha sl pattern fit parameter
+_dt_tan_alpha_range = [-np.inf, np.inf] # allowed range of tan alpha sl pattern fit parameter
 _err_ts = 5 #1 # error of timestamps for fitting (in ts_units)
+# timestamp window in which hits of sl must lie in order to be counted as pattern
+_dt_sl_patterns_ts_window = _dt_max_drift_time #int(400 / 0.78) # in same unit as timestamp (0.78 ns)
 
 # --- scint
 # acceptance interval for scintillator hits (2 sipm coincidence of strips) -> muon areas (2 strip coincidence) grouping
@@ -493,6 +547,31 @@ _key_symbols = {
     "wi3": "Wire, Layer 3",
     "ts3": "$T_\\text{Wire, Layer 3}$",
     "muon_ts": "$T_\\text{muon}$",
+    "muon_dt": "$t_\\text{d,muon}$",
+    "muon_dd": "$x_\\text{d,muon}$",
+    "muon_lat": "$\\text{Laterality}_\\text{muon}$",
+    "muon_x0": "$x0_\\text{muon}$",
+    "muon_tan_alpha": "$\\text{tan}\\alpha_\\text{muon}$",
+    "muon_ts": "$T_\\text{0, muon}$",
+    "muon_dt0": "$t_\\text{drift, ly 0, muon}$",
+    "muon_dt1": "$t_\\text{drift, ly 1, muon}$",
+    "muon_dt2": "$t_\\text{drift, ly 2, muon}$",
+    "muon_dt3": "$t_\\text{drift, ly 3, muon}$",
+    "muon_dd0": "$x_\\text{drift, ly 0, muon}$",
+    "muon_dd1": "$x_\\text{drift, ly 1, muon}$",
+    "muon_dd2": "$x_\\text{drift, ly 2, muon}$",
+    "muon_dd3": "$x_\\text{drift, ly 3, muon}$",
+    "muon_id": "Muon ID",
+    "muon_lat0": "Laterality hit$_\\text{ly 0, muon}$",
+    "muon_lat1": "Laterality hit$_\\text{ly 1, muon}$",
+    "muon_lat2": "Laterality hit$_\\text{ly 2, muon}$",
+    "muon_lat3": "Laterality hit$_\\text{ly 3, muon}$",
+    "muon_lat_id": "Pattern laterality$_\\text{muon}$",
+    "dt": "$t_\\text{drift}$",
+    "dt0": "$t_\\text{drift, ly 0}$",
+    "dt1": "$t_\\text{drift, ly 1}$",
+    "dt2": "$t_\\text{drift, ly 2}$",
+    "dt3": "$t_\\text{drift, ly 3}$",
 }
 _key_units = {
     "x0": "mm",
@@ -538,6 +617,36 @@ _key_units = {
     "wi3": "",
     "ts3": "TU",
     "muon_ts": "TU",
+    "muon_dt": "TU",
+    "muon_dd": "mm",
+    "muon_lat": "",
+    "muon_x0": "mm",
+    "muon_tan_alpha": "rad",
+    "muon_dt": "TU",
+    "muon_dd": "mm",
+    "muon_lat": "",
+    "muon_x0": "mm",
+    "muon_tan_alpha": "rad",
+    "muon_ts": "TU",
+    "muon_dt0": "TU",
+    "muon_dt1": "TU",
+    "muon_dt2": "TU",
+    "muon_dt3": "TU",
+    "muon_dd0": "mm",
+    "muon_dd1": "mm",
+    "muon_dd2": "mm",
+    "muon_dd3": "mm",
+    "muon_id": "Muon ID",
+    "muon_lat0": "",
+    "muon_lat1": "",
+    "muon_lat2": "",
+    "muon_lat3": "",
+    "muon_lat_id": "",
+    "dt": "TU",
+    "dt0": "TU",
+    "dt1": "TU",
+    "dt2": "TU",
+    "dt3": "TU",
 }
 
 ###############################
@@ -566,7 +675,7 @@ _dt_chamber = {
             "pos": (1.8, 0., 0.), # corner with smallest coordinates of this sl, *RELATIVE TO* base point of chamber point with smallest coordinates
             "ch_pos": (22.9, 86., 0.), # corner with smallest coordinates of first cell (ly=0,wi=0), *RELATIVE TO* sl point with smallest coordinates
             "ch_spacer": (_cell_w_spacer, _cell_w_spacer, _cell_h_spacer), # size of spacer between layers/chambers
-            "ch_size": (_cell_width, 2341., _cell_height), # size of cell
+            "ch_size": (_cell_width, 2379., _cell_height), # size of cell  # #2379 #2341
             "ch_offset": (_cell_offset, 0., 0.), # offset of cell between alternating layers
             "wi_radius": _cell_wire_radius, # wire radius to be displayed (much larger than real wire radius)
             "wi_linewidth": _cell_wire_width, # linewidth of side view of wire
@@ -580,7 +689,7 @@ _dt_chamber = {
             "pos": (0, 25.3, 181.5),
             "ch_pos": (86., 24.6, 0.),
             "ch_spacer": (_cell_w_spacer, _cell_w_spacer, _cell_h_spacer), # (0., _cell_w_spacer, _cell_h_spacer),
-            "ch_size": (2000., _cell_width, _cell_height),
+            "ch_size": (2038., _cell_width, _cell_height), # #2000 #2038
             "ch_offset": (0., _cell_offset, 0.),
             "wi_radius": _cell_wire_radius,
             "wi_linewidth": _cell_wire_width,
@@ -594,7 +703,7 @@ _dt_chamber = {
             "pos": (21.0-1.8, 0., 235.),
             "ch_pos": (22.9, 86., 0.),
             "ch_spacer": (_cell_w_spacer, _cell_w_spacer, _cell_h_spacer), # (_cell_w_spacer, 0., _cell_h_spacer)
-            "ch_size": (_cell_width, 2341., _cell_height),
+            "ch_size": (_cell_width, 2379., _cell_height), # #2379 #2341
             "ch_offset": (_cell_offset, 0., 0.),
             "wi_radius": _cell_wire_radius,
             "wi_linewidth": _cell_wire_width,

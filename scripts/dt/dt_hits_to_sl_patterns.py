@@ -44,6 +44,11 @@ def main():
         action   = "store_true",
         help     = "print info",
     )
+    parser.add_argument(
+        "--simulation_only_muon_patterns",
+        action   = "store_true",
+        help     = "print info",
+    )
     # ---
     args = parser.parse_args()
     dt_hits_file = args.dt_hits_file
@@ -51,6 +56,9 @@ def main():
     verbose = False
     if args.verbose:
         verbose = True
+    simulation_only_muon_patterns = False
+    if args.simulation_only_muon_patterns:
+        simulation_only_muon_patterns = True
 
     #################
 
@@ -72,9 +80,9 @@ def main():
     # apply clustering algorithm
     print(f"### DT hit clustering for each superlayer...")
     if do_multiprocessing:
-        sl_patterns = process_utils.multiprocess_data(n_processes=n_processes, n_batches=n_batches_clustering, function=dt_utils.find_sl_patterns, data=dt_hits, data_key="hits", kwargs={"verbose": verbose}, mute=True)
+        sl_patterns = process_utils.multiprocess_data(n_processes=n_processes, n_batches=n_batches_clustering, function=dt_utils.find_sl_patterns, data=dt_hits, data_key="hits", kwargs={"verbose": verbose, "simulation_only_muon_patterns": simulation_only_muon_patterns}, mute=True)
     else:
-        sl_patterns = dt_utils.find_sl_patterns(hits=dt_hits, verbose=verbose)
+        sl_patterns = dt_utils.find_sl_patterns(hits=dt_hits, verbose=verbose, simulation_only_muon_patterns=simulation_only_muon_patterns)
     # sort by ts3 (reference timestamp)
     sl_patterns = data_utils.sort_by_key(data=sl_patterns, sort_key="ts3")
     print("sl_patterns =",sl_patterns)
