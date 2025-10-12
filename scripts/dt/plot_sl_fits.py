@@ -67,13 +67,13 @@ def main():
     #sl_fits = data_utils.cut_data(data=sl_fits, conditions=[("pat_type","in",[0])])
     #sl_fits = data_utils.cut_data(data=sl_fits, conditions=[("laterality","in",[1])])
     sl_fits = data_utils.cut_data(data=sl_fits, conditions=[
-        ("chi2/ndf","<",10),
-        ("x0","<=",21), ("x0",">=",-21),
+        #("chi2/ndf","<",10),
+        #("x0","<=",21), ("x0",">=",-21),
         #("tan_alpha","<=",2), ("tan_alpha",">=",-2),
-        ("dt0",">=",0), ("dt0","<=",params._dt_max_drift_time),
-        ("dt1",">=",0), ("dt1","<=",params._dt_max_drift_time),
-        ("dt2",">=",0), ("dt2","<=",params._dt_max_drift_time),
-        ("dt3",">=",0), ("dt3","<=",params._dt_max_drift_time),
+        #("dt0",">=",0), ("dt0","<=",params._dt_max_drift_time),
+        #("dt1",">=",0), ("dt1","<=",params._dt_max_drift_time),
+        #("dt2",">=",0), ("dt2","<=",params._dt_max_drift_time),
+        #("dt3",">=",0), ("dt3","<=",params._dt_max_drift_time),
     ])
 
     n_sl_fits = data_utils.length(sl_fits)
@@ -109,6 +109,23 @@ def main():
         if store_plots != None:
             plotname = store_plots+f"/sl_fits_{k}.png"
         hist_utils.plot_1hist(hist=hists, centers=centers, xlabel=xlabel, round_digits=round_digits, bin_labels=False, silent=True, store=plotname, show=show_plots) # scale="log"
+
+        if k == "tan_alpha": # plot theta proj
+            k2 = "theta_proj"
+            hist_bins_2 = {
+                "theta_proj": "auto200",
+            }
+            sl_fits[k2] = np.arctan(sl_fits["tan_alpha"])
+            hists, edges, centers, underflow, overflow = hist_utils.calculate_hist(data=sl_fits, key=k2, bin_centers=hist_bins_2[k2], silent=True)
+            print(f"key \"{k2}\": entries={data_utils.length(sl_fits)} underflow={underflow}, overflow={overflow}")
+            if len(hists) == 0: continue
+            round_digits = 0 if k2 in ["ts"] else 2
+            xlabel = params._key_symbols[k2]+"$(\\text{DT})$"
+            xlabel += " ["+params._key_units[k2]+"]" if (params._key_units[k2] != "") else ""
+            plotname = False
+            if store_plots != None:
+                plotname = store_plots+f"/sl_fits_{k2}.png"
+            hist_utils.plot_1hist(hist=hists, centers=centers, xlabel=xlabel, round_digits=round_digits, bin_labels=False, silent=True, store=plotname, show=show_plots) # scale="log"
 
     ### fitted drift times
     additional_data = {}
@@ -304,6 +321,29 @@ def main():
     xlabel = f"{k} [TU]"
     hist_utils.plot_1hist(hist=hists, centers=centers, xlabel=xlabel, round_digits=round_digits, bin_labels=False, silent=True, store=plotname, show=show_plots) # scale="log"
     #"""
+
+    #"""
+    #### time difference between sl fits
+    additional_data = {}
+    print("Plotting time differences between sl fits...")
+    k = f"delta_t0"
+    additional_data[k] = np.zeros(n_sl_fits)
+    for i in range(1,n_sl_fits):
+        additional_data[k][i] = int(sl_fits[f"t0"][i]) - int(sl_fits["t0"][i-1]) 
+    # plot
+    hist_bins = np.linspace(0,1e3,500) #"auto500" 
+    hists, edges, centers, underflow, overflow = hist_utils.calculate_hist(data=additional_data, key=k, bin_centers=hist_bins, silent=True)
+    print(f"key \"{k}\": entries={data_utils.length(additional_data)} underflow={underflow}, overflow={overflow}")
+    xlabel = f"delta_t0 [TU]"
+    hist_utils.plot_1hist(hist=hists, centers=centers, xlabel=xlabel, round_digits=round_digits, bin_labels=False, silent=True, store=plotname, show=show_plots, title=f"", scale="log") # scale="log"
+    # plot
+    hist_bins = "auto500" #np.linspace(0,1e6,500) #"auto500" 
+    hists, edges, centers, underflow, overflow = hist_utils.calculate_hist(data=additional_data, key=k, bin_centers=hist_bins, silent=True)
+    print(f"key \"{k}\": entries={data_utils.length(additional_data)} underflow={underflow}, overflow={overflow}")
+    xlabel = f"delta_t0 [TU]"
+    hist_utils.plot_1hist(hist=hists, centers=centers, xlabel=xlabel, round_digits=round_digits, bin_labels=False, silent=True, store=plotname, show=show_plots, title=f"", scale="log") # scale="log"
+    #"""
+
 
 
     input("Press enter to exit.")

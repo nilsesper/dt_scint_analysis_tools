@@ -33,6 +33,11 @@ def main():
         type     = str,
         help     = "output file path: sl patterns (pcl file)",
     )
+    parser.add_argument(
+        "--dt_tp_corrections_file",
+        type     = str,
+        help     = "[optional] file path to timing correction file from tp run (pcl file)",
+    )
     ###
     parser.add_argument(
         "--sl_cut",
@@ -59,6 +64,10 @@ def main():
     simulation_only_muon_patterns = False
     if args.simulation_only_muon_patterns:
         simulation_only_muon_patterns = True
+    do_timing_correction = False
+    if args.dt_tp_corrections_file:
+        do_timing_correction = True
+        dt_tp_corrections_file = args.dt_tp_corrections_file
 
     #################
 
@@ -70,11 +79,20 @@ def main():
     ### data import
     print(f"###### Importing dt hits...")
     dt_hits = data_utils.load_pickle(file=dt_hits_file)
+    if do_timing_correction:
+        dt_tp_corrections = data_utils.load_pickle(file=dt_tp_corrections_file)
 
     ### optional data cut
     if args.sl_cut:
         print(f"### Applying data cut to SL = {args.sl_cut}...")
         dt_hits = data_utils.cut_data(data=dt_hits, conditions=[("sl","==",int(args.sl_cut))])
+
+    ### optionally apply timing corrections
+    if do_timing_correction:
+        print(f"### Applying timing correction from file \"{dt_tp_corrections_file}\"...")
+        dt_hits = dt_utils.apply_timing_calibration(hits=dt_hits, dt_tp_corrections=dt_tp_corrections)
+
+    print("dt_hits =",dt_hits)
 
     ### dt reco
     # apply clustering algorithm

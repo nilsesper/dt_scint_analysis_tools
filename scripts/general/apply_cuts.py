@@ -28,38 +28,43 @@ def main():
         help     = "input file path: data to be sliced (pcl file)",
     )
     parser.add_argument(
-        "--sliced_data_file",
+        "--cut_data_file",
         type     = str,
-        help     = "output file path: sliced data subset (pcl file)",
+        help     = "output file path: cut data subset (pcl file)",
     )
     parser.add_argument(
-        "--slice_index",
+        "--cuts",
         type     = str,
-        help     = "indices to slice from input data in format \"min_idx:max_idx\"",
+        help     = "cuts to apply to data in format \"key1,operator1,value1;key2,operator2,value;...\"",
     )
     # ---
     args = parser.parse_args()
     input_data_file = args.input_data_file
-    sliced_data_file = args.sliced_data_file
-    slice_index = np.int64(np.array(args.slice_index.split(":")))
+    cut_data_file = args.cut_data_file
+    cuts_list = []
+    for cuts_str in args.cuts.split(";"):
+        key, operator, value = cuts_str.split(",")
+        if "params." in value:
+            value = getattr(params, value.split("params.")[1])
+        else:
+            value = float(value)
+        cuts_list.append((key, operator, value))
 
     #################
 
     ### data import
     print(f"###### Importing data from \"{input_data_file}\"...")
     input_data = data_utils.load_pickle(file=input_data_file)
-    print("input_data =",input_data)
+    #print("input_data =",input_data)
 
-    ### slice data
-    print(f"###### Slicing data to indices slice_index...")
-    sliced_data = copy.deepcopy(input_data)
-    for k in input_data.keys():
-        sliced_data[k] = sliced_data[k][slice_index[0] : slice_index[1]+1]
-    print("sliced_data =",sliced_data)
+    ### cut data
+    print(f"###### Applying data cuts: {cuts_list}...")
+    cut_data = data_utils.cut_data(data=input_data, conditions=cuts_list)
+    #print("cut_data =",cut_data)
 
     ### store to pcl file
-    print(f"###### Storing sliced data to file \"{sliced_data_file}\"...")
-    data_utils.store_pickle(data=sliced_data, file=sliced_data_file)
+    print(f"###### Storing sliced data to file \"{cut_data_file}\"...")
+    data_utils.store_pickle(data=cut_data, file=cut_data_file)
 
 
 

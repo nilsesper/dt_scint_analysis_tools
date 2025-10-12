@@ -80,12 +80,19 @@ _dt_mapping_keys = { # {key: dtype}
 }
 _dt_other_keys = {
     "ts": _ts_type,
+    # simulation keys
     "muon_ts": _ts_type,
     "muon_dt": np.float64, # drift time (in ts units)
     "muon_dd": np.float64, # drift distance (in mm)
     "muon_id": np.uint64, # id / idx of correlated muon
     "muon_lat": np.int8, # hit laterality -1 (l) left of wire, +1 (r) right of wire
     "muon_tan_alpha": np.float64, # simulated correlated muon tan_alpha
+    # simulation muon keys
+    "muon_x0": np.float64, # reference point (x0,y0,z0), in mm - of sim muon
+    "muon_y0": np.float64, # of sim muon
+    "muon_z0": np.float64, # of sim muon
+    "muon_theta": np.float64, # theta angle (angle relative to z axis), in rad - of sim muon
+    "muon_phi": np.float64, # phi angle (angle relative to x axis, between x and y axis), in rad - of sim muon
 }
 
 ### dt hit patterns per superlayer
@@ -269,13 +276,19 @@ _sl_pattern_keys = { # {key: dtype}
     "muon_lat_id": np.int8, # hit laterality -1 (l) left of wire, +1 (r) right of wire
     "muon_tan_alpha": np.float64, # simulated correlated muon tan_alpha
     "muon_x0": np.float64, # simulated correlated muon x0
+    # simulation muon keys
+    "muon_x0": np.float64, # reference point (x0,y0,z0), in mm - of sim muon
+    "muon_y0": np.float64, # of sim muon
+    "muon_z0": np.float64, # of sim muon
+    "muon_theta": np.float64, # theta angle (angle relative to z axis), in rad - of sim muon
+    "muon_phi": np.float64, # phi angle (angle relative to x axis, between x and y axis), in rad - of sim muon
 }
 
 # sl fit keys (fit list also also keeps sl_pattern_keys)
 _sl_fit_keys = { # {key: dtype}
     # best fit
     "laterality": np.uint8, # idx of selected laterality [] in _dt_sl_patterns 
-    "t0": np.uint64, # t0 fit param
+    "t0": np.float64, # t0 fit param
     "x0": np.float64, # x0 fit param
     "tan_alpha": np.float64, # tan(alpha) fit param
     "chi2/ndf": np.float64, # reduced chi2 value
@@ -286,38 +299,38 @@ _sl_fit_keys = { # {key: dtype}
 } # sl fits also have pattern keys already i.e. "muon_XXX" keys
 _sl_fit_other_keys = {
     # other laterality fits
-    "lat0_t0": np.uint64, # t0 fit param for laterality index 0
+    "lat0_t0": np.float64, # t0 fit param for laterality index 0
     "lat0_x0": np.float64, # x0 fit param for laterality index 0
     "lat0_tan_alpha": np.float64, # tan(alpha) fit param for laterality index 0
     "lat0_chi2/ndf": np.float64, # reduced chi2 value for laterality index 0
-    "lat0_dt0": np.uint64, # estimated drift time for ly0 for laterality index 0
-    "lat0_dt1": np.uint64, # estimated drift time for ly1 for laterality index 0
-    "lat0_dt2": np.uint64, # estimated drift time for ly2 for laterality index 0
-    "lat0_dt3": np.uint64, # estimated drift time for ly3 for laterality index 0
-    "lat1_t0": np.uint64, # t0 fit param for laterality index 1
+    "lat0_dt0": np.float64, # estimated drift time for ly0 for laterality index 0
+    "lat0_dt1": np.float64, # estimated drift time for ly1 for laterality index 0
+    "lat0_dt2": np.float64, # estimated drift time for ly2 for laterality index 0
+    "lat0_dt3": np.float64, # estimated drift time for ly3 for laterality index 0
+    "lat1_t0": np.float64, # t0 fit param for laterality index 1
     "lat1_x0": np.float64, # x0 fit param for laterality index 1
     "lat1_tan_alpha": np.float64, # tan(alpha) fit param for laterality index 1
     "lat1_chi2/ndf": np.float64, # reduced chi2 value for laterality index 1
-    "lat1_dt0": np.uint64, # estimated drift time for ly0 for laterality index 1
-    "lat1_dt1": np.uint64, # estimated drift time for ly1 for laterality index 1
-    "lat1_dt2": np.uint64, # estimated drift time for ly2 for laterality index 1
-    "lat1_dt3": np.uint64, # estimated drift time for ly3 for laterality index 1
-    "lat2_t0": np.uint64, # t0 fit param for laterality index 2
+    "lat1_dt0": np.float64, # estimated drift time for ly0 for laterality index 1
+    "lat1_dt1": np.float64, # estimated drift time for ly1 for laterality index 1
+    "lat1_dt2": np.float64, # estimated drift time for ly2 for laterality index 1
+    "lat1_dt3": np.float64, # estimated drift time for ly3 for laterality index 1
+    "lat2_t0": np.float64, # t0 fit param for laterality index 2
     "lat2_x0": np.float64, # x0 fit param for laterality index 2
     "lat2_tan_alpha": np.float64, # tan(alpha) fit param for laterality index 2
     "lat2_chi2/ndf": np.float64, # reduced chi2 value for laterality index 2
-    "lat2_dt0": np.uint64, # estimated drift time for ly0 for laterality index 2
-    "lat2_dt1": np.uint64, # estimated drift time for ly1 for laterality index 2
-    "lat2_dt2": np.uint64, # estimated drift time for ly2 for laterality index 2
-    "lat2_dt3": np.uint64, # estimated drift time for ly3 for laterality index 2
-    "lat3_t0": np.uint64, # t0 fit param for laterality index 3
+    "lat2_dt0": np.float64, # estimated drift time for ly0 for laterality index 2
+    "lat2_dt1": np.float64, # estimated drift time for ly1 for laterality index 2
+    "lat2_dt2": np.float64, # estimated drift time for ly2 for laterality index 2
+    "lat2_dt3": np.float64, # estimated drift time for ly3 for laterality index 2
+    "lat3_t0": np.float64, # t0 fit param for laterality index 3
     "lat3_x0": np.float64, # x0 fit param for laterality index 3
     "lat3_tan_alpha": np.float64, # tan(alpha) fit param for laterality index 3
     "lat3_chi2/ndf": np.float64, # reduced chi2 value for laterality index 3
-    "lat3_dt0": np.uint64, # estimated drift time for ly0 for laterality index 3
-    "lat3_dt1": np.uint64, # estimated drift time for ly1 for laterality index 3
-    "lat3_dt2": np.uint64, # estimated drift time for ly2 for laterality index 3
-    "lat3_dt3": np.uint64, # estimated drift time for ly3 for laterality index 3
+    "lat3_dt0": np.float64, # estimated drift time for ly0 for laterality index 3
+    "lat3_dt1": np.float64, # estimated drift time for ly1 for laterality index 3
+    "lat3_dt2": np.float64, # estimated drift time for ly2 for laterality index 3
+    "lat3_dt3": np.float64, # estimated drift time for ly3 for laterality index 3
 }
 
 ## when reconstructing hits
@@ -326,20 +339,30 @@ _sl_fit_other_keys = {
 _drift_velocity = 54.5 # unit: um / ns = 10^-6 / 10 ^-9 m/s = 10^3 m/s
 _dt_cell_width = 42 # mm
 
-# --- dt
-# apply dead time for all channels individually (if value > 0)
-_dt_ts_individual_dead_time = 0 #600 #600 #1250 #800 #0 # in ts units
-# acceptance interval for dt sl pattern grouping
-_t0_acceptance_interval = 100 # max temporal distance of t0 values of dt sl pattern fits that should be grouped together, in ts units
-_xproj_acceptance_interval = 50 # max spatial distance of 2 phi muon sl fits along the x axis, when projecting one to the other sl (delta_z(1-2) = z(sl=3.ly=3.wi=wi3_1) - z(sl=3.ly=3.wi=wi3_2)), in mm
+### --- dt
 _dt_max_drift_time = int((_dt_cell_width*1e-3/2) / (_drift_velocity*1e3) / 0.78e-9) # max drift time measured from time of muon arrival t0 in the sl pattern fit
-_dt_t0_tolerance = 10 # tolerance which the muon arrival time t0 should take in the sl pattern fit, between ts_min of 4 hits in superlayer & ts_min+_dt_max_drift_time
-_dt_tan_alpha_range = [-np.inf, np.inf] # allowed range of tan alpha sl pattern fit parameter
-_err_ts = 5 #1 # error of timestamps for fitting (in ts_units)
+## --- dumpfile -> dt hits
+# apply dead time for all channels individually (if value > 0)
+_dt_ts_individual_dead_time = 600 #600 #600 #1250 #800 #0 # in ts units
+## --- dt hits -> sl patterns
 # timestamp window in which hits of sl must lie in order to be counted as pattern
 _dt_sl_patterns_ts_window = _dt_max_drift_time #int(400 / 0.78) # in same unit as timestamp (0.78 ns)
+# --- sl patterns -> sl fits
+#_dt_t0_tolerance = 10 # tolerance which the muon arrival time t0 should take in the sl pattern fit, between ts_min of 4 hits in superlayer & ts_min+_dt_max_drift_time
+_dt_tan_alpha_range = [-np.inf, np.inf] # allowed range of tan alpha sl pattern fit parameter
+_err_ts = 5 #1 # error of timestamps for fitting (in ts_units)
+## --- sl fits -> dt muons
+# relative time calibration between superlayers (different obdt boards), will be applied with negative sign i.e. t0_corr = t0_before - _sl_time_offset[sl]
+_sl_time_offset = {
+    1: 0,
+    2: -250, #0,
+    3: 0,
+}
+# acceptance interval for dt sl pattern grouping
+_t0_acceptance_interval = 100 #20 # max temporal distance of t0 values of dt sl pattern fits that should be grouped together, in ts units
+_xproj_acceptance_interval = 20 # max spatial distance of 2 phi muon sl fits along the x axis, when projecting one to the other sl (delta_z(1-2) = z(sl=3.ly=3.wi=wi3_1) - z(sl=3.ly=3.wi=wi3_2)), in mm
 
-# --- scint
+### --- scint
 # acceptance interval for scintillator hits (2 sipm coincidence of strips) -> muon areas (2 strip coincidence) grouping
 _scintillator_ts_acceptance_interval = 625 #64 #1250 #64 #32 # max temporal distance of ts values of scintillator that should be grouped together, in ts units
 # 1280 = 1 us , 64 = 50 ns , 500 ~ 391 ns , 16 = 12.5 ns , 32 = 25 ns
@@ -448,6 +471,13 @@ _muon_obj_keys = {
     "phi": np.float64, # phi angle (angle relative to x axis, between x and y axis), in rad
     "ts": _ts_type, # timestamp of muon arrival (assume velocity is infinite, therefore during propagation no time passes, is alright here)
     "muon_id": np.uint64, # id / idx of correlated muon (used to compare simulation + reconstruction)
+    # simulation muon keys
+    "muon_ts": np.float64, # timestamp, in tu - of sim muon
+    "muon_x0": np.float64, # reference point (x0,y0,z0), in mm - of sim muon
+    "muon_y0": np.float64, # of sim muon
+    "muon_z0": np.float64, # of sim muon
+    "muon_theta": np.float64, # theta angle (angle relative to z axis), in rad - of sim muon
+    "muon_phi": np.float64, # phi angle (angle relative to x axis, between x and y axis), in rad - of sim muon
 }
 
 ### muon area object specific
