@@ -387,6 +387,13 @@ def fit_sl_patterns(patterns, *, silent=False, verbose=False):
             #])
             # prepare fit initial params & parameter bounds
             t0_start = np.mean([p_bounds[0][0], p_bounds[1][0]]) # t0 starting point
+            # use meantimer for t0 start if possible
+            if int(pat_type) in derived_params.meantimer_functions.keys():
+                t0_meantimer = np.mean( [
+                    func(t0=ts[0], t1=ts[1], t2=ts[2], t3=ts[3], h=params._cell_height, vd=derived_params._drift_velocity_mm_per_timestamp, t_max=params._dt_max_drift_time) for func in derived_params.meantimer_functions[int(pat_type)][int(lat_id)]["t_muon"]
+                    ]) - ts_offset
+                if t0_meantimer < t0_max_bound and t0_meantimer > t0_min_bound:
+                    t0_start = t0_meantimer
             #x0_start = np.mean([p_bounds[0][1], p_bounds[1][1]]) #+ 10*laterality[3] # center of ly=3 rel_wi=0 (reference cell)
             x0_start = np.mean([x0_min_bound, x0_max_bound]) #derived_params._sl_pattern_coordinates[3][0][2]
             tan_alpha_start = 0 # assume straight down muon as start
@@ -451,9 +458,11 @@ def fit_sl_patterns(patterns, *, silent=False, verbose=False):
         # but if not using the +-d pattern, do not care :)
     return sl_fits
 
-"""
 ### fit sl patterns WITH MEANTIMER METHOD
 def fit_sl_patterns_meantimer(patterns, *, silent=False, verbose=False):
+
+    patterns = data_utils.cut_data(data=patterns, conditions=[("pat_type","in",list(params._meantimer_patterns.keys()))], silent=silent)
+
     sl_fits = copy.deepcopy(patterns) # keep all pattern keys as well
     n_patterns = len(patterns["sl"])
     if not silent: print(f"Performing SL pattern fits for {n_patterns} patterns...")
@@ -464,114 +473,93 @@ def fit_sl_patterns_meantimer(patterns, *, silent=False, verbose=False):
         pat_type = patterns["pat_type"][i] # idx of key in _dt_sl_patterns
         pat_name = list(params._dt_sl_patterns.keys())[pat_type] # extract pattern name e.g. "+a"
         lats = params._dt_sl_patterns[pat_name]["laterality"] # list of [lat for ly0,1,2,3] laterality lists
-        # prepare fit data & parameters:
-        # arguments are arrays with len=4 i.e. for each layer one hit
-        # idx of array = ly idx
-        z_arr, x_cell = np.full(4, 0, dtype=np.float64), np.full(4, 0, dtype=np.float64)
-        lys = np.arange(0, 4)
-        for ly in lys:
-            z_arr[ly] = derived_params._sl_pattern_coordinates[ly][0][3] #-1*(3-ly)*params._cell_height # z coord for ly0,1,2,3. note coordinate system with ly3 = (z=0)
-            rel_wi = params._dt_sl_patterns[pat_name]["rel_wis"][ly]
-            x_cell[ly] = derived_params._sl_pattern_coordinates[ly][rel_wi][2] # x values for fit => x positions of wires / cell centers for each layer, depends on pattern layout
         ts = np.array([np.float64(patterns[f"ts{ly}"][i]) for ly in range(4)], dtype=params._ts_float_type) # y values for fit => timestamps for hits of each layer
         err_ts = np.full(4, params._err_ts, dtype=np.float64) # ts uncertainty
-        ts_min = np.amin(ts)
-        ts_max = np.amax(ts)
-        # scale timestamps by subtracting ts3 timestamp
-        ts_offset = ts_min
-        ts_for_fit = ts - ts_offset
-        ts_min_for_fit = ts_min - ts_offset
-        ts_max_for_fit = ts_max - ts_offset
-        # ---
-        lat_fits = []
-        lat_chi2 = []
         if verbose: print(f"\n ********** Fitting pattern {i}:")
+
+        t0_list_mt = [[] for lat_id in range(len(lats))] # t0 = t_muon results for all lateralities for all mt_equations
+        tan_alpha_list_mt = [[] for lat_id in range(len(lats))] # t0 = t_muon results for all lateralities for all mt_equations
+        max_deviation_t0 = [0 for lat_id in range(len(lats))] # max deviation between meantimer values
+        max_deviation_tan_alpha = [0 for lat_id in range(len(lats))]
+
         for lat_id, lat in enumerate(lats): # lat_id = idx of laterality list for given pattern
             laterality = np.array(lat)
-            # define parameter bounds
-            t0_min_bound = ts_max_for_fit-params._dt_max_drift_time
-            t0_max_bound = ts_min_for_fit
-            if t0_min_bound >= t0_max_bound:
-                t0_min_bound -= 1
-                t0_max_bound += 1
-            # set x0 bounds depending on laterality (l = -1: left of wire i.e. x0 < x_wire, r = 1: right of wire i.e x0 > x_wire)
-            x0_min_bound = derived_params._sl_pattern_coordinates[3][0][0][0] if (laterality[3] == -1) else derived_params._sl_pattern_coordinates[3][0][2]
-            x0_max_bound = derived_params._sl_pattern_coordinates[3][0][0][1] if (laterality[3] == 1) else derived_params._sl_pattern_coordinates[3][0][2]
-            # write into concatenated p_bounds variable
-            p_bounds = np.float64([
-                (t0_min_bound, x0_min_bound, params._dt_tan_alpha_range[0]), # lower limit for (t0, x0, tan_alpha)
-                (t0_max_bound, x0_max_bound, params._dt_tan_alpha_range[1]), # upper limit for (t0, x0, tan_alpha)
-            ]) #params._dt_t0_tolerance
-            #p_bounds = np.float64([
-            #    (-np.inf, -np.inf, -np.inf),
-            #    (np.inf, np.inf, np.inf),
-            #])
-            # prepare fit initial params & parameter bounds
-            t0_start = np.mean([p_bounds[0][0], p_bounds[1][0]]) # t0 starting point
-            #x0_start = np.mean([p_bounds[0][1], p_bounds[1][1]]) #+ 10*laterality[3] # center of ly=3 rel_wi=0 (reference cell)
-            x0_start = np.mean([x0_min_bound, x0_max_bound]) #derived_params._sl_pattern_coordinates[3][0][2]
-            tan_alpha_start = 0 # assume straight down muon as start
-            p0 = np.float64([t0_start, x0_start, tan_alpha_start]) # fit start values
+            ## calculate meantimer equation results for the timestamps of this pattern
+            # meantimer functions have format func(t0, t1, t2, t3, h, vd, t_max)
+            # t_muon = t0
+            var_str = f"t_muon"
+            for j, func in enumerate(derived_params.meantimer_functions[pat_type][lat_id][var_str]):
+                t0_list_mt[lat_id].append( func(t0=ts[0], t1=ts[1], t2=ts[2], t3=ts[3], h=params._cell_height, vd=derived_params._drift_velocity_mm_per_timestamp, t_max=params._dt_max_drift_time) )
+            # tan_alpha
+            var_str = f"tan_alpha"
+            for j, func in enumerate(derived_params.meantimer_functions[pat_type][lat_id][var_str]):
+                tan_alpha_list_mt[lat_id].append( func(t0=ts[0], t1=ts[1], t2=ts[2], t3=ts[3], h=params._cell_height, vd=derived_params._drift_velocity_mm_per_timestamp, t_max=params._dt_max_drift_time) )
+            ## check if meantimer results lie closer than specified tolerances within each other
+            for j in range(len(t0_list_mt[lat_id])):
+                for k in range(len(t0_list_mt[lat_id])):
+                    mt_deviation = np.abs(t0_list_mt[lat_id][j] - t0_list_mt[lat_id][k])
+                    if mt_deviation > max_deviation_t0[lat_id]:
+                        max_deviation_t0[lat_id] = mt_deviation
+            for j in range(len(tan_alpha_list_mt[lat_id])):
+                for k in range(len(tan_alpha_list_mt[lat_id])):
+                    mt_deviation = np.abs(tan_alpha_list_mt[lat_id][j] - tan_alpha_list_mt[lat_id][k])
+                    if mt_deviation > max_deviation_tan_alpha[lat_id]:
+                        max_deviation_tan_alpha[lat_id] = mt_deviation
 
-            if t0_min_bound >= t0_max_bound or derived_params._sl_pattern_coordinates[3][0][0][0] >= derived_params._sl_pattern_coordinates[3][0][0][1]:
-                print(f"[bounds >=]  x={lys}, y={ts_for_fit}, p0={p0}, bounds={p_bounds}")
-            
-            # prepare fit function
+        # get laterality with smallest mt deviations
+        best_t0_lat = np.argmin(max_deviation_t0)
+        best_tan_alpha_lat = np.argmin(max_deviation_tan_alpha)
+        best_lat = 99
+        if max_deviation_t0[best_t0_lat] <= params._meantimer_tolerance_t0:
+            if max_deviation_tan_alpha[best_t0_lat] <= params._meantimer_tolerance_tan_alpha:
+                best_lat = best_t0_lat
+            else:
+                if max_deviation_t0[best_tan_alpha_lat] <= params._meantimer_tolerance_t0:
+                    if max_deviation_tan_alpha[best_tan_alpha_lat] <= params._meantimer_tolerance_tan_alpha:
+                        best_lat = best_t0_lat
+
+        # collect info about selected laterality
+        if best_lat != 99:
+            t0_result = np.mean(t0_list_mt[best_lat])
+            tan_alpha_result = np.mean(tan_alpha_list_mt[best_lat])
+            td = ts - t0_result
+            x0_result = td[3]*derived_params._drift_velocity_mm_per_timestamp * lats[best_lat][3]
+
+            # estimate ts chi2 value
+            z_arr, x_cell = np.full(4, 0, dtype=np.float64), np.full(4, 0, dtype=np.float64)
+            lys = np.arange(0, 4)
+            for ly in lys:
+                z_arr[ly] = derived_params._sl_pattern_coordinates[ly][0][3] #-1*(3-ly)*params._cell_height # z coord for ly0,1,2,3. note coordinate system with ly3 = (z=0)
+                rel_wi = params._dt_sl_patterns[pat_name]["rel_wis"][ly]
+                x_cell[ly] = derived_params._sl_pattern_coordinates[ly][rel_wi][2] # x values for fit => x positions of wires / cell centers for each layer, depends on pattern layout
             def f_ts_fit_wparams(ly, t0, x0, tan_alpha):
                 ly = np.uint64(ly)
                 return derived_params.f_ts_fit(x_cell=x_cell[ly], t0=t0, x0=x0, tan_alpha=tan_alpha, z=z_arr[ly], laterality=laterality[ly])
-            # execute fit, store results: parameters = (t0, x0, tan_alpha)
-            popt, pcov, infodict, mesg, _ = curve_fit(f=f_ts_fit_wparams, xdata=lys, ydata=ts_for_fit, p0=p0, sigma=err_ts, absolute_sigma=True, bounds=p_bounds, full_output=True,  ) # verbose=2*int(verbose),
-            # xtol=1e-6, ftol=1e-6 
-            # method="trf", x_scale="jac", max_nfev=10000, tr_solver="exact", verbose=2, diff_step=0.1, jac="cs"
-            # ftol=1e-8, xtol=1e-8, gtol=1e-8, x_scale=[1e-10, 1e10, 1e10]
-            t0_from_fit, x0_from_fit, tan_alpha_from_fit = popt
-            ndf = 4 - 3 # no data - no params = 4 - 3
-            ts_from_fit = f_ts_fit_wparams(lys, t0_from_fit, x0_from_fit, tan_alpha_from_fit)
-            ts_fit = ts_from_fit + ts_offset
-            ts_residuals = ts_from_fit - np.float64(ts_for_fit)
+            ts_from_fit = f_ts_fit_wparams(lys, t0_result, x0_result, tan_alpha_result)
+            ts_residuals = ts_from_fit - np.float64(ts)
+            ndf = 4-3
             chi2ndf = np.sum(ts_residuals**2 / err_ts**2) / ndf
-            t0_fit = t0_from_fit + ts_offset
-            x0_fit = x0_from_fit
-            tan_alpha_fit = tan_alpha_from_fit
-            td = [ts_fit[ly]-t0_fit for ly in range(4)]
-            lat_fits.append({"laterality": lat_id, "t0": t0_fit, "x0": x0_fit, "tan_alpha": tan_alpha_fit, "chi2/ndf": chi2ndf, "dt0": td[0], "dt1": td[1], "dt2": td[2], "dt3": td[3]})
-            if chi2ndf == np.inf: # penalize inf chi2 with high value
-                chi2ndf = np.iinfo(np.float64).max
-            lat_chi2.append(np.float64(chi2ndf))
-            if verbose:
-                print(f" **** Pattern name {pat_name}, laterality {lat_id}:")
-                print(f"    Data x:", [lys[ly] for ly in range(4)])
-                print(f"    Data y:", [ts[ly] for ly in range(4)])
-                print(f"    Error y:", [err_ts[ly] for ly in range(4)])
-                print(f"    Fit input:",{ "p0": p0, "bounds": p_bounds})
-                print(f"    Fitted y:", [ts_fit[ly] for ly in range(4)])
-                print(f"    Residuals y:", [ts_residuals[ly] for ly in range(4)])
-                print(f"    Result:",{"popt": popt, "infodict": infodict, "mesg": mesg})
-                print(f"    Values:",{"t0": t0_fit, "x0": x0_fit, "tan_alpha": tan_alpha_fit, "chi2/ndf": chi2ndf})
-                print(f"\n    Chi2 / Ndf: {chi2ndf}\n")
-        # round chi2 value to given fixed digits
-        for j in range(len(lat_chi2)):
-            lat_chi2[j] = float('{:0.3e}'.format(lat_chi2[j])) # round to 4 significant digits in total
-        lat_chi2 = np.array(lat_chi2)
-        # check if more than one fit with minimum chi2 exists
-        if (lat_chi2 == lat_chi2.min()).sum() > 1:
-            lat_t0 = np.array([lat_fits[i]["t0"] for i in range(len(lat_fits))])
-            lat_goodness = lat_chi2 + np.log10(np.abs(lat_t0)) # if yes, add t0 bias to goodness param (similar to CIEMAT reco code: https://github.com/magnarex/dtupy-analysis/blob/master/src/dtupy_analysis/dqm/reco/classes/MuSE.py)
-        else:
-            lat_goodness = lat_chi2 # else use red chi2 as goodness param
-        # select fit with best lat_goodness value, store results:
-        best_fit_idx = np.argmin(lat_goodness)
-        for k in params._sl_fit_keys.keys():
-            sl_fits[k][i] = lat_fits[best_fit_idx][k]
-        for lat_id in range(len(lats)):
-            for k1,k2 in [(f"lat{lat_id}_t0", "t0"), (f"lat{lat_id}_x0", "x0"), (f"lat{lat_id}_tan_alpha", "tan_alpha"), (f"lat{lat_id}_chi2/ndf", "chi2/ndf"), (f"lat{lat_id}_dt0", "dt0"), (f"lat{lat_id}_dt1", "dt1"), (f"lat{lat_id}_dt2", "dt2"), (f"lat{lat_id}_dt3", "dt3")]:
-                sl_fits[k1][i] = lat_fits[lat_id][k2]
-        # NOTE:
-        # if one wants to use also the +-d patterns, one might need to keep several fit results since there are possibilities of ambiguities between rrll and llrr
-        # but if not using the +-d pattern, do not care :)
+
+            result = {
+                "laterality": best_lat, # laterality = 99 --> means no good laterality value found, invalid hit
+                "t0": t0_result,
+                "x0": x0_result,
+                "tan_alpha": tan_alpha_result,
+                "chi2/ndf": chi2ndf,
+                "dt0": td[0],
+                "dt1": td[1],
+                "dt2": td[2],
+                "dt3": td[3],
+            }
+
+        sl_fits["laterality"][i] = best_lat
+        if best_lat != 99:
+            for k in params._sl_fit_keys.keys():
+                sl_fits[k][i] = result[k]
+
+    # cut away invalid meantimer fits (with laterality = 99)
+    sl_fits = data_utils.cut_data(data=sl_fits, conditions=[("laterality","!=",99)], silent=silent)
     return sl_fits
-"""
     
 ### combine fitted sl patterns for full chamber, generate muon object as output
 # only works if at least one phi & theta pattern exists

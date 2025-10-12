@@ -265,6 +265,7 @@ def main():
             ("t0", "muon_ts"): "auto200",
             ("x0", "muon_x0"): "auto200",
             ("tan_alpha", "muon_tan_alpha"): "auto200",
+            ("laterality", "muon_lat_id"): "auto200",
         }
         for k1,k2 in hist_bins.keys():
             # calculate

@@ -458,3 +458,78 @@ def marker_wheel(i):
     i = i % len(marker_list)
     return marker_list[i]
 
+### meantimer fit
+# functions to be used to check pattern lateralities
+# solutions of lin eq systems solved with sympy
+
+import sympy
+
+from sympy.abc import x, y, z
+
+t_max = sympy.symbols("t_max")
+s_0, s_1, s2, s3 = sympy.symbols("s0 s1 s2 s3")
+t0, t1, t2, t3 = sympy.symbols("t0 t1 t2 t3")
+t_muon = sympy.symbols("t_muon")
+s_prime = sympy.symbols("s_prime")
+h = sympy.symbols("h")
+tan_alpha = sympy.symbols("tan_alpha")
+vd = sympy.symbols("vd")
+
+sympy_variables = [t_muon, tan_alpha]
+
+sympy_solutions = {pat_id: {lat_id: {var: [] for var in sympy_variables} for lat_id in range(len(pattern["lateralities"]))} for pat_id, pattern in params._meantimer_patterns.items()}
+
+## holds functions of the form f(t0,t1,t2,t3,h,vd,t_max) for t_muon and tan_alpha estimates from meantimers
+# structure: {pat_id: {lat_id: {variable_str: [list of functions]}}}
+# there are multiple functions for 4 hits because there are multiple solutions
+meantimer_functions = {pat_id: {lat_id: {f"{var}": [] for var in sympy_variables} for lat_id in range(len(pattern["lateralities"]))} for pat_id, pattern in params._meantimer_patterns.items()}
+
+for pat_id, pattern in params._meantimer_patterns.items():
+
+    #print(f"****** pattern {pat_id}:")
+    
+    rel_wis = pattern["rel_wis"]
+    #print(f"rel_wis = {rel_wis}")
+
+    lateralities = pattern["lateralities"]
+
+    for lat_id, laterality in lateralities.items():
+        
+        #print(f"*** laterality {lat_id}:")
+
+        s0, s1, s2, s3 = laterality["xd_sign"]
+        s_prime_0, s_prime_1, s_prime_2 = laterality["x_prime_sign"]
+
+        lin_eqs = [ # (eqs) = 0
+            -t_max + s3*(t3-t_muon) + s2*(t2-t_muon) + s_prime_0*h*tan_alpha/vd,
+            -t_max + s2*(t2-t_muon) + s1*(t1-t_muon) + s_prime_1*h*tan_alpha/vd,
+            -t_max + s1*(t1-t_muon) + s0*(t0-t_muon) + s_prime_2*h*tan_alpha/vd,
+        ]
+
+        eq_combinations = [ (0,1), (1,2), (0,2), ]
+
+        for combination in eq_combinations:
+
+            sel_lin_eqs = [lin_eqs[combination[0]], lin_eqs[combination[1]]]
+
+            solution = sympy.solve(sel_lin_eqs, sympy_variables, dict=True)
+
+            if len(solution) != 1:
+                continue
+
+            for var, var_solution in solution[0].items():
+                sympy_solutions[pat_id][lat_id][var].append(var_solution)
+
+        for var, var_solutions in sympy_solutions[pat_id][lat_id].items():
+        
+            var_str = f"{var}"
+
+            s = f"  {var}"
+            for var_solution in var_solutions:
+                meantimer_functions[pat_id][lat_id][var_str].append( sympy.lambdify([t0,t1,t2,t3,h,vd,t_max], var_solution) )
+                s += f"\n\t= {var_solution}"
+            #print(s)
+
+#print(meantimer_functions)
+
+

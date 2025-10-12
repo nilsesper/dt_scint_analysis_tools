@@ -193,6 +193,37 @@ _dt_sl_patterns = { # pat_type key in sl patterns is idx of key, i.e. "+a"=0, "-
     #},
 }
 
+## sl meantimer method
+# patterns, lateralities and additional information
+_meantimer_patterns = { # order in lists: ly 0,1,2,3
+    0: {
+        "name": "+A",
+        "rel_wis": (0,0,0,0),
+        "lateralities": {
+            0: {
+                "laterality": (-1,1,-1,-1),
+                "xd_sign": (1,1,1,-1),
+                "x_prime_sign": (1,-1,1),
+            },
+            1: {
+                "laterality": (-1,1,-1,1),
+                "xd_sign": (1,1,1,1),
+                "x_prime_sign": (1,-1,1),
+            },
+            2: {
+                "laterality": (1,1,-1,-1),
+                "xd_sign": (-1,1,1,-1),
+                "x_prime_sign": (1,1,1),
+            },
+            3: {
+                "laterality": (1,1,-1,1),
+                "xd_sign": (-1,1,1,1),
+                "x_prime_sign": (1,-1,1),
+            },
+        },
+    },
+}
+
 ### dt fake hit patterns (to check for number of noise-induced patterns)
 # reference is on top (highest z coordinate i.e. ly 3)
 # higher wi index towards right -->
@@ -351,6 +382,9 @@ _dt_sl_patterns_ts_window = _dt_max_drift_time #int(400 / 0.78) # in same unit a
 #_dt_t0_tolerance = 10 # tolerance which the muon arrival time t0 should take in the sl pattern fit, between ts_min of 4 hits in superlayer & ts_min+_dt_max_drift_time
 _dt_tan_alpha_range = [-np.inf, np.inf] # allowed range of tan alpha sl pattern fit parameter
 _err_ts = 5 #1 # error of timestamps for fitting (in ts_units)
+# meantimer method:
+_meantimer_tolerance_t0 = 5 # t0 (= t_muon) tolerance between different meantimer equations to accept laterality, in timestamp units
+_meantimer_tolerance_tan_alpha = 0.05 # tan_alpha tolerance between different meantimer equations to accept laterality, in rad
 ## --- sl fits -> dt muons
 # relative time calibration between superlayers (different obdt boards), will be applied with negative sign i.e. t0_corr = t0_before - _sl_time_offset[sl]
 _sl_time_offset = {

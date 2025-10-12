@@ -48,6 +48,7 @@ def cut_data(data, conditions=[], *, silent=False):
     mask = np.full(len(last_data[any_key]), True)
     for c in conditions: # calculate mask for all conditions and AND them together
         if c[1] == "==": mask &= (data[c[0]] == c[2])
+        elif c[1] == "!=": mask &= (data[c[0]] != c[2])
         elif c[1] == ">": mask &= (data[c[0]] > c[2])
         elif c[1] == "<": mask &= (data[c[0]] < c[2])
         elif c[1] == ">=": mask &= (data[c[0]] >= c[2])
