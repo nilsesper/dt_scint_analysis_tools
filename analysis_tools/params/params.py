@@ -395,7 +395,7 @@ _drift_velocity_max = 58 # um/ns
 _dt_max_drift_time = int((_dt_cell_width*1e-3/2) / (_drift_velocity*1e3) / 0.78e-9) # max drift time measured from time of muon arrival t0 in the sl pattern fit
 ## --- dumpfile -> dt hits
 # apply dead time for all channels individually (if value > 0)
-_dt_ts_individual_dead_time = 0 #600 #1250 #800 #0 # in ts units
+_dt_ts_individual_dead_time = 600 #1250 #800 #0 # in ts units
 ## --- dt hits -> sl patterns
 # timestamp window in which hits of sl must lie in order to be counted as pattern
 _dt_sl_patterns_ts_window = _dt_max_drift_time #int(400 / 0.78) # in same unit as timestamp (0.78 ns)

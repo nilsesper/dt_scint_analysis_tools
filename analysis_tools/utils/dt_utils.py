@@ -22,7 +22,8 @@ import analysis_tools.params.derived_params as derived_params
 # cut away all hit data not from dt
 # add dt specific keys to hits
 # take information about this mapping from params.py
-def extract_dt_hits(hits, *, silent=False):
+# if has_timestamp = True, assume that timestamp was already assigned, do not add it here
+def extract_dt_hits(hits, *, silent=False, has_timestamp=False):
     tmp_hits = copy.deepcopy(hits)
     n_hits = len(tmp_hits["ch"])
     if not silent: print(f"Extract DT hits from {n_hits} total hits...")
@@ -39,7 +40,7 @@ def extract_dt_hits(hits, *, silent=False):
     if not silent: print(f"Cut flow: {n_dt_hits}/{n_hits} = {n_dt_hits/n_hits}")
     if not silent: print(f"Found {n_dt_hits} DT hits. Adding DT specific keys...")
     # add specific dt keys
-    tmp_hits |= {k: np.full(n_dt_hits, 0, dtype=v) for k,v in params._dt_mapping_keys.items()} | {k: np.full(n_dt_hits, 0, dtype=v) for k,v in params._dt_other_keys.items()}
+    tmp_hits |= {k: np.full(n_dt_hits, 0, dtype=v) for k,v in params._dt_mapping_keys.items()} | {k: np.full(n_dt_hits, 0, dtype=v) for k,v in params._dt_other_keys.items() if ((not has_timestamp) or k != "ts")}
     for i in tqdm(range(n_dt_hits), disable=silent):
         ro_ch = tmp_hits["ro_ch"][i]
         ch = tmp_hits["ch"][i]
@@ -50,7 +51,17 @@ def extract_dt_hits(hits, *, silent=False):
         for k in params._dt_mapping_keys.keys():
             tmp_hits[k][i] = derived_params._dt_remap_table[ro_ch][ch][k]
     # add timestamp and sort by timestamp
-    tmp_hits = timestamp_utils.add_timestamp(hits=tmp_hits)
+    if not has_timestamp:
+        tmp_hits = timestamp_utils.add_timestamp(hits=tmp_hits)
+    tmp_hits = timestamp_utils.sort_by_timestamp(hits=tmp_hits)
+    ### ------------------------
+    # cut away undefined wires (if wi >= n_wis in sl)
+    # can happen due to bad remapping tables...
+    print("cut away undefined wires...")
+    keep_sl = []
+    for sl in params._dt_chamber["sls"].keys():
+        keep_sl.append( data_utils.cut_data(data=tmp_hits, conditions=[("sl","==",sl), ("wi","<",params._dt_chamber["sls"][sl]["n_wis"])]) ) # wi idx must be < n_wis i.e. in range [0,n_wis-1]
+    tmp_hits = data_utils.merge_dataset(split_data=keep_sl)
     tmp_hits = timestamp_utils.sort_by_timestamp(hits=tmp_hits)
     ### -----------------------
     # apply dead time constraint to all individual channels (if specified dead time is > 0)

@@ -87,30 +87,51 @@ python scripts/scint/plot_raw_scint_hits.py --raw_scint_hits_file data_files/sip
 
 ## Raw scint hits -> Scint hits
 
-
-
-Plot:
-
+python scripts/scint/raw_scint_hits_to_scint_hits.py --raw_scint_hits_file data_files/sipm_cosm_41_raw_hits.pcl --scint_hits_file data_files/sipm_cosm_41_hits.pcl
 
 ## Dumpfile -> Scint hits
 Scintillator strip hits, if active on-FPGA coincidence.
 Data has muon_id = 0.
 
+python scripts/scint/dumpfile_to_scint_hits.py --input_dumpfile ~/masterarbeit/zynq_read-out_software/output/sipm_cosmics_43.txt --scint_hits_file data_files/sipm_cosm_43_hits.pcl
 
 Plot:
-
+python scripts/scint/plot_scint_hits.py --scint_hits_file data_files/sipm_cosm_44_hits.pcl --show_plots
 
 ## Scint hits -> Scint areas
 Scintillator pixel, offline coincidence of crossing scintillator strips.
 
+python scripts/scint/scint_hits_to_areas.py --scint_hits_file data_files/sipm_cosm_44_hits.pcl --scint_areas_file data_files/sipm_cosm_44_areas.pcl
 
 Plot:
+python scripts/scint/plot_scint_areas.py --scint_areas_file data_files/sipm_cosm_44_areas.pcl --show_plots
 
 ________________________________________________________________________________________________________
 
 # Combined workflow
 
+## Dumpfile -> DT hits + Raw scint hits
+
+python scripts/combined/dumpfile_to_dt_and_raw_scint_hits.py --input_dumpfile ~/masterarbeit/zynq_read-out_software/output/combined_2.txt --dt_hits_file data_files/combined_2_dt_hits.pcl --raw_scint_hits_file data_files/combined_2_raw_scint_hits.pcl
+
+Raw scint hits: Do next steps as above.
+- Raw scint hits -> Scint hits
+
+## Dumpfile -> DT hits + Scint hits
+
 ...
+
+DT hits: Do next steps as above.
+- DT hits -> SL patterns
+- SL patterns -> SL fits
+- SL fits -> DT muons
+
+Scint hits: Do next steps as above.
+- Scint hits -> Scint areas
+
+## Correlate Dt patterns + Scint areas
+
+
 
 ________________________________________________________________________________________________________
 

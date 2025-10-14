@@ -198,7 +198,8 @@ def reco_muon_area_from_hits(hits, *, silent=False, verbose=False):
 # cut away all hit data not from scintillator
 # add scintillator specific keys to hits
 # take information about this mapping from params.py
-def extract_raw_scint_hits(hits, *, silent=False):
+# if has_timestamp = True, assume that timestamp was already assigned, do not add it here
+def extract_raw_scint_hits(hits, *, silent=False, has_timestamp=False):
     tmp_hits = copy.deepcopy(hits)
     n_hits = len(tmp_hits["ch"])
     if not silent: print(f"Extract raw scintillator hits from {n_hits} total hits...")
@@ -215,7 +216,7 @@ def extract_raw_scint_hits(hits, *, silent=False):
     if not silent: print(f"Cut flow: {n_scint_hits}/{n_hits} = {n_scint_hits/n_hits}")
     if not silent: print(f"Found {n_scint_hits} raw scintillator hits. Adding raw scintillator specific keys...")
     # add specific scint keys
-    tmp_hits |= {k: np.full(n_scint_hits, 0, dtype=v) for k,v in params._raw_scint_mapping_keys.items()} | {k: np.full(n_hits, 0, dtype=v) for k,v in params._raw_scint_other_keys.items()} 
+    tmp_hits |= {k: np.full(n_scint_hits, 0, dtype=v) for k,v in params._raw_scint_mapping_keys.items()} | {k: np.full(n_hits, 0, dtype=v) for k,v in params._raw_scint_other_keys.items() if ((not has_timestamp) or k != "ts")} 
     for i in tqdm(range(n_scint_hits), disable=silent):
         ro_ch = tmp_hits["ro_ch"][i]
         ch = tmp_hits["ch"][i]
@@ -223,7 +224,8 @@ def extract_raw_scint_hits(hits, *, silent=False):
         for k in derived_params._raw_scint_keys:
             tmp_hits[k][i] = derived_params._raw_scint_remap_table[ro_ch][ch][k]
     # add timestamp and sort by timestamp
-    tmp_hits = timestamp_utils.add_timestamp(hits=tmp_hits)
+    if not has_timestamp:
+        tmp_hits = timestamp_utils.add_timestamp(hits=tmp_hits)
     tmp_hits = timestamp_utils.sort_by_timestamp(hits=tmp_hits)
     ### -----------------------
     # apply dead time constraint to all individual channels (if specified dead time is > 0)

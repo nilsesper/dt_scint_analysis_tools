@@ -45,6 +45,12 @@ def main():
         action   = "store_true",
         help     = "print info",
     )
+    parser.add_argument(
+        "--n_proc",
+        type     = int,
+        help     = "number of processes to run in parallel",
+        default = 16,
+    )
     # ---
     args = parser.parse_args()
     dt_hits_file = args.dt_hits_file
@@ -56,7 +62,7 @@ def main():
     #################
 
     ### multiprocessing setup
-    n_processes = 8 *2 # no of processes running in parallel
+    n_processes = args.n_proc # no of processes running in parallel
     n_batches_clustering = 10000 # batch size for hit clustering
     do_multiprocessing = not verbose
 
