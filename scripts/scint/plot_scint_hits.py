@@ -178,6 +178,36 @@ def main():
                 hist_utils.plot_1hist(hist=hists, centers=centers, xlabel=xlabel, round_digits=round_digits, bin_labels=False, silent=True, store=plotname, show=show_plots, title=f"ly{ly} st{st}")
     #"""
 
+    #"""
+    ### plots of strip rates
+    fig, ax = plt.subplots(2, 1, figsize=(12,8), sharex=True)
+    for ly in range(0,2):
+        hist_bins = {
+            "st": np.arange(0, 16),
+        }
+        scint_hits_cut = data_utils.cut_data(data=scint_hits, conditions=[("ly","==",ly)], silent=True)
+        for k in hist_bins.keys():
+            hists, edges, centers, underflow, overflow = hist_utils.calculate_hist(data=scint_hits_cut, key=k, bin_centers=hist_bins[k], silent=True)
+            print(f"key \"{k}\": entries={data_utils.length(scint_hits_cut)} underflow={underflow}, overflow={overflow}")
+            if k == "st":
+                # calculate rate
+                rate_hists = hists / duration
+                # plot hist
+                rel_spacing = 0
+                barwidth = np.mean(np.diff(centers))*(1-rel_spacing) # relative spacing between bins
+                ax[ly].bar(centers, rate_hists, width=barwidth, align="center")
+                ax[ly].set_ylim(bottom=0, top=np.amax(rate_hists)*1.1)
+                ax[ly].set_xlabel("Strip")
+                ax[ly].set_ylabel("Rate [Hz]")
+                ax[ly].set_title(f"Layer {ly}")
+
+    # show plot
+    fig.tight_layout()
+    fig.show()
+    #"""
+
+
+
     input("Press enter to exit.")
     exit()
 

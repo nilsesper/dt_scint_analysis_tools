@@ -33,6 +33,11 @@ def main():
         type     = str,
         help     = "output file path: sl fits (pcl file)",
     )
+    parser.add_argument(
+        "--fit_vd",
+        action   = "store_true",
+        help     = "print info",
+    )
     ###
     parser.add_argument(
         "--verbose",
@@ -46,6 +51,9 @@ def main():
     verbose = False
     if args.verbose:
         verbose = True
+    fit_vd = False
+    if args.fit_vd:
+        fit_vd = True
 
     #################
 
@@ -62,9 +70,9 @@ def main():
     # fit sl patterns
     print(f"### Fitting of separate SL clusters...")
     if do_multiprocessing: # with multiprocessing
-        sl_fits = process_utils.multiprocess_data(n_processes=n_processes, n_batches=n_batches_sl_fitting, function=dt_utils.fit_sl_patterns, data=sl_patterns, data_key="patterns", kwargs={}, mute=True)
+        sl_fits = process_utils.multiprocess_data(n_processes=n_processes, n_batches=n_batches_sl_fitting, function=dt_utils.fit_sl_patterns, data=sl_patterns, data_key="patterns", kwargs={"fit_vd": fit_vd}, mute=True)
     else: # without multiprocessing
-        sl_fits = dt_utils.fit_sl_patterns(patterns=sl_patterns, verbose=verbose)
+        sl_fits = dt_utils.fit_sl_patterns(patterns=sl_patterns, verbose=verbose, fit_vd=fit_vd)
     # sort by t0 (muon arrival time)
     sl_patterns = data_utils.sort_by_key(data=sl_fits, sort_key="t0")
     print("sl_fits =",sl_fits)

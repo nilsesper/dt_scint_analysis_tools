@@ -40,7 +40,7 @@ def extract_scint_hits(hits, *, silent=False):
     if not silent: print(f"Cut flow: {n_scint_hits}/{n_hits} = {n_scint_hits/n_hits}")
     if not silent: print(f"Found {n_scint_hits} scintillator hits. Adding scintillator specific keys...")
     # add specific scint keys
-    tmp_hits |= {k: np.full(n_scint_hits, 0, dtype=v) for k,v in params._scint_mapping_keys.items()} | {k: np.full(n_hits, 0, dtype=v) for k,v in params._scint_other_keys.items()} 
+    tmp_hits |= {k: np.full(n_scint_hits, 0, dtype=v) for k,v in params._scint_mapping_keys.items()} | {k: np.full(n_scint_hits, 0, dtype=v) for k,v in params._scint_other_keys.items()} 
     for i in tqdm(range(n_scint_hits), disable=silent):
         ro_ch = tmp_hits["ro_ch"][i]
         ch = tmp_hits["ch"][i]

@@ -119,6 +119,7 @@ def main():
     for ch in range(32):
         print(f"  ch {ch:2d}: {ch_rate_list[ch]:6.2f} Hz")
 
+    """
     ## plot hit differences
     # for each sipm separately
     other_data_dict = {}
@@ -149,6 +150,36 @@ def main():
         if store_plots != None:
             plotname = store_plots+f"/scint_raw_{k}.png"
         hist_utils.plot_1hist(hist=hists, centers=centers, xlabel=xlabel, round_digits=round_digits, bin_labels=False, silent=True, store=plotname, show=show_plots)
+    #"""
+
+    #"""
+    ### plots of sipm rates
+    fig, ax = plt.subplots(4, 1, figsize=(12,8), sharex=True)
+    for ly in range(0,2):
+        for sipm in range(0,2):
+            hist_bins = {
+                "st": np.arange(0, 16),
+            }
+            raw_scint_hits_cut = data_utils.cut_data(data=raw_scint_hits, conditions=[("ly","==",ly), ("sipm","==",sipm)], silent=True)
+            for k in hist_bins.keys():
+                hists, edges, centers, underflow, overflow = hist_utils.calculate_hist(data=raw_scint_hits_cut, key=k, bin_centers=hist_bins[k], silent=True)
+                print(f"key \"{k}\": entries={data_utils.length(raw_scint_hits_cut)} underflow={underflow}, overflow={overflow}")
+                if k == "st":
+                    # calculate rate
+                    rate_hists = hists / duration
+                    # plot hist
+                    rel_spacing = 0
+                    barwidth = np.mean(np.diff(centers))*(1-rel_spacing) # relative spacing between bins
+                    ax[2*ly+sipm].bar(centers, rate_hists, width=barwidth, align="center")
+                    ax[2*ly+sipm].set_ylim(bottom=0, top=np.amax(rate_hists)*1.1)
+                    ax[2*ly+sipm].set_xlabel("Strip")
+                    ax[2*ly+sipm].set_ylabel("Rate [Hz]")
+                    ax[2*ly+sipm].set_title(f"Layer {ly}, SiPM {sipm}")
+
+    # show plot
+    fig.tight_layout()
+    fig.show()
+    #"""
 
 
     input("Press enter to exit.")

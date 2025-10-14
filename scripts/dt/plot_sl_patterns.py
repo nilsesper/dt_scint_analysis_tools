@@ -43,6 +43,11 @@ def main():
         action   = "store_true",
         help     = "print info",
     )
+    parser.add_argument(
+        "--cuts",
+        type     = str,
+        help     = "cuts to apply to data in format \"key1,operator1,value1;key2,operator2,value;...\"",
+    )
     # ---
     args = parser.parse_args()
     sl_patterns_file = args.sl_patterns_file
@@ -55,6 +60,15 @@ def main():
     simulation = False
     if args.simulation:
         simulation = True
+    cuts_list = []
+    if args.cuts:
+        for cuts_str in args.cuts.split(";"):
+            key, operator, value = cuts_str.split(",")
+            if "params." in value:
+                value = getattr(params, value.split("params.")[1])
+            else:
+                value = float(value)
+            cuts_list.append((key, operator, value))
 
     #################
 
@@ -63,6 +77,10 @@ def main():
     # dt
     sl_patterns = data_utils.load_pickle(file=sl_patterns_file)
     
+    ### cut data
+    print(f"###### Applying data cuts: {cuts_list}...")
+    sl_patterns = data_utils.cut_data(data=sl_patterns, conditions=cuts_list)
+
     ## cut if desired
     #sl_patterns = data_utils.cut_data(data=sl_patterns, conditions=[("pat_type","in",[0,1]), ])
 
@@ -82,8 +100,9 @@ def main():
         hist_bins |= {
             "muon_ts": "auto200",
             "muon_lat_id": "step1",
-            "muon_x0": "auto200",
+            "muon_x0_loc": "auto200",
             "muon_tan_alpha": "auto200",
+            "muon_vd": "auto200",
             "muon_id": "auto200",
             "muon_dt0": "auto200",
             "muon_dt1": "auto200",
@@ -138,7 +157,7 @@ def main():
         hist_utils.plot_1hist(hist=hists, centers=centers, xlabel=xlabel, round_digits=round_digits, bin_labels=False, silent=True, store=plotname, show=show_plots) # scale="log"
     #"""
         
-    #"""
+    """
     # meantimer testing
     additional_data = {}
     n_sl_patterns = data_utils.length(sl_patterns)

@@ -60,7 +60,7 @@ for ro_ch in _dt_ro_chs:
             ly = [3,1,2,0][ch_id & 3]
             wi = (ch_id >> 2) + wireoffset
             ch = fe["chs"][ch_id]
-            if wi >= params._dt_chamber["sls"][sl]["n_wis"]: continue
+            #if wi >= params._dt_chamber["sls"][sl]["n_wis"]: continue
             _dt_remap_table[ro_ch][ch] = {
                 "conn_id": conn_id, # idx of conn name "J35" in fe_mapping dict
                 "fe_id": fe_id, # idx of fe conn name "1A" in order starting at 1A
@@ -187,6 +187,8 @@ _max_ts_value = np.iinfo(params._ts_type).max # max value of ts
 # ts_unit = _ts_unit = 0.78 ns
 _drift_velocity_mm_per_timestamp = np.float64( params._drift_velocity * (_ts_unit) * (1e-3) ) # unit calc: mm/tsu = um/ns * 0.78*ns/tsu * 1e-3*mm/um
 # final unit: [_drift_velocity_mm_per_timestamp] = mm / ts_unit
+_drift_velocity_mm_per_timestamp_min = np.float64( params._drift_velocity_min * (_ts_unit) * (1e-3) )
+_drift_velocity_mm_per_timestamp_max = np.float64( params._drift_velocity_max * (_ts_unit) * (1e-3) )
 
 ### dt sl patterns
 # idx of pattern name is key pat_type
@@ -309,9 +311,9 @@ for ly in range(params._dt_chamber["sls"][sl]["n_lys"]):
 # <=> ts(x_cell) = (x0 + z*tan(alpha) - x_cell) * lat/v_d  + t0
 # use functional format compatible with curve_fit i.e. f(x, ...)
 # free parameters of function: t0, x0, tan(alpha) = tan_alpha
-def f_ts_fit(x_cell, t0, x0, tan_alpha, z, laterality):
+def f_ts_fit(x_cell, t0, x0, tan_alpha, z, laterality, vd):
     # units: [ts] = 0.78ns = ts_unit, [x_cell] = mm
-    ts_fit = (x0 + z * tan_alpha - x_cell) * laterality / _drift_velocity_mm_per_timestamp + t0
+    ts_fit = (x0 + z * tan_alpha - x_cell) * laterality / vd + t0
     return ts_fit
 
 ### dt sl pattern fitted muon line: x(z)
@@ -484,21 +486,29 @@ sympy_solutions = {pat_id: {lat_id: {var: [] for var in sympy_variables} for lat
 # there are multiple functions for 4 hits because there are multiple solutions
 meantimer_functions = {pat_id: {lat_id: {f"{var}": [] for var in sympy_variables} for lat_id in range(len(pattern["lateralities"]))} for pat_id, pattern in params._meantimer_patterns.items()}
 
+print_meantimers = False
+
 for pat_id, pattern in params._meantimer_patterns.items():
 
-    #print(f"****** pattern {pat_id}:")
+    if print_meantimers: print(f"****** pattern {pat_id}:")
     
     rel_wis = pattern["rel_wis"]
-    #print(f"rel_wis = {rel_wis}")
+    if print_meantimers: print(f"rel_wis = {rel_wis}")
 
     lateralities = pattern["lateralities"]
 
     for lat_id, laterality in lateralities.items():
         
-        #print(f"*** laterality {lat_id}:")
+        if print_meantimers: print(f"*** laterality {lat_id}:")
 
-        s0, s1, s2, s3 = laterality["xd_sign"]
-        s_prime_0, s_prime_1, s_prime_2 = laterality["x_prime_sign"]
+        s0 = laterality["xd_sign"][0]
+        s1 = laterality["xd_sign"][1]
+        s2 = laterality["xd_sign"][2]
+        s3 = laterality["xd_sign"][3]
+        tan_alpha_sign = 1
+        s_prime_0 = laterality["x_prime_sign"][0]*tan_alpha_sign
+        s_prime_1 = laterality["x_prime_sign"][1]*tan_alpha_sign
+        s_prime_2 = laterality["x_prime_sign"][2]*tan_alpha_sign
 
         lin_eqs = [ # (eqs) = 0
             -t_max + s3*(t3-t_muon) + s2*(t2-t_muon) + s_prime_0*h*tan_alpha/vd,
@@ -528,7 +538,7 @@ for pat_id, pattern in params._meantimer_patterns.items():
             for var_solution in var_solutions:
                 meantimer_functions[pat_id][lat_id][var_str].append( sympy.lambdify([t0,t1,t2,t3,h,vd,t_max], var_solution) )
                 s += f"\n\t= {var_solution}"
-            #print(s)
+            if print_meantimers: print(s)
 
 #print(meantimer_functions)
 

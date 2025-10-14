@@ -31,8 +31,10 @@ Plot:
 python scripts/dt/plot_dt_hits.py --show_plots --dt_hits_file data_files/ddt_cosm_7_hits.pcl
 
 ## DT hits -> SL patterns
+For data can apply testpulse timing correction file.
+Do not write argument if no correction is asked.
 
-python scripts/dt/dt_hits_to_sl_patterns.py --dt_hits_file data_files/dt_cosm_7_hits.pcl --sl_patterns_file data_files/dt_cosm_7_patterns.pcl
+python scripts/dt/dt_hits_to_sl_patterns.py --dt_hits_file data_files/dt_cosm_7_hits.pcl --sl_patterns_file data_files/dt_cosm_7_patterns.pcl --dt_tp_corrections_file data_files/dt_tp_corrections_6.pcl
 
 For simulation (to match only hits of similar muon_id):
 python scripts/dt/dt_hits_to_sl_patterns.py --dt_hits_file data_files/sim_muons_dt_hits.pcl --sl_patterns_file data_files/sim_muons_sl_fits_realmuons_noparambounds.pcl --simulation_only_muon_patterns
@@ -73,7 +75,36 @@ ________________________________________________________________________________
 
 # Scintillator workflow
 
-...
+## Dumpfile -> Raw scint hits
+Single SiPM hits, if no on-FPGA coincidence.
+Also apply dead time to SiPM hits of same channel.
+Data has muon_id = 0.
+
+python scripts/scint/dumpfile_to_raw_scint_hits.py --input_dumpfile ~/masterarbeit/zynq_read-out_software/output/sipm_cosmics_40.txt --raw_scint_hits_file data_files/sipm_cosm_40_raw_hits.pcl
+
+Plot:
+python scripts/scint/plot_raw_scint_hits.py --raw_scint_hits_file data_files/sipm_cosm_40_raw_hits.pcl --show_plots
+
+## Raw scint hits -> Scint hits
+
+
+
+Plot:
+
+
+## Dumpfile -> Scint hits
+Scintillator strip hits, if active on-FPGA coincidence.
+Data has muon_id = 0.
+
+
+Plot:
+
+
+## Scint hits -> Scint areas
+Scintillator pixel, offline coincidence of crossing scintillator strips.
+
+
+Plot:
 
 ________________________________________________________________________________________________________
 

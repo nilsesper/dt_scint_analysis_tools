@@ -73,7 +73,7 @@ def main():
         "tdc": np.arange(0, params._lhc_tdc_count+1),
         "bx": np.linspace(0, params._lhc_bunch_count, n_hist_bins),
         "oc": "auto200", #"step1", #np.linspace(0, params._lhc_orbit_count, n_hist_bins),
-        "sl": np.arange(1, 3+1),
+        "sl": "step1",
         "ly": np.arange(0, 3+1),
         "wi": np.arange(0, 100+1),
         "ts": "auto200",
@@ -85,6 +85,7 @@ def main():
             "muon_dd": "auto200",
             "muon_lat": "auto200",
             "muon_tan_alpha": "auto200",
+            "muon_vd": "auto200",
         }
     for k in hist_bins.keys():
         hists, edges, centers, underflow, overflow = hist_utils.calculate_hist(data=dt_hits, key=k, bin_centers=hist_bins[k], silent=True)

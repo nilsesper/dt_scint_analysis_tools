@@ -66,7 +66,7 @@ def main():
         "z0": np.linspace(params._scintillator["pos"][2]-10, params._scintillator["pos"][2]+params._scintillator["size"][2]+10, n_hist_bins),
         "ts": "auto200",
         "pixel": np.arange(0, 255+1),
-        "ly_delta_ts": np.linspace(0, 1000, 500) #"auto100",
+        "ly_delta_ts": np.linspace(0,40,20), #np.linspace(0, 1000, 500) #"auto100",
     }
     for k in hist_bins.keys():
         hists, edges, centers, underflow, overflow = hist_utils.calculate_hist(data=scint_areas, key=k, bin_centers=hist_bins[k], silent=True)

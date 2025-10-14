@@ -86,7 +86,9 @@ _dt_other_keys = {
     "muon_dd": np.float64, # drift distance (in mm)
     "muon_id": np.uint64, # id / idx of correlated muon
     "muon_lat": np.int8, # hit laterality -1 (l) left of wire, +1 (r) right of wire
-    "muon_tan_alpha": np.float64, # simulated correlated muon tan_alpha
+    "muon_tan_alpha": np.float64, # simulated correlated muon tan_alpha (sl projection)
+    "muon_loc_x0": np.float64, # simulated correlated muon x0 (sl projection)
+    "muon_vd": np.float64, # vd of simulated muon hit
     # simulation muon keys
     "muon_x0": np.float64, # reference point (x0,y0,z0), in mm - of sim muon
     "muon_y0": np.float64, # of sim muon
@@ -195,6 +197,13 @@ _dt_sl_patterns = { # pat_type key in sl patterns is idx of key, i.e. "+a"=0, "-
 
 ## sl meantimer method
 # patterns, lateralities and additional information
+#   relations:
+#   x_prime = h*tan_alpha
+#   xd = td*vd
+#   d/2 = vd / t_max
+#   (1) xd_sign[3]*xd[3] + xd_sign[2]*xd[2] + x_prime_sign[0]*x_prime = d/2
+#   (2) xd_sign[2]*xd[2] + xd_sign[1]*xd[1] + x_prime_sign[1]*x_prime = d/2
+#   (3) xd_sign[1]*xd[1] + xd_sign[0]*xd[0] + x_prime_sign[2]*x_prime = d/2
 _meantimer_patterns = { # order in lists: ly 0,1,2,3
     0: {
         "name": "+A",
@@ -213,7 +222,7 @@ _meantimer_patterns = { # order in lists: ly 0,1,2,3
             2: {
                 "laterality": (1,1,-1,-1),
                 "xd_sign": (-1,1,1,-1),
-                "x_prime_sign": (1,1,1),
+                "x_prime_sign": (1,-1,1),
             },
             3: {
                 "laterality": (1,1,-1,1),
@@ -232,18 +241,21 @@ _meantimer_patterns = { # order in lists: ly 0,1,2,3
 # 2   - | O | - | - | - | -     - | - | - | - | O | -
 # 1   | - | - | - | O | - |     | - | O | - | - | - |
 # 0   - | - | O | - | - | -     - | - | - | O | - | -
+# rel_wi_0-3: -1 0 -2 0         0 -1 1 0
 #
 # ly  [+fB]    ref              [-fB]    ref            (f: "fake" pattern)
 # 3   | - | - | O | - | - |     | - | - | O | - | - |
 # 2   - | - | O | - | - | -     - | - | - | O | - | -
 # 1   | - | - | - | O | - |     | - | O | - | - | - |
 # 0   - | - | - | O | - | -     - | - | O | - | - | -
+# rel_wi_0-3: 0 1 -1 0          -1 -1 0 0
 #
 # ly  [+fC]    ref              [-fC]    ref            (f: "fake" pattern)
 # 3   | - | - | O | - | - |     | - | - | O | - | - |
 # 2   - | O | - | - | - | -     - | - | - | - | O | -
 # 1   | - | - | O | - | - |     | - | - | O | - | - |
 # 0   - | O | - | - | - | -     - | - | - | - | O | -
+# rel_wi_0-3: -2 0 -2 0         1 0 1 0
 #
 # (!) depends on ly_indent = _dt_chamber["sls"][sl]["ly_indent"]
 # with ly_indent = [True, False, True, False] (order is ly 0-3) we have: (z axis goes upwards)
@@ -305,8 +317,9 @@ _sl_pattern_keys = { # {key: dtype}
     "muon_lat2": np.int8, # lat of correlated muon hit in ly2
     "muon_lat3": np.int8, # lat of correlated muon hit in ly3
     "muon_lat_id": np.int8, # hit laterality -1 (l) left of wire, +1 (r) right of wire
-    "muon_tan_alpha": np.float64, # simulated correlated muon tan_alpha
-    "muon_x0": np.float64, # simulated correlated muon x0
+    "muon_tan_alpha": np.float64, # simulated correlated muon tan_alpha (sl projection)
+    "muon_x0_loc": np.float64, # simulated correlated muon x0 (sl projection)
+    "muon_vd": np.float64, # vd of simulated muon hit
     # simulation muon keys
     "muon_x0": np.float64, # reference point (x0,y0,z0), in mm - of sim muon
     "muon_y0": np.float64, # of sim muon
@@ -322,6 +335,7 @@ _sl_fit_keys = { # {key: dtype}
     "t0": np.float64, # t0 fit param
     "x0": np.float64, # x0 fit param
     "tan_alpha": np.float64, # tan(alpha) fit param
+    "vd": np.float64, # drift velocity (in mm/ts unit) fit param
     "chi2/ndf": np.float64, # reduced chi2 value
     "dt0": np.float64, # estimated drift time t0-ts for ly0
     "dt1": np.float64, # estimated drift time t0-ts for ly1
@@ -333,6 +347,7 @@ _sl_fit_other_keys = {
     "lat0_t0": np.float64, # t0 fit param for laterality index 0
     "lat0_x0": np.float64, # x0 fit param for laterality index 0
     "lat0_tan_alpha": np.float64, # tan(alpha) fit param for laterality index 0
+    "lat0_vd": np.float64, # drift velocity (in mm/ts unit) fit param for laterality index 0
     "lat0_chi2/ndf": np.float64, # reduced chi2 value for laterality index 0
     "lat0_dt0": np.float64, # estimated drift time for ly0 for laterality index 0
     "lat0_dt1": np.float64, # estimated drift time for ly1 for laterality index 0
@@ -341,6 +356,7 @@ _sl_fit_other_keys = {
     "lat1_t0": np.float64, # t0 fit param for laterality index 1
     "lat1_x0": np.float64, # x0 fit param for laterality index 1
     "lat1_tan_alpha": np.float64, # tan(alpha) fit param for laterality index 1
+    "lat1_vd": np.float64, # drift velocity (in mm/ts unit) fit param for laterality index 1
     "lat1_chi2/ndf": np.float64, # reduced chi2 value for laterality index 1
     "lat1_dt0": np.float64, # estimated drift time for ly0 for laterality index 1
     "lat1_dt1": np.float64, # estimated drift time for ly1 for laterality index 1
@@ -349,6 +365,7 @@ _sl_fit_other_keys = {
     "lat2_t0": np.float64, # t0 fit param for laterality index 2
     "lat2_x0": np.float64, # x0 fit param for laterality index 2
     "lat2_tan_alpha": np.float64, # tan(alpha) fit param for laterality index 2
+    "lat2_vd": np.float64, # drift velocity (in mm/ts unit) fit param for laterality index 2
     "lat2_chi2/ndf": np.float64, # reduced chi2 value for laterality index 2
     "lat2_dt0": np.float64, # estimated drift time for ly0 for laterality index 2
     "lat2_dt1": np.float64, # estimated drift time for ly1 for laterality index 2
@@ -357,6 +374,7 @@ _sl_fit_other_keys = {
     "lat3_t0": np.float64, # t0 fit param for laterality index 3
     "lat3_x0": np.float64, # x0 fit param for laterality index 3
     "lat3_tan_alpha": np.float64, # tan(alpha) fit param for laterality index 3
+    "lat3_vd": np.float64, # drift velocity (in mm/ts unit) fit param for laterality index 3
     "lat3_chi2/ndf": np.float64, # reduced chi2 value for laterality index 3
     "lat3_dt0": np.float64, # estimated drift time for ly0 for laterality index 3
     "lat3_dt1": np.float64, # estimated drift time for ly1 for laterality index 3
@@ -367,14 +385,17 @@ _sl_fit_other_keys = {
 ## when reconstructing hits
 
 # dt drift velocity
-_drift_velocity = 54.5 # unit: um / ns = 10^-6 / 10 ^-9 m/s = 10^3 m/s
+_drift_velocity = 54.5 #59 # initial value: 54.5 # unit: um / ns = 10^-6 / 10 ^-9 m/s = 10^3 m/s
 _dt_cell_width = 42 # mm
+# when allowing changes of vd in fit, give vd param bounds:
+_drift_velocity_min = 51 # um/ns
+_drift_velocity_max = 58 # um/ns
 
 ### --- dt
 _dt_max_drift_time = int((_dt_cell_width*1e-3/2) / (_drift_velocity*1e3) / 0.78e-9) # max drift time measured from time of muon arrival t0 in the sl pattern fit
 ## --- dumpfile -> dt hits
 # apply dead time for all channels individually (if value > 0)
-_dt_ts_individual_dead_time = 600 #600 #600 #1250 #800 #0 # in ts units
+_dt_ts_individual_dead_time = 0 #600 #1250 #800 #0 # in ts units
 ## --- dt hits -> sl patterns
 # timestamp window in which hits of sl must lie in order to be counted as pattern
 _dt_sl_patterns_ts_window = _dt_max_drift_time #int(400 / 0.78) # in same unit as timestamp (0.78 ns)
@@ -383,8 +404,8 @@ _dt_sl_patterns_ts_window = _dt_max_drift_time #int(400 / 0.78) # in same unit a
 _dt_tan_alpha_range = [-np.inf, np.inf] # allowed range of tan alpha sl pattern fit parameter
 _err_ts = 5 #1 # error of timestamps for fitting (in ts_units)
 # meantimer method:
-_meantimer_tolerance_t0 = 5 # t0 (= t_muon) tolerance between different meantimer equations to accept laterality, in timestamp units
-_meantimer_tolerance_tan_alpha = 0.05 # tan_alpha tolerance between different meantimer equations to accept laterality, in rad
+_meantimer_tolerance_t0 = 1 # t0 (= t_muon) tolerance between different meantimer equations to accept laterality, in timestamp units
+_meantimer_tolerance_tan_alpha = 0.01 # tan_alpha tolerance between different meantimer equations to accept laterality, in rad
 ## --- sl fits -> dt muons
 # relative time calibration between superlayers (different obdt boards), will be applied with negative sign i.e. t0_corr = t0_before - _sl_time_offset[sl]
 _sl_time_offset = {
@@ -398,12 +419,12 @@ _xproj_acceptance_interval = 20 # max spatial distance of 2 phi muon sl fits alo
 
 ### --- scint
 # acceptance interval for scintillator hits (2 sipm coincidence of strips) -> muon areas (2 strip coincidence) grouping
-_scintillator_ts_acceptance_interval = 625 #64 #1250 #64 #32 # max temporal distance of ts values of scintillator that should be grouped together, in ts units
+_scintillator_ts_acceptance_interval = 32 #625 #64 #1250 #64 #32 # max temporal distance of ts values of scintillator that should be grouped together, in ts units
 # 1280 = 1 us , 64 = 50 ns , 500 ~ 391 ns , 16 = 12.5 ns , 32 = 25 ns
 # acceptance interval for raw scintillator hits (single sipm hits) -> scintillator hits (2 sipm coincidence of strips) grouping
 _raw_scintillator_ts_acceptance_interval = _scintillator_ts_acceptance_interval # in ts units
 # apply dead time for all channels individually (if value > 0)
-_raw_scintillator_ts_individual_dead_time = 0 # 0, 64, 1250 # in ts units
+_raw_scintillator_ts_individual_dead_time = 100 # 0, 64, 1250 # in ts units
 
 ## when simulating muon hits
 
@@ -614,7 +635,7 @@ _key_symbols = {
     "muon_dt": "$t_\\text{d,muon}$",
     "muon_dd": "$x_\\text{d,muon}$",
     "muon_lat": "$\\text{Laterality}_\\text{muon}$",
-    "muon_x0": "$x0_\\text{muon}$",
+    "muon_x0_loc": "$x0_\\text{loc, muon}$",
     "muon_tan_alpha": "$\\text{tan}\\alpha_\\text{muon}$",
     "muon_ts": "$T_\\text{0, muon}$",
     "muon_dt0": "$t_\\text{drift, ly 0, muon}$",
@@ -626,11 +647,14 @@ _key_symbols = {
     "muon_dd2": "$x_\\text{drift, ly 2, muon}$",
     "muon_dd3": "$x_\\text{drift, ly 3, muon}$",
     "muon_id": "Muon ID",
+    "muon_x0": "$x0_\\text{muon}$",
     "muon_lat0": "Laterality hit$_\\text{ly 0, muon}$",
     "muon_lat1": "Laterality hit$_\\text{ly 1, muon}$",
     "muon_lat2": "Laterality hit$_\\text{ly 2, muon}$",
     "muon_lat3": "Laterality hit$_\\text{ly 3, muon}$",
     "muon_lat_id": "Pattern laterality$_\\text{muon}$",
+    "muon_vd": "$v_\\text{drift, muon}$",
+    "vd": "$v_\\text{drift}$",
     "dt": "$t_\\text{drift}$",
     "dt0": "$t_\\text{drift, ly 0}$",
     "dt1": "$t_\\text{drift, ly 1}$",
@@ -684,7 +708,7 @@ _key_units = {
     "muon_dt": "TU",
     "muon_dd": "mm",
     "muon_lat": "",
-    "muon_x0": "mm",
+    "muon_x0_loc": "mm",
     "muon_tan_alpha": "rad",
     "muon_dt": "TU",
     "muon_dd": "mm",
@@ -706,6 +730,8 @@ _key_units = {
     "muon_lat2": "",
     "muon_lat3": "",
     "muon_lat_id": "",
+    "muon_vd": "mm/TU",
+    "vd": "mm/TU",
     "dt": "TU",
     "dt0": "TU",
     "dt1": "TU",
@@ -783,7 +809,7 @@ _dt_chamber = {
 }
 
 ### obdt mappings: {fe_conn_name: {chs: (ch list), fe: fec name, sl: superlayer}}, fe conns sorted in order
-_obdt_phi_1_fe_mapping = { # need to mask connectors J25, J26, J27
+_obdt_phi_1_fe_mapping = { # need to mask connectors J26, J27
     'J23': {"label": 11, "sl": 1, "fe": "6A", "chs": (158, 159, 160, 161, 162, 163, 164, 165, 166, 167, 168, 169, 204, 205, 206, 207)},
     'J24': {"label": 12, "sl": 1, "fe": "6B", "chs": ( 62,  63,  64,  65,  66,  67,  68,  69,  70,  71,  72,  73,  74,  75,  76,  77)},
     'J25': {"label": 13, "sl": 1, "fe": "7A", "chs": (110, 111, 112, 113, 114, 115, 116, 117, 118, 119, 120, 121, 122, 123, 124, 125)},
@@ -800,7 +826,7 @@ _obdt_phi_1_fe_mapping = { # need to mask connectors J25, J26, J27
     'J36': {"label":  4, "sl": 1, "fe": "2B", "chs": (208, 209, 210, 211, 212, 213, 214, 215, 216, 217, 218, 219, 220, 221, 222, 223)},
     'J37': {"label":  5, "sl": 1, "fe": "3A", "chs": ( 14,  15,  16,  17,  18,  19,  20,  21,  22,  23,  24,  25,  26,  27,  28,  29)},
 }
-_obdt_phi_2_fe_mapping = { # need to mask connectors J25, J26, J27
+_obdt_phi_2_fe_mapping = { # need to mask connectors J26, J27
     'J23': {"label": 11, "sl": 3, "fe": "6A", "chs": (158, 159, 160, 161, 162, 163, 164, 165, 166, 167, 168, 169, 204, 205, 206, 207)},
     'J24': {"label": 12, "sl": 3, "fe": "6B", "chs": ( 62,  63,  64,  65,  66,  67,  68,  69,  70,  71,  72,  73,  74,  75,  76,  77)},
     'J25': {"label": 13, "sl": 3, "fe": "7A", "chs": (110, 111, 112, 113, 114, 115, 116, 117, 118, 119, 120, 121, 122, 123, 124, 125)},
@@ -935,30 +961,30 @@ _scintillator = {
 _mezzanine_1_fe_mapping_strip_coinc = {
     f"coinc_ch_{i}": {"ly": 0, "st": i, "ch": i} for i in range(0, 8) # ly0
 } | {
-    f"coinc_ch_{16+i}": {"ly": 1, "st": i, "ch": 16+i} for i in range(0, 8) # ly1
+    f"coinc_ch_{8+i}": {"ly": 1, "st": i, "ch": 8+i} for i in range(0, 8) # ly1
 }
 _mezzanine_2_fe_mapping_strip_coinc = {
     f"coinc_ch_{i}": {"ly": 0, "st": 8+i, "ch": i} for i in range(0, 8) # ly0
 } | {
-    f"coinc_ch_{16+i}": {"ly": 1, "st": 8+i, "ch": 16+i} for i in range(0, 8) # ly1
+    f"coinc_ch_{8+i}": {"ly": 1, "st": 8+i, "ch": 8+i} for i in range(0, 8) # ly1
 }
 ## raw scint hits
 # configuration without any coincidence
 _mezzanine_1_fe_mapping_no_coinc = {
     f"coinc_ch_{i}": {"ly": 0, "st": i, "ch": i, "sipm": 0} for i in range(0, 8) # ly0, sipm0
 } | {
-    f"coinc_ch_{8+i}": {"ly": 0, "st": i, "ch": 8+i, "sipm": 1} for i in range(0, 8) # ly0, sipm1
+    f"coinc_ch_{8+i}": {"ly": 1, "st": i, "ch": 8+i, "sipm": 0} for i in range(0, 8) # ly0, sipm1
 } | {
-    f"coinc_ch_{16+i}": {"ly": 1, "st": i, "ch": 16+i, "sipm": 0} for i in range(0, 8) # ly1, sipm0
+    f"coinc_ch_{16+i}": {"ly": 1, "st": i, "ch": 16+i, "sipm": 1} for i in range(0, 8) # ly1, sipm0
 } | {
-    f"coinc_ch_{24+i}": {"ly": 1, "st": i, "ch": 24+i, "sipm": 1} for i in range(0, 8) # ly1, sipm1
+    f"coinc_ch_{24+i}": {"ly": 0, "st": i, "ch": 24+i, "sipm": 1} for i in range(0, 8) # ly1, sipm1
 }
 _mezzanine_2_fe_mapping_no_coinc = {
     f"coinc_ch_{i}": {"ly": 0, "st": 8+i, "ch": i, "sipm": 0} for i in range(0, 8) # ly0, sipm0
 } | {
-    f"coinc_ch_{8+i}": {"ly": 0, "st": 8+i, "ch": 8+i, "sipm": 1} for i in range(0, 8) # ly0, sipm1
+    f"coinc_ch_{8+i}": {"ly": 1, "st": i, "ch": 8+i, "sipm": 0} for i in range(0, 8) # ly0, sipm1
 } | {
-    f"coinc_ch_{16+i}": {"ly": 1, "st": 8+i, "ch": 16+i, "sipm": 0} for i in range(0, 8) # ly1, sipm0
+    f"coinc_ch_{16+i}": {"ly": 1, "st": i, "ch": 16+i, "sipm": 1} for i in range(0, 8) # ly1, sipm0
 } | {
     f"coinc_ch_{24+i}": {"ly": 1, "st": 8+i, "ch": 24+i, "sipm": 1} for i in range(0, 8) # ly1, sipm1
 }
@@ -967,12 +993,12 @@ _mezzanine_2_fe_mapping_no_coinc = {
 # if both sipms are masked, do not put it here since the strip is dead anyway
 _scint_masked_sipms = { # {ly: {st: sipm}} which is masked, use only other sipm
     0: {
-        5: 1, # mez1 ro_ch27 ch6
+        #5: 1, # mez1 ro_ch27 ch6
         #6: 0-1, # mez1 ro_ch27 ch13-14
     },
     1: {
         #5: 1, # mez1 ro_ch27 ch29
-        6: 1, # mez1 ro_ch27 ch30
+        #6: 1, # mez1 ro_ch27 ch30
     },
 }
 

@@ -52,7 +52,7 @@ def main():
     yrange = [ params._dt_chamber["pos"][1]-xyspacing , params._dt_chamber["pos"][1]+params._dt_chamber["size"][1]+xyspacing ]
     z0 = params._dt_chamber["pos"][2] # lowest point of chamber (closest to sl 1)
     phirange = [ 0 , 2*np.pi ]
-    thetarange = [ 0 , np.pi ]
+    thetarange = [ 0 , np.pi/2 ]
 
     ### time distribution of muons
     t_start = 1000 # timestamp of first muon

@@ -38,20 +38,22 @@ def main():
     input_dumpfile = args.input_dumpfile
     scint_hits_file = args.scint_hits_file
 
+    #n_cut = params._dumpfile_hits_to_skip
+    n_cut = 2000
+
     #################
 
     ### data import
     print(f"###### Importing dumpfile \"{input_dumpfile}\"...")
     dumpfile_hits = data_utils.import_raw(file_name=input_dumpfile) # dummy_filename, data_filename
+    # cut first entries of data (which might be old data from htg buffer)
+    dumpfile_hits = data_utils.cut_first_entries(data=dumpfile_hits, n_cut=n_cut)
     print("dumpfile_hits =",dumpfile_hits)
 
     ### extract scintillator hit
     print(f"###### Extracting scintillator hits...")
     scint_hits = scint_utils.extract_scint_hits(hits=dumpfile_hits)
     print("scint_hits =",scint_hits)
-    # add timestamp and sort by timestamp
-    scint_hits = timestamp_utils.add_timestamp(hits=scint_hits)
-    scint_hits = timestamp_utils.sort_by_timestamp(hits=scint_hits)
 
     ### store to pcl file
     print(f"###### Storing data to file \"{scint_hits_file}\"...")

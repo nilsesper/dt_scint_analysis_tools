@@ -43,6 +43,11 @@ def main():
         action   = "store_true",
         help     = "print info",
     )
+    parser.add_argument(
+        "--cuts",
+        type     = str,
+        help     = "cuts to apply to data in format \"key1,operator1,value1;key2,operator2,value;...\"",
+    )
     # ---
     args = parser.parse_args()
     sl_fits_file = args.sl_fits_file
@@ -55,6 +60,15 @@ def main():
     simulation = False
     if args.simulation:
         simulation = True
+    cuts_list = []
+    if args.cuts:
+        for cuts_str in args.cuts.split(";"):
+            key, operator, value = cuts_str.split(",")
+            if "params." in value:
+                value = getattr(params, value.split("params.")[1])
+            else:
+                value = float(value)
+            cuts_list.append((key, operator, value))
 
     #################
 
@@ -63,10 +77,15 @@ def main():
     # dt
     sl_fits = data_utils.load_pickle(file=sl_fits_file)
     
+    ### cut data
+    print(f"###### Applying data cuts: {cuts_list}...")
+    sl_fits = data_utils.cut_data(data=sl_fits, conditions=cuts_list)
+
     # do cut if desired
     #sl_fits = data_utils.cut_data(data=sl_fits, conditions=[("pat_type","in",[0])])
     #sl_fits = data_utils.cut_data(data=sl_fits, conditions=[("laterality","in",[1])])
     sl_fits = data_utils.cut_data(data=sl_fits, conditions=[
+        ("muon_theta","<",np.pi/2), ("muon_theta",">",-np.pi/2),
         #("chi2/ndf","<",10),
         #("x0","<=",21), ("x0",">=",-21),
         #("tan_alpha","<=",2), ("tan_alpha",">=",-2),
@@ -92,6 +111,7 @@ def main():
         "wi3": np.arange(0, 60+1),
         "x0": "auto200",
         "tan_alpha": "auto200",
+        "vd": np.linspace(0.035,0.05,500),
         "chi2/ndf": "auto1000", #np.arange(0,1000+1),
         "dt0": "auto200",
         "dt1": "auto200",
@@ -99,6 +119,7 @@ def main():
         "dt3": "auto200",
     }
     for k in hist_bins.keys():
+        if k not in sl_fits.keys(): continue
         hists, edges, centers, underflow, overflow = hist_utils.calculate_hist(data=sl_fits, key=k, bin_centers=hist_bins[k], silent=True)
         print(f"key \"{k}\": entries={data_utils.length(sl_fits)} underflow={underflow}, overflow={overflow}")
         if len(hists) == 0: continue
@@ -109,23 +130,6 @@ def main():
         if store_plots != None:
             plotname = store_plots+f"/sl_fits_{k}.png"
         hist_utils.plot_1hist(hist=hists, centers=centers, xlabel=xlabel, round_digits=round_digits, bin_labels=False, silent=True, store=plotname, show=show_plots) # scale="log"
-
-        if k == "tan_alpha": # plot theta proj
-            k2 = "theta_proj"
-            hist_bins_2 = {
-                "theta_proj": "auto200",
-            }
-            sl_fits[k2] = np.arctan(sl_fits["tan_alpha"])
-            hists, edges, centers, underflow, overflow = hist_utils.calculate_hist(data=sl_fits, key=k2, bin_centers=hist_bins_2[k2], silent=True)
-            print(f"key \"{k2}\": entries={data_utils.length(sl_fits)} underflow={underflow}, overflow={overflow}")
-            if len(hists) == 0: continue
-            round_digits = 0 if k2 in ["ts"] else 2
-            xlabel = params._key_symbols[k2]+"$(\\text{DT})$"
-            xlabel += " ["+params._key_units[k2]+"]" if (params._key_units[k2] != "") else ""
-            plotname = False
-            if store_plots != None:
-                plotname = store_plots+f"/sl_fits_{k2}.png"
-            hist_utils.plot_1hist(hist=hists, centers=centers, xlabel=xlabel, round_digits=round_digits, bin_labels=False, silent=True, store=plotname, show=show_plots) # scale="log"
 
     ### fitted drift times
     additional_data = {}
@@ -224,8 +228,9 @@ def main():
         hist_bins = {
             "muon_ts": "auto200",
             "muon_lat_id": "step1",
-            "muon_x0": "auto200",
+            "muon_x0_loc": "auto200",
             "muon_tan_alpha": "auto200",
+            "muon_vd": "auto200",
             "muon_id": "auto200",
             "muon_dt0": "auto200",
             "muon_dt1": "auto200",
@@ -233,6 +238,7 @@ def main():
             "muon_dt3": "auto200",
         }
         for k in hist_bins.keys():
+            if k not in sl_fits.keys(): continue
             hists, edges, centers, underflow, overflow = hist_utils.calculate_hist(data=sl_fits, key=k, bin_centers=hist_bins[k], silent=True)
             print(f"key \"{k}\": entries={data_utils.length(sl_fits)} underflow={underflow}, overflow={overflow}")
             round_digits = 0 if k in ["ts"] else 2
@@ -263,11 +269,13 @@ def main():
         additional_data = {}
         hist_bins = {
             ("t0", "muon_ts"): "auto200",
-            ("x0", "muon_x0"): "auto200",
+            ("x0", "muon_x0_loc"): "auto200",
             ("tan_alpha", "muon_tan_alpha"): "auto200",
+            ("vd", "muon_vd"): "auto200",
             ("laterality", "muon_lat_id"): "auto200",
         }
         for k1,k2 in hist_bins.keys():
+            if k1 not in sl_fits.keys() or k2 not in sl_fits.keys(): continue
             # calculate
             k = f"{k1} - {k2}"
             additional_data[k] = np.zeros(n_sl_fits*4)
@@ -285,7 +293,7 @@ def main():
             plotname = False
             if store_plots != None: 
                 plotname = store_plots+f"/sl_fits_{k}.png"
-            hist_utils.plot_1hist(hist=hists, centers=centers, xlabel=xlabel, round_digits=round_digits, bin_labels=False, silent=True, store=plotname, show=show_plots) # scale="log"
+            hist_utils.plot_1hist(hist=hists, centers=centers, xlabel=xlabel, round_digits=round_digits, bin_labels=False, silent=True, store=plotname, show=show_plots, scale="log") # scale="log"
     #"""
     
 

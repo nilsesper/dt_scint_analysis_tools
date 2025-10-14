@@ -66,7 +66,7 @@ def main():
     # cuts
     dt_muons = data_utils.cut_data(data=dt_muons, conditions=[
         #("theta",">",0.5),
-        ("muon_theta","<=",np.pi/2),
+        ("muon_theta","<",np.pi/2), ("muon_theta",">",-np.pi/2),
     ])
 
     n_dt_muons = data_utils.length(dt_muons)
@@ -150,7 +150,7 @@ def main():
             plotname = False
             if store_plots != None: 
                 plotname = store_plots+f"/sl_fits_{k}.png"
-            hist_utils.plot_1hist(hist=hists, centers=centers, xlabel=xlabel, round_digits=round_digits, bin_labels=False, silent=True, store=plotname, show=show_plots) # scale="log"
+            hist_utils.plot_1hist(hist=hists, centers=centers, xlabel=xlabel, round_digits=round_digits, bin_labels=False, silent=True, store=plotname, show=show_plots, scale="log") # scale="log"
     #"""
 
 
