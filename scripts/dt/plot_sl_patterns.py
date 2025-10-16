@@ -84,6 +84,8 @@ def main():
     ## cut if desired
     #sl_patterns = data_utils.cut_data(data=sl_patterns, conditions=[("pat_type","in",[0,1]), ])
 
+    n_sl_patterns = data_utils.length(data=sl_patterns)
+
     ### measurement duration
     duration = 0.78e-9 * (np.amax(sl_patterns["ts0"]) - np.amin(sl_patterns["ts0"])) # secs
     print(f"measurement duration = {duration} s")
@@ -287,6 +289,68 @@ def main():
         print(f"sl={sl} pattern rate: {pattern_rate:.03f} Hz")
     #"""
 
+    """
+    #### on-the-fly superlayer-level time alignment
+    print(f"Align timing on superlayer level, using time_offset[sl] = {params._sl_time_offset} TU...")
+    corrected_sl_patterns_merge = []
+    for sl in range(1,4):
+        k = f"delta_ts3_sl{sl}"
+        sl_patterns_cut = data_utils.cut_data(data=sl_patterns, conditions=[("sl","==",sl)], silent=True)
+        n_sl_patterns_cut = data_utils.length(sl_patterns_cut)
+        for i in range(n_sl_patterns_cut):
+            for j in range(0,4):
+                sl_patterns_cut[f"ts{j}"][i] = int(sl_patterns_cut[f"ts{j}"][i]) + int(params._sl_time_offset[sl])
+        corrected_sl_patterns_merge.append(sl_patterns_cut)
+    sl_patterns = data_utils.merge_dataset(split_data=corrected_sl_patterns_merge)
+    sl_patterns = data_utils.sort_by_key(data=sl_patterns, sort_key="ts3")
+    #"""
+
+    #"""
+    #### time difference between sl fits
+    additional_data = {}
+    print("Plotting time differences between sl fits...")
+    k = f"delta_ts3"
+    additional_data[k] = np.zeros(n_sl_patterns)
+    for i in range(1,n_sl_patterns):
+        additional_data[k][i] = int(sl_patterns[f"ts3"][i]) - int(sl_patterns["ts3"][i-1]) 
+    # plot
+    hist_bins = np.linspace(0,2e3,500) #"auto500" 
+    hists, edges, centers, underflow, overflow = hist_utils.calculate_hist(data=additional_data, key=k, bin_centers=hist_bins, silent=True)
+    print(f"key \"{k}\": entries={data_utils.length(additional_data)} underflow={underflow}, overflow={overflow}")
+    xlabel = f"{k} [TU]"
+    hist_utils.plot_1hist(hist=hists, centers=centers, xlabel=xlabel, round_digits=round_digits, bin_labels=False, silent=True, store=plotname, show=show_plots, title=f"", scale="log") # scale="log"
+    # plot
+    hist_bins = "auto500" #np.linspace(0,1e6,500) #"auto500" 
+    hists, edges, centers, underflow, overflow = hist_utils.calculate_hist(data=additional_data, key=k, bin_centers=hist_bins, silent=True)
+    print(f"key \"{k}\": entries={data_utils.length(additional_data)} underflow={underflow}, overflow={overflow}")
+    xlabel = f"{k}[TU]"
+    hist_utils.plot_1hist(hist=hists, centers=centers, xlabel=xlabel, round_digits=round_digits, bin_labels=False, silent=True, store=plotname, show=show_plots, title=f"", scale="log") # scale="log"
+    #"""
+
+    #"""
+    #### time difference between sl fits within same superlayer
+    additional_data = {}
+    print("Plotting time differences between sl fits within same sl...")
+    for sl in range(1,4):
+        k = f"delta_ts3_sl{sl}"
+        sl_patterns_cut = data_utils.cut_data(data=sl_patterns, conditions=[("sl","==",sl)], silent=True)
+        n_sl_patterns_cut = data_utils.length(sl_patterns_cut)
+        additional_data[k] = np.zeros(n_sl_patterns_cut)
+        for i in range(1,n_sl_patterns_cut):
+            additional_data[k][i] = int(sl_patterns_cut[f"ts3"][i]) - int(sl_patterns_cut["ts3"][i-1]) 
+        # plot
+        hist_bins = np.linspace(0,2e3,500) #"auto500" 
+        hists, edges, centers, underflow, overflow = hist_utils.calculate_hist(data=additional_data, key=k, bin_centers=hist_bins, silent=True)
+        print(f"key \"{k}\": entries={data_utils.length(additional_data)} underflow={underflow}, overflow={overflow}")
+        xlabel = f"{k} [TU]"
+        hist_utils.plot_1hist(hist=hists, centers=centers, xlabel=xlabel, round_digits=round_digits, bin_labels=False, silent=True, store=plotname, show=show_plots, title=f"", scale="log") # scale="log"
+        # plot
+        hist_bins = "auto500" #np.linspace(0,1e6,500) #"auto500" 
+        hists, edges, centers, underflow, overflow = hist_utils.calculate_hist(data=additional_data, key=k, bin_centers=hist_bins, silent=True)
+        print(f"key \"{k}\": entries={data_utils.length(additional_data)} underflow={underflow}, overflow={overflow}")
+        xlabel = f"{k}[TU]"
+        hist_utils.plot_1hist(hist=hists, centers=centers, xlabel=xlabel, round_digits=round_digits, bin_labels=False, silent=True, store=plotname, show=show_plots, title=f"", scale="log") # scale="log"
+    #"""
 
 
     input("Press enter to exit.")

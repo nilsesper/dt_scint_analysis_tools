@@ -407,10 +407,10 @@ _err_ts = 5 #1 # error of timestamps for fitting (in ts_units)
 _meantimer_tolerance_t0 = 1 # t0 (= t_muon) tolerance between different meantimer equations to accept laterality, in timestamp units
 _meantimer_tolerance_tan_alpha = 0.01 # tan_alpha tolerance between different meantimer equations to accept laterality, in rad
 ## --- sl fits -> dt muons
-# relative time calibration between superlayers (different obdt boards), will be applied with negative sign i.e. t0_corr = t0_before - _sl_time_offset[sl]
+# relative time calibration between superlayers (different obdt boards), will be applied with positive sign i.e. t0_corr = t0_before + _sl_time_offset[sl]
 _sl_time_offset = {
     1: 0,
-    2: -250, #0,
+    2: 250, #0,
     3: 0,
 }
 # acceptance interval for dt sl pattern grouping
@@ -1043,7 +1043,7 @@ mezzanine_input_mapping = { # ch id = idx of sipm_p/n signal in fw = input ch id
 ### hardware setup
 ## dt mapping: {ro_ch: obdt_mapping}
 _dt_mapping = {
-    8: _obdt_phi_1_fe_mapping, # obdt1_phi: dt sl1 (phi)
+     8: _obdt_phi_1_fe_mapping, # obdt1_phi: dt sl1 (phi)
     10: _obdt_phi_2_fe_mapping, # obdt2_phi: dt sl3 (phi)
     14: _obdt_theta_1_fe_mapping, # obdt3_theta: dt sl2 (theta)
 }

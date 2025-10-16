@@ -429,7 +429,10 @@ def fit_sl_patterns(patterns, *, silent=False, verbose=False, fit_vd=False):
                 t0_from_fit, x0_from_fit, tan_alpha_from_fit, vd_from_fit = popt
             # calculate chi2 value
             ndf = 4 - 3 # no data - no params = 4 - 3
-            ts_from_fit = f_ts_fit_wparams(lys, t0_from_fit, x0_from_fit, tan_alpha_from_fit, vd_from_fit)
+            if not fit_vd:
+                ts_from_fit = f_ts_fit_wparams(lys, t0_from_fit, x0_from_fit, tan_alpha_from_fit)
+            else:
+                ts_from_fit = f_ts_fit_wparams(lys, t0_from_fit, x0_from_fit, tan_alpha_from_fit, vd_from_fit)
             ts_fit = ts_from_fit + ts_offset
             ts_residuals = ts_from_fit - np.float64(ts_for_fit)
             chi2ndf = np.sum(ts_residuals**2 / err_ts**2) / ndf
@@ -498,12 +501,10 @@ def fit_sl_patterns_meantimer(patterns, *, silent=False, verbose=False):
         ts = np.array([np.float64(patterns[f"ts{ly}"][i]) for ly in range(4)], dtype=params._ts_float_type) # y values for fit => timestamps for hits of each layer
         err_ts = np.full(4, params._err_ts, dtype=np.float64) # ts uncertainty
         if verbose: print(f"\n ********** Fitting pattern {i}:")
-
         t0_list_mt = [[] for lat_id in range(len(lats))] # t0 = t_muon results for all lateralities for all mt_equations
         tan_alpha_list_mt = [[] for lat_id in range(len(lats))] # t0 = t_muon results for all lateralities for all mt_equations
         max_deviation_t0 = [0 for lat_id in range(len(lats))] # max deviation between meantimer values
         max_deviation_tan_alpha = [0 for lat_id in range(len(lats))]
-
         if verbose: print("---------------------------")
         if verbose: print(f"pat_type = {pat_type}")
         if verbose: print(f"muon_lat_id = {patterns['muon_lat_id'][i]}")
@@ -532,7 +533,6 @@ def fit_sl_patterns_meantimer(patterns, *, silent=False, verbose=False):
                         max_deviation_tan_alpha[lat_id] = mt_deviation
         if verbose: print(f"t0_list_mt = {t0_list_mt}")
         if verbose: print(f"tan_alpha_list_mt = {tan_alpha_list_mt}")
-
         best_lat = 99 # default value if no lat is found good
         if verbose: print(f"max_deviation_t0 = {max_deviation_t0}  --  max_deviation_tan_alpha = {max_deviation_tan_alpha}")
         # get lateralies where t0 deviation is within tolerance
@@ -551,7 +551,6 @@ def fit_sl_patterns_meantimer(patterns, *, silent=False, verbose=False):
             # use the one with smallest tan alpha deviation
             best_lat_idx = np.argmin([max_deviation_tan_alpha[lat_id] for lat_id in best_tan_alpha_lats])
             best_lat = best_tan_alpha_lats[best_lat_idx]
-
         # collect info about selected laterality
         if best_lat != 99:
             t0_result = np.mean(t0_list_mt[best_lat])
@@ -561,7 +560,6 @@ def fit_sl_patterns_meantimer(patterns, *, silent=False, verbose=False):
             if verbose: print(f"best_lat = {best_lat}  --  t0_result = {t0_result}  --  tan_alpha_result = {tan_alpha_result}")
             if verbose: print(f"muon_lat_id = {patterns['muon_lat_id'][i]}  --  muon_ts = {patterns['muon_ts'][i]}  --  muon_tan_alpha = {patterns['muon_tan_alpha'][i]}")
             if verbose: print(f"best_lat - muon_lat_id = {best_lat - patterns['muon_lat_id'][i]}  --  t0_result - muon_ts = {t0_result - patterns['muon_ts'][i]}  --  tan_alpha_result - muon_tan_alpha = {tan_alpha_result - patterns['muon_tan_alpha'][i]}")
-
             # estimate ts chi2 value
             z_arr, x_cell = np.full(4, 0, dtype=np.float64), np.full(4, 0, dtype=np.float64)
             lys = np.arange(0, 4)
@@ -576,19 +574,18 @@ def fit_sl_patterns_meantimer(patterns, *, silent=False, verbose=False):
             ts_residuals = ts_from_fit - np.float64(ts)
             ndf = 4-3
             chi2ndf = np.sum(ts_residuals**2 / err_ts**2) / ndf
-
             result = {
                 "laterality": best_lat, # laterality = 99 --> means no good laterality value found, invalid hit
                 "t0": t0_result,
                 "x0": x0_result,
                 "tan_alpha": tan_alpha_result,
+                "vd": derived_params._drift_velocity_mm_per_timestamp,
                 "chi2/ndf": chi2ndf,
                 "dt0": td[0],
                 "dt1": td[1],
                 "dt2": td[2],
                 "dt3": td[3],
             }
-
         sl_fits["laterality"][i] = best_lat
         if best_lat != 99:
             for k in params._sl_fit_keys.keys():
@@ -597,7 +594,7 @@ def fit_sl_patterns_meantimer(patterns, *, silent=False, verbose=False):
     # cut away invalid meantimer fits (with laterality = 99)
     sl_fits = data_utils.cut_data(data=sl_fits, conditions=[("laterality","!=",99)], silent=silent)
     return sl_fits
-    
+
 ### combine fitted sl patterns for full chamber, generate muon object as output
 # only works if at least one phi & theta pattern exists
 def reco_muons_from_sl_fits(fits, *, silent=False, verbose=False):
@@ -610,7 +607,7 @@ def reco_muons_from_sl_fits(fits, *, silent=False, verbose=False):
     for i in tqdm(range(n_fits), disable=silent):
         sl = fits["sl"][i]
         t0 = fits["t0"][i]
-        fits["t0"][i] = np.float64(t0) - np.float64(params._sl_time_offset[sl])
+        fits["t0"][i] = np.float64(t0) + np.float64(params._sl_time_offset[sl])
     ## re-sort data
     fits = data_utils.sort_by_key(data=fits, sort_key="t0", silent=silent)
     if not silent: print(f"Combining {n_fits} fitted SL patterns to reconstruct muons...")
@@ -653,13 +650,11 @@ def reco_muons_from_sl_fits(fits, *, silent=False, verbose=False):
         if(n_phi_patterns not in [1, 2]) or (n_theta_patterns not in [1]):
             continue
         if verbose: print("")
-
         candidate = False
         if np.abs(np.arctan(phi_patterns[0]["tan_alpha"])) < 0.1 and np.abs(np.arctan(theta_patterns[0]["tan_alpha"])) < 0.1:
             candidate = True
             if verbose: print(f"candidate for reco    theta_proj_phi = {np.arctan(phi_patterns[0]['tan_alpha'])}   theta_proj_theta = {np.arctan(theta_patterns[0]['tan_alpha'])}")
             #print(phi_patterns, theta_patterns)
-    
         ## prepare coord trafo for each sl pattern (local sl pattern coord frame to global dt chamber coord frame)
         # for phi
         x_axis, y_axis = params._orientation["phi"][0], params._orientation["phi"][1]
@@ -709,9 +704,7 @@ def reco_muons_from_sl_fits(fits, *, silent=False, verbose=False):
         else:
             raise Exception(f"Wrong number of theta patterns ({n_theta_patterns}). Expect value in [1].")
         if verbose: print("theta comb", (x0_theta, z0_theta, tan_alpha_theta, ))
-
         if verbose and candidate: print("successful reco")
-
         ## combine phi + theta planes to (x0, y0, theta, phi) muon in global coord system
         # the combined (x0_reco, y0_reco, z0_reco, theta_reco, phi_reco) is in global coord system at z0 = params._muon_reco_z0
         # calculate theta, phi from projection angles alpha_phi, alpha_theta
