@@ -382,17 +382,23 @@ _sl_fit_other_keys = {
     "lat3_dt3": np.float64, # estimated drift time for ly3 for laterality index 3
 }
 
-## when reconstructing hits
+# sl fit group keys (superlayer-level concatenation of sl fits close in time)
+_sl_fit_group_keys = {
+    "tgroup": np.float64, # 
+    "n_fits": np.uint64,
+    "sl": np.uint8, # superlayer of this group
+    "idcs": [], # list of sl_fits indices of sl fits belonging to this group
+}
 
+## --------- when reconstructing hits
 # dt drift velocity
 _drift_velocity = 54.5 #59 # initial value: 54.5 # unit: um / ns = 10^-6 / 10 ^-9 m/s = 10^3 m/s
 _dt_cell_width = 42 # mm
 # when allowing changes of vd in fit, give vd param bounds:
 _drift_velocity_min = 51 # um/ns
 _drift_velocity_max = 58 # um/ns
-
 ### --- dt
-_dt_max_drift_time = int((_dt_cell_width*1e-3/2) / (_drift_velocity*1e3) / 0.78e-9) # max drift time measured from time of muon arrival t0 in the sl pattern fit
+_dt_max_drift_time = int((_dt_cell_width*1e-3/2) / (_drift_velocity*1e3) / 0.78e-9) # max drift time measured from time of muon arrival t0 in the sl pattern fit, in ts units
 ## --- dumpfile -> dt hits
 # apply dead time for all channels individually (if value > 0)
 _dt_ts_individual_dead_time = 600 #1250 #800 #0 # in ts units
@@ -400,22 +406,30 @@ _dt_ts_individual_dead_time = 600 #1250 #800 #0 # in ts units
 # timestamp window in which hits of sl must lie in order to be counted as pattern
 _dt_sl_patterns_ts_window = _dt_max_drift_time #int(400 / 0.78) # in same unit as timestamp (0.78 ns)
 # --- sl patterns -> sl fits
+# curve fit:
 #_dt_t0_tolerance = 10 # tolerance which the muon arrival time t0 should take in the sl pattern fit, between ts_min of 4 hits in superlayer & ts_min+_dt_max_drift_time
 _dt_tan_alpha_range = [-np.inf, np.inf] # allowed range of tan alpha sl pattern fit parameter
 _err_ts = 5 #1 # error of timestamps for fitting (in ts_units)
 # meantimer method:
 _meantimer_tolerance_t0 = 1 # t0 (= t_muon) tolerance between different meantimer equations to accept laterality, in timestamp units
-_meantimer_tolerance_tan_alpha = 0.01 # tan_alpha tolerance between different meantimer equations to accept laterality, in rad
-## --- sl fits -> dt muons
+_meantimer_tolerance_tan_alpha = 0.03 # tan_alpha tolerance between different meantimer equations to accept laterality, in rad
+## sl fit / pattern timing correction for different superlayers
 # relative time calibration between superlayers (different obdt boards), will be applied with positive sign i.e. t0_corr = t0_before + _sl_time_offset[sl]
 _sl_time_offset = {
     1: 0,
     2: 250, #0,
     3: 0,
 }
-# acceptance interval for dt sl pattern grouping
-_t0_acceptance_interval = 100 #20 # max temporal distance of t0 values of dt sl pattern fits that should be grouped together, in ts units
-_xproj_acceptance_interval = 20 # max spatial distance of 2 phi muon sl fits along the x axis, when projecting one to the other sl (delta_z(1-2) = z(sl=3.ly=3.wi=wi3_1) - z(sl=3.ly=3.wi=wi3_2)), in mm
+## sl fits -> sl fit groups
+_sl_fit_group_ts_tolerance = _dt_max_drift_time
+## --- sl fit groups -> dt muons
+_muon_tgroup_tolerance = _dt_max_drift_time / 2 # time interval in which sl fit groups of different sls are combined to "muon"
+_muon_n_fits_max = 1 # max n_fits in sl fit groups selected for "muon"
+_muon_slphi_tan_alpha_tolerance = 0.05 # max deviation of tan_alpha for both sl fits in phi sl
+_muon_slphi_xproj_tolerance = 20 # max deviation of x_proj (projected sl fit track position at z=_muon_reco_z0) for both sl fits in phi sl
+# # acceptance interval for dt sl pattern grouping
+# _t0_acceptance_interval = 100 #20 # max temporal distance of t0 values of dt sl pattern fits that should be grouped together, in ts units
+# _xproj_acceptance_interval = 20 # max spatial distance of 2 phi muon sl fits along the x axis, when projecting one to the other sl (delta_z(1-2) = z(sl=3.ly=3.wi=wi3_1) - z(sl=3.ly=3.wi=wi3_2)), in mm
 
 ### --- scint
 # acceptance interval for scintillator hits (2 sipm coincidence of strips) -> muon areas (2 strip coincidence) grouping
@@ -426,8 +440,7 @@ _raw_scintillator_ts_acceptance_interval = _scintillator_ts_acceptance_interval 
 # apply dead time for all channels individually (if value > 0)
 _raw_scintillator_ts_individual_dead_time = 100 # 0, 64, 1250 # in ts units
 
-## when simulating muon hits
-
+## --------- when simulating muon hits
 # global time delay for scintillator hits by muons (scint ts = muon ts + _scintillator_delay)
 _scintillator_hit_delay = 10 # timestamp units
 
@@ -526,6 +539,9 @@ _muon_obj_keys = {
     "phi": np.float64, # phi angle (angle relative to x axis, between x and y axis), in rad
     "ts": _ts_type, # timestamp of muon arrival (assume velocity is infinite, therefore during propagation no time passes, is alright here)
     "muon_id": np.uint64, # id / idx of correlated muon (used to compare simulation + reconstruction)
+    "sl1_fit_group": np.uint64, # fit group idx used for sl 1
+    "sl2_fit_group": np.uint64, # fit group idx used for sl 2
+    "sl3_fit_group": np.uint64, # fit group idx used for sl 3
     # simulation muon keys
     "muon_ts": np.float64, # timestamp, in tu - of sim muon
     "muon_x0": np.float64, # reference point (x0,y0,z0), in mm - of sim muon
@@ -660,6 +676,8 @@ _key_symbols = {
     "dt1": "$t_\\text{drift, ly 1}$",
     "dt2": "$t_\\text{drift, ly 2}$",
     "dt3": "$t_\\text{drift, ly 3}$",
+    "tgroup": "$T_\\text{group}$",
+    "n_fits": "$N_\\text{fits}$"
 }
 _key_units = {
     "x0": "mm",
@@ -737,12 +755,15 @@ _key_units = {
     "dt1": "TU",
     "dt2": "TU",
     "dt3": "TU",
+    "tgroup": "TU",
+    "n_fits": "",
 }
 
 ###############################
 ### HARDWARE SETUP
 ###############################
 
+""" #### OLD WRONG CHAMBER GEOMETRY
 ### dt chamber properties: {type: type of chamber (mb1), sls: {sl_id: {type: sl type (phi/theta), n_lys: no. of layers, n_wis: no. of wires, offset_ly: [true if wi of this ly is shifted towards higher wi, for all lys]}}}
 # single cell properties (mm)
 _cell_w_spacer = 0 # estimated only from sketch = 1.2
@@ -777,7 +798,7 @@ _dt_chamber = {
             "offset_ly": [True, False, True, False],
             "size": (2172., 2462.4, 53.5),
             "pos": (0, 25.3, 181.5),
-            "ch_pos": (86., 24.6, 0.),
+            "ch_pos": (86., 22.9, 0.), # 24.6
             "ch_spacer": (_cell_w_spacer, _cell_w_spacer, _cell_h_spacer), # (0., _cell_w_spacer, _cell_h_spacer),
             "ch_size": (2038., _cell_width, _cell_height), # #2000 #2038
             "ch_offset": (0., _cell_offset, 0.),
@@ -790,7 +811,7 @@ _dt_chamber = {
             "n_wis": 49,
             "offset_ly": [True, False, True, False],
             "size": (2126., 2513., 53.5),
-            "pos": (21.0-1.8, 0., 235.),
+            "pos": (_cell_offset+1.8, 0., 235.), # 21.0-1.8
             "ch_pos": (22.9, 86., 0.),
             "ch_spacer": (_cell_w_spacer, _cell_w_spacer, _cell_h_spacer), # (_cell_w_spacer, 0., _cell_h_spacer)
             "ch_size": (_cell_width, 2379., _cell_height), # #2379 #2341
@@ -806,6 +827,301 @@ _dt_chamber = {
     },
     "size": (2172, 2513., 288.5),
     "pos": (0, 0., 0.), # point with smallest coordinates of dt chamber
+}
+"""
+
+##################
+
+### my coordinate frame:
+# x: along theta wires & along phi cells/cut
+# y: along phi wires & along theta cells/cut
+# z: top-bottom direction
+## units in mm
+
+## dt chamber:
+#   (highest z)
+# sl3 (phi)
+# sl2 (theta)
+# honeycomb
+# sl1 (phi)
+#   (lowest z)
+
+### dt chamber properties: {type: type of chamber (mb1), sls: {sl_id: {type: sl type (phi/theta), n_lys: no. of layers, n_wis: no. of wires, offset_ly: [true if wi of this ly is shifted towards higher wi, for all lys]}}}
+# single cell properties (mm)
+_cell_w_spacer = 0 # estimated only from sketch = 1.2
+_cell_h_spacer = 1.5
+_cell_width = 42-_cell_w_spacer # size of cell air volume
+_cell_height = 13-_cell_h_spacer # size of cell air volume
+_cell_offset = (_cell_width+_cell_w_spacer)/2
+_cell_wire_radius = 0.5 # only for illustration (real radius much smaller)
+_cell_wire_width = 0.5 # only for illustration (real width much smaller)
+
+#### CHAMBER GEOMETRY FROM CMSSW
+
+### st1 (mb1) wh0 se4: cmssw
+### position:
+#   x_this = - x_cms * 10
+#   y_this = z_cms * 10
+#   z_this = y_cms * 10
+### size:
+#   x_this = x_cms * 10
+#   y_this = z_cms * 10
+#   z_this = y_cms * 10
+
+### calculate x10 from cmssw, since they use cm and I use mm
+
+global_shift = (391.2, 8.5, 4311.75)
+cmssw_layershift = (0, 0, 1.5 * 13)
+cmssw_wireshift_sl1 = (26.4/2, 113.1/2, 1.4/2)
+cmssw_wireshift_sl2 = (113.1/2, 26.4/2, 1.4/2)
+cmssw_wireshift_sl3 = (26.4/2, 113.1/2, 1.4/2)
+cmssw_chambershift = (0, 0, 0)
+
+cmssw_chamber_pos = (391.2-global_shift[0]-cmssw_chambershift[0], 8.5-global_shift[1]-cmssw_chambershift[1], 4311.75-global_shift[2]-cmssw_chambershift[2])
+cmssw_chamber_size = (2180, 2511, 362)
+
+cmssw_sl1_pos = (375.2-global_shift[0]-cmssw_chamber_pos[0]-cmssw_layershift[0] , 8.5-global_shift[1]-cmssw_chamber_pos[1]-cmssw_layershift[1] , 4194.25-global_shift[2]-cmssw_chamber_pos[2]-cmssw_layershift[2] )
+cmssw_sl1_size = (2126.4, 2511, 53.5)
+
+cmssw_sl2_pos = (396.2-global_shift[0]-cmssw_chamber_pos[0]-cmssw_layershift[0] , 8.5-global_shift[1]-cmssw_chamber_pos[1]-cmssw_layershift[1] , 4375.75-global_shift[2]-cmssw_chamber_pos[2]-cmssw_layershift[2] )
+cmssw_sl2_size = (2170, 2462.4, 53.5)
+
+cmssw_sl3_pos = (396.2-global_shift[0]-cmssw_chamber_pos[0]-cmssw_layershift[0] , 8.5-global_shift[1]-cmssw_chamber_pos[1]-cmssw_layershift[1] , 4429.25-global_shift[2]-cmssw_chamber_pos[2]-cmssw_layershift[2] )
+cmssw_sl3_size = (2126.4, 2511, 53.5)
+
+cmssw_sl1_ly1_n_wi = 49
+cmssw_sl1_ly1_min_wi = 0
+cmssw_sl1_ly1_max_wi = 48
+cmssw_sl1_ly1_pos = ( 375.2-global_shift[0]-cmssw_chamber_pos[0]-cmssw_sl1_pos[0], 8.5-global_shift[1]-cmssw_chamber_pos[1]-cmssw_sl1_pos[1], 4174.75-global_shift[2]-cmssw_chamber_pos[2]-cmssw_sl1_pos[2],)
+cmssw_sl1_ly1_size = (2059.3, 2398, 11.5)
+
+cmssw_sl1_ly2_n_wi = 50
+cmssw_sl1_ly2_min_wi = 0
+cmssw_sl1_ly2_max_wi = 49
+cmssw_sl1_ly2_pos = ( 375.2-global_shift[0]-cmssw_chamber_pos[0]-cmssw_sl1_pos[0], 8.5-global_shift[1]-cmssw_chamber_pos[1]-cmssw_sl1_pos[1], 4187.75-global_shift[2]-cmssw_chamber_pos[2]-cmssw_sl1_pos[2],)
+cmssw_sl1_ly2_size = (2101.3, 2398, 11.5)
+
+cmssw_sl1_ly3_n_wi = 49
+cmssw_sl1_ly3_min_wi = 0
+cmssw_sl1_ly3_max_wi = 48
+cmssw_sl1_ly3_pos = ( 375.2-global_shift[0]-cmssw_chamber_pos[0]-cmssw_sl1_pos[0], 8.5-global_shift[1]-cmssw_chamber_pos[1]-cmssw_sl1_pos[1], 4200.75-global_shift[2]-cmssw_chamber_pos[2]-cmssw_sl1_pos[2],)
+cmssw_sl1_ly3_size = (2059.3, 2398, 11.5)
+
+cmssw_sl1_ly4_n_wi = 48
+cmssw_sl1_ly4_min_wi = 1
+cmssw_sl1_ly4_max_wi = 48
+cmssw_sl1_ly4_pos = ( 375.2-global_shift[0]-cmssw_chamber_pos[0]-cmssw_sl1_pos[0], 8.5-global_shift[1]-cmssw_chamber_pos[1]-cmssw_sl1_pos[1], 4213.75-global_shift[2]-cmssw_chamber_pos[2]-cmssw_sl1_pos[2],)
+cmssw_sl1_ly4_size = (2017.3, 2398, 11.5)
+
+cmssw_sl2_ly1_n_wi = 57
+cmssw_sl2_ly1_min_wi = 0
+cmssw_sl2_ly1_max_wi = 56
+cmssw_sl2_ly1_pos = ( 396.2-global_shift[0]-cmssw_chamber_pos[0]-cmssw_sl2_pos[0], 8.5-global_shift[1]-cmssw_chamber_pos[1]-cmssw_sl2_pos[1], 4356.25-global_shift[2]-cmssw_chamber_pos[2]-cmssw_sl2_pos[2],)
+cmssw_sl2_ly1_size = (2057, 2395.3, 11.5)
+
+cmssw_sl2_ly2_n_wi = 58
+cmssw_sl2_ly2_min_wi = 0
+cmssw_sl2_ly2_max_wi = 57
+cmssw_sl2_ly2_pos = ( 396.2-global_shift[0]-cmssw_chamber_pos[0]-cmssw_sl2_pos[0], 8.5-global_shift[1]-cmssw_chamber_pos[1]-cmssw_sl2_pos[1], 4369.25-global_shift[2]-cmssw_chamber_pos[2]-cmssw_sl2_pos[2],)
+cmssw_sl2_ly2_size = (2057, 2437.3, 11.5)
+
+cmssw_sl2_ly3_n_wi = 57
+cmssw_sl2_ly3_min_wi = 0
+cmssw_sl2_ly3_max_wi = 56
+cmssw_sl2_ly3_pos = ( 396.2-global_shift[0]-cmssw_chamber_pos[0]-cmssw_sl2_pos[0], 8.5-global_shift[1]-cmssw_chamber_pos[1]-cmssw_sl2_pos[1], 4382.25-global_shift[2]-cmssw_chamber_pos[2]-cmssw_sl2_pos[2],)
+cmssw_sl2_ly3_size = (2057, 2395.3, 11.5)
+
+cmssw_sl2_ly4_n_wi = 56
+cmssw_sl2_ly4_min_wi = 1
+cmssw_sl2_ly4_max_wi = 56
+cmssw_sl2_ly4_pos = ( 396.2-global_shift[0]-cmssw_chamber_pos[0]-cmssw_sl2_pos[0], 8.5-global_shift[1]-cmssw_chamber_pos[1]-cmssw_sl2_pos[1], 4395.25-global_shift[2]-cmssw_chamber_pos[2]-cmssw_sl2_pos[2],)
+cmssw_sl2_ly4_size = (2057, 2353.3, 11.5)
+
+cmssw_sl3_ly1_n_wi = 49
+cmssw_sl3_ly1_min_wi = 0
+cmssw_sl3_ly1_max_wi = 48
+cmssw_sl3_ly1_pos = ( 396.2-global_shift[0]-cmssw_chamber_pos[0]-cmssw_sl3_pos[0], 8.5-global_shift[1]-cmssw_chamber_pos[1]-cmssw_sl3_pos[1], 4409.75-global_shift[2]-cmssw_chamber_pos[2]-cmssw_sl3_pos[2],)
+cmssw_sl3_ly1_size = (2059.3, 2398, 11.5)
+
+cmssw_sl3_ly2_n_wi = 50
+cmssw_sl3_ly2_min_wi = 0
+cmssw_sl3_ly2_max_wi = 49
+cmssw_sl3_ly2_pos = ( 396.2-global_shift[0]-cmssw_chamber_pos[0]-cmssw_sl3_pos[0], 8.5-global_shift[1]-cmssw_chamber_pos[1]-cmssw_sl3_pos[1], 4422.75-global_shift[2]-cmssw_chamber_pos[2]-cmssw_sl3_pos[2],)
+cmssw_sl3_ly2_size = (2101.3, 2398, 11.5)
+
+cmssw_sl3_ly3_n_wi = 49
+cmssw_sl3_ly3_min_wi = 0
+cmssw_sl3_ly3_max_wi = 48
+cmssw_sl3_ly3_pos = ( 396.2-global_shift[0]-cmssw_chamber_pos[0]-cmssw_sl3_pos[0], 8.5-global_shift[1]-cmssw_chamber_pos[1]-cmssw_sl3_pos[1], 4435.75-global_shift[2]-cmssw_chamber_pos[2]-cmssw_sl3_pos[2],)
+cmssw_sl3_ly3_size = (2059.3, 2398, 11.5)
+
+cmssw_sl3_ly4_n_wi = 48
+cmssw_sl3_ly4_min_wi = 1
+cmssw_sl3_ly4_max_wi = 48
+cmssw_sl3_ly4_pos = ( 396.2-global_shift[0]-cmssw_chamber_pos[0]-cmssw_sl3_pos[0], 8.5-global_shift[1]-cmssw_chamber_pos[1]-cmssw_sl3_pos[1], 4448.75-global_shift[2]-cmssw_chamber_pos[2]-cmssw_sl3_pos[2],)
+cmssw_sl3_ly4_size = (2017.3, 2398, 11.5)
+
+_dt_chamber = {
+    "name": "MB w/1/s -z R",
+    "sls": {
+        1: {
+            "orient": "phi",
+            "n_lys": 4,
+            "pos": cmssw_sl1_pos, # corner with smallest coordinates of this sl, *RELATIVE TO* base point of chamber point with smallest coordinates
+            "size": cmssw_sl1_size,
+            "lys": {
+                0: {
+                    "n_wis": cmssw_sl1_ly1_n_wi,
+                    "min_wi": cmssw_sl1_ly1_min_wi,
+                    "max_wi": cmssw_sl1_ly1_max_wi,
+                    "pos": cmssw_sl1_ly1_pos, # corner with smallest coordinates of this sl, *RELATIVE TO* base point of layer point with smallest coordinates
+                    "size": cmssw_sl1_ly1_size,
+                    "ch_pos": (21+cmssw_wireshift_sl1[0], 0.+cmssw_wireshift_sl1[1], 0.+cmssw_wireshift_sl1[2]), # lowest coordinate position of wire wi=0 of this ly
+                    "ch_size": (42, 2398, 13), # size of wire in all directions
+                    "ch_spacer": (0., 0., 0.), # size of spacer between channels (in all directions)
+                },
+                1: {
+                    "n_wis": cmssw_sl1_ly2_n_wi,
+                    "min_wi": cmssw_sl1_ly2_min_wi,
+                    "max_wi": cmssw_sl1_ly2_max_wi,
+                    "pos": cmssw_sl1_ly2_pos, # corner with smallest coordinates of this sl, *RELATIVE TO* base point of layer point with smallest coordinates
+                    "size": cmssw_sl1_ly2_size,
+                    "ch_pos": (0.+cmssw_wireshift_sl1[0], 0.+cmssw_wireshift_sl1[1], 0.+cmssw_wireshift_sl1[2]), # lowest coordinate position of wire wi=0 of this ly
+                    "ch_size": (42, 2398, 13), # size of wire in all directions
+                    "ch_spacer": (0., 0., 0.), # size of spacer between channels (in all directions)
+                },
+                2: {
+                    "n_wis": cmssw_sl1_ly3_n_wi,
+                    "min_wi": cmssw_sl1_ly3_min_wi,
+                    "max_wi": cmssw_sl1_ly3_max_wi,
+                    "pos": cmssw_sl1_ly3_pos, # corner with smallest coordinates of this sl, *RELATIVE TO* base point of layer point with smallest coordinates
+                    "size": cmssw_sl1_ly3_size,
+                    "ch_pos": (21+cmssw_wireshift_sl1[0], 0.+cmssw_wireshift_sl1[1], 0.+cmssw_wireshift_sl1[2]), # lowest coordinate position of wire wi=0 of this ly
+                    "ch_size": (42, 2398, 13), # size of wire in all directions
+                    "ch_spacer": (0., 0., 0.), # size of spacer between channels (in all directions)
+                },
+                3: {
+                    "n_wis": cmssw_sl1_ly4_n_wi,
+                    "min_wi": cmssw_sl1_ly4_min_wi,
+                    "max_wi": cmssw_sl1_ly4_max_wi,
+                    "pos": cmssw_sl1_ly4_pos, # corner with smallest coordinates of this sl, *RELATIVE TO* base point of layer point with smallest coordinates
+                    "size": cmssw_sl1_ly4_size,
+                    "ch_pos": (0.+cmssw_wireshift_sl1[0], 0.+cmssw_wireshift_sl1[1], 0.+cmssw_wireshift_sl1[2]), # lowest coordinate position of wire wi=0 of this ly
+                    "ch_size": (42, 2398, 13), # size of wire in all directions
+                    "ch_spacer": (0., 0., 0.), # size of spacer between channels (in all directions)
+                },
+            },
+            "wi_radius": _cell_wire_radius, # wire radius to be displayed (much larger than real wire radius)
+            "wi_linewidth": _cell_wire_width, # linewidth of side view of wire
+        },
+        2: {
+            "orient": "theta",
+            "n_lys": 4,
+            "pos": cmssw_sl2_pos, # corner with smallest coordinates of this sl, *RELATIVE TO* base point of chamber point with smallest coordinates
+            "size": cmssw_sl2_size,
+            "lys": {
+                0: {
+                    "n_wis": cmssw_sl2_ly1_n_wi,
+                    "min_wi": cmssw_sl2_ly1_min_wi,
+                    "max_wi": cmssw_sl2_ly1_max_wi,
+                    "pos": cmssw_sl2_ly1_pos, # corner with smallest coordinates of this sl, *RELATIVE TO* base point of layer point with smallest coordinates
+                    "size": cmssw_sl2_ly1_size,
+                    "ch_pos": (0.+cmssw_wireshift_sl2[0], 21+cmssw_wireshift_sl2[1], 0.+cmssw_wireshift_sl2[2]), # lowest coordinate position of wire wi=0 of this ly
+                    "ch_size": (2057, 42, 13), # size of wire in all directions
+                    "ch_spacer": (0., 0., 0.), # size of spacer between channels (in all directions)
+                },
+                1: {
+                    "n_wis": cmssw_sl2_ly2_n_wi,
+                    "min_wi": cmssw_sl2_ly2_min_wi,
+                    "max_wi": cmssw_sl2_ly2_max_wi,
+                    "pos": cmssw_sl2_ly2_pos, # corner with smallest coordinates of this sl, *RELATIVE TO* base point of layer point with smallest coordinates
+                    "size": cmssw_sl2_ly2_size,
+                    "ch_pos": (0.+cmssw_wireshift_sl2[0], 0.+cmssw_wireshift_sl2[1], 0.+cmssw_wireshift_sl2[2]), # lowest coordinate position of wire wi=0 of this ly
+                    "ch_size": (2057, 42, 13), # size of wire in all directions
+                    "ch_spacer": (0., 0., 0.), # size of spacer between channels (in all directions)
+                },
+                2: {
+                    "n_wis": cmssw_sl2_ly3_n_wi,
+                    "min_wi": cmssw_sl2_ly3_min_wi,
+                    "max_wi": cmssw_sl2_ly3_max_wi,
+                    "pos": cmssw_sl2_ly3_pos, # corner with smallest coordinates of this sl, *RELATIVE TO* base point of layer point with smallest coordinates
+                    "size": cmssw_sl2_ly3_size,
+                    "ch_pos": (0.+cmssw_wireshift_sl2[0], 21+cmssw_wireshift_sl2[1], 0.+cmssw_wireshift_sl2[2]), # lowest coordinate position of wire wi=0 of this ly
+                    "ch_size": (2057, 42, 13), # size of wire in all directions
+                    "ch_spacer": (0., 0., 0.), # size of spacer between channels (in all directions)
+                },
+                3: {
+                    "n_wis": cmssw_sl2_ly4_n_wi,
+                    "min_wi": cmssw_sl2_ly4_min_wi,
+                    "max_wi": cmssw_sl2_ly4_max_wi,
+                    "pos": cmssw_sl2_ly4_pos, # corner with smallest coordinates of this sl, *RELATIVE TO* base point of layer point with smallest coordinates
+                    "size": cmssw_sl2_ly4_size,
+                    "ch_pos": (0.+cmssw_wireshift_sl2[0], 0.+cmssw_wireshift_sl2[1], 0.+cmssw_wireshift_sl2[2]), # lowest coordinate position of wire wi=0 of this ly
+                    "ch_size": (2057, 42, 13), # size of wire in all directions
+                    "ch_spacer": (0., 0., 0.), # size of spacer between channels (in all directions)
+                },
+            },
+            "wi_radius": _cell_wire_radius, # wire radius to be displayed (much larger than real wire radius)
+            "wi_linewidth": _cell_wire_width, # linewidth of side view of wire
+        },
+        3: {
+            "orient": "phi",
+            "n_lys": 4,
+            "pos": cmssw_sl3_pos, # corner with smallest coordinates of this sl, *RELATIVE TO* base point of chamber point with smallest coordinates
+            "size": cmssw_sl3_size,
+            "lys": {
+                0: {
+                    "n_wis": cmssw_sl3_ly1_n_wi,
+                    "min_wi": cmssw_sl3_ly1_min_wi,
+                    "max_wi": cmssw_sl3_ly1_max_wi,
+                    "pos": cmssw_sl3_ly1_pos, # corner with smallest coordinates of this sl, *RELATIVE TO* base point of layer point with smallest coordinates
+                    "size": cmssw_sl3_ly1_size,
+                    "ch_pos": (21+cmssw_wireshift_sl3[0], 0.+cmssw_wireshift_sl3[1], 0.+cmssw_wireshift_sl3[2]), # lowest coordinate position of wire wi=0 of this ly
+                    "ch_size": (42, 2398, 13), # size of wire in all directions
+                    "ch_spacer": (0., 0., 0.), # size of spacer between channels (in all directions)
+                },
+                1: {
+                    "n_wis": cmssw_sl3_ly2_n_wi,
+                    "min_wi": cmssw_sl3_ly2_min_wi,
+                    "max_wi": cmssw_sl3_ly2_max_wi,
+                    "pos": cmssw_sl3_ly2_pos, # corner with smallest coordinates of this sl, *RELATIVE TO* base point of layer point with smallest coordinates
+                    "size": cmssw_sl3_ly2_size,
+                    "ch_pos": (0.+cmssw_wireshift_sl3[0], 0.+cmssw_wireshift_sl3[1], 0.+cmssw_wireshift_sl3[2]), # lowest coordinate position of wire wi=0 of this ly
+                    "ch_size": (42, 2398, 13), # size of wire in all directions
+                    "ch_spacer": (0., 0., 0.), # size of spacer between channels (in all directions)
+                },
+                2: {
+                    "n_wis": cmssw_sl3_ly3_n_wi,
+                    "min_wi": cmssw_sl3_ly3_min_wi,
+                    "max_wi": cmssw_sl3_ly3_max_wi,
+                    "pos": cmssw_sl3_ly3_pos, # corner with smallest coordinates of this sl, *RELATIVE TO* base point of layer point with smallest coordinates
+                    "size": cmssw_sl3_ly3_size,
+                    "ch_pos": (21+cmssw_wireshift_sl3[0], 0.+cmssw_wireshift_sl3[1], 0.+cmssw_wireshift_sl3[2]), # lowest coordinate position of wire wi=0 of this ly
+                    "ch_size": (42, 2398, 13), # size of wire in all directions
+                    "ch_spacer": (0., 0., 0.), # size of spacer between channels (in all directions)
+                },
+                3: {
+                    "n_wis": cmssw_sl3_ly4_n_wi,
+                    "min_wi": cmssw_sl3_ly4_min_wi,
+                    "max_wi": cmssw_sl3_ly4_max_wi,
+                    "pos": cmssw_sl3_ly4_pos, # corner with smallest coordinates of this sl, *RELATIVE TO* base point of layer point with smallest coordinates
+                    "size": cmssw_sl3_ly4_size,
+                    "ch_pos": (0.+cmssw_wireshift_sl3[0], 0.+cmssw_wireshift_sl3[1], 0.+cmssw_wireshift_sl3[2]), # lowest coordinate position of wire wi=0 of this ly
+                    "ch_size": (42, 2398, 13), # size of wire in all directions
+                    "ch_spacer": (0., 0., 0.), # size of spacer between channels (in all directions)
+                },
+            },
+            "wi_radius": _cell_wire_radius, # wire radius to be displayed (much larger than real wire radius)
+            "wi_linewidth": _cell_wire_width, # linewidth of side view of wire
+        },
+    },
+    "n_sl": 3,
+    "honeycomb": {
+        "pos": (0., 0., 0.), #(30.7, 27.5, 53.5), # corner with smallest coordinates of honeycomb, *RELATIVE TO* base point of chamber point with smallest coordinates
+        "size": (0., 0., 0.), #(2033., 2458., 128.),
+    },
+    "pos": (cmssw_chamber_pos[0], cmssw_chamber_pos[1], cmssw_chamber_pos[2]), # point with smallest coordinates of dt chamber
+    "size": (cmssw_chamber_size[0], cmssw_chamber_size[1], cmssw_chamber_size[2]), 
 }
 
 ### obdt mappings: {fe_conn_name: {chs: (ch list), fe: fec name, sl: superlayer}}, fe conns sorted in order
@@ -1070,7 +1386,7 @@ _ro_ch_labels = {
 
 ### muon reconstruction z position
 # reco muon z0 value (select base z value for reco muon)
-_muon_reco_z0 = _scintillator["pos"][2] # in mm
+_muon_reco_z0 = 170 #_scintillator["pos"][2] # in mm
 
 
 

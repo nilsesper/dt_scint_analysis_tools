@@ -41,10 +41,8 @@ def time_grouping_indices(data1, data2, data2_ts_tolerance, data1_ts_key="ts", d
         time_grouping_list.append(this_mask_indices)
     return time_grouping_list
 
-### group hits of 3 different datasets (with sync timestamps)
-# for each entry/index in data1, return list of data2 entries/indices which lie in relative time window [ts_data1 - data2_ts_tolerance, ts_data1 + data2_ts_tolerance]
-# give name of timestamp key of data sets (default "ts")
-# then group together ts_data1 hits and merge the respective sets of data2 indices
+### group hits (with sync timestamps)
+# group together data points which have timestamp closer together than ts_tolerance
 # returns:
 #   data_idx_grouped = [ [index of data for groups within ts_window] for all found groups in dataset ]
 #   mean_ts_grouped = [ mean_ts_of_group for all found groups in dataset ]

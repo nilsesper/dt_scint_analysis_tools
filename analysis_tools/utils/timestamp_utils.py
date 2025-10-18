@@ -57,9 +57,7 @@ def sort_by_timestamp(hits, *, silent=False):
     sorted_hits = copy.deepcopy(hits)
     n_hits = data_utils.length(sorted_hits)
     if not silent: print(f"Sorting {n_hits} entries by timestamp...")
-    new_idx_order = np.argsort(sorted_hits["ts"])
-    for k in hits.keys(): # sort all keys of hit dict depending on order in timestamp key
-        sorted_hits[k] = sorted_hits[k][new_idx_order]
+    sorted_hits = data_utils.sort_by_key(data=hits, sort_key="ts")
     return sorted_hits
 
 ### calculate back ox,bx,tdc from timestamp value

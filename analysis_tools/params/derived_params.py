@@ -203,24 +203,23 @@ for sl in params._dt_chamber["sls"].keys():
     _dt_cell_coordinates[sl] = {}
     for ly in range(params._dt_chamber["sls"][sl]["n_lys"]):
         _dt_cell_coordinates[sl][ly] = {}
-        for wi in range(params._dt_chamber["sls"][sl]["n_wis"]):
+        for wi in range(params._dt_chamber["sls"][sl]["lys"][ly]["min_wi"], params._dt_chamber["sls"][sl]["lys"][ly]["max_wi"]+1):
             _dt_cell_coordinates[sl][ly][wi] = []
             if params._dt_chamber["sls"][sl]["orient"] == "phi": # phi wires along y
                 # idx = 0: x axis (axis = 0)
                 coord_axis = 0
-                cell_offset = params._dt_chamber["sls"][sl]["ch_offset"][coord_axis] if params._dt_chamber["sls"][sl]["offset_ly"][ly] else 0
-                pos_x = params._dt_chamber["pos"][coord_axis]+params._dt_chamber["sls"][sl]["pos"][coord_axis]+params._dt_chamber["sls"][sl]["ch_pos"][coord_axis]+params._dt_chamber["sls"][sl]["ch_spacer"][coord_axis]+wi*(params._dt_chamber["sls"][sl]["ch_size"][coord_axis]+params._dt_chamber["sls"][sl]["ch_spacer"][coord_axis])+cell_offset
-                size_x = params._dt_chamber["sls"][sl]["ch_size"][coord_axis]
+                pos_x = params._dt_chamber["pos"][coord_axis] + params._dt_chamber["sls"][sl]["pos"][coord_axis] + params._dt_chamber["sls"][sl]["lys"][ly]["pos"][coord_axis] + params._dt_chamber["sls"][sl]["lys"][ly]["ch_pos"][coord_axis] + params._dt_chamber["sls"][sl]["lys"][ly]["ch_spacer"][coord_axis] + wi * ( params._dt_chamber["sls"][sl]["lys"][ly]["ch_size"][coord_axis] + params._dt_chamber["sls"][sl]["lys"][ly]["ch_spacer"][coord_axis] )
+                size_x = params._dt_chamber["sls"][sl]["lys"][ly]["ch_size"][coord_axis]
                 _dt_cell_coordinates[sl][ly][wi].append([pos_x, pos_x+size_x])
                 # idx = 1: y axis (axis = 1) ==> ALL CELLS LOOK THE SAME FOR PHI SL ALONG Y
                 coord_axis = 1
-                pos_y = params._dt_chamber["pos"][coord_axis]+params._dt_chamber["sls"][sl]["pos"][coord_axis]+params._dt_chamber["sls"][sl]["ch_pos"][coord_axis]+params._dt_chamber["sls"][sl]["ch_spacer"][coord_axis]
-                size_y = params._dt_chamber["sls"][sl]["ch_size"][coord_axis]
+                pos_y = params._dt_chamber["pos"][coord_axis] + params._dt_chamber["sls"][sl]["pos"][coord_axis] + params._dt_chamber["sls"][sl]["lys"][ly]["pos"][coord_axis] + params._dt_chamber["sls"][sl]["lys"][ly]["ch_pos"][coord_axis] + params._dt_chamber["sls"][sl]["lys"][ly]["ch_spacer"][coord_axis]
+                size_y = params._dt_chamber["sls"][sl]["lys"][ly]["ch_size"][coord_axis]
                 _dt_cell_coordinates[sl][ly][wi].append([pos_y, pos_y+size_y])
                 # idx = 2: z axis (axis = 2)
                 coord_axis = 2
-                pos_z = params._dt_chamber["pos"][coord_axis]+params._dt_chamber["sls"][sl]["pos"][coord_axis]+params._dt_chamber["sls"][sl]["ch_pos"][coord_axis]+params._dt_chamber["sls"][sl]["ch_spacer"][coord_axis]+ly*(params._dt_chamber["sls"][sl]["ch_size"][coord_axis]+params._dt_chamber["sls"][sl]["ch_spacer"][coord_axis])
-                size_z = params._dt_chamber["sls"][sl]["ch_size"][coord_axis]
+                pos_z = params._dt_chamber["pos"][coord_axis] + params._dt_chamber["sls"][sl]["pos"][coord_axis] + params._dt_chamber["sls"][sl]["lys"][ly]["pos"][coord_axis] + params._dt_chamber["sls"][sl]["lys"][ly]["ch_pos"][coord_axis] + params._dt_chamber["sls"][sl]["lys"][ly]["ch_spacer"][coord_axis] #+ ly * ( params._dt_chamber["sls"][sl]["lys"][ly]["ch_size"][coord_axis] + params._dt_chamber["sls"][sl]["lys"][ly]["ch_spacer"][coord_axis] )
+                size_z = params._dt_chamber["sls"][sl]["lys"][ly]["ch_size"][coord_axis]
                 _dt_cell_coordinates[sl][ly][wi].append([pos_z, pos_z+size_z])
                 # idx = 3: x center pos
                 _dt_cell_coordinates[sl][ly][wi].append(pos_x+size_x/2)
@@ -231,19 +230,18 @@ for sl in params._dt_chamber["sls"].keys():
             elif params._dt_chamber["sls"][sl]["orient"] == "theta": # theta wires along x
                 # idx = 0: x axis (axis = 0) ==> ALL CELLS LOOK THE SAME FOR THETA SL ALONG X
                 coord_axis = 0
-                pos_x = params._dt_chamber["pos"][coord_axis]+params._dt_chamber["sls"][sl]["pos"][coord_axis]+params._dt_chamber["sls"][sl]["ch_pos"][coord_axis]+params._dt_chamber["sls"][sl]["ch_spacer"][coord_axis]
-                size_x = params._dt_chamber["sls"][sl]["ch_size"][coord_axis]
+                pos_x = params._dt_chamber["pos"][coord_axis] + params._dt_chamber["sls"][sl]["pos"][coord_axis] + params._dt_chamber["sls"][sl]["lys"][ly]["pos"][coord_axis] + params._dt_chamber["sls"][sl]["lys"][ly]["ch_pos"][coord_axis] + params._dt_chamber["sls"][sl]["lys"][ly]["ch_spacer"][coord_axis]
+                size_x = params._dt_chamber["sls"][sl]["lys"][ly]["ch_size"][coord_axis]
                 _dt_cell_coordinates[sl][ly][wi].append([pos_x, pos_x+size_x])
                 # idx = 1: y axis (axis = 1)
                 coord_axis = 1
-                cell_offset = params._dt_chamber["sls"][sl]["ch_offset"][coord_axis] if params._dt_chamber["sls"][sl]["offset_ly"][ly] else 0
-                pos_y = params._dt_chamber["pos"][coord_axis]+params._dt_chamber["sls"][sl]["pos"][coord_axis]+params._dt_chamber["sls"][sl]["ch_pos"][coord_axis]+params._dt_chamber["sls"][sl]["ch_spacer"][coord_axis]+wi*(params._dt_chamber["sls"][sl]["ch_size"][coord_axis]+params._dt_chamber["sls"][sl]["ch_spacer"][coord_axis])+cell_offset
-                size_y = params._dt_chamber["sls"][sl]["ch_size"][coord_axis]
+                pos_y = params._dt_chamber["pos"][coord_axis] + params._dt_chamber["sls"][sl]["pos"][coord_axis] + params._dt_chamber["sls"][sl]["lys"][ly]["pos"][coord_axis] + params._dt_chamber["sls"][sl]["lys"][ly]["ch_pos"][coord_axis] + params._dt_chamber["sls"][sl]["lys"][ly]["ch_spacer"][coord_axis] + wi * ( params._dt_chamber["sls"][sl]["lys"][ly]["ch_size"][coord_axis] + params._dt_chamber["sls"][sl]["lys"][ly]["ch_spacer"][coord_axis] )
+                size_y = params._dt_chamber["sls"][sl]["lys"][ly]["ch_size"][coord_axis]
                 _dt_cell_coordinates[sl][ly][wi].append([pos_y, pos_y+size_y])
                 # idx = 2: z axis (axis = 2)
                 coord_axis = 2
-                pos_z = params._dt_chamber["pos"][coord_axis]+params._dt_chamber["sls"][sl]["pos"][coord_axis]+params._dt_chamber["sls"][sl]["ch_pos"][coord_axis]+params._dt_chamber["sls"][sl]["ch_spacer"][coord_axis]+ly*(params._dt_chamber["sls"][sl]["ch_size"][coord_axis]+params._dt_chamber["sls"][sl]["ch_spacer"][coord_axis])
-                size_z = params._dt_chamber["sls"][sl]["ch_size"][coord_axis]
+                pos_z = params._dt_chamber["pos"][coord_axis] + params._dt_chamber["sls"][sl]["pos"][coord_axis] + params._dt_chamber["sls"][sl]["lys"][ly]["pos"][coord_axis] + params._dt_chamber["sls"][sl]["lys"][ly]["ch_pos"][coord_axis] + params._dt_chamber["sls"][sl]["lys"][ly]["ch_spacer"][coord_axis] #+ ly * ( params._dt_chamber["sls"][sl]["lys"][ly]["ch_size"][coord_axis] + params._dt_chamber["sls"][sl]["lys"][ly]["ch_spacer"][coord_axis] )
+                size_z = params._dt_chamber["sls"][sl]["lys"][ly]["ch_size"][coord_axis]
                 _dt_cell_coordinates[sl][ly][wi].append([pos_z, pos_z+size_z])
                 # idx = 3: x center pos
                 _dt_cell_coordinates[sl][ly][wi].append(pos_x+size_x/2)
@@ -251,10 +249,11 @@ for sl in params._dt_chamber["sls"].keys():
                 _dt_cell_coordinates[sl][ly][wi].append(pos_y+size_y/2)
                 # idx = 5: z center pos
                 _dt_cell_coordinates[sl][ly][wi].append(pos_z+size_z/2)
+            #print(f"sl={sl} ly={ly} wi={wi} -- x={pos_x}, y={pos_y}, z={pos_z} -- _dt_cell_coordinates[sl][ly][wi] = {_dt_cell_coordinates[sl][ly][wi]}")
 
 ### dt sl pattern geometry
 # only the marked cells are "valid"
-# ly(z) wi(x) 0   1   2   3        
+# ly(z)    wi(x) 0   1   2   3        
 #               *this is the reference cell, with rel_wi=0
 # 3   |   |   |*!*|   |   | 
 # 2     |   | - | - |   |    
@@ -263,6 +262,8 @@ for sl in params._dt_chamber["sls"].keys():
 # z axis goes up, x axis goes right
 # rel_wi is wire idx relative to reference cell (ly3), and has valid range of [-2,-1,0,1,2]
 _sl_pattern_coordinates = {} # coordinates of sub-coord frame used to fit dt sl patterns: {ly: {rel_wi: [[xmin, xmax], [zmin, zmax], x_center_pos, z_center_pos]}}, only 2 axes since fit is in x-z-projection !!
+sl_pattern_ref_wi = 10 # some random wire that is defined for each layer...
+sl_pattern_ref_ly = 3 # reference layer
 for ly in range(params._dt_chamber["sls"][sl]["n_lys"]):
     _sl_pattern_coordinates[ly] = {}
     for rel_wi in range(-2,2+1):
@@ -270,13 +271,12 @@ for ly in range(params._dt_chamber["sls"][sl]["n_lys"]):
         sl = 1 # choose phi sl
         # x/y axis projection
         coord_axis = 0
-        cell_offset = params._dt_chamber["sls"][sl]["ch_offset"][coord_axis] if params._dt_chamber["sls"][sl]["offset_ly"][ly] else 0
-        pos_x = params._dt_chamber["sls"][sl]["ch_spacer"][coord_axis]+rel_wi*(params._dt_chamber["sls"][sl]["ch_size"][coord_axis]+params._dt_chamber["sls"][sl]["ch_spacer"][coord_axis])+cell_offset
-        size_x = params._dt_chamber["sls"][sl]["ch_size"][coord_axis]
+        pos_x = _dt_cell_coordinates[sl][ly][sl_pattern_ref_wi+rel_wi][coord_axis][0] - _dt_cell_coordinates[sl][sl_pattern_ref_ly][sl_pattern_ref_wi][coord_axis][0]
+        size_x = params._dt_chamber["sls"][sl]["lys"][ly]["ch_size"][coord_axis]
         # z axis
         coord_axis = 2
-        pos_z = params._dt_chamber["sls"][sl]["ch_spacer"][coord_axis]+ly*(params._dt_chamber["sls"][sl]["ch_size"][coord_axis]+params._dt_chamber["sls"][sl]["ch_spacer"][coord_axis])
-        size_z = params._dt_chamber["sls"][sl]["ch_size"][coord_axis]
+        pos_x = _dt_cell_coordinates[sl][ly][sl_pattern_ref_wi+rel_wi][coord_axis][0] - _dt_cell_coordinates[sl][sl_pattern_ref_ly][sl_pattern_ref_wi][coord_axis][0]
+        size_z = params._dt_chamber["sls"][sl]["lys"][ly]["ch_size"][coord_axis]
         # fill data into coord map
         _sl_pattern_coordinates[ly][rel_wi].append([pos_x, pos_x+size_x]) # idx = 0: [xmin, xmax]
         _sl_pattern_coordinates[ly][rel_wi].append([pos_z, pos_z+size_z]) # idx = 0: [zmin, zmax]

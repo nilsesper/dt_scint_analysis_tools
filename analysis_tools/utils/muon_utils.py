@@ -18,8 +18,8 @@ import analysis_tools.params.derived_params as derived_params
 
 ### propagate all muons to given z coordinate
 def propagate_muons(muons, z): # propagate spherical coordinates
-    x = muons["x0"] + (z-muons["z0"]) * np.cos(muons["phi"]) * np.tan(muons["theta"])
-    y = muons["y0"] + (z-muons["z0"]) * np.sin(muons["phi"]) * np.tan(muons["theta"])
+    x = muons["x0"] + (z-muons["z0"]) * np.cos(muons["phi"]) * np.tan(muons["theta"]) #* np.tan(muons["theta"])
+    y = muons["y0"] + (z-muons["z0"]) * np.sin(muons["phi"]) * np.tan(muons["theta"]) #* np.tan(muons["theta"])
     return (x,y,z)
 
 ### propagate one muon to given z coordinate
@@ -32,8 +32,8 @@ def propagate_muon(muons, z, muon_id=None, idx=None): # propagate spherical coor
         raise Exception("Only \"muon_id\" or \"idx\" argument must be given, not both!")
     if muon_id != None: # search idx of muon in list which has specifed muon_id
         idx = np.argwhere(muons["muon_id"] == muon_id)[0][0]
-    x = muons["x0"][idx] + (z-muons["z0"][idx]) * np.cos(muons["phi"][idx]) * np.tan(muons["theta"][idx])
-    y = muons["y0"][idx] + (z-muons["z0"][idx]) * np.sin(muons["phi"][idx]) * np.tan(muons["theta"][idx])
+    x = muons["x0"][idx] + (z-muons["z0"][idx]) * np.cos(muons["phi"][idx]) * np.tan(muons["theta"][idx]) #np.tan(muons["theta"][idx])
+    y = muons["y0"][idx] + (z-muons["z0"][idx]) * np.sin(muons["phi"][idx]) * np.tan(muons["theta"][idx]) #np.tan(muons["theta"][idx])
     return (x,y,z)
 
 ### generate random cosmic muons

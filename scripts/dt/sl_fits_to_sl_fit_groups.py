@@ -28,7 +28,7 @@ def main():
         help     = "input file path: sl fits (pcl file)",
     )
     parser.add_argument(
-        "--dt_fit_groups_file",
+        "--sl_fit_groups_file",
         type     = str,
         help     = "output file path: dt fit groups (pcl file)",
     )
@@ -41,15 +41,12 @@ def main():
     # ---
     args = parser.parse_args()
     sl_fits_file = args.sl_fits_file
-    dt_fit_groups_file = args.dt_fit_groups_file
+    sl_fit_groups_file = args.sl_fit_groups_file
     verbose = False
     if args.verbose:
         verbose = True
 
     #################
-
-    ts_tolerance = params._dt_max_drift_time
-    ts_tolerance_2 = 100
 
     ### data import
     print(f"###### Importing sl fits...")
@@ -69,19 +66,43 @@ def main():
     for sl in params._dt_chamber["sls"].keys():
         print(f"grouping sl fits of sl = {sl}...")
         sl_fits_sl[sl] = data_utils.cut_data(data=sl_fits, conditions=[("sl","==",sl)], silent=True)
-        idx_grouped[sl], ts_group[sl] = combination_utils.time_grouping_indices_2(data=sl_fits_sl[sl], ts_tolerance=ts_tolerance, data_ts_key="t0")
+        idx_grouped[sl], ts_group[sl] = combination_utils.time_grouping_indices_2(data=sl_fits_sl[sl], ts_tolerance=params._sl_fit_group_ts_tolerance, data_ts_key="t0")
         n_groups[sl] = len(idx_grouped[sl])
         group_rate[sl] = n_groups[sl] / duration
+    n_groups_sum = np.sum([n_groups[sl] for sl in params._dt_chamber["sls"].keys()])
     print(f"n_fit_groups per sl = {n_groups}")
     print(f"fit group rate per sl = {group_rate} Hz")
 
-    ### group together sl fit groups of different superlayers
-    time_grouping_list = combination_utils.time_grouping_indices_3(data1=ts_group[1], data2=ts_group[2], data3=ts_group[3], ts_tolerance=ts_tolerance_2)
-    print(time_grouping_list)
+    # sl_fit_groups = { "sl": superlayer, "tgroup": mean t0 of fits in group, "idcs": [indices of group member sl_fits], "n_fits": no of sl fits in group }
+
+    ### translate idcs of sl_fits_sl (only one sl) back to idcs of sl_fits (all sls together)
+    sl_fit_groups = {
+        "sl": np.zeros(n_groups_sum),
+        "tgroup": [0 for i in range(n_groups_sum)],
+        "idcs": [[] for i in range(n_groups_sum)],
+        "n_fits": [0 for i in range(n_groups_sum)],
+    }
+    for sl in params._dt_chamber["sls"].keys():
+        print(f"translating back indices of groups in sl = {sl}...")
+        for i in range(n_groups[sl]):
+            j = int( i + np.sum([n_groups[sl_i] for sl_i in params._dt_chamber["sls"].keys() if sl_i < sl]) )
+            glob_idcs = []
+            for loc_idx in idx_grouped[sl][i]:
+                glob_idx = np.where((sl_fits["t0"] == sl_fits_sl[sl]["t0"][loc_idx]) & (sl_fits["sl"] == sl))[0][0]
+                glob_idcs.append(glob_idx)
+            sl_fit_groups["idcs"][j] = glob_idcs
+            sl_fit_groups["tgroup"][j] = ts_group[sl][i]
+            sl_fit_groups["sl"][j] = sl
+            sl_fit_groups["n_fits"][j] = len(glob_idcs)
+    
+    ### sort sl_fit_groups by tgroup
+    sl_fit_groups = data_utils.sort_by_key(data=sl_fit_groups, sort_key="tgroup")
+    
+    #print(f"sl_fit_groups =",sl_fit_groups)
 
     ### store to pcl file
-    print(f"###### Storing DT fit groups to file \"{dt_fit_groups_file}\"...")
-    data_utils.store_pickle(data=dt_fit_groups, file=dt_fit_groups_file)
+    print(f"###### Storing SL fit groups to file \"{sl_fit_groups_file}\"...")
+    data_utils.store_pickle(data=sl_fit_groups, file=sl_fit_groups_file)
 
 
 

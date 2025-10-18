@@ -63,12 +63,6 @@ def main():
     # dt
     dt_muons = data_utils.load_pickle(file=dt_muons_file)
 
-    # cuts
-    dt_muons = data_utils.cut_data(data=dt_muons, conditions=[
-        #("theta",">",0.5),
-        ("muon_theta","<",np.pi/2), ("muon_theta",">",-np.pi/2),
-    ])
-
     n_dt_muons = data_utils.length(dt_muons)
 
     ### dt hits

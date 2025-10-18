@@ -338,7 +338,7 @@ def _chamber_data(default={"color": params._color_info["cell"][None], "text": ""
         chamber_data[sl] = {}
         for ly in range(params._dt_chamber["sls"][sl]["n_lys"]):
             chamber_data[sl][ly] = {}
-            for wi in range(params._dt_chamber["sls"][sl]["n_wis"]):
+            for wi in range(params._dt_chamber["sls"][sl]["lys"][ly]["min_wi"], params._dt_chamber["sls"][sl]["lys"][ly]["max_wi"]+1):
                 chamber_data[sl][ly][wi] = copy.deepcopy(default)
     return chamber_data
 
@@ -595,19 +595,151 @@ def fit_sl_patterns_meantimer(patterns, *, silent=False, verbose=False):
     sl_fits = data_utils.cut_data(data=sl_fits, conditions=[("laterality","!=",99)], silent=silent)
     return sl_fits
 
-### combine fitted sl patterns for full chamber, generate muon object as output
-# only works if at least one phi & theta pattern exists
-def reco_muons_from_sl_fits(fits, *, silent=False, verbose=False):
-    n_fits = len(fits["t0"])
+### combine sl fit groups for full chamber, generate muon object as output
+def reco_muons_from_sl_fit_groups(fits, fit_groups, *, silent=False, verbose=False):
+    n_fits = data_utils.length(fits)
+    n_fit_groups = data_utils.length(fit_groups)
     reco_muon_list = []
-    # sort fits by t0 value
-    fits = data_utils.sort_by_key(data=fits, sort_key="t0", silent=silent)
-    ## apply timing correction to each uperlayer separately
-    if not silent: print(f"Applying timig correction to fits on superlayer level: {params._sl_time_offset}...")
-    for i in tqdm(range(n_fits), disable=silent):
-        sl = fits["sl"][i]
-        t0 = fits["t0"][i]
-        fits["t0"][i] = np.float64(t0) + np.float64(params._sl_time_offset[sl])
+    # extract is of sls in phi & theta orientation
+    phi_sls = [sl for sl in params._dt_chamber["sls"].keys() if params._dt_chamber["sls"][sl]["orient"] == "phi"]
+    phi_sl1, phi_sl2 = phi_sls[0], phi_sls[1]
+    theta_sl = [sl for sl in params._dt_chamber["sls"].keys() if params._dt_chamber["sls"][sl]["orient"] == "theta"][0]
+    ### sort fit groups by tgroup value
+    fit_groups = data_utils.sort_by_key(data=fit_groups, sort_key="tgroup", silent=silent)
+    ### combine sl fit groups of different superlayers to "muon"
+    last_fit_group = {sl: None for sl in params._dt_chamber["sls"].keys()} # holds last fit group of each sl
+    for i in tqdm(range(n_fit_groups), disable=silent):
+        ### search for fit groups close in time
+        sl = fit_groups["sl"][i]
+        last_fit_group[sl] = {k: fit_groups[k][i] for k in fit_groups.keys()} | {"idx": i} # store all info of fit group
+        # continue of not one fit group in each sl found until now
+        if None in last_fit_group.values():
+            continue
+        # check if fit group timestamps are within specified tolerance, else continue
+        if np.abs(last_fit_group[1]["tgroup"] - last_fit_group[2]["tgroup"]) > params._sl_fit_group_ts_tolerance:
+            continue
+        if np.abs(last_fit_group[2]["tgroup"] - last_fit_group[3]["tgroup"]) > params._sl_fit_group_ts_tolerance:
+            continue
+        if np.abs(last_fit_group[2]["tgroup"] - last_fit_group[3]["tgroup"]) > params._sl_fit_group_ts_tolerance:
+            continue
+        ### if code made it to here, a muon (3 fit groups reasonably close in time) was found
+        if last_fit_group[1]["n_fits"] > params._muon_n_fits_max:
+            continue
+        if last_fit_group[2]["n_fits"] > params._muon_n_fits_max:
+            continue
+        if last_fit_group[3]["n_fits"] > params._muon_n_fits_max:
+            continue
+        ###### attempt muon reco
+        ### currently only supports 1 pattern/fit per sl in selected fit group - if multiple one would need to add more selection logic in order to decide which fit to choose...
+        if params._muon_n_fits_max > 1:
+            raise Exception(f"_muon_n_fits_max > 1 is not supported until now. can only reco muon if only 1 pattern/fit per pattern group is found")
+        fit = {} # {sl: {sl_fit obj keys & values}
+        for sl in params._dt_chamber["sls"].keys():
+            fit_idx = last_fit_group[sl]["idcs"][0]
+            fit[sl] =  {k: fits[k][fit_idx] for k in fits.keys()}
+        # reject muon if tan alpha tolerance not met
+        if np.abs(fit[phi_sl1]["tan_alpha"] - fit[phi_sl2]["tan_alpha"]) > params._muon_slphi_tan_alpha_tolerance:
+            continue
+        for sl in params._dt_chamber["sls"].keys():
+            if fit[sl]["sl"] != sl:
+                raise Exception(fit)
+        tan_alpha_phi = np.mean([fit[phi_sl1]["tan_alpha"], fit[phi_sl2]["tan_alpha"]])
+        tan_alpha_theta = fit[theta_sl]["tan_alpha"]
+        ### do propagation of local sl fits to z = _muon_reco_z0 (z reco target coordinate)
+        z0_reco = params._muon_reco_z0 # z0 target of muon in global coord frame
+        x0_reco_sl = {}
+        skip_this_combination = False
+        for sl in params._dt_chamber["sls"].keys():
+            x0_fit, tan_alpha_fit = fit[sl]["x0"], fit[sl]["tan_alpha"]
+            orient = "phi" if (sl in phi_sls) else "theta"
+            x_axis, y_axis = params._orientation[orient][0], params._orientation[orient][1]
+            # transform coordinates from local coordinate frame (with (0,0) at center (wire) position of cell ly=3, rel_wi=0) into global coordinate frame of dt chamber (used in params.py file)
+            base_wi = fit[sl]["wi3"] # wi idx of ly=3 (base wi)
+            if base_wi not in derived_params._dt_cell_coordinates[sl][3].keys():
+                skip_this_combination = True
+                continue
+            z_wire = derived_params._sl_pattern_coordinates[3][0][3] # z_cell (wire position) of ly=3
+            _coord_transform = [ derived_params._dt_cell_coordinates[sl][3][base_wi][x_axis+3], derived_params._dt_cell_coordinates[sl][3][base_wi][y_axis+3] ]
+            # calculate muon track in coord frame
+            x0_reco_sl[sl] = derived_params.f_x_muon(z=-_coord_transform[1]+z0_reco, x0=x0_fit, tan_alpha=tan_alpha_fit) + _coord_transform[0]
+        if skip_this_combination:
+            continue
+        # reject muon if xproj tolerance not met
+        if np.abs(x0_reco_sl[phi_sl1] - x0_reco_sl[phi_sl2]) > params._muon_slphi_xproj_tolerance:
+            continue
+        # reco x, y positions of muon in 2d slice of global coord frame
+        x0_reco_phi = np.mean([x0_reco_sl[sl] for sl in phi_sls])
+        x0_reco_theta = x0_reco_sl[theta_sl]
+        x0_reco = x0_reco_phi if (params._orientation["phi"][0] == 0) else x0_reco_theta
+        y0_reco = x0_reco_phi if (params._orientation["phi"][0] == 1) else x0_reco_theta
+        ### combine phi + theta planes to (x0, y0, theta, phi) muon in global coord system
+        # the combined (x0_reco, y0_reco, z0_reco, theta_reco, phi_reco) is in global coord system at z0 = params._muon_reco_z0
+        # calculate theta, phi from projection angles alpha_phi, alpha_theta
+        tan_alpha_x = tan_alpha_phi if (params._orientation["phi"][0] == 0) else tan_alpha_theta # proj on global x axis
+        tan_alpha_y = tan_alpha_phi if (params._orientation["phi"][0] == 1) else tan_alpha_theta # proj on global y axis
+        # tan_alpha_x = tan_theta*cos_phi, tan_alpha_y = tan_theta*sin_phi
+        # => phi = arctan(tan_alpha_x/tan_alpha_y), theta = arctan(tan_alpha_x/cos_phi)
+        phi_reco_prelim = np.atan2( tan_alpha_y, tan_alpha_x ) #np.arctan( tan_alpha_y / tan_alpha_x ) # np.atan2( tan_alpha_y, tan_alpha_x ) # use atan2 to cover full 360 degrees
+        # make sure phi is in range [0, 2*np.pi]
+        phi_periodicity = 2*np.pi
+        phi_reco = phi_reco_prelim - phi_periodicity*(phi_reco_prelim//phi_periodicity)
+        theta_reco = np.arctan( tan_alpha_x / np.cos(phi_reco) ) #print( np.arctan( tan_alpha_x / np.cos(phi_reco) ) , np.arctan( tan_alpha_y / np.sin(phi_reco) ) )
+        ### combine t0 to muon arrival time (averaging)
+        ts_reco = np.mean([fit[sl]["t0"] for sl in params._dt_chamber["sls"].keys()])
+        ### combine muon_id of hits (if there is one from simulation)
+        # raise error of muon_id of combined sl patters is not single value
+        muon_id = fit[sl]["muon_id"]
+        skip_this_combination = False
+        for this_muon_id in [fit[sl]["muon_id"] for sl in params._dt_chamber["sls"].keys()]:
+            if muon_id != this_muon_id:
+                if verbose: print("Different muon_ids for the sl fits which should be combined to dt muon. Skip this combination...")
+                skip_this_combination = True
+        if skip_this_combination:
+            continue
+        ### store reco muon
+        reco_muon_list.append({
+            # reco values
+            "x0":x0_reco, "y0":y0_reco, "z0":z0_reco, "theta":theta_reco, "phi":phi_reco, "ts":ts_reco, "muon_id":muon_id,
+            "sl1_fit_group": last_fit_group[1]["idx"], "sl2_fit_group": last_fit_group[2]["idx"], "sl3_fit_group": last_fit_group[3]["idx"], # indices of fit groups used for this muon
+            # also extract sim muon keys (from one pattern since fine because have ensured that it is from same muon)
+            "muon_ts": fit[1]["muon_ts"],
+            "muon_phi": fit[1]["muon_phi"],
+            "muon_theta": fit[1]["muon_theta"],
+            "muon_x0": fit[1]["muon_x0"],
+            "muon_y0": fit[1]["muon_y0"],
+            "muon_z0": fit[1]["muon_z0"],
+        })
+        ### printing for debugging
+        if verbose: print("------")
+        for sl in params._dt_chamber["sls"].keys():
+            if verbose:
+                print(f"sl = {sl}:")
+                print(f"  fit_group =", last_fit_group[sl])
+                print(f"  fit =", fit[sl])
+                for k in ["wi3", "t0", "tan_alpha", "x0"]:
+                    print(f"  {k} = {fit[sl][k]}")
+                print(f"x0_reco = {x0_reco_sl[sl]}")
+                print(f"z0_reco = {z0_reco}")
+        if verbose:
+            print(f"muon:")
+            print(f"  ( x0_reco , y0_reco , z0_reco ) = ( {x0_reco} , {y0_reco} , {z0_reco} )")
+            print(f"  ( phi_reco , theta_reco ) = ( {phi_reco} , {theta_reco} )")
+            print(f"  ts_reco = {ts_reco}")
+        ### make sure no fit group is double counted, remove all 3 used fit groups from last_fit_group list...
+        for sl in params._dt_chamber["sls"].keys():
+            last_fit_group[sl] = None
+        #print(np.arctan(fit[phi_sl1]["tan_alpha"])*180/np.pi , np.arctan(fit[phi_sl2]["tan_alpha"])*180/np.pi, np.arctan(fit[theta_sl]["tan_alpha"])*180/np.pi)
+    ### store into reco_muons object
+    # !!! for muon the name of the timestamp key is "ts" and not "t0"
+    n_reco_muons = len(reco_muon_list)
+    if not silent: print(f"Reconstructed {n_reco_muons} muons from {n_fits} SL patterns.")
+    reco_muons = {k: np.full(n_reco_muons, 0, dtype=v) for k,v in params._muon_obj_keys.items()}
+    for i in range(n_reco_muons):
+        for k in params._muon_obj_keys.keys():
+            reco_muons[k][i] = reco_muon_list[i][k]
+    return reco_muons
+
+    """
     ## re-sort data
     fits = data_utils.sort_by_key(data=fits, sort_key="t0", silent=silent)
     if not silent: print(f"Combining {n_fits} fitted SL patterns to reconstruct muons...")
@@ -753,7 +885,7 @@ def reco_muons_from_sl_fits(fits, *, silent=False, verbose=False):
     for i in range(n_reco_muons):
         for k in params._muon_obj_keys.keys():
             reco_muons[k][i] = reco_muon_list[i][k]
-    return reco_muons
+    #"""
 
 ### extract timestamps of testpulse hits for full readout system
 # fe connector granularity

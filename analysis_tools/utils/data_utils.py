@@ -41,7 +41,7 @@ def import_raw(file_name, *, silent=False):
 #       all conditions are "AND-ed" together
 def cut_data(data, conditions=[], *, silent=False):
     if not silent: print(f"Cutting data according to conditions {conditions}...")
-    # calculate masks for data
+    ## calculate masks for data
     #mask = np.full(len(data["ch"]), True)
     last_data = copy.deepcopy(data)
     any_key = list(last_data.keys())[0]
@@ -55,10 +55,20 @@ def cut_data(data, conditions=[], *, silent=False):
         elif c[1] == "<=": mask &= (data[c[0]] <= c[2])
         elif c[1] == "in": mask &= np.ma.isin(data[c[0]], c[2])
         else: raise Exception(f"Invalid operator \"{c[1]}\".")
-    # apply mask to data
+    ## apply mask to data
     masked_data = {}
     for name in data.keys():
-        masked_data[name] = copy.deepcopy(last_data[name][mask])
+        # if python list at this key
+        masked_data[name] = []
+        if isinstance(last_data[name], list):
+            for i in range(len(last_data[name])):
+                if mask[i]:
+                    masked_data[name].append(last_data[name][i])
+        # if numpy array at this key
+        elif isinstance(last_data[name], np.ndarray):
+            masked_data[name] = copy.deepcopy(last_data[name][mask])
+        else:
+            raise Exception(f"CUT_DATA ERROR: data[{name}] is of unsupported type {type(last_data[name])}. can only cut lists or numpy arrays")
     last_data = copy.deepcopy(masked_data)
     one_key = list(masked_data.keys())[0]
     if not silent:
@@ -74,8 +84,17 @@ def sort_by_key(data, sort_key, *, silent=False):
     n_data = len(sorted_data[any_key])
     if not silent: print(f"Sorting {n_data} hits by key \"{sort_key}\"...")
     new_idx_order = np.argsort(data[sort_key])
-    for k in data.keys(): # sort all keys of hit dict depending on order
-        sorted_data[k] = data[k][new_idx_order]
+    for name in data.keys(): # sort all keys of hit dict depending on order
+        # if python list at this key
+        if isinstance(data[name], list):
+            for i in range(len(data[name])):
+                j = new_idx_order[i]
+                sorted_data[name][i] = data[name][j]
+        # if numpy array at this key
+        elif isinstance(data[name], np.ndarray):
+            sorted_data[name] = data[name][new_idx_order]
+        else:
+            raise Exception(f"SORT_BY_KEY ERROR: data[{name}] is of unsupported type {type(data[name])}. can only sort lists or numpy arrays")
     return sorted_data
 
 ### store arbitrary object as pickle file
@@ -144,3 +163,24 @@ def cut_first_entries(data, n_cut=1, *, silent=False):
 def length(data):
     any_key = list(data.keys())[0]
     return len(data[any_key])
+
+### slice data: select only data points with given indices from object
+def slice_data(data, slice_indices, *, silent=False):
+    data = copy.deepcopy(data)
+    sliced_data = {}
+    for name in data.keys():
+        # if python list at this key
+        sliced_data[name] = []
+        if isinstance(data[name], list) or isinstance(data[name], np.ndarray):
+            for i in range(len(data[name])):
+                if i in slice_indices:
+                    sliced_data[name].append(data[name][i])
+        else:
+            raise Exception(f"SLICE_DATA ERROR: data[{name}] is of unsupported type {type(data[name])}. can only cut lists or numpy arrays")
+    data = copy.deepcopy(sliced_data)
+    one_key = list(sliced_data.keys())[0]
+    if not silent:
+        if len(data[one_key]) > 0: print(f"Cut flow: {len(sliced_data[one_key])} / {len(data[one_key])} = {len(sliced_data[one_key])/len(data[one_key])}")
+        else: print(f"Cut flow: {len(sliced_data[one_key])} / {len(data[one_key])}")
+    return sliced_data
+
