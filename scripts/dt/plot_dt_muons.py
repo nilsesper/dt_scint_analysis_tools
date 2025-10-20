@@ -89,6 +89,8 @@ def main():
         plotname = False
         if store_plots != None:
             plotname = store_plots+f"/dt_hits_{k}.png"
+        if k == "theta":
+            hists = hists / np.sin(centers)
         hist_utils.plot_1hist(hist=hists, centers=centers, xlabel=xlabel, round_digits=round_digits, bin_labels=False, silent=True, store=plotname, show=show_plots) # scale="log"
     
     ### measurement duration

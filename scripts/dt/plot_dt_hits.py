@@ -109,7 +109,7 @@ def main():
         # put all layers in one plot
         for ly in range(0,4):
             hist_bins = {
-                "wi": np.arange(0, params._dt_chamber["sls"][sl]["n_wis"]),
+                "wi": np.arange(params._dt_chamber["sls"][sl]["lys"][ly]["min_wi"], params._dt_chamber["sls"][sl]["lys"][ly]["max_wi"]+1)
             }
             dt_hits_cut = data_utils.cut_data(data=dt_hits, conditions=[("sl","==",sl), ("ly","==",ly)], silent=True)
             for k in hist_bins.keys():

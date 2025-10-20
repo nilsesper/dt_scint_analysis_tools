@@ -59,8 +59,10 @@ for ro_ch in _dt_ro_chs:
             # conductors in the cable come in this order of layers: 4(outer), 2, 3, 1(inner)
             ly = [3,1,2,0][ch_id & 3]
             wi = (ch_id >> 2) + wireoffset
-            ch = fe["chs"][ch_id]
-            #if wi >= params._dt_chamber["sls"][sl]["n_wis"]: continue
+            ch = fe["chs"][ch_id]#
+            #print(f"ro_ch={ro_ch} fe_id={fe_id} : ch={ch} -> sl={sl} ly={ly} wi={wi}")
+            if wi > params._dt_chamber["sls"][sl]["lys"][ly]["max_wi"] or wi < params._dt_chamber["sls"][sl]["lys"][ly]["min_wi"]:
+                continue
             _dt_remap_table[ro_ch][ch] = {
                 "conn_id": conn_id, # idx of conn name "J35" in fe_mapping dict
                 "fe_id": fe_id, # idx of fe conn name "1A" in order starting at 1A
@@ -69,6 +71,10 @@ for ro_ch in _dt_ro_chs:
                 "ly": ly, # layer
                 "wi": wi, # wire
             }
+"""
+ro_ch = 14
+print({f"ch={ch}": (f"sl={_dt_remap_table[ro_ch][ch]['sl']}", f"ly={_dt_remap_table[ro_ch][ch]['ly']}", f"wi={_dt_remap_table[ro_ch][ch]['wi']}", f"fe_id={_dt_remap_table[ro_ch][ch]['fe_id']}") for ch in _dt_remap_table[ro_ch].keys()})
+"""
 
 ## print dt chamber mapping
 #for ro_ch in _dt_ro_chs:
@@ -275,7 +281,7 @@ for ly in range(params._dt_chamber["sls"][sl]["n_lys"]):
         size_x = params._dt_chamber["sls"][sl]["lys"][ly]["ch_size"][coord_axis]
         # z axis
         coord_axis = 2
-        pos_x = _dt_cell_coordinates[sl][ly][sl_pattern_ref_wi+rel_wi][coord_axis][0] - _dt_cell_coordinates[sl][sl_pattern_ref_ly][sl_pattern_ref_wi][coord_axis][0]
+        pos_z = _dt_cell_coordinates[sl][ly][sl_pattern_ref_wi+rel_wi][coord_axis][0] - _dt_cell_coordinates[sl][sl_pattern_ref_ly][sl_pattern_ref_wi][coord_axis][0]
         size_z = params._dt_chamber["sls"][sl]["lys"][ly]["ch_size"][coord_axis]
         # fill data into coord map
         _sl_pattern_coordinates[ly][rel_wi].append([pos_x, pos_x+size_x]) # idx = 0: [xmin, xmax]

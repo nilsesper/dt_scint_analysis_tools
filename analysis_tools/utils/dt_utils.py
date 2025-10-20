@@ -58,10 +58,13 @@ def extract_dt_hits(hits, *, silent=False, has_timestamp=False):
     # cut away undefined wires (if wi >= n_wis in sl)
     # can happen due to bad remapping tables...
     print("cut away undefined wires...")
-    keep_sl = []
+    keep_ly = []
     for sl in params._dt_chamber["sls"].keys():
-        keep_sl.append( data_utils.cut_data(data=tmp_hits, conditions=[("sl","==",sl), ("wi","<",params._dt_chamber["sls"][sl]["n_wis"])]) ) # wi idx must be < n_wis i.e. in range [0,n_wis-1]
-    tmp_hits = data_utils.merge_dataset(split_data=keep_sl)
+        for ly in params._dt_chamber["sls"][sl]["lys"].keys():
+            keep_ly.append( data_utils.cut_data(data=tmp_hits, conditions=[("sl","==",sl), ("ly","==",ly), ("wi",">=",params._dt_chamber["sls"][sl]["lys"][ly]["min_wi"]), ("wi","<=",params._dt_chamber["sls"][sl]["lys"][ly]["max_wi"])]) )
+            print(f"wi < min_wi:", data_utils.cut_data(data=tmp_hits, conditions=[("sl","==",sl), ("ly","==",ly), ("wi","<",params._dt_chamber["sls"][sl]["lys"][ly]["min_wi"])]) )
+            print(f"wi > max_wi:", data_utils.cut_data(data=tmp_hits, conditions=[("sl","==",sl), ("ly","==",ly), ("wi",">",params._dt_chamber["sls"][sl]["lys"][ly]["max_wi"])]) )
+    tmp_hits = data_utils.merge_dataset(split_data=keep_ly)
     tmp_hits = timestamp_utils.sort_by_timestamp(hits=tmp_hits)
     ### -----------------------
     # apply dead time constraint to all individual channels (if specified dead time is > 0)
@@ -72,7 +75,7 @@ def extract_dt_hits(hits, *, silent=False, has_timestamp=False):
             cut_tmp_hits[sl] = {}
             for ly in derived_params._dt_inverted_remap_table[sl].keys():
                 cut_tmp_hits[sl][ly] = {}
-                for wi in derived_params._dt_inverted_remap_table[sl][ly].keys():
+                for wi in range(params._dt_chamber["sls"][sl]["lys"][ly]["min_wi"], params._dt_chamber["sls"][sl]["lys"][ly]["max_wi"]+1):
                     cut_tmp_hits[sl][ly][wi] = data_utils.cut_data(data=tmp_hits, conditions=[("sl","==",sl),("ly","==",ly),("wi","==",wi)], silent=True)
                     n_cut_hits = len(cut_tmp_hits[sl][ly][wi]["ts"])
                     allowed_indices = []
@@ -93,40 +96,61 @@ def extract_dt_hits(hits, *, silent=False, has_timestamp=False):
         merge_data = []
         for sl in derived_params._dt_inverted_remap_table.keys():
             for ly in derived_params._dt_inverted_remap_table[sl].keys():
-                for wi in derived_params._dt_inverted_remap_table[sl][ly].keys():
+                for wi in range(params._dt_chamber["sls"][sl]["lys"][ly]["min_wi"], params._dt_chamber["sls"][sl]["lys"][ly]["max_wi"]+1):
                     merge_data.append(cut_tmp_hits[sl][ly][wi])
         tmp_hits = data_utils.merge_dataset(split_data=merge_data)
         print("sort data by timestamp...")
         tmp_hits = timestamp_utils.sort_by_timestamp(hits=tmp_hits)
     return tmp_hits
 
+### helper: return 3d object to store one value of specified data type for dt chamber
+# dt_map = {sl: {ly: [wi: value of dtype]}}
+def _empty_dt_chamber_map(content):
+    dt_map = {}
+    for sl in params._dt_chamber["sls"].keys():
+        dt_map[sl] = {}
+        for ly in range(params._dt_chamber["sls"][sl]["n_lys"]):
+            dt_map[sl][ly] = {}
+            for wi in range(params._dt_chamber["sls"][sl]["lys"][ly]["min_wi"], params._dt_chamber["sls"][sl]["lys"][ly]["max_wi"]+1):
+                dt_map[sl][ly][wi] = copy.deepcopy(content)
+    return dt_map
+
 ### calculate dt chamber hits caused by muons
 # simply propagate it to all layers of the chamber
 # returns dt hits with keys {ts = ts of muon + drift time, sl, ly, wi}
 # dt hits are being sorted by ts value of hits
-# if noise_ampl > 0: add gaussian noise to drift distance (in unit of mm)
-def hits_from_muons(muons, *, silent=False, noise_ampl=0):
+# if noise_ampl > 0: add gaussian noise to drift distance (in unit of ts units), sampled individually for each wire and for each event
+# if sys_miscalib_ampl > 0: add constant time shift (in unit of ts units) to all individual wire timestamps. sampled only once in the beginning (simulating miscalibration in timestamps)
+def hits_from_muons(muons, *, silent=False, noise_ampl=0, sys_miscalib_ampl=0):
     dt_hit_list = []
     n_muons = len(muons["x0"])
     lat_dict = {True: 1, False: -1} # laterality dict: -1: left of wire (l), +1: right of wire (r)
     if not silent: print(f"Calculating DT hits by {n_muons} muons...")
+    # simulate constant time offset (miscalib)
+    miscalib_map = _empty_dt_chamber_map(content=0)
+    if sys_miscalib_ampl > 0:
+        for sl in params._dt_chamber["sls"].keys():
+            for ly in range(params._dt_chamber["sls"][sl]["n_lys"]):
+                for wi in range(params._dt_chamber["sls"][sl]["lys"][ly]["min_wi"], params._dt_chamber["sls"][sl]["lys"][ly]["max_wi"]+1):
+                    miscalib_map[sl][ly][wi] = np.random.normal(loc=0, scale=1) * sys_miscalib_ampl # constant gaussian noise with sigma = noise_ampl, applied on drift time in ts units
+    # propagate muons
     for sl in params._dt_chamber["sls"].keys():
         # calculate x0, tan_alpha projection for simulated muons
-        z_wi_idx = 0
-        z_pos = derived_params._dt_cell_coordinates[sl][3][z_wi_idx][5]
-        (x_ly3,y_ly3,z_ly3) = muon_utils.propagate_muons(muons=muons, z=z_pos) # propagate all muons together
-        z_pos = derived_params._dt_cell_coordinates[sl][2][z_wi_idx][5]
-        (x_ly2,y_ly2,z_ly2) = muon_utils.propagate_muons(muons=muons, z=z_pos) # propagate all muons together
-        muon_tan_alpha = ((-x_ly3+x_ly2) / params._cell_height) if (params._dt_chamber["sls"][sl]["orient"] == "phi") else ((-y_ly3+y_ly2) / params._cell_height) # np.arctan()
+        #z_wi_idx = 1
+        #z_pos = derived_params._dt_cell_coordinates[sl][3][z_wi_idx][5]
+        #(x_ly3,y_ly3,z_ly3) = muon_utils.propagate_muons(muons=muons, z=z_pos) # propagate all muons together
+        #z_pos = derived_params._dt_cell_coordinates[sl][2][z_wi_idx][5]
+        #(x_ly2,y_ly2,z_ly2) = muon_utils.propagate_muons(muons=muons, z=z_pos) # propagate all muons together
+        #muon_tan_alpha = ((-x_ly3+x_ly2) / params._cell_height) if (params._dt_chamber["sls"][sl]["orient"] == "phi") else ((-y_ly3+y_ly2) / params._cell_height) # np.arctan()
         # generate hits
         for ly in range(params._dt_chamber["sls"][sl]["n_lys"]):
-            z_wi_idx = 0 # all wis have same z therefore save some time here
+            z_wi_idx = 1 # all wis have same z therefore save some time here
             z_pos = derived_params._dt_cell_coordinates[sl][ly][z_wi_idx][5] # use center z position (idx 5) of each layer
             (x,y,z) = muon_utils.propagate_muons(muons=muons, z=z_pos) # propagate all muons together
             if not silent: print(f"  Progress: SL {sl}, LY {ly}...")
             # check for all muons separately
             for i in tqdm(range(n_muons), disable=silent):
-                for wi in range(params._dt_chamber["sls"][sl]["n_wis"]):
+                for wi in range(params._dt_chamber["sls"][sl]["lys"][ly]["min_wi"], params._dt_chamber["sls"][sl]["lys"][ly]["max_wi"]+1):
                     # check if muon propagated inside of x and y range of cell, use >= but < to suppress double hits
                     if not ((x[i] >= derived_params._dt_cell_coordinates[sl][ly][wi][0][0] and x[i] < derived_params._dt_cell_coordinates[sl][ly][wi][0][1]) and (y[i] >= derived_params._dt_cell_coordinates[sl][ly][wi][1][0] and y[i] < derived_params._dt_cell_coordinates[sl][ly][wi][1][1])):
                         continue
@@ -135,15 +159,21 @@ def hits_from_muons(muons, *, silent=False, noise_ampl=0):
                     wire_coord = derived_params._dt_cell_coordinates[sl][ly][wi][3] if (params._dt_chamber["sls"][sl]["orient"] == "phi") else derived_params._dt_cell_coordinates[sl][ly][wi][4]
                     noise = 0
                     if noise_ampl > 0:
-                        noise = np.random.normal(loc=0, scale=1) * noise_ampl # gaussian noise with sigma = noise_ampl, applied on drift distance in unit mm
-                    drift_distance = np.float64(np.clip(np.abs(hit_coord-wire_coord+noise), a_min=0, a_max=params._cell_width/2)) # in mm
-                    drift_time = np.float64(drift_distance / derived_params._drift_velocity_mm_per_timestamp) # in timestamp units, cast to int value
+                        noise = np.random.normal(loc=0, scale=1) * noise_ampl # gaussian noise with sigma = noise_ampl, applied on drift time in ts units
+                    drift_distance = np.float64(np.clip(np.abs(hit_coord-wire_coord), a_min=0, a_max=params._cell_width/2)) # in mm
+                    drift_time = np.float64(drift_distance / derived_params._drift_velocity_mm_per_timestamp) + noise + miscalib_map[sl][ly][wi] # in timestamp units, cast to int value
                     muon_ts = muons["ts"][i]
                     hit_ts = np.uint64(np.round(muon_ts + drift_time, 0)) # hit timestamp = muon timestamp + drift time
                     # determine laterality of hit: -1 if left of wire, +1 if right of wire
                     laterality = lat_dict[x[i] >= wire_coord] if (params._dt_chamber["sls"][sl]["orient"] == "phi") else lat_dict[y[i] >= wire_coord]
+                    # determine tan alpha
+                    muon_theta = muons["theta"][i]
+                    muon_phi = muons["phi"][i]
+                    muon_tan_alpha_x = np.tan(muon_theta)*np.cos(muon_phi)
+                    muon_tan_alpha_y = np.tan(muon_theta)*np.sin(muon_phi)
+                    muon_tan_alpha = muon_tan_alpha_x if (params._dt_chamber["sls"][sl]["orient"] == "phi") else muon_tan_alpha_y
                     # store this hit
-                    dt_hit_list.append({"muon_ts": muon_ts, "sl": sl, "ly": ly, "wi": wi, "muon_dd": drift_distance, "muon_dt": drift_time, "hit_ts": hit_ts, "muon_id": i, "muon_lat": laterality, "muon_tan_alpha": muon_tan_alpha[i], "muon_vd": derived_params._drift_velocity_mm_per_timestamp , "muon_x0": muons["x0"][i], "muon_y0": muons["y0"][i], "muon_z0": muons["z0"][i], "muon_theta": muons["theta"][i], "muon_phi": muons["phi"][i]})
+                    dt_hit_list.append({"muon_ts": muon_ts, "sl": sl, "ly": ly, "wi": wi, "muon_dd": drift_distance, "muon_dt": drift_time, "hit_ts": hit_ts, "muon_id": i, "muon_lat": laterality, "muon_tan_alpha": muon_tan_alpha, "muon_vd": derived_params._drift_velocity_mm_per_timestamp , "muon_x0": muons["x0"][i], "muon_y0": muons["y0"][i], "muon_z0": muons["z0"][i], "muon_theta": muon_theta, "muon_phi": muon_phi})
     # convert dt_hit_list to proper format object dt_hits
     n_hits = len(dt_hit_list)
     # map sl,ly,wi to all other keys of dt -> map back to obdt channels & oc,bx,tdc timestamp
@@ -165,18 +195,6 @@ def hits_from_muons(muons, *, silent=False, noise_ampl=0):
     # sort hits by their timestamp value
     dt_hits = timestamp_utils.sort_by_timestamp(hits=dt_hits)
     return dt_hits
-
-### helper: return 3d object to store one value of specified data type for dt chamber
-# dt_map = {sl: {ly: [wi: value of dtype]}}
-def _empty_dt_chamber_map(content):
-    dt_map = {}
-    for sl in params._dt_chamber["sls"].keys():
-        dt_map[sl] = {}
-        for ly in range(params._dt_chamber["sls"][sl]["n_lys"]):
-            dt_map[sl][ly] = {}
-            for wi in range(params._dt_chamber["sls"][sl]["n_wis"]):
-                dt_map[sl][ly][wi] = copy.deepcopy(content)
-    return dt_map
 
 ### apply timing calibration to dt hits
 # generated by testpulse run, see functions below: correction object "dt_tp_corrections"
@@ -221,7 +239,7 @@ def find_sl_patterns(hits, *, dt_sl_patterns=params._dt_sl_patterns, silent=Fals
         # sort hits by timestamp
         this_sl_hits = timestamp_utils.sort_by_timestamp(hits=this_sl_hits, silent=silent)
         # max value of wire idx for current sl
-        max_wi = params._dt_chamber["sls"][sl]["n_wis"]-1
+        min_wi, max_wi  = [params._dt_chamber["sls"][sl]["lys"][ly]["min_wi"] for ly in params._dt_chamber["sls"][sl]["lys"].keys()], [params._dt_chamber["sls"][sl]["lys"][ly]["max_wi"] for ly in params._dt_chamber["sls"][sl]["lys"].keys()]
         for i in tqdm(range(n_this_sl_hits), disable=silent):
             # update last timestamp of all dt wires
             ly = this_sl_hits["ly"][i]
@@ -233,7 +251,8 @@ def find_sl_patterns(hits, *, dt_sl_patterns=params._dt_sl_patterns, silent=Fals
             last_hit_ly, last_hit_wi = ly, wi
             # check for any pattern only in current superlayer since only in this superlayer something changed wrt to last iteration
             # loop over all possible base wires (max. +- 3 away from wire coordinate, no matter which layer)
-            for base_wi in range(0, max_wi+1):
+            # base wi = wi in ly 3
+            for base_wi in range(min_wi[3], max_wi[3]+1):
                 # loop over all possible patterns
                 for pat_type, pat_name in enumerate(dt_sl_patterns.keys()): # pat_idcs = [rel idx wrt base wi for lys 0,1,2,3], pat_type = idx of key in dt_sl_patterns dict
                     # extract pattern relative wire indices
@@ -247,7 +266,13 @@ def find_sl_patterns(hits, *, dt_sl_patterns=params._dt_sl_patterns, silent=Fals
                     if pat_wi[last_hit_ly] != last_hit_wi:
                         continue
                     # skip if wire index out of range
-                    if np.sum(pat_wi < 0) > 0 or np.sum(pat_wi > max_wi) > 0:
+                    if pat_wi[0] < min_wi[0] or pat_wi[0] > max_wi[0]:
+                        continue
+                    if pat_wi[1] < min_wi[1] or pat_wi[1] > max_wi[1]:
+                        continue
+                    if pat_wi[2] < min_wi[2] or pat_wi[2] > max_wi[2]:
+                        continue
+                    if pat_wi[3] < min_wi[3] or pat_wi[3] > max_wi[3]:
                         continue
                     pat_wi = np.uint8(pat_wi)
                     # collect timestamps of relevant hits for pattern
@@ -939,10 +964,10 @@ def analyze_testpulses_per_wire(hits, *, rel_thres=0.2, plot_hists=False, correc
     tp_timing = {}
     for sl in params._dt_chamber["sls"].keys():
         tp_timing[sl] = {}
-        for ly in derived_params._dt_inverted_remap_table[sl].keys():
+        for ly in params._dt_chamber["sls"][sl]["lys"].keys():
             if not silent: print(f"Analyzing testpulses for SL {sl} LY {ly}.")
             tp_timing[sl][ly] = {}
-            for wi in tqdm(derived_params._dt_inverted_remap_table[sl][ly].keys(), disable=silent):
+            for wi in tqdm(range(params._dt_chamber["sls"][sl]["lys"][ly]["min_wi"], params._dt_chamber["sls"][sl]["lys"][ly]["max_wi"]+1), disable=silent):
                 tp_timing[sl][ly][wi] = {}
                 ch_ts_mean, ch_ts_err = 0, 0 # default values
                 # select hits of one channel
@@ -972,8 +997,8 @@ def analyze_testpulses_per_wire(hits, *, rel_thres=0.2, plot_hists=False, correc
     if correct_for_offsets:
         if not silent: print(f"Correcting global/constant offsets between superlayers and fe connectors...")
         for sl in params._dt_chamber["sls"].keys():
-            for ly in derived_params._dt_inverted_remap_table[sl].keys():
-                for wi in tqdm(derived_params._dt_inverted_remap_table[sl][ly].keys(), disable=silent):
+            for ly in params._dt_chamber["sls"][sl]["lys"].keys():
+                for wi in tqdm(range(params._dt_chamber["sls"][sl]["lys"][ly]["min_wi"], params._dt_chamber["sls"][sl]["lys"][ly]["max_wi"]+1), disable=silent):
                     ch_ts_mean, ch_ts_err = tp_timing[sl][ly][wi]["tp_ts_mean"], tp_timing[sl][ly][wi]["tp_ts_err"]
                     fe_name = params._fe_idx_list[ derived_params._dt_inverted_remap_table[sl][ly][wi]["fe_id"] ]
                     ch_ts_mean_corr = ch_ts_mean - params._tp_time_offset[sl][fe_name]
@@ -998,17 +1023,20 @@ def calculate_sl_tp_corrections(tp_timing, *, silent=False):
         n_ts_chs = 0
         for ly in derived_params._dt_inverted_remap_table[sl].keys():
             dt_tp_corrections[sl][ly] = {}
-            for wi in tqdm(derived_params._dt_inverted_remap_table[sl][ly].keys(), disable=silent):
+            for wi in tqdm(range(params._dt_chamber["sls"][sl]["lys"][ly]["min_wi"], params._dt_chamber["sls"][sl]["lys"][ly]["max_wi"]+1), disable=silent):
                 ch_ts_mean, ch_ts_err = tp_timing[sl][ly][wi]["tp_ts_mean"], tp_timing[sl][ly][wi]["tp_ts_err"]
-                if ch_ts_mean != 0:
+                if ch_ts_mean > 0:
                     n_ts_chs += 1
                     sl_ts_target += ch_ts_mean
         sl_ts_target /= n_ts_chs # average timing
         # calculate corrections for individual channels
         for ly in derived_params._dt_inverted_remap_table[sl].keys():
-            for wi in tqdm(derived_params._dt_inverted_remap_table[sl][ly].keys(), disable=silent):
+            for wi in tqdm(range(params._dt_chamber["sls"][sl]["lys"][ly]["min_wi"], params._dt_chamber["sls"][sl]["lys"][ly]["max_wi"]+1), disable=silent):
                 ch_ts_mean, ch_ts_err = tp_timing[sl][ly][wi]["tp_ts_mean"], tp_timing[sl][ly][wi]["tp_ts_err"]
-                dt_tp_corrections[sl][ly][wi] = {"ts_corr": sl_ts_target - ch_ts_mean, "err_ts_corr": ch_ts_err}
+                if ch_ts_mean > 0:
+                    dt_tp_corrections[sl][ly][wi] = {"ts_corr": sl_ts_target - ch_ts_mean, "err_ts_corr": ch_ts_err}
+                else:
+                    dt_tp_corrections[sl][ly][wi] = {"ts_corr": 0, "err_ts_corr": 0}
     return dt_tp_corrections
 
 ### add noise hits to dt cells,  separately for all channels
@@ -1021,7 +1049,7 @@ def add_noise(hits, *, ts_range, ref_cell_noise_rate, silent=False):
     for sl in derived_params._dt_inverted_remap_table.keys():
         for ly in derived_params._dt_inverted_remap_table[sl].keys():
             if not silent: print(f"  Progress: SL {sl}, LY {ly}...")
-            for wi in tqdm(derived_params._dt_inverted_remap_table[sl][ly].keys(), disable=silent):
+            for wi in tqdm(range(params._dt_chamber["sls"][sl]["lys"][ly]["min_wi"], params._dt_chamber["sls"][sl]["lys"][ly]["max_wi"]+1), disable=silent):
                 noise_rate = ref_cell_noise_rate * 0.78e-9 # 1/tu
                 noise_lambda = noise_rate * t_sim # expected muon count in simulation time
                 # number of muons in time interval is poisson distributed

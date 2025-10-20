@@ -32,10 +32,26 @@ def main():
         type     = str,
         help     = "output file path: dt hits (pcl file)",
     )
+    parser.add_argument(
+        "--ts_noise_amplitude",
+        type     = float,
+        help     = "dt timestamp noise amplitude (gaussian) in ts units, generated per wire for each event",
+    )
+    parser.add_argument(
+        "--sys_miscalib_ampl",
+        type     = float,
+        help     = "dt miscalibration noise amplitude (gaussian) in ts units, generated once for the full dataset",
+    )
     # ---
     args = parser.parse_args()
     cosmic_muons_file = args.cosmic_muons_file
     dt_hits_file = args.dt_hits_file
+    ts_noise_amplitude = 0
+    if args.ts_noise_amplitude:
+        ts_noise_amplitude = args.ts_noise_amplitude
+    sys_miscalib_ampl = 0
+    if args.sys_miscalib_ampl:
+        sys_miscalib_ampl = args.sys_miscalib_ampl
     
     #################
 
@@ -47,7 +63,7 @@ def main():
     ### muon propagation through dt chamber
     print(f"###### Propagating {n_muons} cosmic muons through DT chamber...")
     # determine dt hits from cosmic muons
-    dt_hits = dt_utils.hits_from_muons(muons=cosmic_muons, noise_ampl=0)
+    dt_hits = dt_utils.hits_from_muons(muons=cosmic_muons, noise_ampl=ts_noise_amplitude, sys_miscalib_ampl=sys_miscalib_ampl)
     print("dt_hits =",dt_hits)
     n_dt_muon_hits = data_utils.length(dt_hits)
     print(f"Generated {n_dt_muon_hits} DT hits from muon tracks.")

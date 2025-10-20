@@ -141,8 +141,8 @@ def scintillator_ax(ax, orient, cell_data):
 ### draw muon track into existing ax (subplot)
 # zrange: [zmin, zmax] of shown muon track
 def muon_ax(ax, orient, muons, muon_idx, *, color="tab:blue", label=""):
-    z0 = derived_params._dt_cell_coordinates[3][3][0][5] if orient == "phi" else derived_params._dt_cell_coordinates[2][3][0][5]
-    z1 = derived_params._dt_cell_coordinates[1][0][0][5] if orient == "phi" else derived_params._dt_cell_coordinates[2][0][0][5]
+    z0 = derived_params._dt_cell_coordinates[3][3][1][5] if orient == "phi" else derived_params._dt_cell_coordinates[2][3][1][5]
+    z1 = derived_params._dt_cell_coordinates[1][0][1][5] if orient == "phi" else derived_params._dt_cell_coordinates[2][0][1][5]
     (x0, y0, z0) = muon_utils.propagate_muon(muons=muons, z=z0, idx=muon_idx)
     (x1, y1, z1) = muon_utils.propagate_muon(muons=muons, z=z1, idx=muon_idx)
     _y0 = z0

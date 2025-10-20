@@ -92,21 +92,28 @@ def main():
 
     #################
 
+    n_dt_hits = 0
+    n_scint_hits = 0
+
     ### data import
     print(f"###### Importing all data...")
     # dt
-    dt_hits = data_utils.load_pickle(file=dt_hits_file)
+    if args.dt_hits_file:
+        dt_hits = data_utils.load_pickle(file=dt_hits_file)
     # scint
-    scint_hits = data_utils.load_pickle(file=scint_hits_file)
+    if args.scint_hits_file:
+        scint_hits = data_utils.load_pickle(file=scint_hits_file)
     
     ### cut dt data
-    print(f"###### Applying dt cuts: {dt_cuts_list}...")
-    dt_hits = data_utils.cut_data(data=dt_hits, conditions=dt_cuts_list)
-    print(f"###### Applying scint cuts: {scint_cuts_list}...")
-    scint_hits_file = data_utils.cut_data(data=scint_hits, conditions=scint_cuts_list)
+    if args.dt_hits_file:
+        print(f"###### Applying dt cuts: {dt_cuts_list}...")
+        dt_hits = data_utils.cut_data(data=dt_hits, conditions=dt_cuts_list)
+        n_dt_hits = data_utils.length(data=dt_hits)
+    if args.scint_hits_file:
+        print(f"###### Applying scint cuts: {scint_cuts_list}...")
+        scint_hits_file = data_utils.cut_data(data=scint_hits, conditions=scint_cuts_list)
+        n_scint_hits = data_utils.length(data=scint_hits)
 
-    n_dt_hits = data_utils.length(data=dt_hits)
-    n_scint_hits = data_utils.length(data=scint_hits)
 
     ### measurement duration
     duration = 0.78e-9 * (np.amax(dt_hits["ts"]) - np.amin(dt_hits["ts"])) # secs
@@ -142,9 +149,11 @@ def main():
         fig, ax = plt.subplots(1, 1, figsize=(12,4))
         plt.subplots_adjust(left=0.15, bottom=0.15, right=0.95, top=0.85, wspace=0.1, hspace=0.6)
         # plot chamber geometry
-        ax = geoplot_utils.chamber_ax(ax=ax, orient=orient, cell_data=dt_cell_data, wire=show_wires)
+        if args.dt_hits_file:
+            ax = geoplot_utils.chamber_ax(ax=ax, orient=orient, cell_data=dt_cell_data, wire=show_wires)
         # plot scintillator geometry
-        ax = geoplot_utils.scintillator_ax(ax=ax, orient=orient, cell_data=scint_cell_data)
+        if args.scint_hits_file:
+            ax = geoplot_utils.scintillator_ax(ax=ax, orient=orient, cell_data=scint_cell_data)
         # # plot muon simulated track
         # for i in range(n_muons):
         #     ax = geoplot_utils.muon_ax(ax=ax, orient=orient, muons=cosmic_muons, muon_id=i, color="tab:green")

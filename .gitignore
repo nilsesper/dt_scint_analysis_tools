@@ -1,5 +1,6 @@
 calibration_files/
 data_files/
+old_data_files/
 __pycache__/
 *.py[cod]
 

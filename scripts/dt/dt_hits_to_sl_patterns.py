@@ -79,7 +79,7 @@ def main():
 
     ### multiprocessing setup
     n_processes = args.n_proc # no of processes running in parallel
-    n_batches_clustering = 10000 # batch size for hit clustering
+    n_batches_clustering = 50000 # batch size for hit clustering
     do_multiprocessing = not verbose
 
     ### data import

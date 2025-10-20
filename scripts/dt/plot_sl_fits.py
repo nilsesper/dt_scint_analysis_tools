@@ -85,7 +85,7 @@ def main():
     #sl_fits = data_utils.cut_data(data=sl_fits, conditions=[("pat_type","in",[0])])
     #sl_fits = data_utils.cut_data(data=sl_fits, conditions=[("laterality","in",[1])])
     sl_fits = data_utils.cut_data(data=sl_fits, conditions=[
-        ("muon_theta","<",np.pi/2), ("muon_theta",">",-np.pi/2),
+        #("muon_theta","<",np.pi/2), ("muon_theta",">",-np.pi/2),
         #("chi2/ndf","<",10),
         #("x0","<=",21), ("x0",">=",-21),
         #("tan_alpha","<=",2), ("tan_alpha",">=",-2),
@@ -284,6 +284,8 @@ def main():
                     additional_data[k][i+ly*n_sl_fits] = int(sl_fits[k1][i]) - int(sl_fits[k2][i])
                 else:
                     additional_data[k][i+ly*n_sl_fits] = sl_fits[k1][i] - sl_fits[k2][i]
+                    if k1 == "tan_alpha":
+                        print(sl_fits["muon_id"][i], sl_fits["sl"][i], sl_fits[k1][i] , sl_fits[k2][i])
             # plot
             hists, edges, centers, underflow, overflow = hist_utils.calculate_hist(data=additional_data, key=k, bin_centers=hist_bins[(k1,k2)], silent=True)
             print(f"key \"{k}\": entries={data_utils.length(sl_fits)} underflow={underflow}, overflow={overflow}")

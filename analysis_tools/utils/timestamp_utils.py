@@ -57,7 +57,7 @@ def sort_by_timestamp(hits, *, silent=False):
     sorted_hits = copy.deepcopy(hits)
     n_hits = data_utils.length(sorted_hits)
     if not silent: print(f"Sorting {n_hits} entries by timestamp...")
-    sorted_hits = data_utils.sort_by_key(data=hits, sort_key="ts")
+    sorted_hits = data_utils.sort_by_key(data=hits, sort_key="ts", silent=silent)
     return sorted_hits
 
 ### calculate back ox,bx,tdc from timestamp value
