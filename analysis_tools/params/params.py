@@ -878,7 +878,7 @@ _cell_wire_width = 0.5 # only for illustration (real width much smaller)
 
 ### calculate x10 from cmssw, since they use cm and I use mm
 
-global_shift = (391.2, 8.5, 4311.75)
+global_shift = (391.2 -16 , 8.5, 4311.75)
 cmssw_layershift = (0, 0, 1.5 * 13)
 cmssw_wireshift_sl1 = (26.4/2, 113.1/2, 1.4/2)
 cmssw_wireshift_sl2 = (113.1/2, 26.4/2, 1.4/2)
@@ -1258,26 +1258,26 @@ _scintillator = {
             "type": "strips",
             "orient": "phi",
             "size": (0., 0., 0.),
-            "pos": (10., 10., 20.), # corner with smallest coordinates of this layer, *RELATIVE TO* base point of chamber point with smallest coordinates
+            "pos": (-10., -10., 20.), # corner with smallest coordinates of this layer, *RELATIVE TO* base point of chamber point with smallest coordinates
             "n_sts": 16, # no of strips
             "ch_pos": (0., 0., 0.), # corner with smallest coordinates of first strip (st=0), *RELATIVE TO* ly point with smallest coordinates
-            "ch_spacer": (_strip_w_spacer, _strip_w_spacer, _strip_h_spacer), # size of spacer between strips
-            "ch_size": (_strip_width, _strip_length, _strip_height), # size of strip
+            "ch_spacer": (-_strip_w_spacer, -_strip_w_spacer, _strip_h_spacer), # size of spacer between strips
+            "ch_size": (-_strip_width, -_strip_length, _strip_height), # size of strip
         },
         1: {
             "type": "strips",
             "orient": "theta",
             "size": (0., 0., 0.),
-            "pos": (10., 10., 5.), 
+            "pos": (-10., -10., 5.), 
             "n_sts": 16,
             "ch_pos": (0., 0., 0.),
-            "ch_spacer": (_strip_w_spacer, _strip_w_spacer, _strip_h_spacer),
-            "ch_size": (_strip_length, _strip_width, _strip_height),
+            "ch_spacer": (-_strip_w_spacer, -_strip_w_spacer, _strip_h_spacer),
+            "ch_size": (-_strip_length, -_strip_width, _strip_height),
         },
     },
     "n_lys": 2,
-    "size": (520., 520., 30.),
-    "pos": (100., 100., -100.), # point with smallest coordinates of scintillator
+    "size": (-520., -520., 30.),
+    "pos": (2189 -950 , 2511 -720 , -980), # point with smallest coordinates of scintillator
 }
 ### mezzanine scintillator mapping: {coinc_ch_name: {ch: ch id, ly: scint layer, st: scint strip}}
 ## scint hits

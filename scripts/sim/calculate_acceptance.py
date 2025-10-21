@@ -135,6 +135,7 @@ def main():
 
     ## 2d acceptance factors
     ratio_hist2d = reco_muons_hist2d / cosmic_muons_hist2d
+    ratio_hist2d = ratio_hist2d / np.amax(ratio_hist2d) # normalize to 1
     err_ratio_hist2d = np.sqrt(
           (1 / cosmic_muons_hist2d)**2 * reco_muons_hist2d
         + (reco_muons_hist2d / cosmic_muons_hist2d**2)**2 * cosmic_muons_hist2d
@@ -142,7 +143,7 @@ def main():
     # plot
     fig, ax = plt.subplots(1, 1, figsize=(12,8))
     im_obj = ax.imshow(X=ratio_hist2d, origin="lower", extent=[min(phi_bins), max(phi_bins), min(theta_bins), max(theta_bins)])
-    ax.set_title("$N_\\text{reco muons}$ / $N_\\text{muons}$")
+    ax.set_title("$N_\\text{reco muons}$ / $N_\\text{muons}$ (normalized)")
     ax.set_ylabel("$\\theta$ [rad]")
     ax.set_xlabel("$\\phi$ [rad]")
     #ax.legend()

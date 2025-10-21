@@ -181,7 +181,7 @@ def main():
     p0 = theta[0]
     popt, pcov, infodict, _, _ = curve_fit(f_fit, xdata=theta_bins_fit, ydata=theta_fit, p0=p0, sigma=err_theta_fit, absolute_sigma=True, full_output=True)
     N0_fit = popt[0]
-    chi2 = np.sum((theta_fit - f_fit(x=theta_bins_fit, N0=N0_fit))/err_theta_fit)**2
+    chi2 = np.sum((theta_fit - f_fit(x=theta_bins_fit, N0=N0_fit))**2/err_theta_fit**2)
     ndf = len(theta_bins_fit)-2
     chi2ndf = chi2/ndf
     err_N0_fit = np.sqrt(pcov[0][0])
@@ -192,7 +192,7 @@ def main():
     ax.step(x=theta_bins, y=theta, where="mid", color="tab:blue", label="Reconstructed muons")
     theta_bin_width = theta_bins[1]-theta_bins[0]
     ax.bar(x=theta_bins, width=theta_bin_width, bottom=theta-err_theta, height=2*err_theta, align="center", color="tab:blue", alpha=0.2)
-    f_label = f"Fit to $N(\\phi)=N_0\\cdot\\text{{cos}}^2\\theta$:\n$\\bullet$ $N_0={np.round(N0_fit,0):.0f}\\pm{np.round(err_N0_fit,0):.0f}$\n$\\bullet$ $\\chi^2/N_{{df}}={np.round(chi2,2)}\\;/\\;{ndf}={np.round(chi2ndf,2)}$\n$\\bullet$ $p={np.round(p_value,3):.3f}$"
+    f_label = f"Fit to $N(\\phi)=N_0\\cdot\\text{{cos}}^2\\theta$:\n$\\bullet$ $N_0={np.round(N0_fit,0):.0f}\\pm{np.round(err_N0_fit,0):.0f}$\n$\\bullet$ $\\chi^2/N_{{df}}={np.round(chi2,2)}\\;/\\;{ndf}={np.round(chi2ndf,2)}$\n$\\bullet$ $p={np.round(p_value,4):.4f}$"
     ax.plot(theta_bins, f_fit(theta_bins, N0_fit), color="tab:red", label=f_label)
     ax.fill_between(theta_bins, y1=f_fit(theta_bins, N0_fit)-err_f_fit(theta_bins, N0_fit, err_N0_fit), y2=f_fit(theta_bins, N0_fit)+err_f_fit(theta_bins, N0_fit, err_N0_fit), color="tab:red", alpha=0.1)
     ax.set_xlabel(f"{params._key_symbols['theta']} [{params._key_units['theta']}]")
@@ -227,7 +227,7 @@ def main():
     p0 = phi[0]
     popt, pcov, infodict, _, _ = curve_fit(f_fit, xdata=phi_bins_fit, ydata=phi_fit, p0=p0, sigma=err_phi_fit, absolute_sigma=True, full_output=True)
     N0_fit = popt[0]
-    chi2 = np.sum((phi_fit - f_fit(x=phi_bins_fit, N0=N0_fit))/err_phi_fit)**2
+    chi2 = np.sum((phi_fit - f_fit(x=phi_bins_fit, N0=N0_fit))**2/err_phi_fit**2)
     ndf = len(phi_bins_fit)-1
     chi2ndf = chi2/ndf
     err_N0_fit = np.sqrt(pcov[0][0])
@@ -238,7 +238,7 @@ def main():
     ax.step(x=phi_bins, y=phi, where="mid", color="tab:blue", label="Reconstructed muons")
     theta_bin_width = theta_bins[1]-theta_bins[0]
     ax.bar(x=phi_bins, width=phi_bin_width, bottom=phi-err_phi, height=2*err_phi, align="center", color="tab:blue", alpha=0.2, ) #label="Data uncertainty")
-    f_label = f"Fit to $N(\\phi)=N_0$:\n$\\bullet$ $N_0={np.round(N0_fit,0):.0f}\\pm{np.round(err_N0_fit,0):.0f}$\n$\\bullet$ $\\chi^2/N_{{df}}={np.round(chi2,2)}\\;/\\;{ndf}={np.round(chi2ndf,2)}$\n$\\bullet$ $p={np.round(p_value,3):.3f}$"
+    f_label = f"Fit to $N(\\phi)=N_0$:\n$\\bullet$ $N_0={np.round(N0_fit,0):.0f}\\pm{np.round(err_N0_fit,0):.0f}$\n$\\bullet$ $\\chi^2/N_{{df}}={np.round(chi2,2)}\\;/\\;{ndf}={np.round(chi2ndf,2)}$\n$\\bullet$ $p={np.round(p_value,4):.4f}$"
     ax.plot(phi_bins, f_fit(phi_bins, N0_fit), color="tab:red", label=f_label)
     ax.fill_between(phi_bins, y1=f_fit(phi_bins, N0_fit)-err_f_fit(phi_bins, N0_fit, err_N0_fit), y2=f_fit(phi_bins, N0_fit)+err_f_fit(phi_bins, N0_fit, err_N0_fit), color="tab:red", alpha=0.1, ) #label="Fit uncertainty")
     ax.set_xlabel(f"{params._key_symbols['phi']} [{params._key_units['phi']}]")
