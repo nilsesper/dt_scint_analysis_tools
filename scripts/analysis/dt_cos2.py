@@ -122,6 +122,7 @@ def main():
     # solid angle correction
     for i in range(len(dt_muons_hist2d)):
         dt_muons_hist2d[i] = dt_muons_hist2d[i] / np.sin(theta_bins[i])
+    err_dt_muons_hist2d = np.sqrt(dt_muons_hist2d)
     # plot
     fig, ax = plt.subplots(1, 1, figsize=(12,8))
     im_obj = ax.imshow(X=dt_muons_hist2d, origin="lower", extent=[min(phi_bins), max(phi_bins), min(theta_bins), max(theta_bins)])
@@ -155,16 +156,25 @@ def main():
     fig.tight_layout()
     fig.show()
 
+    before_after_weight = np.sum(corr_hist2d)/np.sum(dt_muons_hist2d)
+
     ### summed 1d theta bins
     theta = np.sum(corr_hist2d, axis=1)
     err_theta = np.sum(err_corr_hist2d, axis=1)
+    theta_before = np.sum(dt_muons_hist2d, axis=1) * before_after_weight
+    err_theta_before = np.sum(err_dt_muons_hist2d, axis=1) * before_after_weight
     # plot theta
     fig, ax = plt.subplots(1, 1, figsize=(12,8))
-    ax.step(x=theta_bins, y=theta, where="mid", color="tab:blue")
     theta_bin_width = theta_bins[1]-theta_bins[0]
+    # before acceptance corr
+    ax.step(x=theta_bins, y=theta_before, where="mid", color="tab:orange", label="Measurement (normalized)")
+    ax.bar(x=theta_bins, width=theta_bin_width, bottom=theta_before-err_theta_before, height=2*err_theta_before, align="center", color="tab:orange", alpha=0.2)
+    # after acceptance corr
+    ax.step(x=theta_bins, y=theta, where="mid", color="tab:blue", label="Acceptance reweighted")
     ax.bar(x=theta_bins, width=theta_bin_width, bottom=theta-err_theta, height=2*err_theta, align="center", color="tab:blue", alpha=0.2)
     ax.set_xlabel(f"{params._key_symbols['theta']} [{params._key_units['theta']}]")
-    ax.set_ylabel("$N_\\text{reco muons}$ (acceptance reweighted)")
+    ax.set_ylabel("$N_\\text{reco muons}$")
+    ax.legend()
     fig.tight_layout()
     fig.show()
     ## cos^2(theta) fit
@@ -185,11 +195,11 @@ def main():
     ndf = len(theta_bins_fit)-2
     chi2ndf = chi2/ndf
     err_N0_fit = np.sqrt(pcov[0][0])
-    p_value = 1 - stats.chi2.cdf(chi2, df=ndf)
+    p_value = 1- stats.chi2.cdf(chi2ndf, 1)
     print(f"theta cos^2 fit:\nN0 = {N0_fit} +- {err_N0_fit}\nchi2/ndf = {chi2} / {ndf} = {chi2ndf}\np_value = {p_value}")
     # plot with fit
     fig, ax = plt.subplots(1, 1, figsize=(12,8))
-    ax.step(x=theta_bins, y=theta, where="mid", color="tab:blue", label="Reconstructed muons")
+    ax.step(x=theta_bins, y=theta, where="mid", color="tab:blue", label="Acceptance reweighted")
     theta_bin_width = theta_bins[1]-theta_bins[0]
     ax.bar(x=theta_bins, width=theta_bin_width, bottom=theta-err_theta, height=2*err_theta, align="center", color="tab:blue", alpha=0.2)
     f_label = f"Fit to $N(\\phi)=N_0\\cdot\\text{{cos}}^2\\theta$:\n$\\bullet$ $N_0={np.round(N0_fit,0):.0f}\\pm{np.round(err_N0_fit,0):.0f}$\n$\\bullet$ $\\chi^2/N_{{df}}={np.round(chi2,2)}\\;/\\;{ndf}={np.round(chi2ndf,2)}$\n$\\bullet$ $p={np.round(p_value,4):.4f}$"
@@ -204,13 +214,20 @@ def main():
     ### summed 1d phi bins
     phi = np.sum(corr_hist2d, axis=0)
     err_phi = np.sum(err_corr_hist2d, axis=0)
+    phi_before = np.sum(dt_muons_hist2d, axis=0) * before_after_weight
+    err_phi_before = np.sum(err_dt_muons_hist2d, axis=0) * before_after_weight
     # plot theta
     fig, ax = plt.subplots(1, 1, figsize=(12,8))
-    ax.step(x=phi_bins, y=phi, where="mid", color="tab:blue")
     phi_bin_width = phi_bins[1]-phi_bins[0]
+    # before acceptance corr
+    ax.step(x=phi_bins, y=phi_before, where="mid", color="tab:orange", label="Measurement (normalized)")
+    ax.bar(x=phi_bins, width=phi_bin_width, bottom=phi_before-err_phi_before, height=2*err_phi_before, align="center", color="tab:orange", alpha=0.2)
+    # after acceptance corr
+    ax.step(x=phi_bins, y=phi, where="mid", color="tab:blue", label="Acceptance reweighted")
     ax.bar(x=phi_bins, width=phi_bin_width, bottom=phi-err_phi, height=2*err_phi, align="center", color="tab:blue", alpha=0.2)
     ax.set_xlabel(f"{params._key_symbols['phi']} [{params._key_units['phi']}]")
-    ax.set_ylabel("$N_\\text{reco muons}$ (acceptance reweighted)")
+    ax.set_ylabel("$N_\\text{reco muons}$")
+    ax.legend()
     fig.tight_layout()
     fig.show()
     ## flat fit
@@ -231,11 +248,11 @@ def main():
     ndf = len(phi_bins_fit)-1
     chi2ndf = chi2/ndf
     err_N0_fit = np.sqrt(pcov[0][0])
-    p_value = 1 - stats.chi2.cdf(chi2, df=ndf)
+    p_value = 1- stats.chi2.cdf(chi2ndf, 1)
     print(f"phi flat fit:\nN0 = {N0_fit} +- {err_N0_fit}\nchi2/ndf = {chi2} / {ndf} = {chi2ndf}\np_value = {p_value}")
     # plot with fit
     fig, ax = plt.subplots(1, 1, figsize=(12,8))
-    ax.step(x=phi_bins, y=phi, where="mid", color="tab:blue", label="Reconstructed muons")
+    ax.step(x=phi_bins, y=phi, where="mid", color="tab:blue", label="Acceptance reweighted")
     theta_bin_width = theta_bins[1]-theta_bins[0]
     ax.bar(x=phi_bins, width=phi_bin_width, bottom=phi-err_phi, height=2*err_phi, align="center", color="tab:blue", alpha=0.2, ) #label="Data uncertainty")
     f_label = f"Fit to $N(\\phi)=N_0$:\n$\\bullet$ $N_0={np.round(N0_fit,0):.0f}\\pm{np.round(err_N0_fit,0):.0f}$\n$\\bullet$ $\\chi^2/N_{{df}}={np.round(chi2,2)}\\;/\\;{ndf}={np.round(chi2ndf,2)}$\n$\\bullet$ $p={np.round(p_value,4):.4f}$"

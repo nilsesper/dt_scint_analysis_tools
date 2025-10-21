@@ -118,7 +118,7 @@ def main():
     fig.show()
     
     ## for reco muons
-    reco_muons_hist2d, _, _ = np.histogram2d(x=dt_muons["theta"], y=dt_muons["phi"], bins=(theta_edges, phi_edges))
+    reco_muons_hist2d, _, _ = np.histogram2d(x=dt_muons["muon_theta"], y=dt_muons["muon_phi"], bins=(theta_edges, phi_edges))
     # solid angle correction
     for i in range(len(reco_muons_hist2d)):
         reco_muons_hist2d[i] = reco_muons_hist2d[i] / np.sin(theta_bins[i])
