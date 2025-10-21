@@ -625,6 +625,13 @@ def reco_muons_from_sl_fit_groups(fits, fit_groups, *, silent=False, verbose=Fal
     n_fits = data_utils.length(fits)
     n_fit_groups = data_utils.length(fit_groups)
     reco_muon_list = []
+    counter_groups = 0
+    counter_3sl_candidates = 0
+    counter_tgroup = 0
+    counter_n_fits = 0
+    counter_tan_alpha = 0
+    counter_xproj = 0
+    duration = (np.amax(fit_groups["tgroup"]) - np.amin(fit_groups["tgroup"]))*0.78e-9 # duration of data set in s
     # extract is of sls in phi & theta orientation
     phi_sls = [sl for sl in params._dt_chamber["sls"].keys() if params._dt_chamber["sls"][sl]["orient"] == "phi"]
     phi_sl1, phi_sl2 = phi_sls[0], phi_sls[1]
@@ -634,19 +641,22 @@ def reco_muons_from_sl_fit_groups(fits, fit_groups, *, silent=False, verbose=Fal
     ### combine sl fit groups of different superlayers to "muon"
     last_fit_group = {sl: None for sl in params._dt_chamber["sls"].keys()} # holds last fit group of each sl
     for i in tqdm(range(n_fit_groups), disable=silent):
+        counter_groups += 1
         ### search for fit groups close in time
         sl = fit_groups["sl"][i]
         last_fit_group[sl] = {k: fit_groups[k][i] for k in fit_groups.keys()} | {"idx": i} # store all info of fit group
         # continue of not one fit group in each sl found until now
         if None in last_fit_group.values():
             continue
+        counter_3sl_candidates += 1
         # check if fit group timestamps are within specified tolerance, else continue
         if np.abs(last_fit_group[1]["tgroup"] - last_fit_group[2]["tgroup"]) > params._sl_fit_group_ts_tolerance:
             continue
-        if np.abs(last_fit_group[2]["tgroup"] - last_fit_group[3]["tgroup"]) > params._sl_fit_group_ts_tolerance:
+        if np.abs(last_fit_group[1]["tgroup"] - last_fit_group[3]["tgroup"]) > params._sl_fit_group_ts_tolerance:
             continue
         if np.abs(last_fit_group[2]["tgroup"] - last_fit_group[3]["tgroup"]) > params._sl_fit_group_ts_tolerance:
             continue
+        counter_tgroup += 1
         ### if code made it to here, a muon (3 fit groups reasonably close in time) was found
         if last_fit_group[1]["n_fits"] > params._muon_n_fits_max:
             continue
@@ -654,6 +664,7 @@ def reco_muons_from_sl_fit_groups(fits, fit_groups, *, silent=False, verbose=Fal
             continue
         if last_fit_group[3]["n_fits"] > params._muon_n_fits_max:
             continue
+        counter_n_fits += 1
         ###### attempt muon reco
         ### currently only supports 1 pattern/fit per sl in selected fit group - if multiple one would need to add more selection logic in order to decide which fit to choose...
         if params._muon_n_fits_max > 1:
@@ -665,6 +676,7 @@ def reco_muons_from_sl_fit_groups(fits, fit_groups, *, silent=False, verbose=Fal
         # reject muon if tan alpha tolerance not met
         if np.abs(fit[phi_sl1]["tan_alpha"] - fit[phi_sl2]["tan_alpha"]) > params._muon_slphi_tan_alpha_tolerance:
             continue
+        counter_tan_alpha += 1
         for sl in params._dt_chamber["sls"].keys():
             if fit[sl]["sl"] != sl:
                 raise Exception(fit)
@@ -692,6 +704,7 @@ def reco_muons_from_sl_fit_groups(fits, fit_groups, *, silent=False, verbose=Fal
         # reject muon if xproj tolerance not met
         if np.abs(x0_reco_sl[phi_sl1] - x0_reco_sl[phi_sl2]) > params._muon_slphi_xproj_tolerance:
             continue
+        counter_xproj += 1
         # reco x, y positions of muon in 2d slice of global coord frame
         x0_reco_phi = np.mean([x0_reco_sl[sl] for sl in phi_sls])
         x0_reco_theta = x0_reco_sl[theta_sl]
@@ -762,6 +775,15 @@ def reco_muons_from_sl_fit_groups(fits, fit_groups, *, silent=False, verbose=Fal
     for i in range(n_reco_muons):
         for k in params._muon_obj_keys.keys():
             reco_muons[k][i] = reco_muon_list[i][k]
+    if not silent:
+        print(f"muon reco cut flow:")
+        print(f"duration: {duration} s")
+        print(f"initial sl fit group rate: {counter_groups/duration} Hz")
+        print(f"3 sl candidates:  {counter_3sl_candidates/duration} Hz")
+        print(f"after tgroup condition:  {counter_tgroup/duration} Hz")
+        print(f"after n_fits condition:  {counter_n_fits/duration} Hz")
+        print(f"after tan_alpha_condition:  {counter_tan_alpha/duration} Hz")
+        print(f"after x_proj condition:  {counter_xproj/duration} Hz")
     return reco_muons
 
     """

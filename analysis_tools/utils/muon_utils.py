@@ -40,13 +40,13 @@ def propagate_muon(muons, z, muon_id=None, idx=None): # propagate spherical coor
 # with spawnpoint range same for all muons: xrange = [xmin, xmax], yrange = [ymin, ymax], z0
 # generate n muons
 # pass separate timestamp for all muons i.e. ts = [ts[i] for i in range(n)]
-def generate_cosmic_muons(n, ts, xrange, yrange, z0, *, silent=False, thetarange=[0, np.pi/2], phirange=[0,2*np.pi]):
+def generate_cosmic_muons(n, ts, xrange, yrange, z0, *, silent=False, thetarange=[0, np.pi/2], phirange=[0,2*np.pi], theta_weight=params.cosmic_muon_theta_weight):
     if not silent: print(f"Generating {n} cosmic muons...")
     muons = {k: np.full(n, 0, dtype=v) for k,v in params._muon_obj_keys.items()}
     muons["x0"] = np.random.uniform(low=xrange[0], high=xrange[1], size=n).astype(dtype=params._muon_obj_keys["x0"])
     muons["y0"] = np.random.uniform(low=yrange[0], high=yrange[1], size=n).astype(dtype=params._muon_obj_keys["y0"]) # x,y uniformly distributed inside xrange, yrange
     muons["z0"] = np.full(n, z0, dtype=params._muon_obj_keys["z0"])
-    muons["theta"] = math_utils.draw_from_pdf(pdf=params.cosmic_muon_theta_weight, val_range=thetarange, n=n, dtype=params._muon_obj_keys["theta"]) # theta distributed according to distribution
+    muons["theta"] = math_utils.draw_from_pdf(pdf=theta_weight, val_range=thetarange, n=n, dtype=params._muon_obj_keys["theta"]) # theta distributed according to distribution
     muons["phi"] = np.random.uniform(low=phirange[0], high=phirange[1], size=n).astype(dtype=params._muon_obj_keys["phi"]) # phi uniformly distributed
     muons["ts"] = np.array(ts).astype(dtype=params._muon_obj_keys["ts"])
     muons["muon_id"] = np.arange(1, n+1, dtype=params._muon_obj_keys["muon_id"]) # muon_id starts at 1 (muon_id 0 for data and noise)

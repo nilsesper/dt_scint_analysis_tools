@@ -425,8 +425,8 @@ _sl_fit_group_ts_tolerance = _dt_max_drift_time
 ## --- sl fit groups -> dt muons
 _muon_tgroup_tolerance = _dt_max_drift_time / 2 # time interval in which sl fit groups of different sls are combined to "muon"
 _muon_n_fits_max = 1 # max n_fits in sl fit groups selected for "muon"
-_muon_slphi_tan_alpha_tolerance = 0.05 # max deviation of tan_alpha for both sl fits in phi sl
-_muon_slphi_xproj_tolerance = 20 # max deviation of x_proj (projected sl fit track position at z=_muon_reco_z0) for both sl fits in phi sl
+_muon_slphi_tan_alpha_tolerance = 0.1 # max deviation of tan_alpha for both sl fits in phi sl
+_muon_slphi_xproj_tolerance = 30 # max deviation of x_proj (projected sl fit track position at z=_muon_reco_z0) for both sl fits in phi sl
 # # acceptance interval for dt sl pattern grouping
 # _t0_acceptance_interval = 100 #20 # max temporal distance of t0 values of dt sl pattern fits that should be grouped together, in ts units
 # _xproj_acceptance_interval = 20 # max spatial distance of 2 phi muon sl fits along the x axis, when projecting one to the other sl (delta_z(1-2) = z(sl=3.ly=3.wi=wi3_1) - z(sl=3.ly=3.wi=wi3_2)), in mm
@@ -598,10 +598,18 @@ _muon_corr_obj_keys = {
 
 ### cosmic muon theta weight for a given theta value
 # muon flux ~ cos(theta)^(n-1), n ~ 3 (when assuming flat earth) -> https://arxiv.org/pdf/1606.06907
-# theta in range [0, pi]
+# theta in range [0, pi/2]
 def cosmic_muon_theta_weight(theta):
-    norm = np.pi/2 # integral cos²(x) from 0 to pi = pi / 2
-    return np.cos(theta)**2 * 1/norm # normalized to 1 for integral from 0 to pi
+    norm = 2/3 # integral from 0 to pi
+    return np.cos(theta)**2 * np.sin(theta) * 1/norm # normalized to 1 for integral from 0 to pi/2
+    # sin(theta) is solid angle weighting factor
+
+### flat theta weight for a given theta value
+# theta in range [0, pi/2]
+def flat_theta_weight(theta):
+    norm = 2 # integral from 0 to pi
+    return np.sin(theta) * 1/norm # normalized to 1 for integral from 0 to pi/2
+    # sin(theta) is solid angle weighting factor
 
 ### general: data key symbols & units for plotting
 _key_symbols = {

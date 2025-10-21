@@ -15,7 +15,10 @@ python scripts/sim/plot_cosmic_tracks.py --show_plots --cosmic_muons_file data_f
 
 python scripts/sim/cosmic_tracks_to_dt_hits.py --cosmic_muons_file data_files/sim_muons_fulldt.pcl --dt_hits_file data_files/sim_muons_dt_hits.pcl
 
-One can add features to the hits:
+One can add noise and mis-calibration to the timestamps:
+...
+
+One can add more features to the hits:
 Seconday hits (2nd hit in same cell in given time interval after 1st hit with given probability):
 ...
 Noise hits (Poisson distributed with given rate):
@@ -32,7 +35,7 @@ python scripts/dt/plot_dt_hits.py --show_plots --dt_hits_file data_files/ddt_cos
 
 ## DT hits -> SL patterns
 For data can apply testpulse timing correction file.
-Do not write argument if no correction is asked.
+Do not write argument if no correction is asked (e.g. for simulation).
 
 python scripts/dt/dt_hits_to_sl_patterns.py --dt_hits_file data_files/dt_cosm_7_hits.pcl --sl_patterns_file data_files/dt_cosm_7_patterns.pcl --dt_tp_corrections_file data_files/dt_tp_corrections_6.pcl
 
@@ -56,7 +59,14 @@ python scripts/dt/plot_sl_fits.py --show_plots --sl_fits_file data_files/dt_cosm
 Plot for simulation:
 python scripts/dt/plot_sl_fits.py --show_plots --sl_fits_file data_files/sim_muons_sl_fits_realmuons_noparambounds.pcl --simulation
 
-## SL fits -> DT muons
+## SL fits -> SL fit groups (per SL)
+
+...
+
+Plot:
+...
+
+## SL fit groups (per SL) -> DT muons
 
 python scripts/dt/sl_fits_to_dt_muons.py --sl_fits_file data_files/dt_cosm_7_fits.pcl --dt_muons_file data_files/dt_cosm_7_dt_muons.pcl
 
@@ -65,11 +75,6 @@ python scripts/dt/plot_dt_muons.py --show_plots --dt_muons_file data_files/dt_co
 Plot for simulation:
 python scripts/dt/plot_dt_muons.py --show_plots --dt_muons_file data_files/sim_muons_dt_muons.pcl --simulation
 
-## DT muons -> Acceptance corrected DT muons
-Correct angular acceptance for different muon angles.
-Use correction extracted from simulated dataset for this.
-
-...
 
 ________________________________________________________________________________________________________
 
@@ -119,8 +124,6 @@ Raw scint hits: Do next steps as above.
 
 ## Dumpfile -> DT hits + Scint hits
 
-...
-
 DT hits: Do next steps as above.
 - DT hits -> SL patterns
 - SL patterns -> SL fits
@@ -129,9 +132,9 @@ DT hits: Do next steps as above.
 Scint hits: Do next steps as above.
 - Scint hits -> Scint areas
 
-## Correlate Dt patterns + Scint areas
+## Correlate DT muons + Scint areas
 
-
+## 
 
 ________________________________________________________________________________________________________
 

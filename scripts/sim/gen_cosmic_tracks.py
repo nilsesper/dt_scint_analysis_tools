@@ -53,6 +53,8 @@ def main():
     z0 = params._dt_chamber["pos"][2] # lowest point of chamber (closest to sl 1)
     phirange = [ 0 , 2*np.pi ]
     thetarange = [ 0 , np.pi/2 ]
+    theta_weight = params.cosmic_muon_theta_weight
+    #theta_weight = params.flat_theta_weight
 
     ### time distribution of muons
     t_start = 1000 # timestamp of first muon
@@ -77,7 +79,7 @@ def main():
     ### generate cosmic muons
     print(f"###### Generating {n_muons} cosmic muon tracks over the time {t_sim*0.78e-9:.3f} s = {t_sim} TU...")
     # cosmic muon gen
-    cosmic_muons = muon_utils.generate_cosmic_muons(n = n_muons, ts = ts, xrange = xrange, yrange = yrange, z0 = z0, phirange = phirange, thetarange = thetarange)
+    cosmic_muons = muon_utils.generate_cosmic_muons(n = n_muons, ts = ts, xrange = xrange, yrange = yrange, z0 = z0, phirange = phirange, thetarange = thetarange, theta_weight=theta_weight)
     print("cosmic_muons =",cosmic_muons)
 
     ### store to pcl file
