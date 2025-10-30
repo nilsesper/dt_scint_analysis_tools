@@ -165,7 +165,7 @@ def main():
                 hist_utils.plot_1hist(hist=rate_hists, centers=centers, xlabel=xlabel, round_digits=round_digits, bin_labels=False, silent=True, store=plotname, show=show_plots, title=f"ro_ch {ro_ch} (rate [Hz])") # scale="log"
     #"""
 
-    """
+    #"""
     #### time difference between hits of same channel
     print("Plotting time differences between hits of same wire...")
     k = f"delta_ts"
@@ -174,6 +174,7 @@ def main():
     i_offset = 0
     for sl in range(1,4):
         for ly in range(0,4):
+            print(f"  calculating for sl={sl}, ly={ly}...")
             for wi in range(0, 60):
                 dt_hits_cut = data_utils.cut_data(data=dt_hits, conditions=[("sl","==",sl), ("ly","==",ly), ("wi","==",wi)], silent=True)
                 dt_hits_cut = timestamp_utils.sort_by_timestamp(hits=dt_hits_cut, silent=True)
@@ -193,7 +194,7 @@ def main():
     xlabel = f"delta_ts [TU]"
     hist_utils.plot_1hist(hist=hists, centers=centers, xlabel=xlabel, round_digits=round_digits, bin_labels=False, silent=True, store=plotname, show=show_plots, title=f"", scale="log") # scale="log"
 
-    hist_bins = np.linspace(0, 1e4, 1000)
+    hist_bins = np.linspace(0, 1e3, 1000)
     hists, edges, centers, underflow, overflow = hist_utils.calculate_hist(data=additional_data, key=k, bin_centers=hist_bins, silent=True)
     print(f"key \"{k}\": entries={data_utils.length(additional_data)} underflow={underflow}, overflow={overflow}")
     xlabel = f"delta_ts [TU]"

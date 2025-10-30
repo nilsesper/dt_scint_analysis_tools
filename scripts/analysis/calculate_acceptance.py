@@ -28,11 +28,11 @@ def main():
         type     = str,
         help     = "input file path: simulated cosmic muons (pcl file)",
     )
-    parser.add_argument(
-        "--dt_hits_file",
-        type     = str,
-        help     = "input file path: dt hits from this simulated cosmic muon dataset (pcl file)",
-    )
+    #parser.add_argument(
+    #    "--dt_hits_file",
+    #    type     = str,
+    #    help     = "input file path: dt hits from this simulated cosmic muon dataset (pcl file)",
+    #)
     parser.add_argument(
         "--dt_muons_file",
         type     = str,
@@ -46,7 +46,7 @@ def main():
     # ---
     args = parser.parse_args()
     cosmic_muons_file = args.cosmic_muons_file
-    dt_hits_file = args.dt_hits_file
+    #dt_hits_file = args.dt_hits_file
     dt_muons_file = args.dt_muons_file
     geom_acceptance_file = args.geom_acceptance_file
     
@@ -55,7 +55,7 @@ def main():
     ### data import
     print(f"###### Importing data...")
     cosmic_muons = data_utils.load_pickle(file=cosmic_muons_file)
-    dt_hits = data_utils.load_pickle(file=dt_hits_file)
+    #dt_hits = data_utils.load_pickle(file=dt_hits_file)
     dt_muons = data_utils.load_pickle(file=dt_muons_file)
 
     """
@@ -93,7 +93,7 @@ def main():
 
     ### calculate hist2d (theta, phi)
     n_theta_bins = 20
-    theta_min = 0.05
+    theta_min = 0.1
     theta_max = 1.0
     n_phi_bins = 100
     theta_edges = np.linspace(theta_min, theta_max, n_theta_bins)

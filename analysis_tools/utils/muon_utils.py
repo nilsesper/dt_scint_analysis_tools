@@ -74,6 +74,16 @@ def cut_muons_by_area(muons, xmin, xmax, ymin, ymax, z0, *, silent=False):
         else: print(f"Cut flow: {n_cut_muons} / {n_muons}")
     return cut_muons
 
+### change muon base point (x,y,z) for new given z
+def change_muon_base_point(muons, z_new, *, silent=False):
+    n_muons = data_utils.length(muons)
+    (x,y,z) = propagate_muons(muons, z=z_new)
+    new_muons = copy.deepcopy(muons)
+    new_muons["z0"] = np.full(n_muons, z_new)
+    new_muons["x0"] = x
+    new_muons["y0"] = y
+    return new_muons
+
 ### correlate muons & muon areas
 # correlate 1 muon area object (of scintillator) & 1 muon object (of dt chamber)
 # do correlation according to:

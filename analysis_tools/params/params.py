@@ -50,7 +50,7 @@ _htg_keys = {
 
 ### dumpfile import
 # no of hits to skip in dumpfile since expect them to be old hits still in htg buffer
-_dumpfile_hits_to_skip = 50000
+_dumpfile_hits_to_skip = 50000 #50000
 
 ### timestamp conversion
 _lhc_tdc_count = 32 # max value of TDC + 1  (i.e. conversion factor: _lhc_tdc_count TDC = 1 BX)
@@ -407,7 +407,6 @@ _dt_ts_individual_dead_time = 600 #1250 #800 #0 # in ts units
 _dt_sl_patterns_ts_window = _dt_max_drift_time #int(400 / 0.78) # in same unit as timestamp (0.78 ns)
 # --- sl patterns -> sl fits
 # curve fit:
-#_dt_t0_tolerance = 10 # tolerance which the muon arrival time t0 should take in the sl pattern fit, between ts_min of 4 hits in superlayer & ts_min+_dt_max_drift_time
 _dt_tan_alpha_range = [-np.inf, np.inf] # allowed range of tan alpha sl pattern fit parameter
 _err_ts = 5 #1 # error of timestamps for fitting (in ts_units)
 # meantimer method:
@@ -427,18 +426,21 @@ _muon_tgroup_tolerance = _dt_max_drift_time / 2 # time interval in which sl fit 
 _muon_n_fits_max = 1 # max n_fits in sl fit groups selected for "muon"
 _muon_slphi_tan_alpha_tolerance = 0.1 # max deviation of tan_alpha for both sl fits in phi sl
 _muon_slphi_xproj_tolerance = 30 # max deviation of x_proj (projected sl fit track position at z=_muon_reco_z0) for both sl fits in phi sl
+_muon_chi2_ndf_max = 10 #10 # max chi2 of muon sl fits
 # # acceptance interval for dt sl pattern grouping
 # _t0_acceptance_interval = 100 #20 # max temporal distance of t0 values of dt sl pattern fits that should be grouped together, in ts units
 # _xproj_acceptance_interval = 20 # max spatial distance of 2 phi muon sl fits along the x axis, when projecting one to the other sl (delta_z(1-2) = z(sl=3.ly=3.wi=wi3_1) - z(sl=3.ly=3.wi=wi3_2)), in mm
 
 ### --- scint
 # acceptance interval for scintillator hits (2 sipm coincidence of strips) -> muon areas (2 strip coincidence) grouping
-_scintillator_ts_acceptance_interval = 32 #625 #64 #1250 #64 #32 # max temporal distance of ts values of scintillator that should be grouped together, in ts units
+_scintillator_ts_acceptance_interval = 32 #32 #1024 #32 #625 #64 #1250 #64 #32 # max temporal distance of ts values of scintillator that should be grouped together, in ts units
 # 1280 = 1 us , 64 = 50 ns , 500 ~ 391 ns , 16 = 12.5 ns , 32 = 25 ns
 # acceptance interval for raw scintillator hits (single sipm hits) -> scintillator hits (2 sipm coincidence of strips) grouping
 _raw_scintillator_ts_acceptance_interval = _scintillator_ts_acceptance_interval # in ts units
 # apply dead time for all channels individually (if value > 0)
-_raw_scintillator_ts_individual_dead_time = 100 # 0, 64, 1250 # in ts units
+_raw_scintillator_ts_individual_dead_time = 500 #500 #100 #100 # 0, 64, 1250 # in ts units
+# dead time for scintillator strips
+_scintillator_ts_individual_dead_time = 500 # in ts units
 
 ## --------- when simulating muon hits
 # global time delay for scintillator hits by muons (scint ts = muon ts + _scintillator_delay)
@@ -565,6 +567,8 @@ _muon_area_obj_keys = {
     "muon_id": np.uint64, # id / idx of correlated muon (used to compare simulation + reconstruction)
     "pixel": np.uint16, # pixel index of scintillator pixel corresponding to this muon area
     "ly_delta_ts": np.uint64, # ts difference between two hits in the layers
+    "st0": np.uint8, # st idx of hit in ly0
+    "st1": np.uint8, # st idx of hit in ly1
 }
 
 ### muon correlation object: holds info of 1 muon & 1 muon area
@@ -1294,23 +1298,23 @@ _mezzanine_2_fe_mapping_strip_coinc = {
 }
 ## raw scint hits
 # configuration without any coincidence
-_mezzanine_1_fe_mapping_no_coinc = {
-    f"coinc_ch_{i}": {"ly": 0, "st": i, "ch": i, "sipm": 0} for i in range(0, 8) # ly0, sipm0
+_mezzanine_1_fe_mapping_no_coinc = { # ly 0-1, st 0-7
+    f"coinc_ch_{i}": {"ly": 0, "st": i, "ch": i, "sipm": 0} for i in range(0, 8) 
 } | {
-    f"coinc_ch_{8+i}": {"ly": 1, "st": i, "ch": 8+i, "sipm": 0} for i in range(0, 8) # ly0, sipm1
+    f"coinc_ch_{8+i}": {"ly": 1, "st": i, "ch": 8+i, "sipm": 0} for i in range(0, 8) 
 } | {
-    f"coinc_ch_{16+i}": {"ly": 1, "st": i, "ch": 16+i, "sipm": 1} for i in range(0, 8) # ly1, sipm0
+    f"coinc_ch_{16+i}": {"ly": 1, "st": i, "ch": 16+i, "sipm": 1} for i in range(0, 8) 
 } | {
-    f"coinc_ch_{24+i}": {"ly": 0, "st": i, "ch": 24+i, "sipm": 1} for i in range(0, 8) # ly1, sipm1
+    f"coinc_ch_{24+i}": {"ly": 0, "st": i, "ch": 24+i, "sipm": 1} for i in range(0, 8) 
 }
-_mezzanine_2_fe_mapping_no_coinc = {
-    f"coinc_ch_{i}": {"ly": 0, "st": 8+i, "ch": i, "sipm": 0} for i in range(0, 8) # ly0, sipm0
+_mezzanine_2_fe_mapping_no_coinc = { # ly 0-1, st 8-15
+    f"coinc_ch_{i}": {"ly": 0, "st": 8+i, "ch": i, "sipm": 0} for i in range(0, 8) 
 } | {
-    f"coinc_ch_{8+i}": {"ly": 1, "st": i, "ch": 8+i, "sipm": 0} for i in range(0, 8) # ly0, sipm1
+    f"coinc_ch_{8+i}": {"ly": 1, "st": 8+i, "ch": 8+i, "sipm": 0} for i in range(0, 8) 
 } | {
-    f"coinc_ch_{16+i}": {"ly": 1, "st": i, "ch": 16+i, "sipm": 1} for i in range(0, 8) # ly1, sipm0
+    f"coinc_ch_{16+i}": {"ly": 1, "st": 8+i, "ch": 16+i, "sipm": 1} for i in range(0, 8) 
 } | {
-    f"coinc_ch_{24+i}": {"ly": 1, "st": 8+i, "ch": 24+i, "sipm": 1} for i in range(0, 8) # ly1, sipm1
+    f"coinc_ch_{24+i}": {"ly": 0, "st": 8+i, "ch": 24+i, "sipm": 1} for i in range(0, 8) 
 }
 # map of masked channels in detector (noisy/dead), if for this (ly, st) the sipm is listed here, the other sipm hits are used as strip hit (scint hit) without sipm coincidence
 # if one does not list it here, then the strip will be dead when one of its sipms is masked
@@ -1375,12 +1379,12 @@ _dt_mapping = {
 # coincidence strips = 2 sipm coincidence hits
 _scint_mapping = {
     27: _mezzanine_1_fe_mapping_strip_coinc, # mez1: scint ly0-1, st0-7
-    26: _mezzanine_2_fe_mapping_strip_coinc, # mez2: scint ly0-1, st8-15
+    25: _mezzanine_2_fe_mapping_strip_coinc, # mez2: scint ly0-1, st8-15
 }
 # no coincidence = raw sipm hits
 _raw_scint_mapping = {
     27: _mezzanine_1_fe_mapping_no_coinc, # mez1: ly0-1, st0-7
-    26: _mezzanine_2_fe_mapping_no_coinc, # mez2: ly0-1, st8-15
+    25: _mezzanine_2_fe_mapping_no_coinc, # mez2: ly0-1, st8-15
 }
 
 # ro_ch labels
@@ -1389,7 +1393,7 @@ _ro_ch_labels = {
     10: "ob2",
     14: "ob3",
     27: "mez1",
-    26: "mez2",
+    25: "mez2",
 }
 
 ### muon reconstruction z position

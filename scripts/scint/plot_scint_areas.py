@@ -38,6 +38,11 @@ def main():
         type     = str,
         help     = "output directory: give argument if plots should be stores, specify output path for plots here",
     )
+    parser.add_argument(
+        "--cuts",
+        type     = str,
+        help     = "cuts to apply to data in format \"key1,operator1,value1;key2,operator2,value;...\"",
+    )
     # ---
     args = parser.parse_args()
     scint_areas_file = args.scint_areas_file
@@ -47,6 +52,15 @@ def main():
     store_plots = None
     if args.store_plots:
         store_plots = args.store_plots
+    cuts_list = []
+    if args.cuts:
+        for cuts_str in args.cuts.split(";"):
+            key, operator, value = cuts_str.split(",")
+            if "params." in value:
+                value = getattr(params, value.split("params.")[1])
+            else:
+                value = float(value)
+            cuts_list.append((key, operator, value))
 
     #################
 
@@ -55,18 +69,62 @@ def main():
     # scint
     scint_areas = data_utils.load_pickle(file=scint_areas_file)
 
+    #cuts_list.append(("pixel","in",
+    #    #[  8 +i for i in range(0,8)] +
+    #    #[ 24 +i for i in range(0,8)] +
+    #    #[ 40 +i for i in range(0,8)] +
+    #    #[ 56 +i for i in range(0,8)] +
+    #    #[ 72 +i for i in range(0,8)] +
+    #    #[ 88 +i for i in range(0,8)] +
+    #    #[104 +i for i in range(0,8)] +
+    #    #[120 +i for i in range(0,8)] +
+    #
+    #    #[128 +i for i in range(0,8)] +
+    #    #[144 +i for i in range(0,8)] +
+    #    #[160 +i for i in range(0,8)] +
+    #    #[176 +i for i in range(0,8)] +
+    #    #[192 +i for i in range(0,8)] +
+    #    #[208 +i for i in range(0,8)] +
+    #    #[224 +i for i in range(0,8)] +
+    #    #[240 +i for i in range(0,8)] +
+    #
+    #    #[  0 +i for i in range(0,8)] +
+    #    #[ 16 +i for i in range(0,8)] +
+    #    #[ 32 +i for i in range(0,8)] +
+    #    #[ 48 +i for i in range(0,8)] +
+    #    #[ 64 +i for i in range(0,8)] +
+    #    #[ 80 +i for i in range(0,8)] +
+    #    #[ 96 +i for i in range(0,8)] +
+    #    #[112 +i for i in range(0,8)]
+    #
+    #    #[136 +i for i in range(0,8)] +
+    #    #[152 +i for i in range(0,8)] +
+    #    #[168 +i for i in range(0,8)] +
+    #    #[184 +i for i in range(0,8)] +
+    #    #[200 +i for i in range(0,8)] +
+    #    #[216 +i for i in range(0,8)] +
+    #    #[232 +i for i in range(0,8)] +
+    #    #[248 +i for i in range(0,8)]
+    #))
+
+    ### cut data
+    print(f"###### Applying data cuts: {cuts_list}...")
+    scint_areas = data_utils.cut_data(data=scint_areas, conditions=cuts_list)
+
+
+
     ### scint reco muon areas
     print(f"### scint reco muon areas")
     n_hist_bins = 100
     hist_bins = {
-        "xmin": np.linspace(params._scintillator["pos"][0]-10, params._scintillator["pos"][0]+params._scintillator["size"][0]+10, n_hist_bins),
-        "xmax": np.linspace(params._scintillator["pos"][0]-10, params._scintillator["pos"][0]+params._scintillator["size"][0]+10, n_hist_bins),
-        "ymin": np.linspace(params._scintillator["pos"][1]-10, params._scintillator["pos"][1]+params._scintillator["size"][1]+10, n_hist_bins),
-        "ymax": np.linspace(params._scintillator["pos"][1]-10, params._scintillator["pos"][1]+params._scintillator["size"][1]+10, n_hist_bins),
-        "z0": np.linspace(params._scintillator["pos"][2]-10, params._scintillator["pos"][2]+params._scintillator["size"][2]+10, n_hist_bins),
+        #"xmin": np.linspace(params._scintillator["pos"][0]+10, params._scintillator["pos"][0]-(params._scintillator["size"][0]+10), n_hist_bins),
+        #"xmax": np.linspace(params._scintillator["pos"][0]+10, params._scintillator["pos"][0]-(params._scintillator["size"][0]+10), n_hist_bins),
+        #"ymin": np.linspace(params._scintillator["pos"][1]+10, params._scintillator["pos"][1]-(params._scintillator["size"][1]+10), n_hist_bins),
+        #"ymax": np.linspace(params._scintillator["pos"][1]+10, params._scintillator["pos"][1]-(params._scintillator["size"][1]+10), n_hist_bins),
+        #"z0": np.linspace(params._scintillator["pos"][2]-10, params._scintillator["pos"][2]+params._scintillator["size"][2]+10, n_hist_bins),
         "ts": "auto200",
         "pixel": np.arange(0, 255+1),
-        "ly_delta_ts": np.linspace(0,40,20), #np.linspace(0, 1000, 500) #"auto100",
+        "ly_delta_ts": "auto200", #"step1", #np.linspace(0, 1000, 500) #"auto100",
     }
     for k in hist_bins.keys():
         hists, edges, centers, underflow, overflow = hist_utils.calculate_hist(data=scint_areas, key=k, bin_centers=hist_bins[k], silent=True)
@@ -91,6 +149,7 @@ def main():
             imshow_obj = ax.imshow(px_matrix)
             ax.set_xlabel("Strip (Layer 1)")
             ax.set_ylabel("Strip (Layer 0)")
+            ax.invert_yaxis()
             cbar = fig.colorbar(imshow_obj, ax=ax, fraction=0.05)
             fig.tight_layout()
             if show_plots:
@@ -106,6 +165,7 @@ def main():
             imshow_obj = ax.imshow(px_matrix)
             ax.set_xlabel("Strip (Layer 1)")
             ax.set_ylabel("Strip (Layer 0)")
+            ax.invert_yaxis()
             cbar = fig.colorbar(imshow_obj, ax=ax, fraction=0.05)
             cbar.set_label("Hz")
             fig.tight_layout()

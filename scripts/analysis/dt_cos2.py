@@ -34,10 +34,24 @@ def main():
         type     = str,
         help     = "input file path: calculated geom acceptance factors (pcl file)",
     )
+    parser.add_argument(
+        "--dt_cuts",
+        type     = str,
+        help     = "cuts to apply to dt in format \"key1,operator1,value1;key2,operator2,value;...\"",
+    )
     # ---
     args = parser.parse_args()
     dt_muons_file = args.dt_muons_file
     geom_acceptance_file = args.geom_acceptance_file
+    dt_cuts_list = []
+    if args.dt_cuts:
+        for cuts_str in args.dt_cuts.split(";"):
+            key, operator, value = cuts_str.split(",")
+            if "params." in value:
+                value = getattr(params, value.split("params.")[1])
+            else:
+                value = float(value)
+            dt_cuts_list.append((key, operator, value))
     
     #################
 
@@ -45,6 +59,11 @@ def main():
     print(f"###### Importing data...")
     geom_acceptance = data_utils.load_pickle(file=geom_acceptance_file)
     dt_muons = data_utils.load_pickle(file=dt_muons_file)
+
+    ### cut data
+    print(f"###### Applying dt cuts: {dt_cuts_list}...")
+    dt_muons = data_utils.cut_data(data=dt_muons, conditions=dt_cuts_list)
+    n_dt_muons = data_utils.length(data=dt_muons)
 
 
     """

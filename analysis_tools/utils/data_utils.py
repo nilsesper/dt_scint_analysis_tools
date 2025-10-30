@@ -157,6 +157,8 @@ def cut_first_entries(data, n_cut=1, *, silent=False):
     for k in cut_data.keys():
         if n_data > n_cut:
             cut_data[k] = data[k][n_cut-1:-1]
+    if n_data <= n_cut:
+        print(f"could not cut first elements of dumpfile since it was too short.")
     return cut_data
 
 ### get length of data object

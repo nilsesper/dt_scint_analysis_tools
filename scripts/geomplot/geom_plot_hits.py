@@ -82,7 +82,7 @@ def main():
             dt_cuts_list.append((key, operator, value))
     scint_cuts_list = []
     if args.scint_cuts:
-        for cuts_str in args.scint_hits.split(";"):
+        for cuts_str in args.scint_cuts.split(";"):
             key, operator, value = cuts_str.split(",")
             if "params." in value:
                 value = getattr(params, value.split("params.")[1])
@@ -104,14 +104,14 @@ def main():
     if args.scint_hits_file:
         scint_hits = data_utils.load_pickle(file=scint_hits_file)
     
-    ### cut dt data
+    ### cut data
     if args.dt_hits_file:
         print(f"###### Applying dt cuts: {dt_cuts_list}...")
         dt_hits = data_utils.cut_data(data=dt_hits, conditions=dt_cuts_list)
         n_dt_hits = data_utils.length(data=dt_hits)
     if args.scint_hits_file:
         print(f"###### Applying scint cuts: {scint_cuts_list}...")
-        scint_hits_file = data_utils.cut_data(data=scint_hits, conditions=scint_cuts_list)
+        scint_hits = data_utils.cut_data(data=scint_hits, conditions=scint_cuts_list)
         n_scint_hits = data_utils.length(data=scint_hits)
 
 

@@ -23,7 +23,7 @@ import analysis_tools.params.derived_params as derived_params
 # cut away all hit data not from scintillator
 # add scintillator specific keys to hits
 # take information about this mapping from params.py
-def extract_scint_hits(hits, *, silent=False):
+def extract_scint_hits(hits, *, silent=False, has_timestamp=False):
     tmp_hits = copy.deepcopy(hits)
     n_hits = len(tmp_hits["ch"])
     if not silent: print(f"Extract scintillator hits from {n_hits} total hits...")
@@ -40,7 +40,7 @@ def extract_scint_hits(hits, *, silent=False):
     if not silent: print(f"Cut flow: {n_scint_hits}/{n_hits} = {n_scint_hits/n_hits}")
     if not silent: print(f"Found {n_scint_hits} scintillator hits. Adding scintillator specific keys...")
     # add specific scint keys
-    tmp_hits |= {k: np.full(n_scint_hits, 0, dtype=v) for k,v in params._scint_mapping_keys.items()} | {k: np.full(n_scint_hits, 0, dtype=v) for k,v in params._scint_other_keys.items()} 
+    tmp_hits |= {k: np.full(n_scint_hits, 0, dtype=v) for k,v in params._scint_mapping_keys.items()} | {k: np.full(n_hits, 0, dtype=v) for k,v in params._scint_other_keys.items() if ((not has_timestamp) or k != "ts")} 
     for i in tqdm(range(n_scint_hits), disable=silent):
         ro_ch = tmp_hits["ro_ch"][i]
         ch = tmp_hits["ch"][i]
@@ -48,7 +48,8 @@ def extract_scint_hits(hits, *, silent=False):
         for k in derived_params._scint_keys:
             tmp_hits[k][i] = derived_params._scint_remap_table[ro_ch][ch][k]
     # add timestamp
-    tmp_hits = timestamp_utils.add_timestamp(hits=tmp_hits)
+    if not has_timestamp:
+        tmp_hits = timestamp_utils.add_timestamp(hits=tmp_hits)
     # sort by timestamp
     tmp_hits = timestamp_utils.sort_by_timestamp(hits=tmp_hits)
     return tmp_hits
@@ -178,7 +179,9 @@ def reco_muon_area_from_hits(hits, *, silent=False, verbose=False):
             "pixel": pixel_index, 
             "xcenter": xcenter_reco, 
             "ycenter": ycenter_reco, 
-            "ly_delta_ts": ly_delta_ts
+            "ly_delta_ts": ly_delta_ts,
+            "st0": ly0_st,
+            "st1": ly1_st,
         })
         # !!! for muon the name of the timestamp key is "ts" and not "t0"
         ##### need to reset ts_ref, last_scint_hits afterwards (for next iteration)
@@ -216,7 +219,7 @@ def extract_raw_scint_hits(hits, *, silent=False, has_timestamp=False):
     if not silent: print(f"Cut flow: {n_scint_hits}/{n_hits} = {n_scint_hits/n_hits}")
     if not silent: print(f"Found {n_scint_hits} raw scintillator hits. Adding raw scintillator specific keys...")
     # add specific scint keys
-    tmp_hits |= {k: np.full(n_scint_hits, 0, dtype=v) for k,v in params._raw_scint_mapping_keys.items()} | {k: np.full(n_hits, 0, dtype=v) for k,v in params._raw_scint_other_keys.items() if ((not has_timestamp) or k != "ts")} 
+    tmp_hits |= {k: np.full(n_scint_hits, 0, dtype=v) for k,v in params._raw_scint_mapping_keys.items()} | {k: np.full(n_scint_hits, 0, dtype=v) for k,v in params._raw_scint_other_keys.items() if ((not has_timestamp) or k != "ts")} 
     for i in tqdm(range(n_scint_hits), disable=silent):
         ro_ch = tmp_hits["ro_ch"][i]
         ch = tmp_hits["ch"][i]
@@ -237,21 +240,23 @@ def extract_raw_scint_hits(hits, *, silent=False, has_timestamp=False):
             for st in derived_params._scint_inverted_remap_table[ly].keys():
                 cut_tmp_hits[ly][st] = {}
                 for sipm in [0,1]:
-                    cut_tmp_hits[ly][st][sipm] = data_utils.cut_data(data=tmp_hits, conditions=[("ly","==",ly),("st","==",st), ("sipm","==",sipm)])
+                    cut_tmp_hits[ly][st][sipm] = data_utils.cut_data(data=tmp_hits, conditions=[("ly","==",ly), ("st","==",st), ("sipm","==",sipm)])
+                    cut_tmp_hits[ly][st][sipm] = timestamp_utils.sort_by_timestamp(hits=cut_tmp_hits[ly][st][sipm])
                     n_cut_hits = len(cut_tmp_hits[ly][st][sipm]["ts"])
                     allowed_indices = []
                     ts_list = np.array(cut_tmp_hits[ly][st][sipm]["ts"])
                     if len(ts_list) > 0:
                         cur_ts = ts_list[0]
-                        for i in range(n_cut_hits):
+                        for i in range(n_cut_hits): 
                             if int(ts_list[i]) - int(cur_ts) < params._raw_scintillator_ts_individual_dead_time:
+                                cur_ts = ts_list[i] # deadtime wrt last hit
                                 continue
-                            cur_ts = ts_list[i]
+                            cur_ts = ts_list[i] # deadtime wrt first hit
                             allowed_indices.append(i)
-                    for k in cut_tmp_hits[ly][st][sipm].keys():
-                        cut_tmp_hits[ly][st][sipm][k] = cut_tmp_hits[ly][st][sipm][k][allowed_indices]
-                    n_cut_hits_after = len(cut_tmp_hits[ly][st][sipm]['ts'])
-                    print(f"ly{ly} st{st} sipm{sipm} dead time cut flow: {n_cut_hits_after} / {n_cut_hits} = {n_cut_hits_after/max(1,n_cut_hits)}")
+                        for k in cut_tmp_hits[ly][st][sipm].keys():
+                            cut_tmp_hits[ly][st][sipm][k] = cut_tmp_hits[ly][st][sipm][k][allowed_indices]
+                        n_cut_hits_after = len(cut_tmp_hits[ly][st][sipm]['ts'])
+                        print(f"ly{ly} st{st} sipm{sipm} dead time cut flow: {n_cut_hits_after} / {n_cut_hits} = {n_cut_hits_after/max(1,n_cut_hits)}")
         # merge back to tmp_hits
         print("merging data after applying individual dead time...")
         merge_data = []
@@ -386,6 +391,41 @@ def reco_hits_from_raw_hits(hits, *, silent=False):
     for i in range(n_scint_hits):
         for k in scint_keys_types.keys():
             scint_hits[k][i] = scint_hit_list[i][k]
+    scint_hits = timestamp_utils.sort_by_timestamp(hits=scint_hits)
+    ### -----------------------
+    # apply dead time constraint to all individual channels (if specified dead time is > 0)
+    if params._raw_scintillator_ts_individual_dead_time > 0:
+        print(f"apply dead time constraint for all individual channels of {params._scintillator_ts_individual_dead_time} TU")
+        cut_tmp_hits = {}
+        for ly in derived_params._scint_inverted_remap_table.keys():
+            cut_tmp_hits[ly] = {}
+            for st in derived_params._scint_inverted_remap_table[ly].keys():
+                cut_tmp_hits[ly][st] = data_utils.cut_data(data=scint_hits, conditions=[("ly","==",ly), ("st","==",st)])
+                cut_tmp_hits[ly][st] = timestamp_utils.sort_by_timestamp(hits=cut_tmp_hits[ly][st])
+                n_cut_hits = len(cut_tmp_hits[ly][st]["ts"])
+                allowed_indices = []
+                ts_list = np.array(cut_tmp_hits[ly][st]["ts"])
+                if len(ts_list) > 0:
+                    cur_ts = ts_list[0]
+                    for i in range(n_cut_hits): 
+                        if int(ts_list[i]) - int(cur_ts) < params._scintillator_ts_individual_dead_time:
+                            cur_ts = ts_list[i] # deadtime wrt last hit
+                            continue
+                        cur_ts = ts_list[i] # deadtime wrt first hit
+                        allowed_indices.append(i)
+                    for k in cut_tmp_hits[ly][st].keys():
+                        cut_tmp_hits[ly][st][k] = cut_tmp_hits[ly][st][k][allowed_indices]
+                    n_cut_hits_after = len(cut_tmp_hits[ly][st]['ts'])
+                    print(f"ly{ly} st{st} dead time cut flow: {n_cut_hits_after} / {n_cut_hits} = {n_cut_hits_after/max(1,n_cut_hits)}")
+        # merge back to tmp_hits
+        print("merging data after applying individual dead time...")
+        merge_data = []
+        for ly in derived_params._scint_inverted_remap_table.keys():
+            for st in derived_params._scint_inverted_remap_table[ly].keys():
+                merge_data.append(cut_tmp_hits[ly][st])
+        scint_hits = data_utils.merge_dataset(split_data=merge_data)
+        print("sort data by timestamp...")
+        scint_hits = timestamp_utils.sort_by_timestamp(hits=scint_hits)
     return scint_hits
 
 ### extract timestamps of testpulse hits for full readout system

@@ -62,8 +62,8 @@ def extract_dt_hits(hits, *, silent=False, has_timestamp=False):
     for sl in params._dt_chamber["sls"].keys():
         for ly in params._dt_chamber["sls"][sl]["lys"].keys():
             keep_ly.append( data_utils.cut_data(data=tmp_hits, conditions=[("sl","==",sl), ("ly","==",ly), ("wi",">=",params._dt_chamber["sls"][sl]["lys"][ly]["min_wi"]), ("wi","<=",params._dt_chamber["sls"][sl]["lys"][ly]["max_wi"])]) )
-            print(f"wi < min_wi:", data_utils.cut_data(data=tmp_hits, conditions=[("sl","==",sl), ("ly","==",ly), ("wi","<",params._dt_chamber["sls"][sl]["lys"][ly]["min_wi"])]) )
-            print(f"wi > max_wi:", data_utils.cut_data(data=tmp_hits, conditions=[("sl","==",sl), ("ly","==",ly), ("wi",">",params._dt_chamber["sls"][sl]["lys"][ly]["max_wi"])]) )
+            #print(f"wi < min_wi:", data_utils.cut_data(data=tmp_hits, conditions=[("sl","==",sl), ("ly","==",ly), ("wi","<",params._dt_chamber["sls"][sl]["lys"][ly]["min_wi"])]) )
+            #print(f"wi > max_wi:", data_utils.cut_data(data=tmp_hits, conditions=[("sl","==",sl), ("ly","==",ly), ("wi",">",params._dt_chamber["sls"][sl]["lys"][ly]["max_wi"])]) )
     tmp_hits = data_utils.merge_dataset(split_data=keep_ly)
     tmp_hits = timestamp_utils.sort_by_timestamp(hits=tmp_hits)
     ### -----------------------
@@ -84,8 +84,9 @@ def extract_dt_hits(hits, *, silent=False, has_timestamp=False):
                         cur_ts = ts_list[0]
                         for i in range(n_cut_hits):
                             if int(ts_list[i]) - int(cur_ts) < params._dt_ts_individual_dead_time:
+                                cur_ts = ts_list[i] # deadtime wrt last hit
                                 continue
-                            cur_ts = ts_list[i]
+                            cur_ts = ts_list[i] # deadtime wrt first hit
                             allowed_indices.append(i)
                     for k in cut_tmp_hits[sl][ly][wi].keys():
                         cut_tmp_hits[sl][ly][wi][k] = cut_tmp_hits[sl][ly][wi][k][allowed_indices]
@@ -640,6 +641,7 @@ def reco_muons_from_sl_fit_groups(fits, fit_groups, *, silent=False, verbose=Fal
     fit_groups = data_utils.sort_by_key(data=fit_groups, sort_key="tgroup", silent=silent)
     ### combine sl fit groups of different superlayers to "muon"
     last_fit_group = {sl: None for sl in params._dt_chamber["sls"].keys()} # holds last fit group of each sl
+    if not silent: print(f"combine sl fit groups to muons...")
     for i in tqdm(range(n_fit_groups), disable=silent):
         counter_groups += 1
         ### search for fit groups close in time
@@ -658,6 +660,7 @@ def reco_muons_from_sl_fit_groups(fits, fit_groups, *, silent=False, verbose=Fal
             continue
         counter_tgroup += 1
         ### if code made it to here, a muon (3 fit groups reasonably close in time) was found
+        # check max n_fits condition
         if last_fit_group[1]["n_fits"] > params._muon_n_fits_max:
             continue
         if last_fit_group[2]["n_fits"] > params._muon_n_fits_max:
@@ -673,6 +676,13 @@ def reco_muons_from_sl_fit_groups(fits, fit_groups, *, silent=False, verbose=Fal
         for sl in params._dt_chamber["sls"].keys():
             fit_idx = last_fit_group[sl]["idcs"][0]
             fit[sl] =  {k: fits[k][fit_idx] for k in fits.keys()}
+        # check max chi2/ndf condition
+        if fit[1]["chi2/ndf"] > params._muon_chi2_ndf_max:
+            continue
+        if fit[2]["chi2/ndf"] > params._muon_chi2_ndf_max:
+            continue
+        if fit[3]["chi2/ndf"] > params._muon_chi2_ndf_max:
+            continue
         # reject muon if tan alpha tolerance not met
         if np.abs(fit[phi_sl1]["tan_alpha"] - fit[phi_sl2]["tan_alpha"]) > params._muon_slphi_tan_alpha_tolerance:
             continue

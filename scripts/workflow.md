@@ -61,14 +61,14 @@ python scripts/dt/plot_sl_fits.py --show_plots --sl_fits_file data_files/sim_muo
 
 ## SL fits -> SL fit groups (per SL)
 
-...
+python scripts/dt/sl_fits_to_sl_fit_groups.py --sl_fits_file data_files/combined_2_sl_fits_slaligned_aftercuts.pcl --sl_fit_groups_file data_files/combined_2_sl_fit_groups.pcl
 
 Plot:
 ...
 
 ## SL fit groups (per SL) -> DT muons
 
-python scripts/dt/sl_fits_to_dt_muons.py --sl_fits_file data_files/dt_cosm_7_fits.pcl --dt_muons_file data_files/dt_cosm_7_dt_muons.pcl
+...
 
 Plot:
 python scripts/dt/plot_dt_muons.py --show_plots --dt_muons_file data_files/dt_cosm_7_dt_muons.pcl
@@ -126,15 +126,16 @@ Raw scint hits: Do next steps as above.
 
 DT hits: Do next steps as above.
 - DT hits -> SL patterns
-- SL patterns -> SL fits
-- SL fits -> DT muons
+- SL patterns -> SL fits (and apply cuts)
+- SL fits -> SL fit groups
+- SL fit groups -> DT muons
 
 Scint hits: Do next steps as above.
 - Scint hits -> Scint areas
 
 ## Correlate DT muons + Scint areas
 
-## 
+python scripts/combined/correlate_dt_muons_and_scint_areas.py --dt_muons_file data_files/combined_2_dt_muons.pcl --scint_areas_file data_files/combined_2_scint_areas.pcl
 
 ________________________________________________________________________________________________________
 

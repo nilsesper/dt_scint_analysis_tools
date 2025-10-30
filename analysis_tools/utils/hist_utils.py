@@ -58,12 +58,17 @@ def calculate_hist(data, key, *, bin_centers=None, bin_edges=None, silent=False)
             centers = bin_centers
         # calculate edges from centers
         distance = np.mean(np.diff(centers))/2
-        if edges != "auto":
-            edges = np.zeros(len(centers)+1)
-            for i in range(len(centers)):
-                edges[i] = centers[i]-distance
-            edges[len(centers)] = centers[-1]+distance
+        #if edges != "auto":
+        #    edges = np.zeros(len(centers)+1)
+        #    for i in range(len(centers)):
+        #        edges[i] = centers[i]-distance
+        #    edges[len(centers)] = centers[-1]+distance
     # BIN EDGES
+        edges = np.zeros(len(centers)+1)
+        for i in range(len(centers)):
+            edges[i] = centers[i]-distance
+        edges[len(centers)] = centers[-1]+distance
+    # if edges given
     elif type(bin_edges) != type(None):
         edges = bin_edges
     # ---

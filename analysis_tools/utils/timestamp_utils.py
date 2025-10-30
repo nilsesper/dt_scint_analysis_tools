@@ -14,6 +14,7 @@ import analysis_tools.params.derived_params as derived_params
 
 # -----------------------------------------
 
+"""
 ### add timestamp (integer value concatenating all existing timestamp keys oc,bx,tdc into one value with key ts) to hits object
 # timestamp formula: ts = (tdc) + n_tdc*(bx) + n_tdc*n_bunches*(orbit) + n_tdc*n_bunches*n_orbits*(orbit_overflow)
 # timestamp unit: 0.78 ns
@@ -38,7 +39,7 @@ def add_timestamp(hits, *, silent=False):
             oc = ts_hits_ro["oc"][i]
             if last_oc == None: # set last_oc at first hit
                 last_oc = oc
-            if np.abs(int(oc) - int(last_oc)) > params._oc_difference_for_overflow: # if last oc > current oc i.e. overflow detected -> increment oc_overflow counter to "smooth out" timestamp and not have jumps in it
+            if int(last_oc) - int(oc) > params._oc_difference_for_overflow: # if last oc > current oc i.e. overflow detected -> increment oc_overflow counter to "smooth out" timestamp and not have jumps in it
                 oc_overflow += 1
                 print(f"Detected OC overflow -- i={i}, ro_ch={ro_ch} -- last_oc={last_oc} -- oc={oc}")
                 #if not silent: print(f"  Orbit counter overflow detected for hit #{i}. Incrementing overflow counter to {oc_overflow}.")
@@ -47,6 +48,37 @@ def add_timestamp(hits, *, silent=False):
         separate_ts_hits.append(ts_hits_ro)
     # merge data
     ts_hits = data_utils.merge_dataset(split_data=separate_ts_hits)
+    # sort hits by timestamp
+    ts_hits = sort_by_timestamp(hits=ts_hits)
+    return ts_hits
+"""
+
+### add timestamp (integer value concatenating all existing timestamp keys oc,bx,tdc into one value with key ts) to hits object
+# timestamp formula: ts = (tdc) + n_tdc*(bx) + n_tdc*n_bunches*(orbit) + n_tdc*n_bunches*n_orbits*(orbit_overflow)
+# timestamp unit: 0.78 ns
+# timestamp data type: uint64 i.e. max. value ~1.844e19 timestamp units (0.78 ns) = ~1.438e10 seconds = ~456 days
+### DIFFERENT ALGORITHM
+def add_timestamp(hits, *, silent=False):
+    ts_hits = copy.deepcopy(hits)
+    n_hits = data_utils.length(hits)
+    if not silent: print(f"Add converted timestamp to {n_hits} entries...")
+    ts_hits |= {"ts": np.full(n_hits, 0, dtype=params._ts_type)}
+    # assign timestamp for full dataset (together)
+    oc_overflow = 0 # count how many times the orbit counter overflowed -> to have non-jumping but continous timestamp
+    last_oc = None
+    for i in range(n_hits):
+        tdc = ts_hits["tdc"][i]
+        bx = ts_hits["bx"][i]
+        oc = ts_hits["oc"][i]
+        ro_ch = ts_hits["ro_ch"][i]
+        if last_oc == None: # set last_oc at first hit
+            last_oc = oc
+        if int(last_oc) - int(oc) > params._oc_difference_for_overflow: # if last oc > current oc i.e. overflow detected -> increment oc_overflow counter to "smooth out" timestamp and not have jumps in it
+            oc_overflow += 1
+            print(f"Detected OC overflow -- i={i}, ro_ch={ro_ch} -- last_oc={last_oc} -- oc={oc}")
+            #if not silent: print(f"  Orbit counter overflow detected for hit #{i}. Incrementing overflow counter to {oc_overflow}.")
+        ts_hits["ts"][i] =  tdc * derived_params._tdc_to_timestamp + bx * derived_params._bx_to_timestamp + oc * derived_params._orbit_to_timestamp + oc_overflow * derived_params._orbit_overflow_to_timestamp
+        last_oc = oc
     # sort hits by timestamp
     ts_hits = sort_by_timestamp(hits=ts_hits)
     return ts_hits

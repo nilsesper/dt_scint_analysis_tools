@@ -121,7 +121,7 @@ def main():
                     wi = sl_fits[f"wi{ly}"][k]
                     dt_cell_data[sl][ly][wi]["color"] = "aqua"
 
-    dt_cell_data[1][0][0]["color"] = "red"
+    #dt_cell_data[1][0][0]["color"] = "red"
 
     # actual plotting
     show_wires = True

@@ -38,6 +38,11 @@ def main():
         type     = str,
         help     = "output directory: give argument if plots should be stores, specify output path for plots here",
     )
+    parser.add_argument(
+        "--cuts",
+        type     = str,
+        help     = "cuts to apply to data in format \"key1,operator1,value1;key2,operator2,value;...\"",
+    )
     # ---
     args = parser.parse_args()
     scint_hits_file = args.scint_hits_file
@@ -47,6 +52,15 @@ def main():
     store_plots = None
     if args.store_plots:
         store_plots = args.store_plots
+    cuts_list = []
+    if args.cuts:
+        for cuts_str in args.cuts.split(";"):
+            key, operator, value = cuts_str.split(",")
+            if "params." in value:
+                value = getattr(params, value.split("params.")[1])
+            else:
+                value = float(value)
+            cuts_list.append((key, operator, value))
 
     #################
 
@@ -54,6 +68,12 @@ def main():
     print(f"###### Importing all data...")
     # scint
     scint_hits = data_utils.load_pickle(file=scint_hits_file)
+
+    ### cut data
+    print(f"###### Applying data cuts: {cuts_list}...")
+    scint_hits = data_utils.cut_data(data=scint_hits, conditions=cuts_list)
+
+    n_scint_hits = data_utils.length(scint_hits)
 
     ### scintillator hits
     print(f"### scintillator hits")
@@ -89,6 +109,8 @@ def main():
             "st": np.arange(0, 16+1),
         }
         scint_hits_cut = data_utils.cut_data(data=scint_hits, conditions=[("ly","==",ly)])
+        if data_utils.length(scint_hits_cut) == 0:
+            continue
         for k in hist_bins.keys():
             hists, edges, centers, underflow, overflow = hist_utils.calculate_hist(data=scint_hits_cut, key=k, bin_centers=hist_bins[k], silent=True)
             print(f"key \"{k}\": entries={data_utils.length(scint_hits_cut)} underflow={underflow}, overflow={overflow}")
@@ -101,6 +123,7 @@ def main():
                         px = derived_params._scint_pixel_mapping[(st0, st1)]
                         px_matrix[st0][st1] = hists[st0] if (ly == 0) else hists[st1]
                 imshow_obj = ax.imshow(px_matrix)
+                ax.invert_yaxis()
                 ax.set_xlabel("Strip (Layer 1)")
                 ax.set_ylabel("Strip (Layer 0)")
                 cbar = fig.colorbar(imshow_obj, ax=ax, fraction=0.05)
@@ -116,6 +139,7 @@ def main():
                         px = derived_params._scint_pixel_mapping[(st0, st1)]
                         px_matrix[st0][st1] = hists[st0] / duration if (ly == 0) else hists[st1] / duration
                 imshow_obj = ax.imshow(px_matrix)
+                ax.invert_yaxis()
                 ax.set_xlabel("Strip (Layer 1)")
                 ax.set_ylabel("Strip (Layer 0)")
                 cbar = fig.colorbar(imshow_obj, ax=ax, fraction=0.05)
@@ -186,6 +210,8 @@ def main():
             "st": np.arange(0, 16),
         }
         scint_hits_cut = data_utils.cut_data(data=scint_hits, conditions=[("ly","==",ly)], silent=True)
+        if data_utils.length(scint_hits_cut) == 0:
+            continue
         for k in hist_bins.keys():
             hists, edges, centers, underflow, overflow = hist_utils.calculate_hist(data=scint_hits_cut, key=k, bin_centers=hist_bins[k], silent=True)
             print(f"key \"{k}\": entries={data_utils.length(scint_hits_cut)} underflow={underflow}, overflow={overflow}")
@@ -200,11 +226,59 @@ def main():
                 ax[ly].set_xlabel("Strip")
                 ax[ly].set_ylabel("Rate [Hz]")
                 ax[ly].set_title(f"Layer {ly}")
-
     # show plot
     fig.tight_layout()
     fig.show()
     #"""
+
+    #"""
+    #### time difference between scint hits
+    additional_data = {}
+    print("Plotting time differences between scint hits...")
+    k = f"delta_ts"
+    additional_data[k] = np.zeros(n_scint_hits)
+    for i in range(1,n_scint_hits):
+        additional_data[k][i] = int(scint_hits[f"ts"][i]) - int(scint_hits["ts"][i-1]) 
+    # plot
+    hist_bins = np.linspace(0,1e3,500) #"auto500" 
+    hists, edges, centers, underflow, overflow = hist_utils.calculate_hist(data=additional_data, key=k, bin_centers=hist_bins, silent=True)
+    print(f"key \"{k}\": entries={data_utils.length(additional_data)} underflow={underflow}, overflow={overflow}")
+    xlabel = f"delta_ts [TU]"
+    hist_utils.plot_1hist(hist=hists, centers=centers, xlabel=xlabel, round_digits=round_digits, bin_labels=False, silent=True, store=plotname, show=show_plots, title=f"", scale="log") # scale="log"
+    # plot
+    hist_bins = "auto500" #np.linspace(0,1e6,500) #"auto500" 
+    hists, edges, centers, underflow, overflow = hist_utils.calculate_hist(data=additional_data, key=k, bin_centers=hist_bins, silent=True)
+    print(f"key \"{k}\": entries={data_utils.length(additional_data)} underflow={underflow}, overflow={overflow}")
+    xlabel = f"delta_ts [TU]"
+    hist_utils.plot_1hist(hist=hists, centers=centers, xlabel=xlabel, round_digits=round_digits, bin_labels=False, silent=True, store=plotname, show=show_plots, title=f"", scale="log") # scale="log"
+    #"""
+
+    """
+    #### time difference between scint hits of different ro_chs
+    additional_data = {}
+    print("Plotting time differences between scint hits...")
+    k = f"delta_ts_ly0-ly1"
+    hits_ly0 = data_utils.cut_data(data=scint_hits, conditions=[("ly","==",0)], silent=True)
+    hits_ly1 = data_utils.cut_data(data=scint_hits, conditions=[("ly","==",1)], silent=True)
+    n_delta_lys_hits = np.amin([data_utils.length(hits_ly0), data_utils.length(hits_ly1)])
+    additional_data[k] = np.zeros(n_delta_lys_hits)
+    for i in range(1,n_delta_lys_hits):
+        additional_data[k][i] = np.clip(a=int(hits_ly0[f"ts"][i]) - int(hits_ly1["ts"][i]), a_min=None, a_max=None )
+    # plot
+    hist_bins = np.linspace(-1e3,1e3,500) #"auto500" 
+    hists, edges, centers, underflow, overflow = hist_utils.calculate_hist(data=additional_data, key=k, bin_centers=hist_bins, silent=True)
+    print(f"key \"{k}\": entries={data_utils.length(additional_data)} underflow={underflow}, overflow={overflow}")
+    xlabel = f"{k} [TU]"
+    hist_utils.plot_1hist(hist=hists, centers=centers, xlabel=xlabel, round_digits=round_digits, bin_labels=False, silent=True, store=plotname, show=show_plots, title=f"", scale="log") # scale="log"
+    # plot
+    hist_bins = "auto500" #np.linspace(0,1e6,500) #"auto500" 
+    hists, edges, centers, underflow, overflow = hist_utils.calculate_hist(data=additional_data, key=k, bin_centers=hist_bins, silent=True)
+    print(f"key \"{k}\": entries={data_utils.length(additional_data)} underflow={underflow}, overflow={overflow}")
+    xlabel = f"{k} [TU]"
+    hist_utils.plot_1hist(hist=hists, centers=centers, xlabel=xlabel, round_digits=round_digits, bin_labels=False, silent=True, store=plotname, show=show_plots, title=f"", scale="log") # scale="log"
+    #"""
+
+
 
 
 
