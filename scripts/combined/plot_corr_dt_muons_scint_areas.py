@@ -101,9 +101,6 @@ def main():
     scint_y_max = np.amax([params._scintillator["pos"][1], params._scintillator["pos"][1]+params._scintillator["size"][1]])
     print("scintillator coordinates:",(scint_x_min,scint_x_max),(scint_y_min,scint_y_max),scint_z_center)
 
-    # project muons onto scintillator
-    dt_corr_muons = muon_utils.change_muon_base_point(muons=dt_corr_muons, z_new=scint_z_center)
-
 
     ######## time difference between dt & scint correlated hits
 
@@ -184,34 +181,38 @@ def main():
     ####### 2d projections
     xy_marigin = 400
     n_xy_bins = 60
-    x_edges = np.linspace(scint_x_min-xy_marigin, scint_x_max+xy_marigin, n_xy_bins)
-    y_edges = np.linspace(scint_y_min-xy_marigin, scint_y_max+xy_marigin, n_xy_bins)
+    x_edges = np.linspace(derived_params.scint_x_min-xy_marigin, derived_params.scint_x_max+xy_marigin, n_xy_bins)
+    y_edges = np.linspace(derived_params.scint_y_min-xy_marigin, derived_params.scint_y_max+xy_marigin, n_xy_bins)
     x_bins = np.array([(x_edges[i]+x_edges[i+1])/2 for i in range(len(x_edges)-1)])
     y_bins = np.array([(y_edges[i]+y_edges[i+1])/2 for i in range(len(y_edges)-1)])
     x_binwidth = x_edges[1]-x_edges[0]
     y_binwidth = y_edges[1]-y_edges[0]
     
-    ### muon x,y position (for z = params.)
+    ### muon x,y position plot (for z = mean_scint_z)
 
-    pos_muons_hist2d, _, _ = np.histogram2d(x=dt_corr_muons["x0"], y=dt_corr_muons["y0"], bins=(x_edges, y_edges))
+    # project muons onto scintillator z pos
+    dt_corr_muons_scint = muon_utils.change_muon_base_point(muons=dt_corr_muons, z_new=derived_params.scint_z_center)
+
+    pos_muons_hist2d, _, _ = np.histogram2d(x=dt_corr_muons_scint["y0"], y=dt_corr_muons_scint["x0"], bins=(y_edges, x_edges))
     # plot
     fig, ax = plt.subplots(1, 1, figsize=(12,8))
-    im_obj = ax.imshow(X=pos_muons_hist2d, origin="lower", extent=[min(y_bins), max(y_bins), min(x_bins), max(x_bins)])
+    im_obj = ax.imshow(X=pos_muons_hist2d, origin="lower", extent=[min(x_bins), max(x_bins), min(y_bins), max(y_bins)])
     # draw scint into plot
     patches = []
     patches.append( pat.Rectangle(
-        (scint_y_min, scint_x_min),
-        width=(scint_y_max-scint_y_min),
-        height=(scint_x_max-scint_x_min),
-        edgecolor="white", facecolor="None")
+        (derived_params.scint_x_min, derived_params.scint_y_min),
+        width=(derived_params.scint_x_max - derived_params.scint_x_min),
+        height=(derived_params.scint_y_max - derived_params.scint_y_min),
+        edgecolor="white", facecolor="None",
+        label="Scintillator position")
     )
     for patch in patches:
         ax.add_patch(patch)
     # plot setup
-    ax.set_title("Correlated DT muons")
-    ax.set_ylabel("$x$ [mm]")
-    ax.set_xlabel("$y$ [mm]")
-    #ax.legend()
+    ax.set_title(f"Correlated DT muons ($z={np.round(derived_params.scint_z_center,0):.0f}$mm)")
+    ax.set_ylabel("$y$ [mm]")
+    ax.set_xlabel("$x$ [mm]")
+    ax.legend()
     plt.colorbar(im_obj)
     fig.tight_layout()
     fig.show()

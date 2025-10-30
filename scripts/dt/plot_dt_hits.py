@@ -97,7 +97,8 @@ def main():
         if store_plots != None:
             plotname = store_plots+f"/dt_hits_{k}.png"
         hist_utils.plot_1hist(hist=hists, centers=centers, xlabel=xlabel, round_digits=round_digits, bin_labels=False, silent=True, store=plotname, show=show_plots) # scale="log"
-    
+
+
     ### measurement duration
     duration = 0.78e-9 * (np.amax(dt_hits["ts"]) - np.amin(dt_hits["ts"])) # secs
     print(f"measurement duration = {duration} s")
@@ -129,6 +130,11 @@ def main():
                     ax[ly].set_xlabel("Wire")
                     ax[ly].set_ylabel("Rate [Hz]")
                     ax[ly].set_title(f"Superlayer {sl}, Layer {ly}")
+                    ## print low occupancy wires
+                    mean_rate = np.mean(rate_hists)
+                    for idx, wi in enumerate(hist_bins[k]):
+                        if rate_hists[idx] < 0.5*mean_rate:
+                            print(f"low occupancy in sl={sl}, ly={ly}, wi={wi}")
 
         # show plot
         fig.tight_layout()
@@ -165,7 +171,7 @@ def main():
                 hist_utils.plot_1hist(hist=rate_hists, centers=centers, xlabel=xlabel, round_digits=round_digits, bin_labels=False, silent=True, store=plotname, show=show_plots, title=f"ro_ch {ro_ch} (rate [Hz])") # scale="log"
     #"""
 
-    #"""
+    """
     #### time difference between hits of same channel
     print("Plotting time differences between hits of same wire...")
     k = f"delta_ts"
@@ -200,6 +206,8 @@ def main():
     xlabel = f"delta_ts [TU]"
     hist_utils.plot_1hist(hist=hists, centers=centers, xlabel=xlabel, round_digits=round_digits, bin_labels=False, silent=True, store=plotname, show=show_plots, title=f"", scale="log") # scale="log"
     #"""
+
+
 
 
 

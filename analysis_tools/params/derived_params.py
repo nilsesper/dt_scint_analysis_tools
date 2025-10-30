@@ -549,3 +549,45 @@ for pat_id, pattern in params._meantimer_patterns.items():
 #print(meantimer_functions)
 
 
+#### frame coordinates
+
+# scintillator coordinates
+scint_x_center = np.mean([params._scintillator["pos"][0], params._scintillator["pos"][0]+params._scintillator["size"][0]])
+scint_y_center = np.mean([params._scintillator["pos"][1], params._scintillator["pos"][1]+params._scintillator["size"][1]])
+scint_z_center = np.mean([params._scintillator["pos"][2], params._scintillator["pos"][2]+params._scintillator["size"][2]])
+scint_x_min = np.amin([params._scintillator["pos"][0], params._scintillator["pos"][0]+params._scintillator["size"][0]])
+scint_x_max = np.amax([params._scintillator["pos"][0], params._scintillator["pos"][0]+params._scintillator["size"][0]])
+scint_y_min = np.amin([params._scintillator["pos"][1], params._scintillator["pos"][1]+params._scintillator["size"][1]])
+scint_y_max = np.amax([params._scintillator["pos"][1], params._scintillator["pos"][1]+params._scintillator["size"][1]])
+scint_z_min = np.amin([params._scintillator["pos"][2], params._scintillator["pos"][2]+params._scintillator["size"][2]])
+scint_z_max = np.amax([params._scintillator["pos"][2], params._scintillator["pos"][2]+params._scintillator["size"][2]])
+
+# chamber coordinates
+dt_chamber_x_center = np.mean([params._dt_chamber["pos"][0], params._dt_chamber["pos"][0]+params._dt_chamber["size"][0]])
+dt_chamber_y_center = np.mean([params._dt_chamber["pos"][1], params._dt_chamber["pos"][1]+params._dt_chamber["size"][1]])
+dt_chamber_z_center = np.mean([params._dt_chamber["pos"][2], params._dt_chamber["pos"][2]+params._dt_chamber["size"][2]])
+dt_chamber_x_min = np.amin([params._dt_chamber["pos"][0], params._dt_chamber["pos"][0]+params._dt_chamber["size"][0]])
+dt_chamber_x_max = np.amax([params._dt_chamber["pos"][0], params._dt_chamber["pos"][0]+params._dt_chamber["size"][0]])
+dt_chamber_y_min = np.amin([params._dt_chamber["pos"][1], params._dt_chamber["pos"][1]+params._dt_chamber["size"][1]])
+dt_chamber_y_max = np.amax([params._dt_chamber["pos"][1], params._dt_chamber["pos"][1]+params._dt_chamber["size"][1]])
+dt_chamber_z_min = np.amin([params._dt_chamber["pos"][2], params._dt_chamber["pos"][2]+params._dt_chamber["size"][2]])
+dt_chamber_z_max = np.amax([params._dt_chamber["pos"][2], params._dt_chamber["pos"][2]+params._dt_chamber["size"][2]])
+
+# superlayer coordinates
+sl_x_center, sl_y_center, sl_z_center = {}, {}, {}
+sl_x_max, sl_y_max, sl_z_max = {}, {}, {}
+sl_x_min, sl_y_min, sl_z_min = {}, {}, {}
+for sl in [1,2,3]:
+    sl_x_center[sl] = np.mean([params._dt_chamber["pos"][0]+params._dt_chamber["sls"][sl]["pos"][0], params._dt_chamber["pos"][0]+params._dt_chamber["sls"][sl]["pos"][0]+params._dt_chamber["sls"][sl]["size"][0]])
+    sl_y_center[sl] = np.mean([params._dt_chamber["pos"][1]+params._dt_chamber["sls"][sl]["pos"][1], params._dt_chamber["pos"][1]+params._dt_chamber["sls"][sl]["pos"][1]+params._dt_chamber["sls"][sl]["size"][1]])
+    sl_z_center[sl] = np.mean([params._dt_chamber["pos"][2]+params._dt_chamber["sls"][sl]["pos"][2], params._dt_chamber["pos"][2]+params._dt_chamber["sls"][sl]["pos"][2]+params._dt_chamber["sls"][sl]["size"][2]])
+    sl_x_min[sl] = np.amin([params._dt_chamber["pos"][0]+params._dt_chamber["sls"][sl]["pos"][0], params._dt_chamber["pos"][0]+params._dt_chamber["sls"][sl]["pos"][0]+params._dt_chamber["sls"][sl]["size"][0]])
+    sl_x_max[sl] = np.amax([params._dt_chamber["pos"][0]+params._dt_chamber["sls"][sl]["pos"][0], params._dt_chamber["pos"][0]+params._dt_chamber["sls"][sl]["pos"][0]+params._dt_chamber["sls"][sl]["size"][0]])
+    sl_y_min[sl] = np.amin([params._dt_chamber["pos"][1]+params._dt_chamber["sls"][sl]["pos"][1], params._dt_chamber["pos"][1]+params._dt_chamber["sls"][sl]["pos"][1]+params._dt_chamber["sls"][sl]["size"][1]])
+    sl_y_max[sl] = np.amax([params._dt_chamber["pos"][1]+params._dt_chamber["sls"][sl]["pos"][1], params._dt_chamber["pos"][1]+params._dt_chamber["sls"][sl]["pos"][1]+params._dt_chamber["sls"][sl]["size"][1]])
+    sl_z_min[sl] = np.amin([params._dt_chamber["pos"][2]+params._dt_chamber["sls"][sl]["pos"][2], params._dt_chamber["pos"][2]+params._dt_chamber["sls"][sl]["pos"][2]+params._dt_chamber["sls"][sl]["size"][2]])
+    sl_z_max[sl] = np.amax([params._dt_chamber["pos"][2]+params._dt_chamber["sls"][sl]["pos"][2], params._dt_chamber["pos"][2]+params._dt_chamber["sls"][sl]["pos"][2]+params._dt_chamber["sls"][sl]["size"][2]])
+
+
+
+

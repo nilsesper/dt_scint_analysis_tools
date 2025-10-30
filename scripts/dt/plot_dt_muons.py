@@ -152,6 +152,83 @@ def main():
     #"""
 
 
+    #"""
+    ####### 2d projections
+    ### manual input of low occupancy wires to be shown in plot
+    low_occ_wires = { # sl: (ly, wi)
+        1: [  ], #(1,49),
+        2: [ (0,2), (0,5), (0,13), (0,35), (0,50), (0,51), (1,5), (1,45), ], #(1,57),
+        3: [ (0,10), (1,41), (2,26), ], #(1,49),
+    }
+
+    ### for center of each superlayer separately
+    for sl in [1,2,3]:
+
+        # plot range
+        xy_marigin = 400
+        n_xy_bins = 60
+        x_edges = np.linspace(derived_params.sl_x_min[sl]-xy_marigin, derived_params.sl_x_max[sl]+xy_marigin, n_xy_bins)
+        y_edges = np.linspace(derived_params.sl_y_min[sl]-xy_marigin, derived_params.sl_y_max[sl]+xy_marigin, n_xy_bins)
+        x_bins = np.array([(x_edges[i]+x_edges[i+1])/2 for i in range(len(x_edges)-1)])
+        y_bins = np.array([(y_edges[i]+y_edges[i+1])/2 for i in range(len(y_edges)-1)])
+        x_binwidth = x_edges[1]-x_edges[0]
+        y_binwidth = y_edges[1]-y_edges[0]
+        
+        ### muon x,y position plot (for z = mean_scint_z)
+
+        # project muons onto scintillator z pos
+        dt_muons_sl = muon_utils.change_muon_base_point(muons=dt_muons, z_new=derived_params.sl_z_center[sl])
+
+        pos_muons_hist2d, _, _ = np.histogram2d(x=dt_muons_sl["y0"], y=dt_muons_sl["x0"], bins=(y_edges, x_edges))
+        # plot
+        fig, ax = plt.subplots(1, 1, figsize=(12,8))
+        im_obj = ax.imshow(X=pos_muons_hist2d, origin="lower", extent=[min(x_bins), max(x_bins), min(y_bins), max(y_bins)])
+        # draw sl into plot
+        patches = []
+        patches.append( pat.Rectangle(
+            (derived_params.sl_x_min[sl], derived_params.sl_y_min[sl]),
+            width=(derived_params.sl_x_max[sl]-derived_params.sl_x_min[sl]),
+            height=(derived_params.sl_y_max[sl]-derived_params.sl_y_min[sl]),
+            edgecolor="white", facecolor="None",
+            label="Superlayer position")
+        )
+        # draw low occ wire positions into plot
+        first_label = True
+        for ly, wi in low_occ_wires[sl]:
+            # derived_params._dt_cell_coordinates = {sl: {ly: {wi: [[xmin, xmax], [ymin, ymax], [zmin, zmax], x_center_pos, y_center_pos, z_center_pos]}}}
+            if first_label:
+                patches.append( pat.Rectangle(
+                    (derived_params._dt_cell_coordinates[sl][ly][wi][0][0], derived_params._dt_cell_coordinates[sl][ly][wi][1][0]),
+                    width=(derived_params._dt_cell_coordinates[sl][ly][wi][0][1]-derived_params._dt_cell_coordinates[sl][ly][wi][0][0]),
+                    height=(derived_params._dt_cell_coordinates[sl][ly][wi][1][1]-derived_params._dt_cell_coordinates[sl][ly][wi][1][0]),
+                    edgecolor="red", facecolor="None",
+                    label="Low-occupancy cells")
+                )
+                first_label = False
+            else:
+                patches.append( pat.Rectangle(
+                    (derived_params._dt_cell_coordinates[sl][ly][wi][0][0], derived_params._dt_cell_coordinates[sl][ly][wi][1][0]),
+                    width=(derived_params._dt_cell_coordinates[sl][ly][wi][0][1]-derived_params._dt_cell_coordinates[sl][ly][wi][0][0]),
+                    height=(derived_params._dt_cell_coordinates[sl][ly][wi][1][1]-derived_params._dt_cell_coordinates[sl][ly][wi][1][0]),
+                    edgecolor="red", facecolor="None",
+                    )
+                )        
+        for patch in patches:
+            ax.add_patch(patch)
+        # plot setup
+        ax.set_title(f"DT muons in SL={sl} ($z={np.round(derived_params.sl_z_center[sl],0):.0f}$mm)")
+        ax.set_ylabel("$y$ [mm]")
+        ax.set_xlabel("$x$ [mm]")
+        ax.legend()
+        plt.colorbar(im_obj)
+        fig.tight_layout()
+        fig.show()
+    #"""
+
+
+
+
+
 
     input("Press enter to exit.")
     exit()
