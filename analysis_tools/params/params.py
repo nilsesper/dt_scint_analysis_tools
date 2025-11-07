@@ -416,7 +416,7 @@ _meantimer_tolerance_tan_alpha = 0.03 # tan_alpha tolerance between different me
 # relative time calibration between superlayers (different obdt boards), will be applied with positive sign i.e. t0_corr = t0_before + _sl_time_offset[sl]
 _sl_time_offset = {
     1: 0,
-    2: 250, #0,
+    2: 0, #0,
     3: 0,
 }
 ## sl fits -> sl fit groups
@@ -433,12 +433,12 @@ _muon_chi2_ndf_max = 10 #10 # max chi2 of muon sl fits
 
 ### --- scint
 # acceptance interval for scintillator hits (2 sipm coincidence of strips) -> muon areas (2 strip coincidence) grouping
-_scintillator_ts_acceptance_interval = 32 #32 #1024 #32 #625 #64 #1250 #64 #32 # max temporal distance of ts values of scintillator that should be grouped together, in ts units
+_scintillator_ts_acceptance_interval = 32 #32 #32 #1024 #32 #625 #64 #1250 #64 #32 # max temporal distance of ts values of scintillator that should be grouped together, in ts units
 # 1280 = 1 us , 64 = 50 ns , 500 ~ 391 ns , 16 = 12.5 ns , 32 = 25 ns
 # acceptance interval for raw scintillator hits (single sipm hits) -> scintillator hits (2 sipm coincidence of strips) grouping
 _raw_scintillator_ts_acceptance_interval = _scintillator_ts_acceptance_interval # in ts units
 # apply dead time for all channels individually (if value > 0)
-_raw_scintillator_ts_individual_dead_time = 500 #500 #100 #100 # 0, 64, 1250 # in ts units
+_raw_scintillator_ts_individual_dead_time = 0 #500 #100 #100 # 0, 64, 1250 # in ts units
 # dead time for scintillator strips
 _scintillator_ts_individual_dead_time = 500 # in ts units
 
@@ -1193,7 +1193,7 @@ _obdt_theta_1_fe_mapping = {
 # testpulse timing offset correction
 # {sl: {fe: additional delay (in ts units), through longer cables or different tp latency}}
 _old_tp_cable_add_latency = 8 / 0.78 # ts units
-_theta_tp_add_latency = 0 / 0.78 # ts units
+_theta_tp_add_latency = 116 / 0.78 # ts units
 # the value in the _tp_time_offset map will be subtracted from the extracted tp timestamps / time positions
 # (i.e. the values in this map here describe the time it takes "longer" than 0 offset)
 _tp_time_offset_err = 1 # error on offset correction, in ts units
@@ -1287,17 +1287,15 @@ _scintillator = {
 ## scint hits
 # configuration with strip coincidence
 _mezzanine_1_fe_mapping_strip_coinc = {
-    f"coinc_ch_{i}": {"ly": 0, "st": i, "ch": i} for i in range(0, 8) # ly0
-} | {
-    f"coinc_ch_{8+i}": {"ly": 1, "st": i, "ch": 8+i} for i in range(0, 8) # ly1
+    f"coinc_ch_{i}": {"ly": 0, "st": i, "ch": i} for i in range(0, 16) # ly0
 }
 _mezzanine_2_fe_mapping_strip_coinc = {
-    f"coinc_ch_{i}": {"ly": 0, "st": 8+i, "ch": i} for i in range(0, 8) # ly0
-} | {
-    f"coinc_ch_{8+i}": {"ly": 1, "st": 8+i, "ch": 8+i} for i in range(0, 8) # ly1
+    f"coinc_ch_{i}": {"ly": 1, "st": i, "ch": i} for i in range(0, 16) # ly1
 }
 ## raw scint hits
 # configuration without any coincidence
+"""
+### before 31-10-2025
 _mezzanine_1_fe_mapping_no_coinc = { # ly 0-1, st 0-7
     f"coinc_ch_{i}": {"ly": 0, "st": i, "ch": i, "sipm": 0} for i in range(0, 8) 
 } | {
@@ -1315,6 +1313,25 @@ _mezzanine_2_fe_mapping_no_coinc = { # ly 0-1, st 8-15
     f"coinc_ch_{16+i}": {"ly": 1, "st": 8+i, "ch": 16+i, "sipm": 1} for i in range(0, 8) 
 } | {
     f"coinc_ch_{24+i}": {"ly": 0, "st": 8+i, "ch": 24+i, "sipm": 1} for i in range(0, 8) 
+}
+"""
+_mezzanine_1_fe_mapping_no_coinc = { # ly 0
+    f"coinc_ch_{i}": {"ly": 0, "st": 0+i, "ch": i, "sipm": 0} for i in range(0, 8) 
+} | {
+    f"coinc_ch_{8+i}": {"ly": 0, "st": 8+i, "ch": 8+i, "sipm": 0} for i in range(0, 8) 
+} | {
+    f"coinc_ch_{16+i}": {"ly": 0, "st": 0+i, "ch": 16+i, "sipm": 1} for i in range(0, 8) 
+} | {
+    f"coinc_ch_{24+i}": {"ly": 0, "st": 8+i, "ch": 24+i, "sipm": 1} for i in range(0, 8) 
+}
+_mezzanine_2_fe_mapping_no_coinc = { # ly 1
+    f"coinc_ch_{i}": {"ly": 1, "st": 0+i, "ch": i, "sipm": 0} for i in range(0, 8) 
+} | {
+    f"coinc_ch_{8+i}": {"ly": 1, "st": 8+i, "ch": 8+i, "sipm": 0} for i in range(0, 8) 
+} | {
+    f"coinc_ch_{16+i}": {"ly": 1, "st": 0+i, "ch": 16+i, "sipm": 1} for i in range(0, 8) 
+} | {
+    f"coinc_ch_{24+i}": {"ly": 1, "st": 8+i, "ch": 24+i, "sipm": 1} for i in range(0, 8) 
 }
 # map of masked channels in detector (noisy/dead), if for this (ly, st) the sipm is listed here, the other sipm hits are used as strip hit (scint hit) without sipm coincidence
 # if one does not list it here, then the strip will be dead when one of its sipms is masked

@@ -33,10 +33,18 @@ def main():
         type     = str,
         help     = "output file path: dt hits (pcl file)",
     )
+    parser.add_argument(
+        "--nodeadtime",
+        action   = "store_true",
+        help     = "do not apply dead time",
+    )
     # ---
     args = parser.parse_args()
     input_dumpfile = args.input_dumpfile
     dt_hits_file = args.dt_hits_file
+    nodeadtime = False
+    if args.nodeadtime:
+        nodeadtime = True
 
     #################
 
@@ -49,7 +57,7 @@ def main():
 
     ### extract dt hit
     print(f"###### Extracting dt hits...")
-    dt_hits = dt_utils.extract_dt_hits(hits=dumpfile_hits)
+    dt_hits = dt_utils.extract_dt_hits(hits=dumpfile_hits, ignore_deadtime=nodeadtime)
     print("dt_hits =",dt_hits)
 
     ### store to pcl file

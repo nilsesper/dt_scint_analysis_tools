@@ -17,7 +17,7 @@ from analysis_tools.params import params, derived_params
 # ---------------------------------------------------------------
 
 # main function
-@mpl.rc_context({'font.family': 'sans-serif', 'font.size': 12}) #'font.sans-serif': 'Arial',
+@mpl.rc_context({'font.family': 'sans-serif', 'font.size': 20}) #'font.sans-serif': 'Arial',
 def main():
 
     ### argparse
@@ -104,11 +104,17 @@ def main():
     print(f"measurement duration = {duration} s")
 
     #"""
+    occupancies = {} # {sl: ly: wi: hits}
+    rates = {} # {sl: ly: wi: rate}
     ### plots of superlayers & layers
     for sl in range(1,4):
-        fig, ax = plt.subplots(4, 1, figsize=(12,8), sharex=True)
+        fig, ax = plt.subplots(4, 1, figsize=(16,8), sharex=True)
+        occupancies[sl] = {}
+        rates[sl] = {}
         # put all layers in one plot
         for ly in range(0,4):
+            occupancies[sl][ly] = {}
+            rates[sl][ly] = {}
             hist_bins = {
                 "wi": np.arange(params._dt_chamber["sls"][sl]["lys"][ly]["min_wi"], params._dt_chamber["sls"][sl]["lys"][ly]["max_wi"]+1)
             }
@@ -117,6 +123,13 @@ def main():
                 hists, edges, centers, underflow, overflow = hist_utils.calculate_hist(data=dt_hits_cut, key=k, bin_centers=hist_bins[k], silent=True)
                 print(f"key \"{k}\": entries={data_utils.length(dt_hits_cut)} underflow={underflow}, overflow={overflow}")
                 if k == "wi":
+                    # store data
+                    for wi in np.arange(params._dt_chamber["sls"][sl]["lys"][ly]["min_wi"], params._dt_chamber["sls"][sl]["lys"][ly]["max_wi"]):
+                        occupancies[sl][ly][wi] = hists[wi]
+                        rates[sl][ly][wi] = hists[wi] / duration
+                    # skip if empty
+                    if len(hists) == 0:
+                        continue
                     # calculate rate
                     rate_hists = hists / duration
                     # plot hist
@@ -127,14 +140,17 @@ def main():
                     barwidth = np.mean(np.diff(centers))*(1-rel_spacing) # relative spacing between bins
                     ax[ly].bar(centers, rate_hists, width=barwidth, align="center")
                     ax[ly].set_ylim(bottom=0, top=np.amax(rate_hists)*1.1)
-                    ax[ly].set_xlabel("Wire")
+                    if ly == 3:
+                        ax[ly].set_xlabel("Wire")
                     ax[ly].set_ylabel("Rate [Hz]")
-                    ax[ly].set_title(f"Superlayer {sl}, Layer {ly}")
+                    ax[ly].set_title(f"SL {sl}, Ly {ly}")
                     ## print low occupancy wires
                     mean_rate = np.mean(rate_hists)
                     for idx, wi in enumerate(hist_bins[k]):
                         if rate_hists[idx] < 0.5*mean_rate:
-                            print(f"low occupancy in sl={sl}, ly={ly}, wi={wi}")
+                            ro_ch = derived_params._dt_inverted_remap_table[sl][ly][wi]["ro_ch"]
+                            ch = derived_params._dt_inverted_remap_table[sl][ly][wi]["ch"]
+                            print(f"low occupancy in sl={sl}, ly={ly}, wi={wi} (ro_ch={ro_ch}, ch={ch})")
 
         # show plot
         fig.tight_layout()
@@ -205,6 +221,43 @@ def main():
     print(f"key \"{k}\": entries={data_utils.length(additional_data)} underflow={underflow}, overflow={overflow}")
     xlabel = f"delta_ts [TU]"
     hist_utils.plot_1hist(hist=hists, centers=centers, xlabel=xlabel, round_digits=round_digits, bin_labels=False, silent=True, store=plotname, show=show_plots, title=f"", scale="log") # scale="log"
+    #"""
+
+    #"""
+    ### occupancy plot of full chamber
+    # generate chamber matrix
+    chamber_matrix = np.full((12,57), np.nan) # -1: invalid cell
+    # fill chamber matrix
+    for sl in range(1,4):
+        for ly in range(0,4):
+            for wi in np.arange(params._dt_chamber["sls"][sl]["lys"][ly]["min_wi"], params._dt_chamber["sls"][sl]["lys"][ly]["max_wi"]):
+                chamber_matrix[4*(sl-1)+ly][wi] = rates[sl][ly][wi]
+    # plot
+    fig, ax = plt.subplots(1, 1, figsize=(16,6))
+    im_obj = ax.imshow(X=chamber_matrix, origin="lower", extent=[0-0.5, 57+0.5, 0-0.5, 11+0.5], vmin=0)
+    ax.set_xlabel("Wire")
+    layer_labels = {
+         0: "SL 1, Ly 0",
+         1: "SL 1, Ly 1",
+         2: "SL 1, Ly 2",
+         3: "SL 1, Ly 3",
+         4: "SL 2, Ly 0",
+         5: "SL 2, Ly 1",
+         6: "SL 2, Ly 2",
+         7: "SL 2, Ly 3",
+         8: "SL 3, Ly 0",
+         9: "SL 3, Ly 1",
+        10: "SL 3, Ly 2",
+        11: "SL 3, Ly 3",
+    }
+    ax.set_yticks(list(layer_labels.keys()))
+    ax.set_yticklabels(list(layer_labels.values()))
+    ax.set_aspect("auto")
+    cmap = plt.get_cmap('viridis')
+    cbar = fig.colorbar(im_obj, ax=ax, fraction=0.05, cmap=cmap)
+    cbar.set_label("Rate [Hz]")
+    fig.tight_layout()
+    fig.show()
     #"""
 
 

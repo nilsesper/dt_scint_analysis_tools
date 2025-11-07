@@ -52,7 +52,42 @@ def extract_scint_hits(hits, *, silent=False, has_timestamp=False):
         tmp_hits = timestamp_utils.add_timestamp(hits=tmp_hits)
     # sort by timestamp
     tmp_hits = timestamp_utils.sort_by_timestamp(hits=tmp_hits)
-    return tmp_hits
+    scint_hits = tmp_hits
+    ### -----------------------
+    # apply dead time constraint to all individual channels (if specified dead time is > 0)
+    if params._scintillator_ts_individual_dead_time > 0:
+        print(f"apply dead time constraint for all individual channels of {params._scintillator_ts_individual_dead_time} TU")
+        cut_tmp_hits = {}
+        for ly in derived_params._scint_inverted_remap_table.keys():
+            cut_tmp_hits[ly] = {}
+            for st in derived_params._scint_inverted_remap_table[ly].keys():
+                cut_tmp_hits[ly][st] = data_utils.cut_data(data=scint_hits, conditions=[("ly","==",ly), ("st","==",st)], silent=True)
+                cut_tmp_hits[ly][st] = timestamp_utils.sort_by_timestamp(hits=cut_tmp_hits[ly][st])
+                n_cut_hits = len(cut_tmp_hits[ly][st]["ts"])
+                allowed_indices = []
+                ts_list = np.array(cut_tmp_hits[ly][st]["ts"])
+                if len(ts_list) > 0:
+                    cur_ts = ts_list[0]
+                    for i in range(n_cut_hits): 
+                        if int(ts_list[i]) - int(cur_ts) < params._scintillator_ts_individual_dead_time:
+                            cur_ts = ts_list[i] # deadtime wrt last hit
+                            continue
+                        cur_ts = ts_list[i] # deadtime wrt first hit
+                        allowed_indices.append(i)
+                    for k in cut_tmp_hits[ly][st].keys():
+                        cut_tmp_hits[ly][st][k] = cut_tmp_hits[ly][st][k][allowed_indices]
+                    n_cut_hits_after = len(cut_tmp_hits[ly][st]['ts'])
+                    print(f"ly{ly} st{st} dead time cut flow: {n_cut_hits_after} / {n_cut_hits} = {n_cut_hits_after/max(1,n_cut_hits)}")
+        # merge back to tmp_hits
+        print("merging data after applying individual dead time...")
+        merge_data = []
+        for ly in derived_params._scint_inverted_remap_table.keys():
+            for st in derived_params._scint_inverted_remap_table[ly].keys():
+                merge_data.append(cut_tmp_hits[ly][st])
+        scint_hits = data_utils.merge_dataset(split_data=merge_data)
+        print("sort data by timestamp...")
+        scint_hits = timestamp_utils.sort_by_timestamp(hits=scint_hits)
+    return scint_hits
 
 ### create empty scint_data object
 def _scint_data(default={"color": params._color_info["cell"][None], "text": ""}):
@@ -240,7 +275,7 @@ def extract_raw_scint_hits(hits, *, silent=False, has_timestamp=False):
             for st in derived_params._scint_inverted_remap_table[ly].keys():
                 cut_tmp_hits[ly][st] = {}
                 for sipm in [0,1]:
-                    cut_tmp_hits[ly][st][sipm] = data_utils.cut_data(data=tmp_hits, conditions=[("ly","==",ly), ("st","==",st), ("sipm","==",sipm)])
+                    cut_tmp_hits[ly][st][sipm] = data_utils.cut_data(data=tmp_hits, conditions=[("ly","==",ly), ("st","==",st), ("sipm","==",sipm)], silent=True)
                     cut_tmp_hits[ly][st][sipm] = timestamp_utils.sort_by_timestamp(hits=cut_tmp_hits[ly][st][sipm])
                     n_cut_hits = len(cut_tmp_hits[ly][st][sipm]["ts"])
                     allowed_indices = []
@@ -282,12 +317,13 @@ def reco_hits_from_raw_hits(hits, *, silent=False):
     # for all strips separately
     for ly in params._scintillator["lys"].keys():
         for st in range(params._scintillator["lys"][ly]["n_sts"]):
+            if not silent: print(f"  ly={ly}, st={st}...")
             # check sipm masking
             if ly in params._scint_masked_sipms.keys() and st in params._scint_masked_sipms[ly].keys():
             ### use only 1 sipm of strip if other was masked (in params._scint_masked_sipms)
                 masked_sipm = params._scint_masked_sipms[ly][st]
                 unmasked_sipm = 1 if (params._scint_masked_sipms[ly][st] == 0) else 0
-                st_hits = data_utils.cut_data(data=hits, conditions=[("ly","==",ly), ("st","==",st), ("sipm","==",unmasked_sipm)])
+                st_hits = data_utils.cut_data(data=hits, conditions=[("ly","==",ly), ("st","==",st), ("sipm","==",unmasked_sipm)], silent=True)
                 for i in range(data_utils.length(st_hits)):
                     sipm = st_hits["sipm"][i]
                     ts = st_hits["ts"][i]
@@ -323,7 +359,7 @@ def reco_hits_from_raw_hits(hits, *, silent=False):
                     })
             else:
             ### build coincidence from 2 sipms of strip
-                st_hits = data_utils.cut_data(data=hits, conditions=[("ly","==",ly), ("st","==",st)])
+                st_hits = data_utils.cut_data(data=hits, conditions=[("ly","==",ly), ("st","==",st)], silent=True)
                 # match hits of same ly, st for sipm = 0 and sipm = 1 if within temporal coincidence window
                 SIPMS = [0, 1]
                 last_hits = {sipm: None for sipm in SIPMS}
@@ -394,13 +430,13 @@ def reco_hits_from_raw_hits(hits, *, silent=False):
     scint_hits = timestamp_utils.sort_by_timestamp(hits=scint_hits)
     ### -----------------------
     # apply dead time constraint to all individual channels (if specified dead time is > 0)
-    if params._raw_scintillator_ts_individual_dead_time > 0:
+    if params._scintillator_ts_individual_dead_time > 0:
         print(f"apply dead time constraint for all individual channels of {params._scintillator_ts_individual_dead_time} TU")
         cut_tmp_hits = {}
         for ly in derived_params._scint_inverted_remap_table.keys():
             cut_tmp_hits[ly] = {}
             for st in derived_params._scint_inverted_remap_table[ly].keys():
-                cut_tmp_hits[ly][st] = data_utils.cut_data(data=scint_hits, conditions=[("ly","==",ly), ("st","==",st)])
+                cut_tmp_hits[ly][st] = data_utils.cut_data(data=scint_hits, conditions=[("ly","==",ly), ("st","==",st)], silent=True)
                 cut_tmp_hits[ly][st] = timestamp_utils.sort_by_timestamp(hits=cut_tmp_hits[ly][st])
                 n_cut_hits = len(cut_tmp_hits[ly][st]["ts"])
                 allowed_indices = []

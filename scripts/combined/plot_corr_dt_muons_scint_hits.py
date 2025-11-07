@@ -177,16 +177,16 @@ def main():
     y_bins = np.array([(y_edges[i]+y_edges[i+1])/2 for i in range(len(y_edges)-1)])
     x_binwidth = x_edges[1]-x_edges[0]
     y_binwidth = y_edges[1]-y_edges[0]
-    
-    ### muon x,y position plot (for z = mean_scint_z)
+
+    ### corr muon x,y position plot (for z = mean_scint_z)
 
     # project muons onto scintillator z pos
     dt_corr_muons_scint = muon_utils.change_muon_base_point(muons=dt_corr_muons, z_new=derived_params.scint_z_center)
 
-    pos_muons_hist2d, _, _ = np.histogram2d(x=dt_corr_muons_scint["y0"], y=dt_corr_muons_scint["x0"], bins=(y_edges, x_edges))
+    pos_corr_muons_hist2d, _, _ = np.histogram2d(x=dt_corr_muons_scint["y0"], y=dt_corr_muons_scint["x0"], bins=(y_edges, x_edges))
     # plot
     fig, ax = plt.subplots(1, 1, figsize=(12,8))
-    im_obj = ax.imshow(X=pos_muons_hist2d, origin="lower", extent=[min(x_bins), max(x_bins), min(y_bins), max(y_bins)])
+    im_obj = ax.imshow(X=pos_corr_muons_hist2d, origin="lower", extent=[min(x_bins), max(x_bins), min(y_bins), max(y_bins)])
     # draw scint into plot
     patches = []
     patches.append( pat.Rectangle(
@@ -199,13 +199,44 @@ def main():
     for patch in patches:
         ax.add_patch(patch)
     # plot setup
-    ax.set_title(f"Correlated DT muons ($z={np.round(derived_params.scint_z_center,0):.0f}$mm)")
+    ax.set_title(f"$N_\\text{{DT muons, correlated}}$ ($z={np.round(derived_params.scint_z_center,0):.0f}$mm)")
     ax.set_ylabel("$y$ [mm]")
     ax.set_xlabel("$x$ [mm]")
     ax.legend()
     plt.colorbar(im_obj)
     fig.tight_layout()
     fig.show()
+
+    ### all muon x,y position plot (for z = mean_scint_z)
+
+    # project muons onto scintillator z pos
+    dt_muons_scint = muon_utils.change_muon_base_point(muons=dt_muons, z_new=derived_params.scint_z_center)
+
+    pos_dt_muons_hist2d, _, _ = np.histogram2d(x=dt_muons_scint["y0"], y=dt_muons_scint["x0"], bins=(y_edges, x_edges))
+    # plot
+    fig, ax = plt.subplots(1, 1, figsize=(12,8))
+    im_obj = ax.imshow(X=pos_dt_muons_hist2d, origin="lower", extent=[min(x_bins), max(x_bins), min(y_bins), max(y_bins)])
+    # draw scint into plot
+    patches = []
+    patches.append( pat.Rectangle(
+        (derived_params.scint_x_min, derived_params.scint_y_min),
+        width=(derived_params.scint_x_max - derived_params.scint_x_min),
+        height=(derived_params.scint_y_max - derived_params.scint_y_min),
+        edgecolor="white", facecolor="None",
+        label="Scintillator position")
+    )
+    for patch in patches:
+        ax.add_patch(patch)
+    # plot setup
+    ax.set_title(f"$N_\\text{{DT muons}}$ ($z={np.round(derived_params.scint_z_center,0):.0f}$mm)")
+    ax.set_ylabel("$y$ [mm]")
+    ax.set_xlabel("$x$ [mm]")
+    ax.legend()
+    plt.colorbar(im_obj)
+    fig.tight_layout()
+    fig.show()
+
+
 
 
 

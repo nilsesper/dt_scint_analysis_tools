@@ -13,7 +13,14 @@ fi
 
 ############################
 
+
+echo "****** dumpfile_to_raw_scint_hits ******"
+python scripts/scint/dumpfile_to_raw_scint_hits.py --input_dumpfile ~/masterarbeit/zynq_read-out_software/output/${args[0]}.txt --raw_scint_hits_file ~/masterarbeit/dt_scint_analysis_tools/data_files/${args[0]}_raw_hits.pcl 
+
+echo "****** raw_scint_hits_to_scint_hits ******"
 python scripts/scint/raw_scint_hits_to_scint_hits.py --raw_scint_hits_file ~/masterarbeit/dt_scint_analysis_tools/data_files/${args[0]}_raw_hits.pcl --scint_hits_file ~/masterarbeit/dt_scint_analysis_tools/data_files/${args[0]}_hits.pcl 
+
+echo "****** scint_hits_to_areas ******"
 python scripts/scint/scint_hits_to_areas.py --scint_hits_file /home/nils/masterarbeit/dt_scint_analysis_tools/data_files/${args[0]}_hits.pcl --scint_areas_file /home/nils/masterarbeit/dt_scint_analysis_tools/data_files/${args[0]}_areas.pcl
 
 

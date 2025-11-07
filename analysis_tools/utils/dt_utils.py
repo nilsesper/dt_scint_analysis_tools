@@ -23,7 +23,7 @@ import analysis_tools.params.derived_params as derived_params
 # add dt specific keys to hits
 # take information about this mapping from params.py
 # if has_timestamp = True, assume that timestamp was already assigned, do not add it here
-def extract_dt_hits(hits, *, silent=False, has_timestamp=False):
+def extract_dt_hits(hits, *, silent=False, has_timestamp=False, ignore_deadtime=False):
     tmp_hits = copy.deepcopy(hits)
     n_hits = len(tmp_hits["ch"])
     if not silent: print(f"Extract DT hits from {n_hits} total hits...")
@@ -68,7 +68,7 @@ def extract_dt_hits(hits, *, silent=False, has_timestamp=False):
     tmp_hits = timestamp_utils.sort_by_timestamp(hits=tmp_hits)
     ### -----------------------
     # apply dead time constraint to all individual channels (if specified dead time is > 0)
-    if params._dt_ts_individual_dead_time > 0:
+    if params._dt_ts_individual_dead_time > 0 and ignore_deadtime == False:
         print(f"apply dead time constraint for all individual channels of {params._dt_ts_individual_dead_time} TU")
         cut_tmp_hits = {}
         for sl in derived_params._dt_inverted_remap_table.keys():
@@ -965,7 +965,7 @@ def analyze_testpulses(hits, *, rel_thres=0.2, plot_hists=False, correct_for_off
                     sel_peak_indices = peak_indices[0] # first peak
                     hists_peak, centers_peak = hists[sel_peak_indices], centers[sel_peak_indices]
                     err_hists_peak = np.sqrt(hists_peak)
-                    err_centers_peak = np.full( len(centers_peak), 8/np.sqrt(12) )
+                    err_centers_peak = np.full( len(centers_peak), 1/np.sqrt(12) )
                     # calculate peak position (weighted mean)
                     ch_ts_mean, ch_ts_err = hist_utils.weighted_mean_peak_position(hist=hists_peak, centers=centers_peak, err_hist=err_hists_peak, err_centers=err_centers_peak)
                 # plot hist if desired
@@ -1013,7 +1013,7 @@ def analyze_testpulses_per_wire(hits, *, rel_thres=0.2, plot_hists=False, correc
                         sel_peak_indices = peak_indices[0] # first peak
                         hists_peak, centers_peak = hists[sel_peak_indices], centers[sel_peak_indices]
                         err_hists_peak = np.sqrt(hists_peak)
-                        err_centers_peak = np.full( len(centers_peak), 8/np.sqrt(12) )
+                        err_centers_peak = np.full( len(centers_peak), 1/np.sqrt(12) )
                         # calculate peak position (weighted mean)
                         ch_ts_mean, ch_ts_err = hist_utils.weighted_mean_peak_position(hist=hists_peak, centers=centers_peak, err_hist=err_hists_peak, err_centers=err_centers_peak)
                     # plot hist if desired
@@ -1071,7 +1071,40 @@ def calculate_sl_tp_corrections(tp_timing, *, silent=False):
                     dt_tp_corrections[sl][ly][wi] = {"ts_corr": 0, "err_ts_corr": 0}
     return dt_tp_corrections
 
-### add noise hits to dt cells,  separately for all channels
+### calculate corrections to channel timing from the testpulse timing of the channels
+# align channels to average time of full chamber
+# corrections in dt_tp_corrections should be applied with a plus sign
+#   as follows: ts(wi)_corrected = ts(wi)_uncorrected + correction(wi)
+#   ( since correction(wi) = ts_target=ts(wi)_corrected - ts(wi)_uncorrected )
+def calculate_chamber_tp_corrections(tp_timing, *, silent=False):
+    dt_tp_corrections = {}
+    if not silent: print(f"Calculating corrections to the timestamps of all channels based on the testpulse response time - for full chamber...")
+    # do this step for full chamber
+    # calculate target timing: mean of timing of testpulses
+    ts_target = 0
+    n_ts_chs = 0
+    for sl in derived_params._dt_inverted_remap_table.keys():
+        dt_tp_corrections[sl] = {}
+        for ly in derived_params._dt_inverted_remap_table[sl].keys():
+            dt_tp_corrections[sl][ly] = {}
+            for wi in tqdm(range(params._dt_chamber["sls"][sl]["lys"][ly]["min_wi"], params._dt_chamber["sls"][sl]["lys"][ly]["max_wi"]+1), disable=silent):
+                ch_ts_mean, ch_ts_err = tp_timing[sl][ly][wi]["tp_ts_mean"], tp_timing[sl][ly][wi]["tp_ts_err"]
+                if ch_ts_mean > 0:
+                    n_ts_chs += 1
+                    ts_target += ch_ts_mean
+    ts_target /= n_ts_chs # average timing
+    # calculate corrections for individual channels
+    for sl in derived_params._dt_inverted_remap_table.keys():
+        for ly in derived_params._dt_inverted_remap_table[sl].keys():
+            for wi in tqdm(range(params._dt_chamber["sls"][sl]["lys"][ly]["min_wi"], params._dt_chamber["sls"][sl]["lys"][ly]["max_wi"]+1), disable=silent):
+                ch_ts_mean, ch_ts_err = tp_timing[sl][ly][wi]["tp_ts_mean"], tp_timing[sl][ly][wi]["tp_ts_err"]
+                if ch_ts_mean > 0:
+                    dt_tp_corrections[sl][ly][wi] = {"ts_corr": ts_target - ch_ts_mean, "err_ts_corr": ch_ts_err}
+                else:
+                    dt_tp_corrections[sl][ly][wi] = {"ts_corr": 0, "err_ts_corr": 0}
+    return dt_tp_corrections
+
+### add noise hits to dt cells, separately for all channels
 # ref_cell_noise_rate = cell noise rate in Hz
 # ts_range = [ts_min, ts_max] where noise should be added
 def add_noise(hits, *, ts_range, ref_cell_noise_rate, silent=False):

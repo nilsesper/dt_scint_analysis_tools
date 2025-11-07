@@ -149,7 +149,7 @@ def main():
     for ly in range(2):
         for st in range(16):
             for sipm in range(2):
-                if not (ly in [0] and st in [7, 15] and sipm in [0]): continue
+                if not (ly in [0,1] and st in [8] and sipm in [0]): continue
                 raw_scint_hits_cut = data_utils.cut_data(data=raw_scint_hits, conditions=[("ly","==",ly), ("st","==",st), ("sipm","==",sipm)])
                 n_hits_cut = data_utils.length(data=raw_scint_hits_cut)
                 # calculate ts difference
