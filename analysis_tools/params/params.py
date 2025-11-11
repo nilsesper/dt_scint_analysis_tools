@@ -392,10 +392,10 @@ _sl_fit_group_keys = {
 
 ## --------- when reconstructing hits
 # dt drift velocity
-_drift_velocity = 54.5 #59 # initial value: 54.5 # unit: um / ns = 10^-6 / 10 ^-9 m/s = 10^3 m/s
+_drift_velocity = 50.8 #54.5 # initial value: 54.5 # unit: um / ns = 10^-6 / 10 ^-9 m/s = 10^3 m/s
 _dt_cell_width = 42 # mm
 # when allowing changes of vd in fit, give vd param bounds:
-_drift_velocity_min = 51 # um/ns
+_drift_velocity_min = 50 # um/ns
 _drift_velocity_max = 58 # um/ns
 ### --- dt
 _dt_max_drift_time = int((_dt_cell_width*1e-3/2) / (_drift_velocity*1e3) / 0.78e-9) # max drift time measured from time of muon arrival t0 in the sl pattern fit, in ts units
@@ -404,7 +404,8 @@ _dt_max_drift_time = int((_dt_cell_width*1e-3/2) / (_drift_velocity*1e3) / 0.78e
 _dt_ts_individual_dead_time = 600 #1250 #800 #0 # in ts units
 ## --- dt hits -> sl patterns
 # timestamp window in which hits of sl must lie in order to be counted as pattern
-_dt_sl_patterns_ts_window = _dt_max_drift_time #int(400 / 0.78) # in same unit as timestamp (0.78 ns)
+_t0_tolerance = 6 # tolerance of t0 beyond max drift time bound
+_dt_sl_patterns_ts_window = _dt_max_drift_time + _t0_tolerance #int(400 / 0.78) # in same unit as timestamp (0.78 ns)
 # --- sl patterns -> sl fits
 # curve fit:
 _dt_tan_alpha_range = [-np.inf, np.inf] # allowed range of tan alpha sl pattern fit parameter
@@ -440,7 +441,10 @@ _raw_scintillator_ts_acceptance_interval = _scintillator_ts_acceptance_interval 
 # apply dead time for all channels individually (if value > 0)
 _raw_scintillator_ts_individual_dead_time = 0 #500 #100 #100 # 0, 64, 1250 # in ts units
 # dead time for scintillator strips
-_scintillator_ts_individual_dead_time = 500 # in ts units
+_scintillator_ts_individual_dead_time = 0 #500 # in ts units
+# timestamp isolation of scint areas - to remove crosstalk hits
+_scint_area_clear_interval_down = 20 #200 # in ts units, isolation wrt last hit (extendable dead time)
+_scint_area_clear_interval_up = 0 #200 # in ts units, isolation wrt next hit
 
 ## --------- when simulating muon hits
 # global time delay for scintillator hits by muons (scint ts = muon ts + _scintillator_delay)
@@ -1314,7 +1318,8 @@ _mezzanine_2_fe_mapping_no_coinc = { # ly 0-1, st 8-15
 } | {
     f"coinc_ch_{24+i}": {"ly": 0, "st": 8+i, "ch": 24+i, "sipm": 1} for i in range(0, 8) 
 }
-"""
+#"""
+""" until 09-11-2025
 _mezzanine_1_fe_mapping_no_coinc = { # ly 0
     f"coinc_ch_{i}": {"ly": 0, "st": 0+i, "ch": i, "sipm": 0} for i in range(0, 8) 
 } | {
@@ -1333,17 +1338,34 @@ _mezzanine_2_fe_mapping_no_coinc = { # ly 1
 } | {
     f"coinc_ch_{24+i}": {"ly": 1, "st": 8+i, "ch": 24+i, "sipm": 1} for i in range(0, 8) 
 }
+#"""
+_mezzanine_1_fe_mapping_no_coinc = { # one sipm of all strips
+    f"coinc_ch_{i}": {"ly": 0, "st": 0+i, "ch": i, "sipm": 0} for i in range(0, 8) 
+} | {
+    f"coinc_ch_{8+i}": {"ly": 0, "st": 8+i, "ch": 8+i, "sipm": 0} for i in range(0, 8) 
+} | {
+    f"coinc_ch_{16+i}": {"ly": 1, "st": 0+i, "ch": 16+i, "sipm": 1} for i in range(0, 8) 
+} | {
+    f"coinc_ch_{24+i}": {"ly": 1, "st": 8+i, "ch": 24+i, "sipm": 1} for i in range(0, 8) 
+}
+_mezzanine_2_fe_mapping_no_coinc = { # one sipm of all strips
+    f"coinc_ch_{i}": {"ly": 1, "st": 0+i, "ch": i, "sipm": 0} for i in range(0, 8) 
+} | {
+    f"coinc_ch_{8+i}": {"ly": 1, "st": 8+i, "ch": 8+i, "sipm": 0} for i in range(0, 8) 
+} | {
+    f"coinc_ch_{16+i}": {"ly": 0, "st": 0+i, "ch": 16+i, "sipm": 1} for i in range(0, 8) 
+} | {
+    f"coinc_ch_{24+i}": {"ly": 0, "st": 8+i, "ch": 24+i, "sipm": 1} for i in range(0, 8) 
+}
 # map of masked channels in detector (noisy/dead), if for this (ly, st) the sipm is listed here, the other sipm hits are used as strip hit (scint hit) without sipm coincidence
 # if one does not list it here, then the strip will be dead when one of its sipms is masked
 # if both sipms are masked, do not put it here since the strip is dead anyway
 _scint_masked_sipms = { # {ly: {st: sipm}} which is masked, use only other sipm
     0: {
-        #5: 1, # mez1 ro_ch27 ch6
-        #6: 0-1, # mez1 ro_ch27 ch13-14
+        #st: 0 for st in range(16)
     },
     1: {
-        #5: 1, # mez1 ro_ch27 ch29
-        #6: 1, # mez1 ro_ch27 ch30
+        #st: 1 for st in range(16)
     },
 }
 

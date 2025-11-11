@@ -10,6 +10,7 @@ import matplotlib as mpl
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 import copy
 import argparse
+from tqdm import tqdm
 
 from analysis_tools.utils import dummy_gen, data_utils, dt_utils, scint_utils, timestamp_utils, geoplot_utils, muon_utils, math_utils, hist_utils, process_utils
 from analysis_tools.params import params, derived_params
@@ -110,7 +111,15 @@ def main():
     ### cut data
     print(f"###### Applying data cuts: {cuts_list}...")
     scint_areas = data_utils.cut_data(data=scint_areas, conditions=cuts_list)
+    n_scint_areas = data_utils.length(scint_areas)
 
+    ### measurement duration
+    duration = 0.78e-9 * (np.amax(scint_areas["ts"]) - np.amin(scint_areas["ts"])) # secs
+    print(f"measurement duration = {duration} s")
+
+    ## global rate
+    global_rate = n_scint_areas/duration
+    print(f"all pixels together rate: {global_rate} Hz")
 
 
     ### scint reco muon areas
@@ -155,7 +164,6 @@ def main():
             if show_plots:
                 fig.show()
             # rate (in hits / min)
-            duration = 0.78e-9 * (np.amax(scint_areas["ts"]) - np.amin(scint_areas["ts"])) # secs
             px_matrix = np.zeros((16, 16))
             fig, ax = plt.subplots(1, 1, figsize=(10,8))
             for st0 in range(16):
@@ -171,6 +179,69 @@ def main():
             fig.tight_layout()
             if show_plots:
                 fig.show()
+
+
+    #"""
+    #### time difference between scint areas
+    additional_data = {}
+    print("Plotting time differences between scint areas...")
+    k = f"delta_ts"
+    additional_data[k] = np.zeros(n_scint_areas)
+    for i in range(1,n_scint_areas):
+        additional_data[k][i] = int(scint_areas[f"ts"][i]) - int(scint_areas["ts"][i-1]) 
+    # plot
+    hist_bins = np.linspace(0,1e3,500) #"auto500" 
+    hists, edges, centers, underflow, overflow = hist_utils.calculate_hist(data=additional_data, key=k, bin_centers=hist_bins, silent=True)
+    print(f"key \"{k}\": entries={data_utils.length(additional_data)} underflow={underflow}, overflow={overflow}")
+    xlabel = f"delta_ts [TU]"
+    hist_utils.plot_1hist(hist=hists, centers=centers, xlabel=xlabel, round_digits=round_digits, bin_labels=False, silent=True, store=plotname, show=show_plots, title=f"", scale="log") # scale="log"
+    # plot
+    hist_bins = "auto500" #np.linspace(0,1e6,500) #"auto500" 
+    hists, edges, centers, underflow, overflow = hist_utils.calculate_hist(data=additional_data, key=k, bin_centers=hist_bins, silent=True)
+    print(f"key \"{k}\": entries={data_utils.length(additional_data)} underflow={underflow}, overflow={overflow}")
+    xlabel = f"delta_ts [TU]"
+    hist_utils.plot_1hist(hist=hists, centers=centers, xlabel=xlabel, round_digits=round_digits, bin_labels=False, silent=True, store=plotname, show=show_plots, title=f"", scale="log") # scale="log"
+    #"""
+
+    #"""
+    #### time difference between hits of same channel
+    print("Plotting time differences between hits of same pixel...")
+    k = f"delta_ts_same_st"
+    ch_list = []
+    # time difference between hits
+    i_offset = 0
+    for pixel in tqdm(range(0, 256)):
+        scint_areas_cut = data_utils.cut_data(data=scint_areas, conditions=[("pixel","==",pixel)], silent=True)
+        scint_areas_cut = timestamp_utils.sort_by_timestamp(hits=scint_areas_cut, silent=True)
+        n_scint_areas_cut = data_utils.length(scint_areas_cut)
+        sub_list = {k: []}
+        for i in range(1,n_scint_areas_cut):
+            sub_list[k].append( int(scint_areas_cut[f"ts"][i]) - int(scint_areas_cut["ts"][i-1]) )
+        sub_list[k] = np.array(sub_list[k])
+        ch_list.append(sub_list)
+    additional_data = data_utils.merge_dataset(split_data=ch_list, silent=True)
+
+    # plot
+
+    hist_bins = "auto500" #np.linspace(0, 1e4, 1000) #"auto200"
+    hists, edges, centers, underflow, overflow = hist_utils.calculate_hist(data=additional_data, key=k, bin_centers=hist_bins, silent=True)
+    print(f"key \"{k}\": entries={data_utils.length(additional_data)} underflow={underflow}, overflow={overflow}")
+    xlabel = f"{k} [TU]"
+    hist_utils.plot_1hist(hist=hists, centers=centers, xlabel=xlabel, round_digits=round_digits, bin_labels=False, silent=True, store=plotname, show=show_plots, title=f"", scale="log") # scale="log"
+
+    hist_bins = np.linspace(0, 5e3, 500)
+    hists, edges, centers, underflow, overflow = hist_utils.calculate_hist(data=additional_data, key=k, bin_centers=hist_bins, silent=True)
+    print(f"key \"{k}\": entries={data_utils.length(additional_data)} underflow={underflow}, overflow={overflow}")
+    xlabel = f"{k} [TU]"
+    hist_utils.plot_1hist(hist=hists, centers=centers, xlabel=xlabel, round_digits=round_digits, bin_labels=False, silent=True, store=plotname, show=show_plots, title=f"", scale="log") # scale="log"
+    #"""
+
+
+
+
+
+
+
 
     input("Press enter to exit.")
     exit()

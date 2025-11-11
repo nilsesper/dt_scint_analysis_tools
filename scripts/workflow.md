@@ -33,6 +33,11 @@ python scripts/dt/dumpfile_to_dt_hits.py --input_dumpfile ~/masterarbeit/zynq_re
 Plot:
 python scripts/dt/plot_dt_hits.py --show_plots --dt_hits_file data_files/ddt_cosm_7_hits.pcl
 
+### DT hits, apply timing calibration
+Apply testpulse-derived timing calibration to hit timestamps.
+
+python scripts/dt/dt_hits_timing_correction.py --dt_hits_file thesis_data_files/dt_data_run/dt_hits_nodeadtime.pcl --dt_tp_corrections_file thesis_data_files/dt_testpulse_run/dt_tp_corrections.pcl --corr_dt_hits_file thesis_data_files/dt_data_run/dt_hits_nodeadtime_corr.pcl
+
 ## DT hits -> SL patterns
 For data can apply testpulse timing correction file.
 Do not write argument if no correction is asked (e.g. for simulation).

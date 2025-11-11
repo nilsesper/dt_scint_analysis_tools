@@ -147,6 +147,7 @@ def hits_from_muons(muons, *, silent=False):
     scint_hits = timestamp_utils.sort_by_timestamp(hits=scint_hits)
     return scint_hits
 
+"""
 ### group scintillator hits with strip coincidence and then reco area of muon hit from scintillator hits
 # group together if hits of all layers are close enough in time
 # return x and y interval and z coordinate (mean of z pos of layers) that the hit could have been (by assessing all layers hit)
@@ -229,6 +230,126 @@ def reco_muon_area_from_hits(hits, *, silent=False, verbose=False):
         for k in params._muon_area_obj_keys.keys():
             reco_muon_areas[k][i] = reco_muon_area_list[i][k]
     return reco_muon_areas
+#"""
+
+### group scintillator hits with strip coincidence and then reco area of muon hit from scintillator hits
+# group together if hits of all layers are close enough in time
+# return x and y interval and z coordinate (mean of z pos of layers) that the hit could have been (by assessing all layers hit)
+def reco_muon_area_from_hits(hits, *, silent=False, verbose=False):
+    reco_muon_area_list = []
+    # sort hits by timestamp
+    hits = data_utils.sort_by_key(data=hits, sort_key="ts")
+    n_hits = len(hits["ts"])
+    if not silent: print(f"Combining {n_hits} scintillator hits to reconstruct muons...")
+    # extract sls in phi & theta orientation
+    phi_ly_idx = 0 if (params._scintillator["lys"][0]["orient"] == "phi") else 1
+    theta_ly_idx = 0 if (params._scintillator["lys"][0]["orient"] == "theta") else 1
+    # grouping by timestamp, check if the ts timestamps of the htis are within given acceptance interval params._scintillator_ts_acceptance_interval
+    # calculate muon area object (xrange, yrange, z, ts) where muon should have been
+    # NOTE:
+    # the algorithm can only cope all hits
+    # HARDCODED TO 2 LAYERS IN OPPOSITE ORIENTATION
+    dummy_scint_hit = {k: np.array(0, dtype=v) for k,v in params._htg_keys.items()} | {k: np.array(0, dtype=v) for k,v in params._scint_mapping_keys.items()} | {k: np.array(0, dtype=v) for k,v in params._scint_other_keys.items()}
+    last_hits = _scint_data(default=dummy_scint_hit) # last hit for all lys, sts
+    for i in tqdm(range(n_hits), disable=silent):
+        ### fitted sl pattern grouping
+        ly = hits["ly"][i]
+        st = hits["st"][i]
+        ts = hits["ts"][i]
+        # store data of cur hit
+        last_hits[ly][st] = {k: hits[k][i] for k in hits.keys()} # store current column
+        ### check if hit for any pixel
+        for st0 in derived_params._scint_inverted_remap_table[0].keys():
+            for st1 in derived_params._scint_inverted_remap_table[1].keys():
+                ### skip pixels which are not relevant
+                if ly == 1 and st != st1:
+                    continue
+                if ly == 0 and st != st0:
+                    continue
+                ### check time interval
+                if np.abs(int(last_hits[0][st0]["ts"]) - int(last_hits[1][st1]["ts"])) > params._scintillator_ts_acceptance_interval: # if 2 hits not within time interval, continue
+                    continue
+                # if timestamp = 0, continue since it is default value
+                if int(last_hits[0][st0]["ts"]) == 0 or int(last_hits[1][st1]["ts"]) == 0:
+                    continue
+                ##### store pixel hit
+                ### muon area reco
+                pixel_index = derived_params._scint_pixel_mapping[(st0, st1)]
+                ly_phi = phi_ly_idx
+                st_phi = st0 if (ly_phi == 0) else st1
+                ly_theta = theta_ly_idx
+                st_theta = st0 if (ly_theta == 0) else st1
+                xmin_reco = derived_params._scintillator_strip_coordinates[ly_phi][st_phi][0][0]
+                xmax_reco = derived_params._scintillator_strip_coordinates[ly_phi][st_phi][0][1]
+                ymin_reco = derived_params._scintillator_strip_coordinates[ly_theta][st_theta][1][0]
+                ymax_reco = derived_params._scintillator_strip_coordinates[ly_theta][st_theta][1][1]
+                z0_reco = np.mean([derived_params._scintillator_strip_coordinates[ly_phi][st_phi][5], derived_params._scintillator_strip_coordinates[ly_theta][st_theta][5]])
+                #### ----      
+                xcenter_reco = np.mean([xmin_reco, xmax_reco])
+                ycenter_reco = np.mean([ymin_reco, ymax_reco])
+                ### combine ts to muon arrival time (averaging)
+                ts_phi, ts_theta = last_hits[ly_phi][st_phi]["ts"], last_hits[ly_theta][st_theta]["ts"]
+                ts_reco = np.uint64(np.round(np.mean([ts_phi, ts_theta]), 0))
+                ### calculate ts difference between hits in both layers (absolute value)
+                ly_delta_ts = np.uint64(np.abs(int(ts_phi) - int(ts_theta)))
+                ### combine muon_id of hits (if there is one from simulation)
+                # raise error of muon_id of combined sl patters is not single value
+                muon_id =  last_hits[ly_phi][st_phi]["muon_id"]
+                if muon_id != last_hits[ly_theta][st_theta]["muon_id"]:
+                    raise Exception(f"Expect hits of same muon_id {muon_id}, not {last_hits[ly_theta][st_theta]['muon_id']}.")
+                if verbose: print("muon area reco", ([xmin_reco, xmax_reco], [ymin_reco, ymax_reco], z0_reco, ts_reco, muon_id))
+                ### store reco obj
+                reco_muon_area_list.append({
+                    "xmin": xmin_reco, 
+                    "xmax": xmax_reco, 
+                    "ymin": ymin_reco, 
+                    "ymax": ymax_reco, 
+                    "z0": z0_reco, 
+                    "ts": ts_reco,
+                    "muon_id": muon_id, 
+                    "pixel": pixel_index, 
+                    "xcenter": xcenter_reco, 
+                    "ycenter": ycenter_reco, 
+                    "ly_delta_ts": ly_delta_ts,
+                    "st0": st0,
+                    "st1": st1,
+                })
+                ### remove the hits to not use them twice for multiple pixels
+                #last_hits[0][st0] = copy.deepcopy(dummy_scint_hit)
+                #last_hits[1][st1] = copy.deepcopy(dummy_scint_hit)
+    # store in proper format
+    n_reco_muon_areas = len(reco_muon_area_list)
+    if not silent: print(f"Reconstructed {n_reco_muon_areas} muon areas from {n_hits} scintillator hits.")
+    reco_muon_areas = {k: np.full(n_reco_muon_areas, 0, dtype=v) for k,v in params._muon_area_obj_keys.items()}
+    for i in range(n_reco_muon_areas):
+        for k in params._muon_area_obj_keys.keys():
+            reco_muon_areas[k][i] = reco_muon_area_list[i][k]
+    # sort by timestamp
+    reco_muon_areas = data_utils.sort_by_key(data=reco_muon_areas, sort_key="ts")
+    return reco_muon_areas
+
+### remove all muon areas which occur within short time window params._scint_area_clear_interval
+# keep only "isolated" areas i.e. where no other pixels were hit
+def remove_crosstalk_areas(areas, * , silent=False):
+    if not silent: print(f"Apply crosstalk mitigation / hit isolation criterion with isolation window (down, up) = {params._scint_area_clear_interval_down} TU, {params._scint_area_clear_interval_up} TU)...")
+    cleaned_areas = copy.deepcopy(areas)
+    n_areas = data_utils.length(areas)
+    # sort by timestamp
+    cleaned_areas = data_utils.sort_by_key(data=cleaned_areas, sort_key="ts")
+    ## find isolated hits and put them in index mask
+    mask = []
+    for i in tqdm(range(1,n_areas-1), disable=silent):
+        delta_ts_down = int(cleaned_areas["ts"][i]) - int(cleaned_areas["ts"][i-1])
+        delta_ts_up = int(cleaned_areas["ts"][i+1]) - int(cleaned_areas["ts"][i])
+        if delta_ts_down < params._scint_area_clear_interval_down or delta_ts_up < params._scint_area_clear_interval_up:
+            continue
+        mask.append(i)
+    if not silent: print(f"Crosstalk / hit isolation cut flow: {len(mask)} / {n_areas} = {len(mask)/n_areas}")
+    ## apply mask of isolated hits
+    for k in cleaned_areas.keys():
+        cleaned_areas[k] = cleaned_areas[k][mask]
+    return cleaned_areas
+
 
 ###### FUNCTIONS FOR RAW SCINTILLATOR HITS = SIPM HITS (individual sipm hits, no coincidence criterea applied)
 

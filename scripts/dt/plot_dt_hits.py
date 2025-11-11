@@ -124,9 +124,9 @@ def main():
                 print(f"key \"{k}\": entries={data_utils.length(dt_hits_cut)} underflow={underflow}, overflow={overflow}")
                 if k == "wi":
                     # store data
-                    for wi in np.arange(params._dt_chamber["sls"][sl]["lys"][ly]["min_wi"], params._dt_chamber["sls"][sl]["lys"][ly]["max_wi"]):
-                        occupancies[sl][ly][wi] = hists[wi]
-                        rates[sl][ly][wi] = hists[wi] / duration
+                    for idx, wi in enumerate(range(params._dt_chamber["sls"][sl]["lys"][ly]["min_wi"], params._dt_chamber["sls"][sl]["lys"][ly]["max_wi"]+1)):
+                        occupancies[sl][ly][wi] = hists[idx]
+                        rates[sl][ly][wi] = hists[idx] / duration
                     # skip if empty
                     if len(hists) == 0:
                         continue
@@ -226,11 +226,11 @@ def main():
     #"""
     ### occupancy plot of full chamber
     # generate chamber matrix
-    chamber_matrix = np.full((12,57), np.nan) # -1: invalid cell
+    chamber_matrix = np.full((12,58), np.nan) # -1: invalid cell
     # fill chamber matrix
     for sl in range(1,4):
         for ly in range(0,4):
-            for wi in np.arange(params._dt_chamber["sls"][sl]["lys"][ly]["min_wi"], params._dt_chamber["sls"][sl]["lys"][ly]["max_wi"]):
+            for wi in range(params._dt_chamber["sls"][sl]["lys"][ly]["min_wi"], params._dt_chamber["sls"][sl]["lys"][ly]["max_wi"]+1):
                 chamber_matrix[4*(sl-1)+ly][wi] = rates[sl][ly][wi]
     # plot
     fig, ax = plt.subplots(1, 1, figsize=(16,6))

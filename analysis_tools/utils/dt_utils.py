@@ -407,8 +407,8 @@ def fit_sl_patterns(patterns, *, silent=False, verbose=False, fit_vd=False):
         for lat_id, lat in enumerate(lats): # lat_id = idx of laterality list for given pattern
             laterality = np.array(lat)
             # define parameter bounds
-            t0_min_bound = ts_max_for_fit-params._dt_max_drift_time
-            t0_max_bound = ts_min_for_fit
+            t0_min_bound = ts_max_for_fit-params._dt_max_drift_time-params._t0_tolerance
+            t0_max_bound = ts_min_for_fit+params._t0_tolerance
             if t0_min_bound >= t0_max_bound:
                 t0_min_bound -= 1
                 t0_max_bound += 1

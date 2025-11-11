@@ -75,6 +75,10 @@ def main():
 
     n_scint_hits = data_utils.length(scint_hits)
 
+    ### measurement duration
+    duration = 0.78e-9 * (np.amax(scint_hits["ts"]) - np.amin(scint_hits["ts"])) # secs
+    print(f"measurement duration = {duration} s")
+
     ### scintillator hits
     print(f"### scintillator hits")
     n_hist_bins = 100
@@ -131,7 +135,6 @@ def main():
                 if show_plots:
                     fig.show()
                 # rate (in hits / min)
-                duration = 0.78e-9 * (np.amax(scint_hits["ts"]) - np.amin(scint_hits["ts"])) # secs
                 px_matrix = np.zeros((16, 16))
                 fig, ax = plt.subplots(1, 1, figsize=(10,8))
                 for st0 in range(16):
