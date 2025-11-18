@@ -77,6 +77,7 @@ def main():
         "ly": np.arange(0, 3+1),
         "wi": np.arange(0, 100+1),
         "ts": "auto200",
+        "err_ts": "auto200",
     }
     if simulation:
         hist_bins |= {
@@ -106,6 +107,7 @@ def main():
     #"""
     occupancies = {} # {sl: ly: wi: hits}
     rates = {} # {sl: ly: wi: rate}
+    dead_cells = [] # list of (sl, ly, wi) with low rates - considered "dead" and are not considered in rate averaging
     ### plots of superlayers & layers
     for sl in range(1,4):
         fig, ax = plt.subplots(4, 1, figsize=(16,8), sharex=True)
@@ -151,7 +153,12 @@ def main():
                             ro_ch = derived_params._dt_inverted_remap_table[sl][ly][wi]["ro_ch"]
                             ch = derived_params._dt_inverted_remap_table[sl][ly][wi]["ch"]
                             print(f"low occupancy in sl={sl}, ly={ly}, wi={wi} (ro_ch={ro_ch}, ch={ch})")
-
+                            dead_cells.append((sl,ly,wi))
+                        if rate_hists[idx] > 1.5*mean_rate:
+                            ro_ch = derived_params._dt_inverted_remap_table[sl][ly][wi]["ro_ch"]
+                            ch = derived_params._dt_inverted_remap_table[sl][ly][wi]["ch"]
+                            print(f"high occupancy in sl={sl}, ly={ly}, wi={wi} (ro_ch={ro_ch}, ch={ch})")
+                            
         # show plot
         fig.tight_layout()
         fig.show()
@@ -259,6 +266,24 @@ def main():
     fig.tight_layout()
     fig.show()
     #"""
+
+    ### average phi and theta rates (without dead channels)
+    phi_average_rate, theta_average_rate = 0, 0
+    n_phi, n_theta = 0, 0
+    for sl in range(1,4):
+        for ly in range(0,4):
+            for wi in range(params._dt_chamber["sls"][sl]["lys"][ly]["min_wi"], params._dt_chamber["sls"][sl]["lys"][ly]["max_wi"]+1):
+                if (sl,ly,wi) not in dead_cells:
+                    if sl in [1,3]:
+                        phi_average_rate += rates[sl][ly][wi]
+                        n_phi += 1
+                    elif sl in [2]:
+                        theta_average_rate += rates[sl][ly][wi]
+                        n_theta += 1
+    phi_average_rate /= n_phi
+    theta_average_rate /= n_theta
+    print(f"average phi cell rate: {phi_average_rate} +- {np.sqrt(phi_average_rate)} Hz")
+    print(f"average theta cell rate: {theta_average_rate} +- {np.sqrt(theta_average_rate)} Hz")
 
 
 

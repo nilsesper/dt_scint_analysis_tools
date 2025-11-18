@@ -100,9 +100,12 @@ def main():
 
     ### rate of muons
     muon_count = data_utils.length(cosmic_muons)
-    pattern_rate = muon_count / duration
-    print(f"cosmic muon rate: {pattern_rate:.03f} Hz")
-
+    muon_rate = muon_count / duration
+    print(f"cosmic muon rate: {muon_rate} Hz")
+    area = (np.amax(cosmic_muons["x0"])-np.amin(cosmic_muons["x0"])) * (np.amax(cosmic_muons["y0"])-np.amin(cosmic_muons["y0"])) * 1e-6 # mm^2 to m^2
+    print(f"area: {area} m^2")
+    muon_rate_area = muon_rate / area
+    print(f"cosmic muon rate / area: {muon_rate_area} Hz/m^2 = {muon_rate_area*60/10000} 1/min 1/cm^2")
     
 
 

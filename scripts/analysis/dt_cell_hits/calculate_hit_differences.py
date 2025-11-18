@@ -44,9 +44,14 @@ def main():
     # dt
     dt_hits = data_utils.load_pickle(file=dt_hits_file)
 
+    # list of cells to ignore manually
+    blacklist = [ # (sl, ly, wi)
+        (1, 2, 23),
+    ]
+
 
     #### time difference between hits of same channel
-    print("Plotting time differences between hits of same wire...")
+    print("Calculating time differences between hits of same wire...")
     k = f"delta_ts"
     ch_list = []
     # time difference between hits
@@ -55,6 +60,8 @@ def main():
         for ly in range(0,4):
             print(f"  calculating for sl={sl}, ly={ly}...")
             for wi in range(0, 60):
+                if (sl, ly, wi) in blacklist:
+                    continue
                 dt_hits_cut = data_utils.cut_data(data=dt_hits, conditions=[("sl","==",sl), ("ly","==",ly), ("wi","==",wi)], silent=True)
                 dt_hits_cut = timestamp_utils.sort_by_timestamp(hits=dt_hits_cut, silent=True)
                 n_dt_hits_cut = data_utils.length(dt_hits_cut)
@@ -86,9 +93,6 @@ def main():
     data_utils.store_pickle(data=dt_hit_differences, file=dt_hit_differences_file)
 
 
-
-    input("Press enter to exit.")
-    exit()
 
 
 

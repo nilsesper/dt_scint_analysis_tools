@@ -40,15 +40,24 @@ def calculate_hist(data, key, *, bin_centers=None, bin_edges=None, silent=False)
             if bin_centers == "auto":
                 #edges = "auto" # automatic binning
                 n_auto_bins = 20
-                dmin = np.int64(np.amin(data[key]))
-                dmax = np.int64(np.amax(data[key]))
-                centers = np.linspace(dmin-1, dmax+1, n_auto_bins)
+                dmin = np.amin(data[key])
+                dmax = np.amax(data[key])
+                drange = dmax - dmin
+                if drange > 0:
+                    centers = np.linspace(dmin-drange*0.1, dmax+drange*0.1, n_auto_bins)
+                else:
+                    centers = np.linspace(dmin-1, dmax+1, n_auto_bins)
             elif "auto" in bin_centers: 
                 # "autoXX" = auto binning with XX bins
                 n_auto_bins = int(bin_centers[4:])
-                dmin = np.int64(np.amin(data[key]))
-                dmax = np.int64(np.amax(data[key]))
-                centers = np.linspace(dmin-1, dmax+1, n_auto_bins)
+                dmin = np.amin(data[key])
+                dmax = np.amax(data[key])
+                drange = dmax - dmin
+                #print(key, dmin, dmax, drange)
+                if drange > 0:
+                    centers = np.linspace(dmin-drange*0.1, dmax+drange*0.1, n_auto_bins)
+                else:
+                    centers = np.linspace(dmin-1, dmax+1, n_auto_bins)
             elif bin_centers == "step1": # automatic binning with bin width of 1
                 dmin = np.int64(np.amin(data[key]))
                 dmax = np.int64(np.amax(data[key]))

@@ -47,7 +47,7 @@ def main():
     # thetarange = [ 0 , np.pi/4 ]
     
     ## in full dt chamber
-    xyspacing = 1000 # mm (additional area of muon source beyond chamber coordinates)
+    xyspacing = 1500 # mm (additional area of muon source beyond chamber coordinates)
     xrange = [ params._dt_chamber["pos"][0]-xyspacing , params._dt_chamber["pos"][0]+params._dt_chamber["size"][0]+xyspacing ]
     yrange = [ params._dt_chamber["pos"][1]-xyspacing , params._dt_chamber["pos"][1]+params._dt_chamber["size"][1]+xyspacing ]
     z0 = params._dt_chamber["pos"][2] # lowest point of chamber (closest to sl 1)
@@ -66,7 +66,8 @@ def main():
     
     ## poisson random
     muon_area = np.abs(xrange[1]-xrange[0]) * np.abs(yrange[1]-yrange[0]) * 1e-6 # m^2 (mm^2 to m^2 -> 100^(1+1+1) = 100^3 = 1e6)
-    muon_ref_rate = 100 * 0.78e-9 # 1/(tu*m^2) ( 0.78e-9 Hz / m^2 = 1/(tu*m^2) )
+    # vertical muon rate
+    muon_ref_rate = 147 * 0.78e-9 # 1/(tu*m^2) ( 0.78e-9 Hz / m^2 = 1/(tu*m^2) )
     muon_rate = muon_area * muon_ref_rate # 1 / timestamp units
     muon_lambda = muon_rate * t_sim # expected muon count in simulation time
     # number of muons in time interval is poisson distributed

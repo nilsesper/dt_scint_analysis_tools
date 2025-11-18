@@ -69,7 +69,7 @@ def extract_scint_hits(hits, *, silent=False, has_timestamp=False):
                 if len(ts_list) > 0:
                     cur_ts = ts_list[0]
                     for i in range(n_cut_hits): 
-                        if int(ts_list[i]) - int(cur_ts) < params._scintillator_ts_individual_dead_time:
+                        if (ts_list[i]) - (cur_ts) < params._scintillator_ts_individual_dead_time:
                             cur_ts = ts_list[i] # deadtime wrt last hit
                             continue
                         cur_ts = ts_list[i] # deadtime wrt first hit
@@ -267,10 +267,10 @@ def reco_muon_area_from_hits(hits, *, silent=False, verbose=False):
                 if ly == 0 and st != st0:
                     continue
                 ### check time interval
-                if np.abs(int(last_hits[0][st0]["ts"]) - int(last_hits[1][st1]["ts"])) > params._scintillator_ts_acceptance_interval: # if 2 hits not within time interval, continue
+                if np.abs((last_hits[0][st0]["ts"]) - (last_hits[1][st1]["ts"])) > params._scintillator_ts_acceptance_interval: # if 2 hits not within time interval, continue
                     continue
                 # if timestamp = 0, continue since it is default value
-                if int(last_hits[0][st0]["ts"]) == 0 or int(last_hits[1][st1]["ts"]) == 0:
+                if (last_hits[0][st0]["ts"]) == 0 or (last_hits[1][st1]["ts"]) == 0:
                     continue
                 ##### store pixel hit
                 ### muon area reco
@@ -291,7 +291,7 @@ def reco_muon_area_from_hits(hits, *, silent=False, verbose=False):
                 ts_phi, ts_theta = last_hits[ly_phi][st_phi]["ts"], last_hits[ly_theta][st_theta]["ts"]
                 ts_reco = np.uint64(np.round(np.mean([ts_phi, ts_theta]), 0))
                 ### calculate ts difference between hits in both layers (absolute value)
-                ly_delta_ts = np.uint64(np.abs(int(ts_phi) - int(ts_theta)))
+                ly_delta_ts = np.abs((ts_phi) - (ts_theta))
                 ### combine muon_id of hits (if there is one from simulation)
                 # raise error of muon_id of combined sl patters is not single value
                 muon_id =  last_hits[ly_phi][st_phi]["muon_id"]
@@ -339,8 +339,8 @@ def remove_crosstalk_areas(areas, * , silent=False):
     ## find isolated hits and put them in index mask
     mask = []
     for i in tqdm(range(1,n_areas-1), disable=silent):
-        delta_ts_down = int(cleaned_areas["ts"][i]) - int(cleaned_areas["ts"][i-1])
-        delta_ts_up = int(cleaned_areas["ts"][i+1]) - int(cleaned_areas["ts"][i])
+        delta_ts_down = (cleaned_areas["ts"][i]) - (cleaned_areas["ts"][i-1])
+        delta_ts_up = (cleaned_areas["ts"][i+1]) - (cleaned_areas["ts"][i])
         if delta_ts_down < params._scint_area_clear_interval_down or delta_ts_up < params._scint_area_clear_interval_up:
             continue
         mask.append(i)
@@ -404,7 +404,7 @@ def extract_raw_scint_hits(hits, *, silent=False, has_timestamp=False):
                     if len(ts_list) > 0:
                         cur_ts = ts_list[0]
                         for i in range(n_cut_hits): 
-                            if int(ts_list[i]) - int(cur_ts) < params._raw_scintillator_ts_individual_dead_time:
+                            if (ts_list[i]) - (cur_ts) < params._raw_scintillator_ts_individual_dead_time:
                                 cur_ts = ts_list[i] # deadtime wrt last hit
                                 continue
                             cur_ts = ts_list[i] # deadtime wrt first hit
@@ -493,7 +493,7 @@ def reco_hits_from_raw_hits(hits, *, silent=False):
                     ### check continue conditions
                     if None in last_hits.values(): # if not have hits of 2 different layers then continue
                         continue
-                    if np.abs(int(last_hits[0]["ts"]) - int(last_hits[1]["ts"])) > params._raw_scintillator_ts_acceptance_interval: # if 2 hits not within time interval, continue
+                    if np.abs((last_hits[0]["ts"]) - (last_hits[1]["ts"])) > params._raw_scintillator_ts_acceptance_interval: # if 2 hits not within time interval, continue
                         continue
                     ### if not continue: have found 2 matching hits of same strip
                     #--- build scintillator hit from this object
@@ -502,13 +502,13 @@ def reco_hits_from_raw_hits(hits, *, silent=False):
                     ts_reco = np.uint64(np.round(np.mean([ts0, ts1]), 0))
                     (oc_reco, bx_reco, tdc_reco) = timestamp_utils.remap_htg_timestamp(ts_reco)
                     ### calculate ts difference between hits (absolute value)
-                    sipm_delta_ts = np.uint64(np.abs(int(ts0) - int(ts1)))
+                    sipm_delta_ts = np.abs((ts0) - (ts1))
                     ### calculate ts difference to last hit of this strip / of this sipm (to check ringing)
                     st_delta_last_ts0, st_delta_last_ts1, st_delta_last_ts = 0, 0, 0
                     if ts0_old != None:
-                        st_delta_last_ts0 = np.uint64(np.abs(int(ts0) - int(ts0_old)))
-                        st_delta_last_ts1 = np.uint64(np.abs(int(ts1) - int(ts1_old)))
-                        st_delta_last_ts = np.uint64(np.abs(int(ts_reco) - int(ts_reco_old)))
+                        st_delta_last_ts0 = np.abs((ts0) - (ts0_old))
+                        st_delta_last_ts1 = np.abs((ts1) - (ts1_old))
+                        st_delta_last_ts = np.abs((ts_reco) - (ts_reco_old))
                     ts0_old, ts1_old, ts_reco_old = ts0, ts1, ts_reco
                     ### combine muon_id of hits (if there is one from simulation)
                     # raise error of muon_id of combined sl patters is not single value
@@ -565,7 +565,7 @@ def reco_hits_from_raw_hits(hits, *, silent=False):
                 if len(ts_list) > 0:
                     cur_ts = ts_list[0]
                     for i in range(n_cut_hits): 
-                        if int(ts_list[i]) - int(cur_ts) < params._scintillator_ts_individual_dead_time:
+                        if (ts_list[i]) - (cur_ts) < params._scintillator_ts_individual_dead_time:
                             cur_ts = ts_list[i] # deadtime wrt last hit
                             continue
                         cur_ts = ts_list[i] # deadtime wrt first hit

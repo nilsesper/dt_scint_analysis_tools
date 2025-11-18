@@ -73,7 +73,7 @@ Plot:
 
 ## SL fit groups (per SL) -> DT muons
 
-...
+python scripts/dt/sl_fit_groups_to_dt_muons.py --sl_fits_file thesis_data_files/dt_data_run/sl_fits_aftercuts.pcl --sl_fit_groups_file thesis_data_files/dt_data_run/sl_fit_groups.pcl --dt_muons_file thesis_data_files/dt_data_run/dt_muons.pcl
 
 Plot:
 python scripts/dt/plot_dt_muons.py --show_plots --dt_muons_file data_files/dt_cosm_7_dt_muons.pcl

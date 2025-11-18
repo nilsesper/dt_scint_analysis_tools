@@ -57,7 +57,7 @@ _lhc_tdc_count = 32 # max value of TDC + 1  (i.e. conversion factor: _lhc_tdc_co
 _lhc_bunch_count = 3564 # max value of BX + 1 (i.e. conversion factor: _lhc_bunch_count BX = 1 ORBIT)
 #_lhc_orbit_count = 65536 # 2^16, max value of ORBIT + 1
 _lhc_orbit_count = 2**26 # = 67108864 = 2^26, max value of ORBIT + 1
-_ts_type = np.uint64 # data type of timestamp field in hits
+_ts_type = np.float64 # data type of timestamp field in hits
 _ts_float_type = np.float64 # for fitting, ts type as float
 
 _oc_difference_for_overflow = 50000 # difference between oc and last oc for oc overflow to be triggered
@@ -80,6 +80,7 @@ _dt_mapping_keys = { # {key: dtype}
 }
 _dt_other_keys = {
     "ts": _ts_type,
+    "err_ts": np.float64,
     # simulation keys
     "muon_ts": _ts_type,
     "muon_dt": np.float64, # drift time (in ts units)
@@ -241,7 +242,7 @@ _meantimer_patterns = { # order in lists: ly 0,1,2,3
 # 2   - | O | - | - | - | -     - | - | - | - | O | -
 # 1   | - | - | - | O | - |     | - | O | - | - | - |
 # 0   - | - | O | - | - | -     - | - | - | O | - | -
-# rel_wi_0-3: -1 0 -2 0         0 -1 1 0
+# rel_wi_0-3: -1 1 -2 0         0 -1 1 0
 #
 # ly  [+fB]    ref              [-fB]    ref            (f: "fake" pattern)
 # 3   | - | - | O | - | - |     | - | - | O | - | - |
@@ -270,7 +271,7 @@ _meantimer_patterns = { # order in lists: ly 0,1,2,3
 _dt_sl_fake_patterns = { # pat_type key in sl patterns is idx of key, i.e. "+a"=0, "-a"=1 etc.
     # order in lists: ly 0,1,2,3
     "+fa": {
-        "rel_wis": [-1,0,-2,0], # list of relative wire index of layers 0-3
+        "rel_wis": [-1,1,-2,0], # list of relative wire index of layers 0-3
     },
     "-fa":{
         "rel_wis": [0,-1,1,0],
@@ -294,13 +295,17 @@ _sl_pattern_keys = { # {key: dtype}
     "sl": np.uint8, # sl of pattern in dt chamber
     "pat_type": np.uint8, # index of string name of pattern (index of key of _dt_sl_patterns)
     "ts0": _ts_type, # timestamp of ly 0 wire of pattern
+    "err_ts0": np.float64, # timestamp error of ly 0 wire of pattern
     "wi0": np.uint8, # wire index of ly 0 wire of pattern
     "ts1": _ts_type, # timestamp of ly 1 wire of pattern
-    "wi1": np.uint8, # wire index of ly 0 wire of pattern
+    "err_ts1": np.float64, # timestamp error of ly 1 wire of pattern
+    "wi1": np.uint8, # wire index of ly 1 wire of pattern
     "ts2": _ts_type, # timestamp of ly 2 wire of pattern
-    "wi2": np.uint8, # wire index of ly 0 wire of pattern
+    "err_ts2": np.float64, # timestamp error of ly 2 wire of pattern
+    "wi2": np.uint8, # wire index of ly 2 wire of pattern
     "ts3": _ts_type, # timestamp of ly 3 wire of pattern
-    "wi3": np.uint8, # wire index of ly 0 wire of pattern
+    "err_ts3": np.float64, # timestamp error of ly 3 wire of pattern
+    "wi3": np.uint8, # wire index of ly 3 wire of pattern
     # simulation keys
     "muon_ts": _ts_type, # ts of correlated muon
     "muon_dt0": np.float64, # drift time (in ts units) for sim muon hit in ly 0
@@ -331,55 +336,25 @@ _sl_pattern_keys = { # {key: dtype}
 # sl fit keys (fit list also also keeps sl_pattern_keys)
 _sl_fit_keys = { # {key: dtype}
     # best fit
+    "impossible": np.float64, # impossible True = 1, False = 0
     "laterality": np.uint8, # idx of selected laterality [] in _dt_sl_patterns 
     "t0": np.float64, # t0 fit param
+    "err_t0": np.float64, # error from fit
     "x0": np.float64, # x0 fit param
+    "err_x0": np.float64, # error from fit
     "tan_alpha": np.float64, # tan(alpha) fit param
+    "err_tan_alpha": np.float64, # error from fit
     "vd": np.float64, # drift velocity (in mm/ts unit) fit param
+    "err_vd": np.float64, # error from fit
     "chi2/ndf": np.float64, # reduced chi2 value
     "dt0": np.float64, # estimated drift time t0-ts for ly0
     "dt1": np.float64, # estimated drift time t0-ts for ly1
     "dt2": np.float64, # estimated drift time t0-ts for ly2
     "dt3": np.float64, # estimated drift time t0-ts for ly3
 } # sl fits also have pattern keys already i.e. "muon_XXX" keys
+# other laterality fits
 _sl_fit_other_keys = {
-    # other laterality fits
-    "lat0_t0": np.float64, # t0 fit param for laterality index 0
-    "lat0_x0": np.float64, # x0 fit param for laterality index 0
-    "lat0_tan_alpha": np.float64, # tan(alpha) fit param for laterality index 0
-    "lat0_vd": np.float64, # drift velocity (in mm/ts unit) fit param for laterality index 0
-    "lat0_chi2/ndf": np.float64, # reduced chi2 value for laterality index 0
-    "lat0_dt0": np.float64, # estimated drift time for ly0 for laterality index 0
-    "lat0_dt1": np.float64, # estimated drift time for ly1 for laterality index 0
-    "lat0_dt2": np.float64, # estimated drift time for ly2 for laterality index 0
-    "lat0_dt3": np.float64, # estimated drift time for ly3 for laterality index 0
-    "lat1_t0": np.float64, # t0 fit param for laterality index 1
-    "lat1_x0": np.float64, # x0 fit param for laterality index 1
-    "lat1_tan_alpha": np.float64, # tan(alpha) fit param for laterality index 1
-    "lat1_vd": np.float64, # drift velocity (in mm/ts unit) fit param for laterality index 1
-    "lat1_chi2/ndf": np.float64, # reduced chi2 value for laterality index 1
-    "lat1_dt0": np.float64, # estimated drift time for ly0 for laterality index 1
-    "lat1_dt1": np.float64, # estimated drift time for ly1 for laterality index 1
-    "lat1_dt2": np.float64, # estimated drift time for ly2 for laterality index 1
-    "lat1_dt3": np.float64, # estimated drift time for ly3 for laterality index 1
-    "lat2_t0": np.float64, # t0 fit param for laterality index 2
-    "lat2_x0": np.float64, # x0 fit param for laterality index 2
-    "lat2_tan_alpha": np.float64, # tan(alpha) fit param for laterality index 2
-    "lat2_vd": np.float64, # drift velocity (in mm/ts unit) fit param for laterality index 2
-    "lat2_chi2/ndf": np.float64, # reduced chi2 value for laterality index 2
-    "lat2_dt0": np.float64, # estimated drift time for ly0 for laterality index 2
-    "lat2_dt1": np.float64, # estimated drift time for ly1 for laterality index 2
-    "lat2_dt2": np.float64, # estimated drift time for ly2 for laterality index 2
-    "lat2_dt3": np.float64, # estimated drift time for ly3 for laterality index 2
-    "lat3_t0": np.float64, # t0 fit param for laterality index 3
-    "lat3_x0": np.float64, # x0 fit param for laterality index 3
-    "lat3_tan_alpha": np.float64, # tan(alpha) fit param for laterality index 3
-    "lat3_vd": np.float64, # drift velocity (in mm/ts unit) fit param for laterality index 3
-    "lat3_chi2/ndf": np.float64, # reduced chi2 value for laterality index 3
-    "lat3_dt0": np.float64, # estimated drift time for ly0 for laterality index 3
-    "lat3_dt1": np.float64, # estimated drift time for ly1 for laterality index 3
-    "lat3_dt2": np.float64, # estimated drift time for ly2 for laterality index 3
-    "lat3_dt3": np.float64, # estimated drift time for ly3 for laterality index 3
+    f"lat{i}_{k}": np.float64 for k in ["impossible", "t0", "err_t0", "x0", "err_x0", "tan_alpha", "err_tan_alpha", "vd", "err_vd", "corr_t0_x0", "corr_t0_tan_alpha", "corr_t0_vd", "corr_x0_tan_alpha", "corr_x0_vd", "corr_tan_alpha_vd", "chi2/ndf", "dt0", "dt1", "dt2", "dt3"] for i in range(4)
 }
 
 # sl fit group keys (superlayer-level concatenation of sl fits close in time)
@@ -392,20 +367,24 @@ _sl_fit_group_keys = {
 
 ## --------- when reconstructing hits
 # dt drift velocity
-_drift_velocity = 50.8 #54.5 # initial value: 54.5 # unit: um / ns = 10^-6 / 10 ^-9 m/s = 10^3 m/s
-_dt_cell_width = 42 # mm
+_drift_velocity = 54.5 #53 #54.5 #53 #50.8 #54.5 # initial value: 54.5 # unit: um / ns = 10^-6 / 10 ^-9 m/s = 10^3 m/s
+_dt_cell_width = 42 # mm, width of dt cell = 2x max drift distance
 # when allowing changes of vd in fit, give vd param bounds:
-_drift_velocity_min = 50 # um/ns
-_drift_velocity_max = 58 # um/ns
+_drift_velocity_min = 40 # um/ns
+_drift_velocity_max = 65 # um/ns
 ### --- dt
-_dt_max_drift_time = int((_dt_cell_width*1e-3/2) / (_drift_velocity*1e3) / 0.78e-9) # max drift time measured from time of muon arrival t0 in the sl pattern fit, in ts units
+_dt_max_drift_time = (_dt_cell_width*1e-3/2) / (_drift_velocity*1e3) / 0.78e-9 # max drift time measured from time of muon arrival t0 in the sl pattern fit, in ts units
+_dt_max_drift_time_vd_min = (_dt_cell_width*1e-3/2) / (_drift_velocity_min*1e3) / 0.78e-9 # max drift time for vdmin
 ## --- dumpfile -> dt hits
 # apply dead time for all channels individually (if value > 0)
 _dt_ts_individual_dead_time = 600 #1250 #800 #0 # in ts units
 ## --- dt hits -> sl patterns
 # timestamp window in which hits of sl must lie in order to be counted as pattern
-_t0_tolerance = 6 # tolerance of t0 beyond max drift time bound
-_dt_sl_patterns_ts_window = _dt_max_drift_time + _t0_tolerance #int(400 / 0.78) # in same unit as timestamp (0.78 ns)
+_t0_tolerance = 0 # tolerance of t0 beyond max drift time bound
+# if vd as fit parameter: use max drift time possible with lower vdmin bound
+#_dt_sl_patterns_ts_window = _dt_max_drift_time_vd_min + _t0_tolerance # in same unit as timestamp (0.78 ns)
+# if vd fixed: use reference drift time
+_dt_sl_patterns_ts_window = _dt_max_drift_time + _t0_tolerance # in same unit as timestamp (0.78 ns)
 # --- sl patterns -> sl fits
 # curve fit:
 _dt_tan_alpha_range = [-np.inf, np.inf] # allowed range of tan alpha sl pattern fit parameter
@@ -449,6 +428,8 @@ _scint_area_clear_interval_up = 0 #200 # in ts units, isolation wrt next hit
 ## --------- when simulating muon hits
 # global time delay for scintillator hits by muons (scint ts = muon ts + _scintillator_delay)
 _scintillator_hit_delay = 10 # timestamp units
+# dt single cell hit efficiency
+_dt_cell_efficiency = 98.65 * 1e-2 # from cms 2024 performance
 
 ### scintillator specific
 
@@ -464,6 +445,7 @@ _scint_mapping_keys = {
 }
 _scint_other_keys = {
     "ts": _ts_type,
+    "err_ts": np.float64,
     "muon_ts": _ts_type,
     "xhit": np.float64, # relative hit position: x_hit = xhit + xleft(lower x coord of strip) (in mm)
     "muon_id": np.uint64, # id / idx of correlated muon
@@ -481,6 +463,7 @@ _raw_scint_mapping_keys = {
 }
 _raw_scint_other_keys = {
     "ts": _ts_type,
+    "err_ts": np.float64,
     "muon_ts": _ts_type,
     "xhit": np.float64, # relative hit position: x_hit = xhit + xleft(lower x coord of strip) (in mm)
     "muon_id": np.uint64, # id / idx of correlated muon
@@ -693,7 +676,18 @@ _key_symbols = {
     "dt2": "$t_\\text{drift, ly 2}$",
     "dt3": "$t_\\text{drift, ly 3}$",
     "tgroup": "$T_\\text{group}$",
-    "n_fits": "$N_\\text{fits}$"
+    "n_fits": "$N_\\text{fits}$",
+    "err_ts": "$\\sigma_T$",
+    "err_t0": "$\\sigma_{T_0}$",
+    "err_x0": "$\\sigma_{x_0}$",
+    "err_tan_alpha": "$\\sigma_{\\tan\\alpha}$",
+    "err_vd": "$\\sigma_{v_D}$",
+    "corr_t0_x0": "$\\text{cov}(T_0,\\; x_0)$",
+    "corr_t0_tan_alpha": "$\\text{cov}(T_0,\\; \\tan\\alpha)$", 
+    "corr_t0_vd": "$\\text{cov}(T_0,\\; v_D)$", 
+    "corr_x0_tan_alpha": "$\\text{cov}(x_0,\\; \\tan\\alpha)$", 
+    "corr_x0_vd": "$\\text{cov}(x_0,\\; v_D)$", 
+    "corr_tan_alpha_vd": "$\\text{cov}(\\tan\\alpha,\\; v_D)$",
 }
 _key_units = {
     "x0": "mm",
@@ -743,12 +737,12 @@ _key_units = {
     "muon_dd": "mm",
     "muon_lat": "",
     "muon_x0_loc": "mm",
-    "muon_tan_alpha": "rad",
+    "muon_tan_alpha": "",
     "muon_dt": "TU",
     "muon_dd": "mm",
     "muon_lat": "",
     "muon_x0": "mm",
-    "muon_tan_alpha": "rad",
+    "muon_tan_alpha": "",
     "muon_ts": "TU",
     "muon_dt0": "TU",
     "muon_dt1": "TU",
@@ -773,6 +767,17 @@ _key_units = {
     "dt3": "TU",
     "tgroup": "TU",
     "n_fits": "",
+    "err_ts": "TU",
+    "err_t0": "TU",
+    "err_x0": "mm",
+    "err_tan_alpha": "",
+    "err_vd": "mm/TU",
+    "corr_t0_x0": "TU mm",
+    "corr_t0_tan_alpha": "TU", 
+    "corr_t0_vd": "mm", 
+    "corr_x0_tan_alpha": "mm", 
+    "corr_x0_vd": "mm${}^2$/TU", 
+    "corr_tan_alpha_vd": "mm/TU",
 }
 
 ###############################

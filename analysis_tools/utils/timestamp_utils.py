@@ -78,6 +78,7 @@ def add_timestamp(hits, *, silent=False):
             print(f"Detected OC overflow -- i={i}, ro_ch={ro_ch} -- last_oc={last_oc} -- oc={oc}")
             #if not silent: print(f"  Orbit counter overflow detected for hit #{i}. Incrementing overflow counter to {oc_overflow}.")
         ts_hits["ts"][i] =  tdc * derived_params._tdc_to_timestamp + bx * derived_params._bx_to_timestamp + oc * derived_params._orbit_to_timestamp + oc_overflow * derived_params._orbit_overflow_to_timestamp
+        ts_hits["err_ts"][i] = 1/np.sqrt(12) # digitization error
         last_oc = oc
     # sort hits by timestamp
     ts_hits = sort_by_timestamp(hits=ts_hits)
@@ -94,6 +95,7 @@ def sort_by_timestamp(hits, *, silent=False):
 
 ### calculate back ox,bx,tdc from timestamp value
 def remap_htg_timestamp(ts):
+    ts = np.uint64(np.round(ts,0))
     oc = (ts % derived_params._orbit_overflow_to_timestamp) // derived_params._orbit_to_timestamp
     bx = (ts % derived_params._orbit_to_timestamp) // derived_params._bx_to_timestamp
     tdc = (ts % derived_params._bx_to_timestamp) // derived_params._tdc_to_timestamp
@@ -112,5 +114,6 @@ def add_timestamp_this_orbit(hits, *, silent=False):
         #this_oc = ts_hits["oc"][i]
         # calculate delta_ts to beginning of orbit
         ts_hits["ts_orbit"][i] =  tdc * derived_params._tdc_to_timestamp + bx * derived_params._bx_to_timestamp
+        ts_hits["err_ts_orbit"][i] = 1/np.sqrt(12)
     return ts_hits
 

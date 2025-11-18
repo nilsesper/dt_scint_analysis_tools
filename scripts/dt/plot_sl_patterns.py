@@ -282,14 +282,40 @@ def main():
 
     #"""
     ### rate of patterns per superlayer
+    pattern_rate = {}
+    err_pattern_rate = {}
     for sl in range(1,4):
+        pattern_rate[sl] = {}
+        err_pattern_rate[sl] = {}
+        # by pattern type
+        for pat_type in range(6):
+            sl_patterns_cut = data_utils.cut_data(data=sl_patterns, conditions=[("sl","==",sl), ("pat_type","==",pat_type)], silent=True)
+            pattern_count = data_utils.length(sl_patterns_cut)
+            pattern_rate[sl][pat_type] = pattern_count / duration
+            err_pattern_rate[sl][pat_type] = np.sqrt(pattern_rate[sl][pat_type])
+            print(f"sl={sl} pat_type={pat_type} pattern rate: {pattern_rate[sl][pat_type]} +- {err_pattern_rate[sl][pat_type]} Hz")
+        # cumulated
         sl_patterns_cut = data_utils.cut_data(data=sl_patterns, conditions=[("sl","==",sl)], silent=True)
         pattern_count = data_utils.length(sl_patterns_cut)
-        pattern_rate = pattern_count / duration
-        print(f"sl={sl} pattern rate: {pattern_rate:.03f} Hz")
+        pattern_rate[sl]["cumulated"] = pattern_count / duration
+        err_pattern_rate[sl]["cumulated"] = np.sqrt(pattern_rate[sl]["cumulated"])
+        print(f"sl={sl} cumulatedpattern rate: {pattern_rate[sl]["cumulated"]} +- {err_pattern_rate[sl]["cumulated"]} Hz")
+    # gen latex table from it
+    tex_table = f"""\\begin{{tabular}}{{|c|c|c|c|}} 
+        \\hline
+        Pattern & \\ac{{SL}} 1 (phi) & \\ac{{SL}} 2 (theta) & \\ac{{SL}} 3 (phi) \\\\ \\hline
+        $0$ & $({np.round(pattern_rate[1][0],1):.1f} \\pm {np.round(err_pattern_rate[1][0],1):.1f})\\;\\si{{\\hertz}}$ & $({np.round(pattern_rate[2][0],1):.1f} \\pm {np.round(err_pattern_rate[2][0],1):.1f})\\;\\si{{\\hertz}}$ & $({np.round(pattern_rate[3][0],1):.1f} \\pm {np.round(err_pattern_rate[3][0],1):.1f})\\;\\si{{\\hertz}}$ \\\\
+        $1$ & $({np.round(pattern_rate[1][1],1):.1f} \\pm {np.round(err_pattern_rate[1][1],1):.1f})\\;\\si{{\\hertz}}$ & $({np.round(pattern_rate[2][1],1):.1f} \\pm {np.round(err_pattern_rate[2][1],1):.1f})\\;\\si{{\\hertz}}$ & $({np.round(pattern_rate[3][1],1):.1f} \\pm {np.round(err_pattern_rate[3][1],1):.1f})\\;\\si{{\\hertz}}$ \\\\
+        $2$ & $({np.round(pattern_rate[1][2],1):.1f} \\pm {np.round(err_pattern_rate[1][2],1):.1f})\\;\\si{{\\hertz}}$ & $({np.round(pattern_rate[2][2],1):.1f} \\pm {np.round(err_pattern_rate[2][2],1):.1f})\\;\\si{{\\hertz}}$ & $({np.round(pattern_rate[3][2],1):.1f} \\pm {np.round(err_pattern_rate[3][2],1):.1f})\\;\\si{{\\hertz}}$ \\\\
+        $3$ & $({np.round(pattern_rate[1][3],1):.1f} \\pm {np.round(err_pattern_rate[1][3],1):.1f})\\;\\si{{\\hertz}}$ & $({np.round(pattern_rate[2][3],1):.1f} \\pm {np.round(err_pattern_rate[2][3],1):.1f})\\;\\si{{\\hertz}}$ & $({np.round(pattern_rate[3][3],1):.1f} \\pm {np.round(err_pattern_rate[3][3],1):.1f})\\;\\si{{\\hertz}}$ \\\\
+        $4$ & $({np.round(pattern_rate[1][4],1):.1f} \\pm {np.round(err_pattern_rate[1][4],1):.1f})\\;\\si{{\\hertz}}$ & $({np.round(pattern_rate[2][4],1):.1f} \\pm {np.round(err_pattern_rate[2][4],1):.1f})\\;\\si{{\\hertz}}$ & $({np.round(pattern_rate[3][4],1):.1f} \\pm {np.round(err_pattern_rate[3][4],1):.1f})\\;\\si{{\\hertz}}$ \\\\
+        $5$ & $({np.round(pattern_rate[1][5],1):.1f} \\pm {np.round(err_pattern_rate[1][5],1):.1f})\\;\\si{{\\hertz}}$ & $({np.round(pattern_rate[2][5],1):.1f} \\pm {np.round(err_pattern_rate[2][5],1):.1f})\\;\\si{{\\hertz}}$ & $({np.round(pattern_rate[3][5],1):.1f} \\pm {np.round(err_pattern_rate[3][5],1):.1f})\\;\\si{{\\hertz}}$ \\\\ \\hline
+        Cumulative & $({np.round(pattern_rate[1]['cumulated'],1):.1f} \\pm {np.round(err_pattern_rate[1]['cumulated'],1):.1f})\\;\\si{{\\hertz}}$ & $({np.round(pattern_rate[2]['cumulated'],1):.1f} \\pm {np.round(err_pattern_rate[2]['cumulated'],1):.1f})\\;\\si{{\\hertz}}$ & $({np.round(pattern_rate[3]['cumulated'],1):.1f} \\pm {np.round(err_pattern_rate[3]['cumulated'],1):.1f})\\;\\si{{\\hertz}}$ \\\\ \\hline
+    \\end{{tabular}}"""
+    print(tex_table)
     #"""
 
-    """
+    """^
     #### on-the-fly superlayer-level time alignment
     print(f"Align timing on superlayer level, using time_offset[sl] = {params._sl_time_offset} TU...")
     corrected_sl_patterns_merge = []
