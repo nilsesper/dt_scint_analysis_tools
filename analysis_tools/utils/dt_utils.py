@@ -758,13 +758,20 @@ def reco_muons_from_sl_fit_groups(fits, fit_groups, *, silent=False, verbose=Fal
             if fit[sl]["sl"] != sl:
                 raise Exception(fit)
         tan_alpha_phi = np.mean([fit[phi_sl1]["tan_alpha"], fit[phi_sl2]["tan_alpha"]])
+        err_tan_alpha_phi = np.sqrt(
+              (fit[phi_sl1]["err_tan_alpha"]/2)**2
+            + (fit[phi_sl2]["err_tan_alpha"]/2)**2
+        )
         tan_alpha_theta = fit[theta_sl]["tan_alpha"]
+        err_tan_alpha_theta = fit[theta_sl]["err_tan_alpha"]
         ### do propagation of local sl fits to z = _muon_reco_z0 (z reco target coordinate)
         z0_reco = params._muon_reco_z0 # z0 target of muon in global coord frame
-        x0_reco_sl = {}
+        err_z0_reco = 0
+        x0_reco_sl, err_x0_reco_sl = {}, {}
         skip_this_combination = False
         for sl in params._dt_chamber["sls"].keys():
             x0_fit, tan_alpha_fit = fit[sl]["x0"], fit[sl]["tan_alpha"]
+            err_x0_fit, err_tan_alpha_fit, corr_x0_tan_alpha_fit = fit[sl]["err_x0"], fit[sl]["err_tan_alpha"], fit[sl]["corr_x0_tan_alpha"]
             orient = "phi" if (sl in phi_sls) else "theta"
             x_axis, y_axis = params._orientation[orient][0], params._orientation[orient][1]
             # transform coordinates from local coordinate frame (with (0,0) at center (wire) position of cell ly=3, rel_wi=0) into global coordinate frame of dt chamber (used in params.py file)
@@ -776,6 +783,7 @@ def reco_muons_from_sl_fit_groups(fits, fit_groups, *, silent=False, verbose=Fal
             _coord_transform = [ derived_params._dt_cell_coordinates[sl][3][base_wi][x_axis+3], derived_params._dt_cell_coordinates[sl][3][base_wi][y_axis+3] ]
             # calculate muon track in coord frame
             x0_reco_sl[sl] = derived_params.f_x_muon(z=-_coord_transform[1]+z0_reco, x0=x0_fit, tan_alpha=tan_alpha_fit) + _coord_transform[0]
+            err_x0_reco_sl[sl] = derived_params.err_f_x_muon(z=-_coord_transform[1]+z0_reco, x0=x0_fit, tan_alpha=tan_alpha_fit, err_x0=err_x0_fit, err_tan_alpha=err_tan_alpha_fit, corr_x0_tan_alpha=corr_x0_tan_alpha_fit)
         if skip_this_combination:
             continue
         # reject muon if xproj tolerance not met
@@ -784,23 +792,37 @@ def reco_muons_from_sl_fit_groups(fits, fit_groups, *, silent=False, verbose=Fal
         counter_xproj += 1
         # reco x, y positions of muon in 2d slice of global coord frame
         x0_reco_phi = np.mean([x0_reco_sl[sl] for sl in phi_sls])
+        err_x0_reco_phi = np.sqrt(
+              (err_x0_reco_sl[phi_sl1]/2)**2
+            + (err_x0_reco_sl[phi_sl2]/2)**2
+        )
         x0_reco_theta = x0_reco_sl[theta_sl]
-        x0_reco = x0_reco_phi if (params._orientation["phi"][0] == 0) else x0_reco_theta
-        y0_reco = x0_reco_phi if (params._orientation["phi"][0] == 1) else x0_reco_theta
+        err_x0_reco_theta = err_x0_reco_sl[theta_sl]
+        x0_reco, err_x0_reco = (x0_reco_phi, err_x0_reco_phi) if (params._orientation["phi"][0] == 0) else (x0_reco_theta, err_x0_reco_theta)
+        y0_reco, err_y0_reco = (x0_reco_phi, err_x0_reco_phi) if (params._orientation["phi"][0] == 1) else (x0_reco_theta, err_x0_reco_theta)
         ### combine phi + theta planes to (x0, y0, theta, phi) muon in global coord system
         # the combined (x0_reco, y0_reco, z0_reco, theta_reco, phi_reco) is in global coord system at z0 = params._muon_reco_z0
         # calculate theta, phi from projection angles alpha_phi, alpha_theta
-        tan_alpha_x = tan_alpha_phi if (params._orientation["phi"][0] == 0) else tan_alpha_theta # proj on global x axis
-        tan_alpha_y = tan_alpha_phi if (params._orientation["phi"][0] == 1) else tan_alpha_theta # proj on global y axis
+        tan_alpha_x, err_tan_alpha_x = (tan_alpha_phi, err_tan_alpha_phi) if (params._orientation["phi"][0] == 0) else (tan_alpha_theta, err_tan_alpha_theta) # proj on global x axis
+        tan_alpha_y, err_tan_alpha_y = (tan_alpha_phi, err_tan_alpha_phi) if (params._orientation["phi"][0] == 1) else (tan_alpha_theta, err_tan_alpha_theta) # proj on global y axis
         # tan_alpha_x = tan_theta*cos_phi, tan_alpha_y = tan_theta*sin_phi
         # => phi = arctan(tan_alpha_x/tan_alpha_y), theta = arctan(tan_alpha_x/cos_phi)
-        phi_reco_prelim = np.atan2( tan_alpha_y, tan_alpha_x ) #np.arctan( tan_alpha_y / tan_alpha_x ) # np.atan2( tan_alpha_y, tan_alpha_x ) # use atan2 to cover full 360 degrees
+        phi_reco_prelim = np.atan2( tan_alpha_y, tan_alpha_x ) #np.atan2(y/x) #np.arctan( tan_alpha_y / tan_alpha_x ) # np.atan2( tan_alpha_y, tan_alpha_x ) # use atan2 to cover full 360 degrees
         # make sure phi is in range [0, 2*np.pi]
         phi_periodicity = 2*np.pi
         phi_reco = phi_reco_prelim - phi_periodicity*(phi_reco_prelim//phi_periodicity)
+        err_phi_reco = np.sqrt( # np.atan2(y/x): d atan2/dx = x/(x^2+y^2) and d atan2/dx = -y/(x^2+y^2)
+              (-tan_alpha_x/(tan_alpha_y**2+tan_alpha_x**2))**2 * err_tan_alpha_x**2 # dy
+            + (tan_alpha_y/(tan_alpha_y**2+tan_alpha_x**2))**2 * err_tan_alpha_y**2 # dx
+        )
         theta_reco = np.arctan( tan_alpha_x / np.cos(phi_reco) ) #print( np.arctan( tan_alpha_x / np.cos(phi_reco) ) , np.arctan( tan_alpha_y / np.sin(phi_reco) ) )
+        err_theta_reco = np.sqrt(
+              ( (2*np.cos(phi_reco)) / (2*tan_alpha_x**2+np.cos(2*phi_reco)+1) )**2 * err_tan_alpha_x**2
+            + ( (tan_alpha_x*np.sin(phi_reco)) / (tan_alpha_x**2+np.cos(phi_reco)**2) )**2 * err_phi_reco**2
+        )
         ### combine t0 to muon arrival time (averaging)
         ts_reco = np.mean([fit[sl]["t0"] for sl in params._dt_chamber["sls"].keys()])
+        err_ts_reco = np.sqrt(np.sum([(fit[sl]["err_t0"]/3)**2 for sl in params._dt_chamber["sls"].keys()]))
         ### combine muon_id of hits (if there is one from simulation)
         # raise error of muon_id of combined sl patters is not single value
         muon_id = fit[sl]["muon_id"]
@@ -816,6 +838,8 @@ def reco_muons_from_sl_fit_groups(fits, fit_groups, *, silent=False, verbose=Fal
             # reco values
             "x0":x0_reco, "y0":y0_reco, "z0":z0_reco, "theta":theta_reco, "phi":phi_reco, "ts":ts_reco, "muon_id":muon_id,
             "sl1_fit_group": last_fit_group[1]["idx"], "sl2_fit_group": last_fit_group[2]["idx"], "sl3_fit_group": last_fit_group[3]["idx"], # indices of fit groups used for this muon
+            # errors
+            "err_x0":err_x0_reco, "err_y0":err_y0_reco, "err_z0":err_z0_reco, "err_theta":err_theta_reco, "err_phi":err_phi_reco, "err_ts":err_ts_reco,
             # also extract sim muon keys (from one pattern since fine because have ensured that it is from same muon)
             "muon_ts": fit[1]["muon_ts"],
             "muon_phi": fit[1]["muon_phi"],
@@ -837,9 +861,9 @@ def reco_muons_from_sl_fit_groups(fits, fit_groups, *, silent=False, verbose=Fal
                 print(f"z0_reco = {z0_reco}")
         if verbose:
             print(f"muon:")
-            print(f"  ( x0_reco , y0_reco , z0_reco ) = ( {x0_reco} , {y0_reco} , {z0_reco} )")
-            print(f"  ( phi_reco , theta_reco ) = ( {phi_reco} , {theta_reco} )")
-            print(f"  ts_reco = {ts_reco}")
+            print(f"  ( x0_reco , y0_reco , z0_reco ) = ( {x0_reco} +- {err_x0_reco} , {y0_reco} +- {err_y0_reco} , {z0_reco} +- {err_z0_reco} )")
+            print(f"  ( phi_reco , theta_reco ) = ( {phi_reco} +- {err_phi_reco} , {theta_reco} +- {err_theta_reco} )")
+            print(f"  ts_reco = {ts_reco} +- {err_ts_reco}")
         ### make sure no fit group is double counted, remove all 3 used fit groups from last_fit_group list...
         for sl in params._dt_chamber["sls"].keys():
             last_fit_group[sl] = None

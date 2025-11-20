@@ -75,6 +75,12 @@ def main():
         "z0": "auto200",
         "phi": "auto200",
         "theta": "auto200",
+        "err_ts": "auto200",
+        "err_x0": "auto200",
+        "err_y0": "auto200",
+        "err_z0": "auto200",
+        "err_phi": "auto200",
+        "err_theta": "auto200",
     }
     if simulation:
         hist_bins |= {

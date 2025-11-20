@@ -62,6 +62,10 @@ _ts_float_type = np.float64 # for fitting, ts type as float
 
 _oc_difference_for_overflow = 50000 # difference between oc and last oc for oc overflow to be triggered
 
+### general
+rad_to_deg = 180/np.pi
+deg_to_rag = np.pi/180
+
 ### dt specific
 # fe conn idx list (key "fe_id")
 _fe_idx_list = ["1A", "1B", "2A", "2B", "3A", "3B", "4A", "4B", "5A", "5B", "6A", "6B", "7A", "7B", "8A", "8B", "9A", "9B", "10A", "10B", "11A", "11B", "12A", "12B", "13A", "13B", "14A", "14B"] # idx -> fe conn str
@@ -554,6 +558,14 @@ _muon_obj_keys = {
     "theta": np.float64, # theta angle (angle relative to z axis), in rad
     "phi": np.float64, # phi angle (angle relative to x axis, between x and y axis), in rad
     "ts": _ts_type, # timestamp of muon arrival (assume velocity is infinite, therefore during propagation no time passes, is alright here)
+    # errors
+    "err_x0": np.float64,
+    "err_y0": np.float64,
+    "err_z0": np.float64,
+    "err_theta": np.float64,
+    "err_phi": np.float64,
+    "err_ts": np.float64,
+    # other
     "muon_id": np.uint64, # id / idx of correlated muon (used to compare simulation + reconstruction)
     "sl1_fit_group": np.uint64, # fit group idx used for sl 1
     "sl2_fit_group": np.uint64, # fit group idx used for sl 2
@@ -640,7 +652,7 @@ _key_symbols = {
     "ymax": "$y_\\text{max}$",
     "xcenter": "$x_\\text{center}$",
     "ycenter": "$y_\\text{center}$",
-    "ts": "$T$",
+    "ts": "$T_0$",
     "ts_muon": "$T$",
     "ts_area": "$T$",
     "t0": "$T_0$",
@@ -716,6 +728,12 @@ _key_symbols = {
     "corr_x0_vd": "$\\text{cov}(x_0,\\; v_D)$", 
     "corr_tan_alpha_vd": "$\\text{cov}(\\tan\\alpha,\\; v_D)$",
     "impossible": "Impossible to fit",
+    "err_ts": "$\\sigma_{T,0}$",
+    "err_x0": "$\\sigma_{x,0}$",
+    "err_y0": "$\\sigma_{y,0}$",
+    "err_z0": "$\\sigma_{z,0}$",
+    "err_phi": "$\\sigma_{\\phi}$",
+    "err_theta": "$\\sigma_{\\theta}$",
 }
 _key_units = {
     "x0": "mm",
@@ -807,6 +825,12 @@ _key_units = {
     "corr_x0_vd": "mm${}^2$/TU", 
     "corr_tan_alpha_vd": "mm/TU",
     "impossible": "",
+    "err_x0": "mm",
+    "err_y0": "mm",
+    "err_z0": "mm",
+    "err_ts": "TU",
+    "err_phi": "rad",
+    "err_theta": "rad",
 }
 
 ###############################
@@ -920,95 +944,78 @@ _cell_wire_width = 0.5 # only for illustration (real width much smaller)
 
 ### calculate x10 from cmssw, since they use cm and I use mm
 
-global_shift = (391.2 -16 , 8.5, 4311.75)
+global_shift = (-388.4 , -65 , -4175.5)#(-391.2 , -8.5, -4311.75)
 cmssw_layershift = (0, 0, 1.5 * 13)
 cmssw_wireshift_sl1 = (26.4/2, 113.1/2, 1.4/2)
 cmssw_wireshift_sl2 = (113.1/2, 26.4/2, 1.4/2)
 cmssw_wireshift_sl3 = (26.4/2, 113.1/2, 1.4/2)
-cmssw_chambershift = (0, 0, 0)
-
-cmssw_chamber_pos = (391.2-global_shift[0]-cmssw_chambershift[0], 8.5-global_shift[1]-cmssw_chambershift[1], 4311.75-global_shift[2]-cmssw_chambershift[2])
+cmssw_chamber_pos = (391.2, 8.5, 4311.75 - 362/2)
 cmssw_chamber_size = (2180, 2511, 362)
-
-cmssw_sl1_pos = (375.2-global_shift[0]-cmssw_chamber_pos[0]-cmssw_layershift[0] , 8.5-global_shift[1]-cmssw_chamber_pos[1]-cmssw_layershift[1] , 4194.25-global_shift[2]-cmssw_chamber_pos[2]-cmssw_layershift[2] )
+cmssw_sl1_pos = (375.2-cmssw_chamber_pos[0]-cmssw_layershift[0] , 8.5-cmssw_chamber_pos[1]-cmssw_layershift[1] , 4194.25-cmssw_chamber_pos[2]-cmssw_layershift[2] )
 cmssw_sl1_size = (2126.4, 2511, 53.5)
-
-cmssw_sl2_pos = (396.2-global_shift[0]-cmssw_chamber_pos[0]-cmssw_layershift[0] , 8.5-global_shift[1]-cmssw_chamber_pos[1]-cmssw_layershift[1] , 4375.75-global_shift[2]-cmssw_chamber_pos[2]-cmssw_layershift[2] )
+cmssw_sl2_pos = (396.2-cmssw_chamber_pos[0]-cmssw_layershift[0] , 8.5-cmssw_chamber_pos[1]-cmssw_layershift[1] , 4375.75-cmssw_chamber_pos[2]-cmssw_layershift[2] )
 cmssw_sl2_size = (2170, 2462.4, 53.5)
-
-cmssw_sl3_pos = (396.2-global_shift[0]-cmssw_chamber_pos[0]-cmssw_layershift[0] , 8.5-global_shift[1]-cmssw_chamber_pos[1]-cmssw_layershift[1] , 4429.25-global_shift[2]-cmssw_chamber_pos[2]-cmssw_layershift[2] )
+cmssw_sl3_pos = (396.2-cmssw_chamber_pos[0]-cmssw_layershift[0] , 8.5-cmssw_chamber_pos[1]-cmssw_layershift[1] , 4429.25-cmssw_chamber_pos[2]-cmssw_layershift[2] )
 cmssw_sl3_size = (2126.4, 2511, 53.5)
-
 cmssw_sl1_ly1_n_wi = 49
 cmssw_sl1_ly1_min_wi = 0
 cmssw_sl1_ly1_max_wi = 48
-cmssw_sl1_ly1_pos = ( 375.2-global_shift[0]-cmssw_chamber_pos[0]-cmssw_sl1_pos[0], 8.5-global_shift[1]-cmssw_chamber_pos[1]-cmssw_sl1_pos[1], 4174.75-global_shift[2]-cmssw_chamber_pos[2]-cmssw_sl1_pos[2],)
+cmssw_sl1_ly1_pos = ( 375.2-cmssw_chamber_pos[0]-cmssw_sl1_pos[0], 8.5-cmssw_chamber_pos[1]-cmssw_sl1_pos[1], 4174.75-cmssw_chamber_pos[2]-cmssw_sl1_pos[2],)
 cmssw_sl1_ly1_size = (2059.3, 2398, 11.5)
-
 cmssw_sl1_ly2_n_wi = 50
 cmssw_sl1_ly2_min_wi = 0
 cmssw_sl1_ly2_max_wi = 49
-cmssw_sl1_ly2_pos = ( 375.2-global_shift[0]-cmssw_chamber_pos[0]-cmssw_sl1_pos[0], 8.5-global_shift[1]-cmssw_chamber_pos[1]-cmssw_sl1_pos[1], 4187.75-global_shift[2]-cmssw_chamber_pos[2]-cmssw_sl1_pos[2],)
+cmssw_sl1_ly2_pos = ( 375.2-cmssw_chamber_pos[0]-cmssw_sl1_pos[0], 8.5-cmssw_chamber_pos[1]-cmssw_sl1_pos[1], 4187.75-cmssw_chamber_pos[2]-cmssw_sl1_pos[2],)
 cmssw_sl1_ly2_size = (2101.3, 2398, 11.5)
-
 cmssw_sl1_ly3_n_wi = 49
 cmssw_sl1_ly3_min_wi = 0
 cmssw_sl1_ly3_max_wi = 48
-cmssw_sl1_ly3_pos = ( 375.2-global_shift[0]-cmssw_chamber_pos[0]-cmssw_sl1_pos[0], 8.5-global_shift[1]-cmssw_chamber_pos[1]-cmssw_sl1_pos[1], 4200.75-global_shift[2]-cmssw_chamber_pos[2]-cmssw_sl1_pos[2],)
+cmssw_sl1_ly3_pos = ( 375.2-cmssw_chamber_pos[0]-cmssw_sl1_pos[0], 8.5-cmssw_chamber_pos[1]-cmssw_sl1_pos[1], 4200.75-cmssw_chamber_pos[2]-cmssw_sl1_pos[2],)
 cmssw_sl1_ly3_size = (2059.3, 2398, 11.5)
-
 cmssw_sl1_ly4_n_wi = 48
 cmssw_sl1_ly4_min_wi = 1
 cmssw_sl1_ly4_max_wi = 48
-cmssw_sl1_ly4_pos = ( 375.2-global_shift[0]-cmssw_chamber_pos[0]-cmssw_sl1_pos[0], 8.5-global_shift[1]-cmssw_chamber_pos[1]-cmssw_sl1_pos[1], 4213.75-global_shift[2]-cmssw_chamber_pos[2]-cmssw_sl1_pos[2],)
+cmssw_sl1_ly4_pos = ( 375.2-cmssw_chamber_pos[0]-cmssw_sl1_pos[0], 8.5-cmssw_chamber_pos[1]-cmssw_sl1_pos[1], 4213.75-cmssw_chamber_pos[2]-cmssw_sl1_pos[2],)
 cmssw_sl1_ly4_size = (2017.3, 2398, 11.5)
-
 cmssw_sl2_ly1_n_wi = 57
 cmssw_sl2_ly1_min_wi = 0
 cmssw_sl2_ly1_max_wi = 56
-cmssw_sl2_ly1_pos = ( 396.2-global_shift[0]-cmssw_chamber_pos[0]-cmssw_sl2_pos[0], 8.5-global_shift[1]-cmssw_chamber_pos[1]-cmssw_sl2_pos[1], 4356.25-global_shift[2]-cmssw_chamber_pos[2]-cmssw_sl2_pos[2],)
+cmssw_sl2_ly1_pos = ( 396.2-cmssw_chamber_pos[0]-cmssw_sl2_pos[0], 8.5-cmssw_chamber_pos[1]-cmssw_sl2_pos[1], 4356.25-cmssw_chamber_pos[2]-cmssw_sl2_pos[2],)
 cmssw_sl2_ly1_size = (2057, 2395.3, 11.5)
-
 cmssw_sl2_ly2_n_wi = 58
 cmssw_sl2_ly2_min_wi = 0
 cmssw_sl2_ly2_max_wi = 57
-cmssw_sl2_ly2_pos = ( 396.2-global_shift[0]-cmssw_chamber_pos[0]-cmssw_sl2_pos[0], 8.5-global_shift[1]-cmssw_chamber_pos[1]-cmssw_sl2_pos[1], 4369.25-global_shift[2]-cmssw_chamber_pos[2]-cmssw_sl2_pos[2],)
+cmssw_sl2_ly2_pos = ( 396.2-cmssw_chamber_pos[0]-cmssw_sl2_pos[0], 8.5-cmssw_chamber_pos[1]-cmssw_sl2_pos[1], 4369.25-cmssw_chamber_pos[2]-cmssw_sl2_pos[2],)
 cmssw_sl2_ly2_size = (2057, 2437.3, 11.5)
-
 cmssw_sl2_ly3_n_wi = 57
 cmssw_sl2_ly3_min_wi = 0
 cmssw_sl2_ly3_max_wi = 56
-cmssw_sl2_ly3_pos = ( 396.2-global_shift[0]-cmssw_chamber_pos[0]-cmssw_sl2_pos[0], 8.5-global_shift[1]-cmssw_chamber_pos[1]-cmssw_sl2_pos[1], 4382.25-global_shift[2]-cmssw_chamber_pos[2]-cmssw_sl2_pos[2],)
+cmssw_sl2_ly3_pos = ( 396.2-cmssw_chamber_pos[0]-cmssw_sl2_pos[0], 8.5-cmssw_chamber_pos[1]-cmssw_sl2_pos[1], 4382.25-cmssw_chamber_pos[2]-cmssw_sl2_pos[2],)
 cmssw_sl2_ly3_size = (2057, 2395.3, 11.5)
-
 cmssw_sl2_ly4_n_wi = 56
 cmssw_sl2_ly4_min_wi = 1
 cmssw_sl2_ly4_max_wi = 56
-cmssw_sl2_ly4_pos = ( 396.2-global_shift[0]-cmssw_chamber_pos[0]-cmssw_sl2_pos[0], 8.5-global_shift[1]-cmssw_chamber_pos[1]-cmssw_sl2_pos[1], 4395.25-global_shift[2]-cmssw_chamber_pos[2]-cmssw_sl2_pos[2],)
+cmssw_sl2_ly4_pos = ( 396.2-cmssw_chamber_pos[0]-cmssw_sl2_pos[0], 8.5-cmssw_chamber_pos[1]-cmssw_sl2_pos[1], 4395.25-cmssw_chamber_pos[2]-cmssw_sl2_pos[2],)
 cmssw_sl2_ly4_size = (2057, 2353.3, 11.5)
-
 cmssw_sl3_ly1_n_wi = 49
 cmssw_sl3_ly1_min_wi = 0
 cmssw_sl3_ly1_max_wi = 48
-cmssw_sl3_ly1_pos = ( 396.2-global_shift[0]-cmssw_chamber_pos[0]-cmssw_sl3_pos[0], 8.5-global_shift[1]-cmssw_chamber_pos[1]-cmssw_sl3_pos[1], 4409.75-global_shift[2]-cmssw_chamber_pos[2]-cmssw_sl3_pos[2],)
+cmssw_sl3_ly1_pos = ( 396.2-cmssw_chamber_pos[0]-cmssw_sl3_pos[0], 8.5-cmssw_chamber_pos[1]-cmssw_sl3_pos[1], 4409.75-cmssw_chamber_pos[2]-cmssw_sl3_pos[2],)
 cmssw_sl3_ly1_size = (2059.3, 2398, 11.5)
-
 cmssw_sl3_ly2_n_wi = 50
 cmssw_sl3_ly2_min_wi = 0
 cmssw_sl3_ly2_max_wi = 49
-cmssw_sl3_ly2_pos = ( 396.2-global_shift[0]-cmssw_chamber_pos[0]-cmssw_sl3_pos[0], 8.5-global_shift[1]-cmssw_chamber_pos[1]-cmssw_sl3_pos[1], 4422.75-global_shift[2]-cmssw_chamber_pos[2]-cmssw_sl3_pos[2],)
+cmssw_sl3_ly2_pos = ( 396.2-cmssw_chamber_pos[0]-cmssw_sl3_pos[0], 8.5-cmssw_chamber_pos[1]-cmssw_sl3_pos[1], 4422.75-cmssw_chamber_pos[2]-cmssw_sl3_pos[2],)
 cmssw_sl3_ly2_size = (2101.3, 2398, 11.5)
-
 cmssw_sl3_ly3_n_wi = 49
 cmssw_sl3_ly3_min_wi = 0
 cmssw_sl3_ly3_max_wi = 48
-cmssw_sl3_ly3_pos = ( 396.2-global_shift[0]-cmssw_chamber_pos[0]-cmssw_sl3_pos[0], 8.5-global_shift[1]-cmssw_chamber_pos[1]-cmssw_sl3_pos[1], 4435.75-global_shift[2]-cmssw_chamber_pos[2]-cmssw_sl3_pos[2],)
+cmssw_sl3_ly3_pos = ( 396.2-cmssw_chamber_pos[0]-cmssw_sl3_pos[0], 8.5-cmssw_chamber_pos[1]-cmssw_sl3_pos[1], 4435.75-cmssw_chamber_pos[2]-cmssw_sl3_pos[2],)
 cmssw_sl3_ly3_size = (2059.3, 2398, 11.5)
-
 cmssw_sl3_ly4_n_wi = 48
 cmssw_sl3_ly4_min_wi = 1
 cmssw_sl3_ly4_max_wi = 48
-cmssw_sl3_ly4_pos = ( 396.2-global_shift[0]-cmssw_chamber_pos[0]-cmssw_sl3_pos[0], 8.5-global_shift[1]-cmssw_chamber_pos[1]-cmssw_sl3_pos[1], 4448.75-global_shift[2]-cmssw_chamber_pos[2]-cmssw_sl3_pos[2],)
+cmssw_sl3_ly4_pos = ( 396.2-cmssw_chamber_pos[0]-cmssw_sl3_pos[0], 8.5-cmssw_chamber_pos[1]-cmssw_sl3_pos[1], 4448.75-cmssw_chamber_pos[2]-cmssw_sl3_pos[2],)
 cmssw_sl3_ly4_size = (2017.3, 2398, 11.5)
 
 _dt_chamber = {
@@ -1170,7 +1177,7 @@ _dt_chamber = {
         "pos": (0., 0., 0.), #(30.7, 27.5, 53.5), # corner with smallest coordinates of honeycomb, *RELATIVE TO* base point of chamber point with smallest coordinates
         "size": (0., 0., 0.), #(2033., 2458., 128.),
     },
-    "pos": (cmssw_chamber_pos[0], cmssw_chamber_pos[1], cmssw_chamber_pos[2]), # point with smallest coordinates of dt chamber
+    "pos": (cmssw_chamber_pos[0]+global_shift[0], cmssw_chamber_pos[1]+global_shift[1], cmssw_chamber_pos[2]+global_shift[2]), # point with smallest coordinates of dt chamber
     "size": (cmssw_chamber_size[0], cmssw_chamber_size[1], cmssw_chamber_size[2]), 
 }
 
@@ -1471,7 +1478,7 @@ _ro_ch_labels = {
 
 ### muon reconstruction z position
 # reco muon z0 value (select base z value for reco muon)
-_muon_reco_z0 = 170 #_scintillator["pos"][2] # in mm
+_muon_reco_z0 = 0 #170 #_scintillator["pos"][2] # in mm
 
 
 

@@ -355,6 +355,44 @@ def err_f_x_muon(z, x0, tan_alpha, err_x0, err_tan_alpha, corr_x0_tan_alpha):
     )
     return err_x_muon
 
+### global muon track projection into xz, yz planes
+# returns x(z) of global muon projection (phi = xz, theta = yz)
+def proj_glob_muon(orient, z, x0, y0, z0, theta, phi):
+    if orient not in ["phi", "theta"]: raise Exception
+    x_base = x0 if (orient == "phi") else y0
+    # tan_alpha_x = tan_theta*cos_phi, tan_alpha_y = tan_theta*sin_phi
+    # => phi = arctan(tan_alpha_x/tan_alpha_y), theta = arctan(tan_alpha_x/cos_phi)
+    tan_alpha_x = np.tan(theta)*np.cos(phi)
+    tan_alpha_y = np.tan(theta)*np.sin(phi)
+    tan_alpha = tan_alpha_x if (orient == "phi") else tan_alpha_y
+    x_track = x_base + tan_alpha*(z-z0)
+    return x_track
+def err_proj_glob_muon(orient, z, x0, y0, z0, theta, phi, err_x0, err_y0, err_z0, err_theta, err_phi):
+    if orient not in ["phi", "theta"]: raise Exception
+    x_base = x0 if (orient == "phi") else y0
+    err_x_base = err_x0 if (orient == "phi") else err_y0
+    # tan_alpha_x = tan_theta*cos_phi, tan_alpha_y = tan_theta*sin_phi
+    # => phi = arctan(tan_alpha_x/tan_alpha_y), theta = arctan(tan_alpha_x/cos_phi)
+    tan_alpha_x = np.tan(theta)*np.cos(phi)
+    err_tan_alpha_x = np.sqrt(
+          (1/np.cos(theta)**2 * np.cos(phi))**2 * err_theta**2
+        + (np.tan(theta)*(-np.sin(phi)))**2 * err_phi**2
+    )
+    tan_alpha_y = np.tan(theta)*np.sin(phi)
+    err_tan_alpha_y = np.sqrt(
+          (1/np.cos(theta)**2 * np.cos(phi))**2 * err_theta**2
+        + (np.tan(theta)*(np.cos(phi)))**2 * err_phi**2
+    )
+    tan_alpha = tan_alpha_x if (orient == "phi") else tan_alpha_y
+    err_tan_alpha = err_tan_alpha_x if (orient == "phi") else err_tan_alpha_y
+    #x_track = x_base + tan_alpha*(z-z0)
+    err_x_track = np.sqrt(
+          (1)**2 * err_x_base**2
+        + (z-z0)**2 * err_tan_alpha**2
+        + (-tan_alpha)**2 * err_z0**2
+    )
+    return err_x_track
+
 ### scintillator geometry --> in global coord frame
 # calculate positions of center axis for all strips
 # allows to easily check if muon has hit scintillator

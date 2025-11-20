@@ -120,13 +120,10 @@ def main():
         ## plot fit, with residual plot
         fig, ax = plt.subplots(2, 1, figsize=(12,7), sharex=True, height_ratios=(5,1))
         # main plot
-        ts_label = f"""Hit timestamps:
-$\\text{{Pattern}}={pat_type}$"""
+        ts_label = "Hit timestamps"
         ax[0].errorbar(x=lys-0.02, y=ts, yerr=err_ts, color="tab:blue", marker="o", markersize=7, linestyle="", label=ts_label)
         fit_label = f"""Track fit:
-$L={[int(l) for l in laterality[::-1]]}$
-$T_0=({np.round(t0,0):.0f}$
-$\\;\\;\\;\\;\\;\\;\\;\\pm{np.round(err_t0,0):.0f})$ {params._key_units['t0']}
+$T_0=({np.round(t0,0):.0f}\\pm{np.round(err_t0,0):.0f})$ {params._key_units['t0']}
 $x_0=({np.round(x0,1):.1f}\\pm{np.round(err_x0,1):.1f})$ {params._key_units['x0']}
 $\\tan\\alpha=({np.round(tan_alpha,2):.2f}\\pm{np.round(err_tan_alpha,2):.2f})$ {params._key_units['tan_alpha']}
 $\\chi^2/N_{{df}}={np.round(chi2ndf,2):.2f}$"""
@@ -140,7 +137,8 @@ $\\chi^2/N_{{df}}={np.round(chi2ndf,2):.2f}$"""
         #ax[0].set_yscale("log")
         #ax[0].set_ylim(bottom=0.5, top=np.amax(hist)*np.exp(1.1))
         ax[0].set_ylabel("Timestamps $T_{ly}$")
-        ax[0].legend()
+        ax[0].legend(prop = { "size": 18 })
+        ax[0].set_title(f"SL {sl} ({params._dt_chamber["sls"][sl]["orient"]}), Pattern {pat_type}, Laterality {[int(l) for l in laterality[::-1]]}")
         
         # residual plot
         residuals = ts - fit_ts
@@ -174,13 +172,20 @@ $\\chi^2/N_{{df}}={np.round(chi2ndf,2):.2f}$"""
         # plot local sl fit
         _z0 = derived_params._sl_pattern_coordinates[3][0][3] # z_cell (wire position) of ly=3
         _z1 = derived_params._sl_pattern_coordinates[2][0][3] # z_cell (wire position) of ly=2
-        ax.axline((derived_params.f_x_muon(z=_z0, x0=x0, tan_alpha=tan_alpha), _z0), (derived_params.f_x_muon(z=_z1, x0=x0, tan_alpha=tan_alpha), _z1), c="tab:red", linewidth=params._color_info["muon"]["linewidth"], label=fit_label)
-        ax.legend()
+        #ax.axline((derived_params.f_x_muon(z=_z0, x0=x0, tan_alpha=tan_alpha), _z0), (derived_params.f_x_muon(z=_z1, x0=x0, tan_alpha=tan_alpha), _z1), c="tab:red", linewidth=params._color_info["muon"]["linewidth"], label=fit_label)
+        z_range = np.linspace(np.amin(z_arr)-params._cell_height, np.amax(z_arr)+params._cell_height, 1000)
+        track = derived_params.f_x_muon(z=z_range, x0=x0, tan_alpha=tan_alpha)
+        err_track = derived_params.err_f_x_muon(z=z_range, x0=x0, tan_alpha=tan_alpha, err_x0=err_x0, err_tan_alpha=err_tan_alpha, corr_x0_tan_alpha=corr_x0_tan_alpha)
+        ax.plot(track, z_range, linewidth=2, color="tab:red", label=fit_label)
+        ax.fill_betweenx(x1=track-err_track, x2=track+err_track, y=z_range, color="tab:red", alpha=0.2)
+        ax.legend(prop = { "size": 18 })
         if sl != 2:
             ax.set_xlabel("$x-x_\\text{wire,ly=3}$ [mm]")
         else:
             ax.set_xlabel("$y-y_\\text{wire,ly=3}$ [mm]")
         ax.set_ylabel("$z-z_\\text{wire,ly=3}$ [mm]")
+        ax.set_ylim(np.amin(z_range),np.amax(z_range))
+        ax.set_title(f"SL {sl} ({params._dt_chamber["sls"][sl]["orient"]}), Pattern {pat_type}, Laterality {[int(l) for l in laterality[::-1]]}")
         fig.tight_layout()
         fig.show()
 

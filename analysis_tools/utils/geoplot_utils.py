@@ -70,9 +70,9 @@ def superlayer_pat(orient, sl, *, wire=False, cell_data=None): # sliced cell dat
 def chamber_pat(orient, *, wire=False, cell_data=None):  # sliced cell data for this chamber {sl: {ly: {wi: {color, text}}}}
     x_axis, y_axis = params._orientation[orient][0], params._orientation[orient][1] # chamber axis projection (x,y,z) to 2D plot axis (x,y)
     patches = []
-    # chamber casing
+    ## chamber casing
     #patches.append( pat.Rectangle((params._dt_chamber["pos"][x_axis], params._dt_chamber["pos"][y_axis]), width=params._dt_chamber["size"][x_axis], height=params._dt_chamber["size"][y_axis], edgecolor=params._color_info["edge"], facecolor=params._color_info["fill"]) )
-    # honeycomb
+    ## honeycomb
     #patches.append( pat.Rectangle((params._dt_chamber["pos"][x_axis]+params._dt_chamber["honeycomb"]["pos"][x_axis], params._dt_chamber["pos"][y_axis]+params._dt_chamber["honeycomb"]["pos"][y_axis]), width=params._dt_chamber["honeycomb"]["size"][x_axis], height=params._dt_chamber["honeycomb"]["size"][y_axis], edgecolor=params._color_info["honeycomb"]["edge"], facecolor=params._color_info["honeycomb"]["fill"]) )
     # superlayers
     for sl in range(1,params._dt_chamber["n_sl"]+1):
