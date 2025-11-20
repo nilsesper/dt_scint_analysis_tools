@@ -84,8 +84,9 @@ def main():
     }
     for sl in params._dt_chamber["sls"].keys():
         print(f"translating back indices of groups in sl = {sl}...")
+        idx_shift = int( np.sum([n_groups[sl_i] for sl_i in params._dt_chamber["sls"].keys() if sl_i < sl]) )
         for i in range(n_groups[sl]):
-            j = int( i + np.sum([n_groups[sl_i] for sl_i in params._dt_chamber["sls"].keys() if sl_i < sl]) )
+            j = int( i + idx_shift )
             glob_idcs = []
             for loc_idx in idx_grouped[sl][i]:
                 glob_idx = np.where((sl_fits["t0"] == sl_fits_sl[sl]["t0"][loc_idx]) & (sl_fits["sl"] == sl))[0][0]

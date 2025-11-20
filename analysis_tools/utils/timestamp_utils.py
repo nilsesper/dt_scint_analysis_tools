@@ -107,7 +107,7 @@ def add_timestamp_this_orbit(hits, *, silent=False):
     n_hits = data_utils.length(hits)
     ts_hits = copy.deepcopy(hits)
     if not silent: print(f"Add timestamp relative to orbit to {n_hits} entries...")
-    ts_hits |= {"ts_orbit": np.full(n_hits, 0, dtype=params._ts_type)}
+    ts_hits |= {"ts_orbit": np.full(n_hits, 0, dtype=params._ts_type), "err_ts_orbit": np.full(n_hits, 0, dtype=params._ts_type)}
     for i in tqdm(range(n_hits), disable=silent):
         tdc = ts_hits["tdc"][i]
         bx = ts_hits["bx"][i]

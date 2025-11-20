@@ -65,7 +65,7 @@ def main():
 
     ### multiprocessing setup
     n_processes = args.n_proc # no of processes running in parallel
-    n_batches_sl_fitting = 10000 # batch size for sl fitting of hit clusters
+    n_batches_sl_fitting = 1000 # batch size for sl fitting of hit clusters
     do_multiprocessing = not verbose
 
     ### data import

@@ -346,7 +346,17 @@ _sl_fit_keys = { # {key: dtype}
     "err_tan_alpha": np.float64, # error from fit
     "vd": np.float64, # drift velocity (in mm/ts unit) fit param
     "err_vd": np.float64, # error from fit
+
+    # correlations
+    "corr_t0_x0": np.float64,
+    "corr_t0_tan_alpha": np.float64,
+    "corr_t0_vd": np.float64,
+    "corr_x0_tan_alpha": np.float64,
+    "corr_x0_vd": np.float64,
+    "corr_tan_alpha_vd": np.float64,
+
     "chi2/ndf": np.float64, # reduced chi2 value
+
     "dt0": np.float64, # estimated drift time t0-ts for ly0
     "dt1": np.float64, # estimated drift time t0-ts for ly1
     "dt2": np.float64, # estimated drift time t0-ts for ly2
@@ -366,29 +376,46 @@ _sl_fit_group_keys = {
 }
 
 ## --------- when reconstructing hits
+
 # dt drift velocity
-_drift_velocity = 54.5 #53 #54.5 #53 #50.8 #54.5 # initial value: 54.5 # unit: um / ns = 10^-6 / 10 ^-9 m/s = 10^3 m/s
+_drift_velocity = 54.5 #53 #54.5 #53 #54.5 #53 #50.8 #54.5 # initial value: 54.5 # unit: um / ns = 10^-6 / 10 ^-9 m/s = 10^3 m/s
 _dt_cell_width = 42 # mm, width of dt cell = 2x max drift distance
 # when allowing changes of vd in fit, give vd param bounds:
-_drift_velocity_min = 40 # um/ns
-_drift_velocity_max = 65 # um/ns
+_drift_velocity_min = 30 # um/ns
+_drift_velocity_max = 70 # um/ns
+
 ### --- dt
+
 _dt_max_drift_time = (_dt_cell_width*1e-3/2) / (_drift_velocity*1e3) / 0.78e-9 # max drift time measured from time of muon arrival t0 in the sl pattern fit, in ts units
 _dt_max_drift_time_vd_min = (_dt_cell_width*1e-3/2) / (_drift_velocity_min*1e3) / 0.78e-9 # max drift time for vdmin
+
 ## --- dumpfile -> dt hits
 # apply dead time for all channels individually (if value > 0)
-_dt_ts_individual_dead_time = 600 #1250 #800 #0 # in ts units
+_dt_ts_individual_dead_time = 600 #1000 #600 #1250 #800 #0 # in ts units
+
 ## --- dt hits -> sl patterns
 # timestamp window in which hits of sl must lie in order to be counted as pattern
 _t0_tolerance = 0 # tolerance of t0 beyond max drift time bound
 # if vd as fit parameter: use max drift time possible with lower vdmin bound
-#_dt_sl_patterns_ts_window = _dt_max_drift_time_vd_min + _t0_tolerance # in same unit as timestamp (0.78 ns)
+_dt_sl_patterns_ts_window_fit_vd = _dt_max_drift_time_vd_min + _t0_tolerance # in same unit as timestamp (0.78 ns)
 # if vd fixed: use reference drift time
 _dt_sl_patterns_ts_window = _dt_max_drift_time + _t0_tolerance # in same unit as timestamp (0.78 ns)
+
 # --- sl patterns -> sl fits
+
 # curve fit:
-_dt_tan_alpha_range = [-np.inf, np.inf] # allowed range of tan alpha sl pattern fit parameter
-_err_ts = 5 #1 # error of timestamps for fitting (in ts_units)
+# allowed range of alpha sl pattern fit parameter
+# alpha < 0 means towards bottom left (because z axis goes up)
+_dt_pattern_alpha_range = { # pat_idx : [alpha_min, alpha_max] in rad
+    0: [-1.0164888305933455 , 0.4939413689195812], # +a
+    1: [-0.4939413689195812 , 1.0164888305933455], # -a
+    2: [-1.0164888305933455 , 0], # +b
+    3: [0 , 1.0164888305933455], # -b
+    4: [-1.0164888305933455 , 0], # +c
+    5: [0 , 1.0164888305933455], # -c
+}
+#_dt_pattern_alpha_range = {i: [-np.pi/2, np.pi/2] for i in range(6)} # uncomment if no alpha range should be used
+
 # meantimer method:
 _meantimer_tolerance_t0 = 1 # t0 (= t_muon) tolerance between different meantimer equations to accept laterality, in timestamp units
 _meantimer_tolerance_tan_alpha = 0.03 # tan_alpha tolerance between different meantimer equations to accept laterality, in rad
@@ -399,19 +426,19 @@ _sl_time_offset = {
     2: 0, #0,
     3: 0,
 }
-## sl fits -> sl fit groups
+
+## --- sl fits -> sl fit groups
 _sl_fit_group_ts_tolerance = _dt_max_drift_time
+
 ## --- sl fit groups -> dt muons
 _muon_tgroup_tolerance = _dt_max_drift_time / 2 # time interval in which sl fit groups of different sls are combined to "muon"
 _muon_n_fits_max = 1 # max n_fits in sl fit groups selected for "muon"
 _muon_slphi_tan_alpha_tolerance = 0.1 # max deviation of tan_alpha for both sl fits in phi sl
 _muon_slphi_xproj_tolerance = 30 # max deviation of x_proj (projected sl fit track position at z=_muon_reco_z0) for both sl fits in phi sl
 _muon_chi2_ndf_max = 10 #10 # max chi2 of muon sl fits
-# # acceptance interval for dt sl pattern grouping
-# _t0_acceptance_interval = 100 #20 # max temporal distance of t0 values of dt sl pattern fits that should be grouped together, in ts units
-# _xproj_acceptance_interval = 20 # max spatial distance of 2 phi muon sl fits along the x axis, when projecting one to the other sl (delta_z(1-2) = z(sl=3.ly=3.wi=wi3_1) - z(sl=3.ly=3.wi=wi3_2)), in mm
 
 ### --- scint
+
 # acceptance interval for scintillator hits (2 sipm coincidence of strips) -> muon areas (2 strip coincidence) grouping
 _scintillator_ts_acceptance_interval = 32 #32 #32 #1024 #32 #625 #64 #1250 #64 #32 # max temporal distance of ts values of scintillator that should be grouped together, in ts units
 # 1280 = 1 us , 64 = 50 ns , 500 ~ 391 ns , 16 = 12.5 ns , 32 = 25 ns
@@ -688,6 +715,7 @@ _key_symbols = {
     "corr_x0_tan_alpha": "$\\text{cov}(x_0,\\; \\tan\\alpha)$", 
     "corr_x0_vd": "$\\text{cov}(x_0,\\; v_D)$", 
     "corr_tan_alpha_vd": "$\\text{cov}(\\tan\\alpha,\\; v_D)$",
+    "impossible": "Impossible to fit",
 }
 _key_units = {
     "x0": "mm",
@@ -778,6 +806,7 @@ _key_units = {
     "corr_x0_tan_alpha": "mm", 
     "corr_x0_vd": "mm${}^2$/TU", 
     "corr_tan_alpha_vd": "mm/TU",
+    "impossible": "",
 }
 
 ###############################

@@ -322,7 +322,7 @@ def f_ts_fit(x_cell, t0, x0, tan_alpha, z, laterality, vd):
     ts_fit = (x0 + z * tan_alpha - x_cell) * laterality / vd + t0
     return ts_fit
 def err_f_ts_fit(x_cell, t0, x0, tan_alpha, z, laterality, vd, *, err_t0, err_x0, err_tan_alpha, err_vd, corr_t0_x0, corr_t0_tan_alpha, corr_x0_tan_alpha, corr_t0_vd, corr_x0_vd, corr_tan_alpha_vd):
-    df_dx0 = (1) * laterality / vd + t0
+    df_dx0 = (1) * laterality / vd
     df_dt0 = 1
     df_dtan_alpha = (z * 1) * laterality / vd
     df_dvd = -(x0 + z * tan_alpha - x_cell) * laterality / vd**2
@@ -331,12 +331,12 @@ def err_f_ts_fit(x_cell, t0, x0, tan_alpha, z, laterality, vd, *, err_t0, err_x0
         + df_dx0**2 * err_x0**2
         + df_dtan_alpha**2 * err_tan_alpha**2
         + df_dvd**2 * err_vd**2
-        + df_dt0*df_dx0 * corr_t0_x0
-        + df_dt0*df_dtan_alpha * corr_t0_tan_alpha
-        + df_dt0*df_dvd * corr_t0_vd
-        + df_dx0*df_dtan_alpha * corr_x0_tan_alpha
-        + df_dx0*df_dvd * corr_x0_vd
-        + df_dtan_alpha*df_dvd * corr_tan_alpha_vd
+        + 2*df_dt0*df_dx0 * corr_t0_x0
+        + 2*df_dt0*df_dtan_alpha * corr_t0_tan_alpha
+        + 2*df_dt0*df_dvd * corr_t0_vd
+        + 2*df_dx0*df_dtan_alpha * corr_x0_tan_alpha
+        + 2*df_dx0*df_dvd * corr_x0_vd
+        + 2*df_dtan_alpha*df_dvd * corr_tan_alpha_vd
     )
     return err_ts_fit
 
@@ -345,6 +345,15 @@ def err_f_ts_fit(x_cell, t0, x0, tan_alpha, z, laterality, vd, *, err_t0, err_x0
 def f_x_muon(z, x0, tan_alpha):
     x_muon = x0 + z*tan_alpha
     return x_muon
+def err_f_x_muon(z, x0, tan_alpha, err_x0, err_tan_alpha, corr_x0_tan_alpha):
+    df_dx0 = 1
+    df_dtan_alpha = z
+    err_x_muon = np.sqrt(
+          df_dx0**2 * err_x0**2
+        + df_dtan_alpha**2 * err_tan_alpha**2
+        + 2*df_dx0*df_dtan_alpha * corr_x0_tan_alpha
+    )
+    return err_x_muon
 
 ### scintillator geometry --> in global coord frame
 # calculate positions of center axis for all strips

@@ -105,6 +105,7 @@ def main():
     print(f"### sl fits")
     hist_bins = {
         "sl": np.arange(1, 3+1),
+        "impossible": "step1",
         "pat_type": "step1",
         "laterality": np.arange(0, 6+1),
         "t0": "auto200",

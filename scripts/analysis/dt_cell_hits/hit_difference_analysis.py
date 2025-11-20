@@ -57,7 +57,10 @@ def main():
     ax.set_xlabel("$\\Delta T_\\text{cell}$ [ns]")
     fig.tight_layout()
     fig.show()
-    
+
+    input("Press enter to exit.")
+    exit()
+
     ### remove exponential "poisson" background
     fit_index_range = np.arange(int(1000/0.78),len(bins)-1)
     fit_bins = bins[fit_index_range]

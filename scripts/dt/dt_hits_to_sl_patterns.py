@@ -55,6 +55,11 @@ def main():
         help     = "print info",
     )
     parser.add_argument(
+        "--fit_vd",
+        action   = "store_true",
+        help     = "print info",
+    )
+    parser.add_argument(
         "--n_proc",
         type     = int,
         help     = "number of processes to run in parallel",
@@ -74,6 +79,9 @@ def main():
     #if args.dt_tp_corrections_file:
     #    do_timing_correction = True
     #    dt_tp_corrections_file = args.dt_tp_corrections_file
+    fit_vd = False
+    if args.fit_vd:
+        fit_vd = True
 
     #################
 
@@ -104,7 +112,7 @@ def main():
     # apply clustering algorithm
     print(f"### DT hit clustering for each superlayer...")
     if do_multiprocessing:
-        sl_patterns = process_utils.multiprocess_data(n_processes=n_processes, n_batches=n_batches_clustering, function=dt_utils.find_sl_patterns, data=dt_hits, data_key="hits", kwargs={"verbose": verbose, "simulation_only_muon_patterns": simulation_only_muon_patterns}, mute=True)
+        sl_patterns = process_utils.multiprocess_data(n_processes=n_processes, n_batches=n_batches_clustering, function=dt_utils.find_sl_patterns, data=dt_hits, data_key="hits", kwargs={"verbose": verbose, "simulation_only_muon_patterns": simulation_only_muon_patterns, "fit_vd": fit_vd}, mute=True)
     else:
         sl_patterns = dt_utils.find_sl_patterns(hits=dt_hits, verbose=verbose, simulation_only_muon_patterns=simulation_only_muon_patterns)
     # sort by ts3 (reference timestamp)

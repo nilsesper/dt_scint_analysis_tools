@@ -233,11 +233,15 @@ def apply_timing_calibration(hits, *, dt_tp_corrections, silent=False):
 # can pass different dt_sl_patterns dictionaries (e.g. fake patterns)
 # simulation_only_muon_patterns = True: for simulation reject patterns which come from coincidence of multiple muons, may have wrong laterality
 # simulation_only_muon_patterns = False: for simulation keep all patterns (more like data)
-def find_sl_patterns(hits, *, dt_sl_patterns=params._dt_sl_patterns, silent=False, verbose=False, simulation_only_muon_patterns=False):
+def find_sl_patterns(hits, *, dt_sl_patterns=params._dt_sl_patterns, silent=False, verbose=False, simulation_only_muon_patterns=False, fit_vd=False):
     pattern_list = []
     n_hits = len(hits["ch"])
     if not silent: print(f"Extract DT superlayer patterns from {n_hits} total hits...")
     dummy_dt_hit = {k: np.array(0, dtype=v) for k,v in params._htg_keys.items()} | {k: np.array(0, dtype=v) for k,v in params._dt_mapping_keys.items()} | {k: np.array(0, dtype=v) for k,v in params._dt_other_keys.items()}
+    if not fit_vd:
+        delta_ts_max = params._dt_sl_patterns_ts_window
+    else:
+        delta_ts_max = params._dt_sl_patterns_ts_window_fit_vd
     # go through separately for each sl
     for sl in params._dt_chamber["sls"].keys():
         last_hit = _empty_dt_chamber_map(content=dummy_dt_hit) # holds dict of hits
@@ -302,7 +306,7 @@ def find_sl_patterns(hits, *, dt_sl_patterns=params._dt_sl_patterns, silent=Fals
                     pat_ts_diff[5] = np.abs((pat_ts[2])-(pat_ts[3]))
                     if verbose: print(f"check pat: sl={sl}, pat_type={pat_type}, pat_wi={pat_wi}, pat_ts={pat_ts}, pat_ts_diff={pat_ts_diff}")
                     # no pattern found within time window, continue
-                    if np.sum(pat_ts_diff > params._dt_sl_patterns_ts_window) > 0:
+                    if np.sum(pat_ts_diff > delta_ts_max) > 0:
                         continue
                     if verbose: print(f"found pat: sl={sl}, pat_wi={pat_wi}, pat_ts={pat_ts}")
                     # additional keys
@@ -402,51 +406,62 @@ def fit_sl_patterns(patterns, *, silent=False, verbose=False, fit_vd=False):
             rel_wi = params._dt_sl_patterns[pat_name]["rel_wis"][ly]
             x_cell[ly] = derived_params._sl_pattern_coordinates[ly][rel_wi][2] # x values for fit => x positions of wires / cell centers for each layer, depends on pattern layout
         ts = np.array([np.float64(patterns[f"ts{ly}"][i]) for ly in range(4)], dtype=params._ts_float_type) # y values for fit => timestamps for hits of each layer
-        err_ts = np.array([np.float64(patterns[f"err_ts{ly}"][i]) for ly in range(4)], dtype=params._ts_float_type) # ts uncertainty
+        #err_ts = np.array([np.float64(patterns[f"err_ts{ly}"][i]) for ly in range(4)], dtype=params._ts_float_type) # ts uncertainty
+        err_ts = np.array([5 for ly in range(4)]) # uncomment to use constant ts uncertainty instead
         ts_min = np.amin(ts)
         ts_max = np.amax(ts)
-        # scale timestamps by subtracting ts3 timestamp
+        # scale timestamps by subtracting min timestamp
         ts_offset = ts_min
         ts_for_fit = ts - ts_offset
         ts_min_for_fit = ts_min - ts_offset
         ts_max_for_fit = ts_max - ts_offset
-        # ---
-        lat_fits = []
-        lat_chi2 = []
+        # -- define parameter bounds,: t0, vd
+        # t0 bound
+        if not fit_vd:
+            t0_min_bound = ts_max_for_fit-params._dt_max_drift_time-params._t0_tolerance
+            t0_max_bound = ts_min_for_fit+params._t0_tolerance
+        else:
+            t0_min_bound = ts_max_for_fit-params._dt_max_drift_time_vd_min-params._t0_tolerance
+            t0_max_bound = ts_min_for_fit+params._t0_tolerance
+        # check impossible timestamps
+        impossible_pattern = False
+        if t0_min_bound >= t0_max_bound:
+            impossible_pattern = True
         if verbose: print(f"\n ********** Fitting pattern {i}:")
-        for lat_id, lat in enumerate(lats): # lat_id = idx of laterality list for given pattern
-            impossible_pattern = False
-            laterality = np.array(lat)
-            # define parameter bounds
-            if not fit_vd:
-                t0_min_bound = ts_max_for_fit-params._dt_max_drift_time-params._t0_tolerance
-                t0_max_bound = ts_min_for_fit+params._t0_tolerance
-            else:
-                t0_min_bound = ts_max_for_fit-params._dt_max_drift_time_vd_min-params._t0_tolerance
-                t0_max_bound = ts_min_for_fit+params._t0_tolerance
-            if t0_min_bound >= t0_max_bound:
-                impossible_pattern = True
-            # set x0 bounds depending on laterality (l = -1: left of wire i.e. x0 < x_wire, r = 1: right of wire i.e x0 > x_wire)
-            x0_min_bound = derived_params._sl_pattern_coordinates[3][0][0][0] if (laterality[3] == -1) else derived_params._sl_pattern_coordinates[3][0][2]
-            x0_max_bound = derived_params._sl_pattern_coordinates[3][0][0][1] if (laterality[3] == 1) else derived_params._sl_pattern_coordinates[3][0][2]
+        if not impossible_pattern: # fit only if possible bounds / timestamps
+            # vd bound
             vd_min_bound = derived_params._drift_velocity_mm_per_timestamp_min
             vd_max_bound = derived_params._drift_velocity_mm_per_timestamp_max
-            # write into concatenated p_bounds variable
-            if not fit_vd:
-                p_bounds = np.float64([
-                    (t0_min_bound, x0_min_bound, params._dt_tan_alpha_range[0]), # lower limit for (t0, x0, tan_alpha)
-                    (t0_max_bound, x0_max_bound, params._dt_tan_alpha_range[1]), # upper limit for (t0, x0, tan_alpha)
-                ])
-            else:
-                p_bounds = np.float64([
-                    (t0_min_bound, x0_min_bound, params._dt_tan_alpha_range[0], vd_min_bound), # lower limit for (t0, x0, tan_alpha, vd)
-                    (t0_max_bound, x0_max_bound, params._dt_tan_alpha_range[1], vd_max_bound), # upper limit for (t0, x0, tan_alpha, vd)
-                ])
-            if not impossible_pattern:
+            # tan alpha bound
+            alpha_min_bound = params._dt_pattern_alpha_range[pat_type][0]
+            alpha_max_bound = params._dt_pattern_alpha_range[pat_type][1]
+            tan_alpha_min_bound = np.tan(alpha_min_bound)
+            tan_alpha_max_bound = np.tan(alpha_max_bound)
+            # --- fitting
+            lat_fits = []
+            lat_chi2 = []
+            # fit all paterality possibilities
+            for lat_id, lat in enumerate(lats): # lat_id = idx of laterality list for given pattern
+                laterality = np.array(lat)
+                # define parameter bounds: x0
+                # set x0 bounds depending on laterality (l = -1: left of wire i.e. x0 < x_wire, r = 1: right of wire i.e x0 > x_wire)
+                x0_min_bound = derived_params._sl_pattern_coordinates[3][0][0][0] if (laterality[3] == -1) else derived_params._sl_pattern_coordinates[3][0][2]
+                x0_max_bound = derived_params._sl_pattern_coordinates[3][0][0][1] if (laterality[3] == 1) else derived_params._sl_pattern_coordinates[3][0][2]
+                # write into concatenated p_bounds variable
+                if not fit_vd:
+                    p_bounds = np.float64([
+                        (t0_min_bound, x0_min_bound, tan_alpha_min_bound), # lower limit for (t0, x0, tan_alpha)
+                        (t0_max_bound, x0_max_bound, tan_alpha_max_bound), # upper limit for (t0, x0, tan_alpha)
+                    ])
+                else:
+                    p_bounds = np.float64([
+                        (t0_min_bound, x0_min_bound, tan_alpha_min_bound, vd_min_bound), # lower limit for (t0, x0, tan_alpha, vd)
+                        (t0_max_bound, x0_max_bound, tan_alpha_max_bound, vd_max_bound), # upper limit for (t0, x0, tan_alpha, vd)
+                    ])
                 # prepare fit initial params
                 t0_start = np.mean([p_bounds[0][0], p_bounds[1][0]]) # t0 starting point
                 x0_start = np.mean([p_bounds[0][1], p_bounds[1][1]]) #+ 10*laterality[3]
-                tan_alpha_start = 0 # assume straight down muon as start
+                tan_alpha_start = np.tan(np.mean([alpha_min_bound, alpha_max_bound])) # tan alpha starting point: tan of mean of angle
                 vd_start = derived_params._drift_velocity_mm_per_timestamp
                 if not fit_vd:
                     p0 = np.float64([t0_start, x0_start, tan_alpha_start]) 
@@ -464,9 +479,9 @@ def fit_sl_patterns(patterns, *, silent=False, verbose=False, fit_vd=False):
                     def f_ts_fit_wparams(ly, t0, x0, tan_alpha, vd):
                         ly = np.uint64(ly)
                         return derived_params.f_ts_fit(x_cell=x_cell[ly], t0=t0, x0=x0, tan_alpha=tan_alpha, z=z_arr[ly], laterality=laterality[ly], vd=vd)
-                    def err_f_ts_fit_wparams(ly, t0, x0, tan_alpha, vd, err_t0, err_x0, err_tan_alpha, err_vd, corr_t0_x0, corr_t0_tan_alpha, corr_x0_tan_alpha, corr_x0_vd, corr_tan_alpha_vd):
+                    def err_f_ts_fit_wparams(ly, t0, x0, tan_alpha, vd, err_t0, err_x0, err_tan_alpha, err_vd, corr_t0_x0, corr_t0_tan_alpha, corr_x0_tan_alpha, corr_x0_vd, corr_tan_alpha_vd, corr_t0_vd):
                         ly = np.uint64(ly)
-                        return derived_params.err_f_ts_fit(x_cell=x_cell[ly], t0=t0, x0=x0, tan_alpha=tan_alpha, z=z_arr[ly], laterality=laterality[ly], vd=vd, err_t0=err_t0, err_x0=err_x0, err_tan_alpha=err_tan_alpha, err_vd=err_vd, corr_t0_x0=corr_t0_x0, corr_t0_tan_alpha=corr_t0_tan_alpha, corr_t0_vd=0, corr_x0_tan_alpha=corr_x0_tan_alpha, corr_x0_vd=corr_x0_vd, corr_tan_alpha_vd=corr_tan_alpha_vd)
+                        return derived_params.err_f_ts_fit(x_cell=x_cell[ly], t0=t0, x0=x0, tan_alpha=tan_alpha, z=z_arr[ly], laterality=laterality[ly], vd=vd, err_t0=err_t0, err_x0=err_x0, err_tan_alpha=err_tan_alpha, err_vd=err_vd, corr_t0_x0=corr_t0_x0, corr_t0_tan_alpha=corr_t0_tan_alpha, corr_t0_vd=corr_t0_vd, corr_x0_tan_alpha=corr_x0_tan_alpha, corr_x0_vd=corr_x0_vd, corr_tan_alpha_vd=corr_tan_alpha_vd)
                 # execute fit, store results: parameters = (t0, x0, tan_alpha)
                 popt, pcov, infodict, mesg, _ = curve_fit(f=f_ts_fit_wparams, xdata=lys, ydata=ts_for_fit, p0=p0, sigma=err_ts, absolute_sigma=True, bounds=p_bounds, full_output=True, )
                 # extract fit result
@@ -516,15 +531,8 @@ def fit_sl_patterns(patterns, *, silent=False, verbose=False, fit_vd=False):
                     vd_fit = vd_from_fit
                 # estimate drift times from fit
                 td = [ts_fit[ly]-t0_fit for ly in range(4)]
-            # store results
-            if impossible_pattern: # if impossible to fit: store that no fit possible
-                if verbose:
-                    print(f" **** Pattern name {pat_name}, laterality {lat_id}:")
-                    print("   Impossible to fit timestamps.")
-                lat_fits.append({"impossible": True, "t0": 0})
-                lat_chi2.append(999999999)
-            else: # if fit was possible: store result
-                lat_fits.append({"impossible": False, "laterality": lat_id, "t0": t0_fit, "x0": x0_fit, "tan_alpha": tan_alpha_fit, "chi2/ndf": chi2ndf, "dt0": td[0], "dt1": td[1], "dt2": td[2], "dt3": td[3], "vd": vd_fit, "err_t0": err_t0_fit, "err_x0": err_x0_fit, "err_tan_alpha": err_tan_alpha_fit, "err_vd": err_vd_fit, "corr_t0_x0": corr_t0_x0_fit, "corr_t0_tan_alpha": corr_t0_tan_alpha_fit, "corr_t0_vd": corr_t0_vd_fit, "corr_x0_tan_alpha": corr_x0_tan_alpha_fit, "corr_x0_vd": corr_x0_vd_fit, "corr_tan_alpha_vd": corr_tan_alpha_vd_fit})
+                # store results
+                lat_fits.append({"impossible": 0, "laterality": lat_id, "t0": t0_fit, "x0": x0_fit, "tan_alpha": tan_alpha_fit, "chi2/ndf": chi2ndf, "dt0": td[0], "dt1": td[1], "dt2": td[2], "dt3": td[3], "vd": vd_fit, "err_t0": err_t0_fit, "err_x0": err_x0_fit, "err_tan_alpha": err_tan_alpha_fit, "err_vd": err_vd_fit, "corr_t0_x0": corr_t0_x0_fit, "corr_t0_tan_alpha": corr_t0_tan_alpha_fit, "corr_t0_vd": corr_t0_vd_fit, "corr_x0_tan_alpha": corr_x0_tan_alpha_fit, "corr_x0_vd": corr_x0_vd_fit, "corr_tan_alpha_vd": corr_tan_alpha_vd_fit})
                 if chi2ndf == np.inf: # penalize inf chi2 with high value
                     chi2ndf = 999999999
                 lat_chi2.append(chi2ndf)
@@ -540,40 +548,29 @@ def fit_sl_patterns(patterns, *, silent=False, verbose=False, fit_vd=False):
                     print(f"    Result:",{"popt": popt, "infodict": infodict, "mesg": mesg})
                     print(f"    Values:",{"t0": t0_fit, "x0": x0_fit, "tan_alpha": tan_alpha_fit, "vd": vd_fit, "chi2/ndf": chi2ndf})
                     print(f"\n    Chi2 / Ndf: {chi2ndf}\n")
-        # round chi2 value to given fixed digits
-        for j in range(len(lat_chi2)):
-            lat_chi2[j] = float('{:0.3e}'.format(lat_chi2[j])) # round to 4 significant digits in total
-        lat_chi2 = np.array(lat_chi2)
-        # check if more than one fit with minimum chi2 exists
-        lat_goodness = []
-        if (lat_chi2 == lat_chi2.min()).sum() > 1:
-            lat_t0 = np.array([lat_fits[k]["t0"] for k in range(len(lat_fits))])
-            lat_goodness = lat_chi2 + np.abs(np.log10(lat_t0+0.001)) # if yes, add t0 bias to goodness param (similar to CIEMAT reco code: https://github.com/magnarex/dtupy-analysis/blob/master/src/dtupy_analysis/dqm/reco/classes/MuSE.py)
-        else:
-            lat_goodness = lat_chi2 # else use red chi2 as goodness param
-        best_fit_idx = None
-        if len(lat_goodness) > 0: # if at least one successful fit
-            # select fit with best lat_goodness value
-            best_fit_idx = np.argmin(lat_goodness)
-        # store results of best fit
-        for k in params._sl_fit_keys.keys():
-            if best_fit_idx != None:
-                if not lat_fits[best_fit_idx]["impossible"]:
-                    sl_fits[k][i] = lat_fits[best_fit_idx][k]
-        # store "fit impossible" of all laterality fits impossible
-        fit_impossible = True
-        for lat_id in range(len(lats)):
-            if not lat_fits[lat_id]["impossible"]:
-                fit_impossible = False
-        sl_fits["impossible"][i] = int(fit_impossible)
-        # store results of all laterality fits
-        for lat_id in range(len(lats)):
-            if lat_fits[lat_id]["impossible"]:
-                sl_fits[f"lat{lat_id}_impossible"][i] = 1
+            # round chi2 value to given fixed digits
+            for j in range(len(lat_chi2)):
+                lat_chi2[j] = float('{:0.3e}'.format(lat_chi2[j])) # round to 4 significant digits in total
+            lat_chi2 = np.array(lat_chi2)
+            # check if more than one fit with minimum chi2 exists
+            lat_goodness = []
+            if (lat_chi2 == lat_chi2.min()).sum() > 1:
+                lat_t0 = np.array([lat_fits[k]["t0"] for k in range(len(lat_fits))])
+                lat_goodness = lat_chi2 + np.log10(np.abs(lat_t0)) # if yes, add t0 bias to goodness param (similar to CIEMAT reco code: https://github.com/magnarex/dtupy-analysis/blob/master/src/dtupy_analysis/dqm/reco/classes/MuSE.py)
             else:
+                lat_goodness = lat_chi2 # else use red chi2 as goodness param
+            best_fit_idx = np.argmin(lat_goodness)
+            # store results of best fit
+            for k in params._sl_fit_keys.keys():
+                sl_fits[k][i] = lat_fits[best_fit_idx][k]
+            # store results of all laterality fits
+            for lat_id in range(len(lats)):
                 for k1,k2 in [(f"lat{lat_id}_impossible", "impossible"), (f"lat{lat_id}_t0", "t0"), (f"lat{lat_id}_x0", "x0"), (f"lat{lat_id}_tan_alpha", "tan_alpha"), (f"lat{lat_id}_chi2/ndf", "chi2/ndf"), (f"lat{lat_id}_dt0", "dt0"), (f"lat{lat_id}_dt1", "dt1"), (f"lat{lat_id}_dt2", "dt2"), (f"lat{lat_id}_dt3", "dt3"), (f"lat{lat_id}_vd", "vd"), 
                     (f"lat{lat_id}_err_t0", "err_t0"), (f"lat{lat_id}_err_x0", "err_x0"), (f"lat{lat_id}_err_tan_alpha", "err_tan_alpha"), (f"lat{lat_id}_err_vd", "err_vd"), (f"lat{lat_id}_corr_t0_x0", "corr_t0_x0"), (f"lat{lat_id}_corr_t0_tan_alpha", "corr_t0_tan_alpha"), (f"lat{lat_id}_corr_t0_vd", "corr_t0_vd"), (f"lat{lat_id}_corr_x0_tan_alpha", "corr_x0_tan_alpha"), (f"lat{lat_id}_corr_x0_vd", "corr_x0_vd"), (f"lat{lat_id}_corr_tan_alpha_vd", "corr_tan_alpha_vd")]:
                     sl_fits[k1][i] = lat_fits[lat_id][k2]
+        else: # if fit impossible
+            print(f" **** Impossible to fit timestamps.")
+            sl_fits["impossible"][i] = 1
         # NOTE:
         # if one wants to use also the +-d patterns, one might need to keep several fit results since there are possibilities of ambiguities between rrll and llrr
         # but if not using the +-d pattern, do not care :)
@@ -698,6 +695,7 @@ def reco_muons_from_sl_fit_groups(fits, fit_groups, *, silent=False, verbose=Fal
     counter_3sl_candidates = 0
     counter_tgroup = 0
     counter_n_fits = 0
+    counter_chi2 = 0
     counter_tan_alpha = 0
     counter_xproj = 0
     duration = (np.amax(fit_groups["tgroup"]) - np.amin(fit_groups["tgroup"]))*0.78e-9 # duration of data set in s
@@ -719,15 +717,6 @@ def reco_muons_from_sl_fit_groups(fits, fit_groups, *, silent=False, verbose=Fal
         if None in last_fit_group.values():
             continue
         counter_3sl_candidates += 1
-        # check if fit group timestamps are within specified tolerance, else continue
-        if np.abs(last_fit_group[1]["tgroup"] - last_fit_group[2]["tgroup"]) > params._sl_fit_group_ts_tolerance:
-            continue
-        if np.abs(last_fit_group[1]["tgroup"] - last_fit_group[3]["tgroup"]) > params._sl_fit_group_ts_tolerance:
-            continue
-        if np.abs(last_fit_group[2]["tgroup"] - last_fit_group[3]["tgroup"]) > params._sl_fit_group_ts_tolerance:
-            continue
-        counter_tgroup += 1
-        ### if code made it to here, a muon (3 fit groups reasonably close in time) was found
         # check max n_fits condition
         if last_fit_group[1]["n_fits"] > params._muon_n_fits_max:
             continue
@@ -736,6 +725,15 @@ def reco_muons_from_sl_fit_groups(fits, fit_groups, *, silent=False, verbose=Fal
         if last_fit_group[3]["n_fits"] > params._muon_n_fits_max:
             continue
         counter_n_fits += 1
+        # check if fit group timestamps are within specified tolerance, else continue
+        if np.abs(last_fit_group[1]["tgroup"] - last_fit_group[2]["tgroup"]) > params._muon_tgroup_tolerance:
+            continue
+        if np.abs(last_fit_group[1]["tgroup"] - last_fit_group[3]["tgroup"]) > params._muon_tgroup_tolerance:
+            continue
+        if np.abs(last_fit_group[2]["tgroup"] - last_fit_group[3]["tgroup"]) > params._muon_tgroup_tolerance:
+            continue
+        counter_tgroup += 1
+        # if code made it to here, a muon (3 fit groups reasonably close in time) was found
         ###### attempt muon reco
         ### currently only supports 1 pattern/fit per sl in selected fit group - if multiple one would need to add more selection logic in order to decide which fit to choose...
         if params._muon_n_fits_max > 1:
@@ -751,6 +749,7 @@ def reco_muons_from_sl_fit_groups(fits, fit_groups, *, silent=False, verbose=Fal
             continue
         if fit[3]["chi2/ndf"] > params._muon_chi2_ndf_max:
             continue
+        counter_chi2 += 1
         # reject muon if tan alpha tolerance not met
         if np.abs(fit[phi_sl1]["tan_alpha"] - fit[phi_sl2]["tan_alpha"]) > params._muon_slphi_tan_alpha_tolerance:
             continue
@@ -858,8 +857,9 @@ def reco_muons_from_sl_fit_groups(fits, fit_groups, *, silent=False, verbose=Fal
         print(f"duration: {duration} s")
         print(f"initial sl fit group rate: {counter_groups/duration} Hz")
         print(f"3 sl candidates:  {counter_3sl_candidates/duration} Hz")
-        print(f"after tgroup condition:  {counter_tgroup/duration} Hz")
         print(f"after n_fits condition:  {counter_n_fits/duration} Hz")
+        print(f"after tgroup condition:  {counter_tgroup/duration} Hz")
+        print(f"after chi2/ndf condition:  {counter_chi2/duration} Hz")
         print(f"after tan_alpha_condition:  {counter_tan_alpha/duration} Hz")
         print(f"after x_proj condition:  {counter_xproj/duration} Hz")
     return reco_muons
