@@ -440,6 +440,8 @@ _muon_n_fits_max = 1 # max n_fits in sl fit groups selected for "muon"
 _muon_slphi_tan_alpha_tolerance = 0.1 # max deviation of tan_alpha for both sl fits in phi sl
 _muon_slphi_xproj_tolerance = 30 # max deviation of x_proj (projected sl fit track position at z=_muon_reco_z0) for both sl fits in phi sl
 _muon_chi2_ndf_max = 10 #10 # max chi2 of muon sl fits
+# reco muon z0 value (select base z value for reco muon)
+_muon_reco_z0 = 144 #170 #_scintillator["pos"][2] # in mm
 
 ### --- scint
 
@@ -1476,9 +1478,6 @@ _ro_ch_labels = {
     25: "mez2",
 }
 
-### muon reconstruction z position
-# reco muon z0 value (select base z value for reco muon)
-_muon_reco_z0 = 0 #170 #_scintillator["pos"][2] # in mm
 
 
 

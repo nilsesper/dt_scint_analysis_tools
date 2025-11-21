@@ -55,11 +55,18 @@ def main():
     ### data import
     print(f"###### Importing data from \"{input_data_file}\"...")
     input_data = data_utils.load_pickle(file=input_data_file)
+    n_input_data = data_utils.length(input_data)
     #print("input_data =",input_data)
 
     ### cut data
     print(f"###### Applying data cuts: {cuts_list}...")
-    cut_data = data_utils.cut_data(data=input_data, conditions=cuts_list)
+    cut_data = copy.deepcopy(input_data)
+    for i in range(len(cuts_list)):
+        print("***")
+        cut_data = data_utils.cut_data(data=cut_data, conditions=[cuts_list[i]])
+        n_cut_data = data_utils.length(cut_data)
+        print(f"cut flow w.r.t. initial dataset: {n_cut_data} / {n_input_data} = {n_cut_data/n_input_data}")
+    print("***")
     #print("cut_data =",cut_data)
 
     ### store to pcl file

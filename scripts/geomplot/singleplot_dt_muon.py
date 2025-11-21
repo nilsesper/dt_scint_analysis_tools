@@ -209,10 +209,10 @@ $\\phi=({np.round(phi*params.rad_to_deg,1):.1f}\\pm{np.round(err_phi*params.rad_
         # # plot reconstructed reconstructed muon area in scintillator
         # ax = geoplot_utils.scint_muon_area_ax(ax=ax, orient=orient, scint_muon_areas=reco_muon_areas, muon_id=i, color="red")
         # axis limits
-        ax.margins(x=0.05, y=0.05)
+        #ax.margins(x=0.05, y=0.05)
         ax.set_ylim(np.amin(z_range), np.amax(z_range))
-        # text labels
         ax.legend()
+        # text labels
         #ax.set_aspect('equal', adjustable='box')
         axbox = ax.get_position()
         x_topleft = axbox.p0[0]
@@ -229,8 +229,10 @@ $\\phi=({np.round(phi*params.rad_to_deg,1):.1f}\\pm{np.round(err_phi*params.rad_
             description += "$x$-$z$-plane (SL-$\\phi$ view)"
             ax.set_xlabel("$x$ [mm]")
             ax.set_ylabel("$z$ [mm]")
-        ax.text(x_topright, y_topleft+0.02, description, transform=plt.gcf().transFigure, horizontalalignment="right")
+        #ax.text(x_topright, y_topleft+0.02, description, transform=plt.gcf().transFigure, horizontalalignment="right")
+        ax.set_title(f"Global track: {description}")
         # show/store figure
+        fig.tight_layout()
         fig.show()
 
 

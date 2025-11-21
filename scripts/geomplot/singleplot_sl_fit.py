@@ -136,9 +136,9 @@ $\\chi^2/N_{{df}}={np.round(chi2ndf,2):.2f}$"""
         #ax[0].fill_between(bins, y1=f_bg_fit(x=bins, a=a_fit, b=b_fit)-err_f_bg_fit(x=bins, a=a_fit, b=b_fit, err_a=err_a_fit, err_b=err_b_fit), y2=f_bg_fit(x=bins, a=a_fit, b=b_fit)+err_f_bg_fit(x=bins, a=a_fit, b=b_fit, err_a=err_a_fit, err_b=err_b_fit), color="tab:red", alpha=0.1)
         #ax[0].set_yscale("log")
         #ax[0].set_ylim(bottom=0.5, top=np.amax(hist)*np.exp(1.1))
-        ax[0].set_ylabel("Timestamps $T_{ly}$")
+        ax[0].set_ylabel("Timestamp $T_{ly}$ [TU]")
         ax[0].legend(prop = { "size": 18 })
-        ax[0].set_title(f"SL {sl} ({params._dt_chamber["sls"][sl]["orient"]}), Pattern {pat_type}, Laterality {[int(l) for l in laterality[::-1]]}")
+        ax[0].set_title(f"SL {sl} ({params._dt_chamber["sls"][sl]["orient"]}), Pattern {pat_type}, Laterality {[int(l) for l in laterality]}")
         
         # residual plot
         residuals = ts - fit_ts
@@ -185,7 +185,7 @@ $\\chi^2/N_{{df}}={np.round(chi2ndf,2):.2f}$"""
             ax.set_xlabel("$y-y_\\text{wire,ly=3}$ [mm]")
         ax.set_ylabel("$z-z_\\text{wire,ly=3}$ [mm]")
         ax.set_ylim(np.amin(z_range),np.amax(z_range))
-        ax.set_title(f"SL {sl} ({params._dt_chamber["sls"][sl]["orient"]}), Pattern {pat_type}, Laterality {[int(l) for l in laterality[::-1]]}")
+        ax.set_title(f"SL {sl} ({params._dt_chamber["sls"][sl]["orient"]}), Pattern {pat_type}, Laterality {[int(l) for l in laterality]}")
         fig.tight_layout()
         fig.show()
 
