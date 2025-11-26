@@ -102,10 +102,10 @@ def calculate_hist(data, key, *, bin_centers=None, bin_edges=None, silent=False)
 # arguments:
 # hist: histogram entries (bin heights)
 # centers: centers of histograms
-@mpl.rc_context({'font.family': 'sans-serif', 'font.size': 12}) # 'font.sans-serif': 'Arial'
-def plot_1hist(hist, centers, *, vmin=None, vmax=None, scale="norm", bin_labels=True, show=True, store=False, xlabel="", ylabel="", rel_spacing=0, round_digits=0, silent=False, title=None):
+@mpl.rc_context({'font.family': 'sans-serif', 'font.size': 20}) # 'font.sans-serif': 'Arial'
+def plot_1hist(hist, centers, *, vmin=None, vmax=None, scale="norm", bin_labels=True, show=True, store=False, xlabel="", ylabel="", rel_spacing=0, round_digits=0, silent=False, title=None, figsize=(12,8)):
     if not silent: print(f"Plotting one histogram...")
-    fig, ax = plt.subplots(1, 1, figsize=(12,8))
+    fig, ax = plt.subplots(1, 1, figsize=figsize)
     # plot hist
     barwidth = np.mean(np.diff(centers))*(1-rel_spacing) # relative spacing between bins
     ax.bar(centers, hist, width=barwidth, align="center")

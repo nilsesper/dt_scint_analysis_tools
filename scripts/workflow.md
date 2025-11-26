@@ -42,7 +42,7 @@ python scripts/dt/dt_hits_timing_correction.py --dt_hits_file thesis_data_files/
 For data can apply testpulse timing correction file.
 Do not write argument if no correction is asked (e.g. for simulation).
 
-python scripts/dt/dt_hits_to_sl_patterns.py --dt_hits_file data_files/dt_cosm_7_hits.pcl --sl_patterns_file data_files/dt_cosm_7_patterns.pcl --dt_tp_corrections_file data_files/dt_tp_corrections_6.pcl
+python scripts/dt/dt_hits_to_sl_patterns.py --dt_hits_file data_files/dt_cosm_7_hits.pcl --sl_patterns_file data_files/dt_cosm_7_patterns.pcl
 
 For simulation (to match only hits of similar muon_id):
 python scripts/dt/dt_hits_to_sl_patterns.py --dt_hits_file data_files/sim_muons_dt_hits.pcl --sl_patterns_file data_files/sim_muons_sl_fits_realmuons_noparambounds.pcl --simulation_only_muon_patterns

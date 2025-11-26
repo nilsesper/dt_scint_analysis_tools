@@ -133,7 +133,7 @@ def main():
     #### time difference between sl fits separately for each sl
     for sl in range(1,4):
         additional_data = {}
-        print("Plotting time differences between sl fit groups for sl = {sl} only...")
+        print(f"Plotting time differences between sl fit groups for sl = {sl} only...")
         k = f"delta_tgroup_sl{sl}"
         sl_fit_groups_cut = data_utils.cut_data(data=sl_fit_groups, conditions=[("sl","==",sl)])
         n_sl_fit_groups_cut = data_utils.length(sl_fit_groups_cut)

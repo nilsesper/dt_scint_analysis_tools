@@ -163,7 +163,7 @@ def main():
                 print(other_data_dict)
 
                 # plot
-                b = np.linspace(0,1000,1000) #"auto500"
+                b = np.linspace(0,5000,1000) #"auto500"
                 hists, edges, centers, underflow, overflow = hist_utils.calculate_hist(data=other_data_dict, key=k, bin_centers=b, silent=True) # bin_edges
                 print(f"key \"{k}\": entries={data_utils.length(raw_scint_hits_cut)} underflow={underflow}, overflow={overflow}")
                 round_digits = 0 if k in ["ts"] else 2
@@ -206,15 +206,15 @@ def main():
     #"""
 
     #"""
-    #### time difference between scint hits
+    #### time difference between raw scint hits
     additional_data = {}
-    print("Plotting time differences between scint hits...")
+    print("Plotting time differences between raw scint hits...")
     k = f"delta_ts"
     additional_data[k] = np.zeros(n_raw_scint_hits)
     for i in range(1,n_raw_scint_hits):
         additional_data[k][i] = int(raw_scint_hits[f"ts"][i]) - int(raw_scint_hits["ts"][i-1]) 
     # plot
-    hist_bins = np.linspace(0,1e3,500) #"auto500" 
+    hist_bins = np.linspace(0,1e3,int(1e3)) #"auto500" 
     hists, edges, centers, underflow, overflow = hist_utils.calculate_hist(data=additional_data, key=k, bin_centers=hist_bins, silent=True)
     print(f"key \"{k}\": entries={data_utils.length(additional_data)} underflow={underflow}, overflow={overflow}")
     xlabel = f"delta_ts [TU]"
@@ -228,24 +228,33 @@ def main():
     #"""
 
     #"""
-    #### time difference between scint hits of different ro_chs
-    additional_data = {}
-    print("Plotting time differences between scint hits...")
-    k = f"delta_ts_hits_1-hits_2"
-    hits_1 = data_utils.cut_data(data=raw_scint_hits, conditions=[("ly","==",0), ("st","==",7), ("sipm","==",0)], silent=True)
-    hits_2 = data_utils.cut_data(data=raw_scint_hits, conditions=[("ly","==",0), ("st","==",15), ("sipm","==",0)], silent=True)
-    n_delta_lys_hits = np.amin([data_utils.length(hits_1), data_utils.length(hits_2)])
-    additional_data[k] = np.zeros(n_delta_lys_hits)
-    for i in range(1,n_delta_lys_hits):
-        additional_data[k][i] = np.clip(a=int(hits_1[f"ts"][i]) - int(hits_2["ts"][i]), a_min=None, a_max=None )
+    #### time difference between hits of same channel
+    print("Plotting time differences between hits of same SiPM...")
+    k = f"delta_ts_same_sipm"
+    ch_list = []
+    # time difference between hits
+    i_offset = 0
+    for ly in range(0,2):
+        for st in range(0,16):
+            for sipm in range(0,2):
+                print(f"  calculating for ly={ly}, st={st}, sipm={sipm}...")
+                raw_scint_hits_cut = data_utils.cut_data(data=raw_scint_hits, conditions=[("ly","==",ly), ("st","==",st), ("sipm","==",sipm)], silent=True)
+                raw_scint_hits_cut = timestamp_utils.sort_by_timestamp(hits=raw_scint_hits_cut, silent=True)
+                n_raw_scint_hits_cut = data_utils.length(raw_scint_hits_cut)
+                sub_list = {k: []}
+                for i in range(1,n_raw_scint_hits_cut):
+                    sub_list[k].append( int(raw_scint_hits_cut[f"ts"][i]) - int(raw_scint_hits_cut["ts"][i-1]) )
+                sub_list[k] = np.array(sub_list[k])
+                ch_list.append(sub_list)
+    additional_data = data_utils.merge_dataset(split_data=ch_list, silent=True)
     # plot
-    hist_bins = np.linspace(-1e4,1e4,500) #"auto500" #np.linspace(-1e3,1e3,500) #"auto500" 
+    hist_bins = "auto500" #np.linspace(0, 1e4, 1000) #"auto200"
     hists, edges, centers, underflow, overflow = hist_utils.calculate_hist(data=additional_data, key=k, bin_centers=hist_bins, silent=True)
     print(f"key \"{k}\": entries={data_utils.length(additional_data)} underflow={underflow}, overflow={overflow}")
     xlabel = f"{k} [TU]"
     hist_utils.plot_1hist(hist=hists, centers=centers, xlabel=xlabel, round_digits=round_digits, bin_labels=False, silent=True, store=plotname, show=show_plots, title=f"", scale="log") # scale="log"
     # plot
-    hist_bins = "auto500" #np.linspace(0,1e6,500) #"auto500" 
+    hist_bins = np.linspace(0, 1e3,int(1e3))
     hists, edges, centers, underflow, overflow = hist_utils.calculate_hist(data=additional_data, key=k, bin_centers=hist_bins, silent=True)
     print(f"key \"{k}\": entries={data_utils.length(additional_data)} underflow={underflow}, overflow={overflow}")
     xlabel = f"{k} [TU]"

@@ -448,8 +448,10 @@ def reco_hits_from_raw_hits(hits, *, silent=False):
                 for i in range(data_utils.length(st_hits)):
                     sipm = st_hits["sipm"][i]
                     ts = st_hits["ts"][i]
+                    err_ts = st_hits["err_ts"][i]
                     ### combine ts time (averaging)
-                    ts_reco = np.uint64(ts)
+                    ts_reco = ts
+                    err_ts_reco = err_ts
                     (oc_reco, bx_reco, tdc_reco) = timestamp_utils.remap_htg_timestamp(ts_reco)
                     ### calculate ts difference between hits (absolute value)
                     sipm_delta_ts = np.uint64(0)
@@ -464,6 +466,7 @@ def reco_hits_from_raw_hits(hits, *, silent=False):
                         "ly": ly,
                         "st": st,
                         "ts": ts_reco,
+                        "err_ts": err_ts_reco,
                         "ch_id": scint_ch_id,
                         "muon_id": st_hits["muon_id"][i],
                         "ro_ch": st_hits["ro_ch"][i],
@@ -499,7 +502,9 @@ def reco_hits_from_raw_hits(hits, *, silent=False):
                     #--- build scintillator hit from this object
                     ### combine ts time (averaging)
                     ts0, ts1 = last_hits[0]["ts"], last_hits[1]["ts"]
-                    ts_reco = np.uint64(np.round(np.mean([ts0, ts1]), 0))
+                    err_ts0, err_ts1 = last_hits[0]["err_ts"], last_hits[1]["err_ts"]
+                    ts_reco = np.mean([ts0, ts1])
+                    err_ts_reco = np.sqrt(err_ts0**2 + err_ts1**2)
                     (oc_reco, bx_reco, tdc_reco) = timestamp_utils.remap_htg_timestamp(ts_reco)
                     ### calculate ts difference between hits (absolute value)
                     sipm_delta_ts = np.abs((ts0) - (ts1))
@@ -524,6 +529,7 @@ def reco_hits_from_raw_hits(hits, *, silent=False):
                         "ly": ly,
                         "st": st,
                         "ts": ts_reco,
+                        "err_ts": err_ts_reco,
                         "ch_id": scint_ch_id,
                         "muon_id": muon_id,
                         "ro_ch": last_hits[0]["ro_ch"],
@@ -603,7 +609,7 @@ def analyze_testpulses(hits, *, rel_thres=0.2, plot_hists=False, silent=False):
                         if plot_hists:
                             xlabel = params._key_symbols["ts_orbit"]
                             xlabel += " ["+params._key_units["ts_orbit"]+"]" if (params._key_units["ts_orbit"] != "") else ""
-                            hist_utils.plot_1hist(hist=hists, centers=centers, xlabel=xlabel, round_digits=0, bin_labels=False, silent=True, show=True, title=f"Testpulse timing (Ly {ly}, St {st}, SiPM {sipm})")
+                            hist_utils.plot_1hist(hist=hists, centers=centers, xlabel=xlabel, round_digits=0, bin_labels=False, silent=True, show=True, title=f"Testpulse timing histogram", figsize=(12,5)) #  (Ly {ly}, St {st}, SiPM {sipm})
                         # select first peak of histogram (with lowest ts), the higher ts hits are due to ringing of the testpulse circuit
                         peak_indices = hist_utils.find_peak_indices(hist=hists, rel_thres=rel_thres) # 20% of max amplitude for peak
                         if len(peak_indices) > 0:

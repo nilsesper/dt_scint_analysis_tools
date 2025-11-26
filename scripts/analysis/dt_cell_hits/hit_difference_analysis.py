@@ -58,9 +58,6 @@ def main():
     fig.tight_layout()
     fig.show()
 
-    input("Press enter to exit.")
-    exit()
-
     ### remove exponential "poisson" background
     fit_index_range = np.arange(int(1000/0.78),len(bins)-1)
     fit_bins = bins[fit_index_range]
@@ -135,9 +132,6 @@ $\\chi^2 / N_{{df}} = {chi2:.1f}\\; / \\;{ndf:.0f} ={np.round(chi2ndf,1):.1f}$""
     ax.legend()
     fig.tight_layout()
     fig.show()
-
-    input("Press enter to exit.")
-    exit()
 
     ### fit parabola photopeak to determine position
     fit_index_range = np.arange(int(400/0.78), int(425/0.78))

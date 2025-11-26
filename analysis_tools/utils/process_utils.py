@@ -22,7 +22,7 @@ import analysis_tools.params.derived_params as derived_params
 # give function to be executed and (constant) keyword arguments
 # pass data (to be split) and data key explicitly
 # mute=True allows suppression of function output of multiprocesses
-def multiprocess_data(n_processes, n_batches, function, data_key, data, *, kwargs={}, silent=False, mute=False): # kwargs are all other keys passed to function, data_key is implicitly added
+def multiprocess_data(n_processes, n_batches, function, data_key, data, *, kwargs={}, silent=False, mute=False, give_idx_offset=False): # kwargs are all other keys passed to function, data_key is implicitly added
     # calculate no of parts depending on data length and batch size
     any_key = list(data.keys())[0]
     n_data = len(data[any_key])
@@ -37,8 +37,13 @@ def multiprocess_data(n_processes, n_batches, function, data_key, data, *, kwarg
     #    function(**parsed_kwargs)
     # prepare kwargs for all parts
     kwarg_list = []
+    idx_offset = 0
     for part in range(n_parts):
-        kwarg_list.append(kwargs | {data_key: split_data[part]} | {"silent": mute})
+        cur_kwargs = kwargs | {data_key: split_data[part]} | {"silent": mute}
+        if give_idx_offset:
+             cur_kwargs |= {"idx_offset": idx_offset}
+        kwarg_list.append(cur_kwargs)
+        idx_offset += data_utils.length(split_data[part])
     # execute function in multiprocessing pool
     results = [None for i in range(n_parts)]
     with multiprocessing.Pool(processes=n_processes) as pool, tqdm(total=n_parts) as pbar:

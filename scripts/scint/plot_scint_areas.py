@@ -190,7 +190,7 @@ def main():
     for i in range(1,n_scint_areas):
         additional_data[k][i] = int(scint_areas[f"ts"][i]) - int(scint_areas["ts"][i-1]) 
     # plot
-    hist_bins = np.linspace(0,1e3,500) #"auto500" 
+    hist_bins = np.linspace(0,1e3,int(1e3)) #"auto500" 
     hists, edges, centers, underflow, overflow = hist_utils.calculate_hist(data=additional_data, key=k, bin_centers=hist_bins, silent=True)
     print(f"key \"{k}\": entries={data_utils.length(additional_data)} underflow={underflow}, overflow={overflow}")
     xlabel = f"delta_ts [TU]"
@@ -206,7 +206,7 @@ def main():
     #"""
     #### time difference between hits of same channel
     print("Plotting time differences between hits of same pixel...")
-    k = f"delta_ts_same_st"
+    k = f"delta_ts_same_pixel"
     ch_list = []
     # time difference between hits
     i_offset = 0
@@ -220,16 +220,14 @@ def main():
         sub_list[k] = np.array(sub_list[k])
         ch_list.append(sub_list)
     additional_data = data_utils.merge_dataset(split_data=ch_list, silent=True)
-
     # plot
-
     hist_bins = "auto500" #np.linspace(0, 1e4, 1000) #"auto200"
     hists, edges, centers, underflow, overflow = hist_utils.calculate_hist(data=additional_data, key=k, bin_centers=hist_bins, silent=True)
     print(f"key \"{k}\": entries={data_utils.length(additional_data)} underflow={underflow}, overflow={overflow}")
     xlabel = f"{k} [TU]"
     hist_utils.plot_1hist(hist=hists, centers=centers, xlabel=xlabel, round_digits=round_digits, bin_labels=False, silent=True, store=plotname, show=show_plots, title=f"", scale="log") # scale="log"
-
-    hist_bins = np.linspace(0, 5e3, 500)
+    #
+    hist_bins = np.linspace(0, 1e3,int(1e3))
     hists, edges, centers, underflow, overflow = hist_utils.calculate_hist(data=additional_data, key=k, bin_centers=hist_bins, silent=True)
     print(f"key \"{k}\": entries={data_utils.length(additional_data)} underflow={underflow}, overflow={overflow}")
     xlabel = f"{k} [TU]"

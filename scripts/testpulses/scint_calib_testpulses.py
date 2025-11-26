@@ -30,7 +30,7 @@ calib_path = REPO_PATH+"/calibration_files"
 # ---------------------------------------------------------------
 
 # main function
-@mpl.rc_context({'font.family': 'sans-serif', 'font.size': 12}) #'font.sans-serif': 'Arial',
+@mpl.rc_context({'font.family': 'sans-serif', 'font.size': 20}) #'font.sans-serif': 'Arial',
 def main():
 
     ### constants
@@ -134,22 +134,23 @@ def main():
                     tp_ts_mean.append(tp_timing_remap[ro_ch][ch]["tp_ts_mean"])
                     tp_ts_err.append(tp_timing_remap[ro_ch][ch]["tp_ts_err"])
                     bank_ch_list_plot.append(ch)
-            ax.errorbar(x=np.array(bank_ch_list_plot)-0.1, y=tp_ts_mean, yerr=tp_ts_err, color="tab:blue", linestyle="", marker=derived_params.marker_wheel(i), markersize=5, label=f"Bank {bank} before calibration")
+            ax.errorbar(x=np.array(bank_ch_list_plot)-0.1, y=tp_ts_mean, yerr=tp_ts_err, color="tab:blue", linestyle="", marker=derived_params.marker_wheel(i), markersize=5, label=f"Initial measurement (I/O bank {bank})")
+        for i, bank in enumerate(derived_params.fpga_banks):
             if args.validationfile:
                 for ch in bank_ch_list:
                     if tp_validation_timing_remap[ro_ch][ch]["tp_ts_mean"] > 0:
                         tp_ts_validation_mean.append(tp_validation_timing_remap[ro_ch][ch]["tp_ts_mean"])
                         tp_ts_validation_err.append(tp_validation_timing_remap[ro_ch][ch]["tp_ts_err"])
                         bank_ch_list_validation_plot.append(ch)
-                ax.errorbar(x=np.array(bank_ch_list_validation_plot)+0.1, y=tp_ts_validation_mean, yerr=tp_ts_validation_err, color="tab:red", linestyle="", marker=derived_params.marker_wheel(i), markersize=5, label=f"Bank {bank} after calibration")
-            ax.set_xlabel(f"Input channel")
-            ylabel = params._key_symbols["ts_orbit"]
-            ylabel += " ["+params._key_units["ts_orbit"]+"]" if (params._key_units["ts_orbit"] != "") else ""
-            ax.set_ylabel(ylabel)
-            ax.set_title(f"Testpulse timing distribution ({params._ro_ch_labels[ro_ch]})")
-            ax.legend()
-            fig.tight_layout()
-            fig.show()
+                ax.errorbar(x=np.array(bank_ch_list_validation_plot)+0.1, y=tp_ts_validation_mean, yerr=tp_ts_validation_err, color="tab:red", linestyle="", marker=derived_params.marker_wheel(i), markersize=5, label=f"After calibration (I/O bank {bank})")
+        ax.set_xlabel(f"Input channel")
+        ylabel = "$\\left\\langle T_{orbit} \\right\\rangle$"
+        ylabel += " ["+params._key_units["ts_orbit"]+"]" if (params._key_units["ts_orbit"] != "") else ""
+        ax.set_ylabel(ylabel)
+        ax.set_title(f"Testpulse timing calibration: Result") #({params._ro_ch_labels[ro_ch]})
+        ax.legend(loc="center")
+        fig.tight_layout()
+        fig.show()
 
     ### find new timing target for all channels
     if args.create_calib:

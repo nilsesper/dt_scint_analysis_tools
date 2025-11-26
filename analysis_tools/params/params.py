@@ -460,7 +460,7 @@ _scint_area_clear_interval_up = 0 #200 # in ts units, isolation wrt next hit
 
 ## --------- when simulating muon hits
 # global time delay for scintillator hits by muons (scint ts = muon ts + _scintillator_delay)
-_scintillator_hit_delay = 10 # timestamp units
+_scintillator_hit_delay = 0 # timestamp units
 # dt single cell hit efficiency
 _dt_cell_efficiency = 98.65 * 1e-2 # from cms 2024 performance
 
@@ -1405,10 +1405,10 @@ _mezzanine_2_fe_mapping_no_coinc = { # one sipm of all strips
 # if both sipms are masked, do not put it here since the strip is dead anyway
 _scint_masked_sipms = { # {ly: {st: sipm}} which is masked, use only other sipm
     0: {
-        #st: 0 for st in range(16)
+        st: 0 for st in range(16)
     },
     1: {
-        #st: 1 for st in range(16)
+        st: 1 for st in range(16)
     },
 }
 

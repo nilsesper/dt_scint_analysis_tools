@@ -12,6 +12,7 @@ import analysis_tools.utils.data_utils as data_utils
 import analysis_tools.utils.timestamp_utils as timestamp_utils
 import analysis_tools.utils.muon_utils as muon_utils
 import analysis_tools.utils.hist_utils as hist_utils
+import analysis_tools.utils.combination_utils as combination_utils
 
 import analysis_tools.params.params as params
 import analysis_tools.params.derived_params as derived_params
@@ -685,6 +686,53 @@ def fit_sl_patterns_meantimer(patterns, *, silent=False, verbose=False):
     # cut away invalid meantimer fits (with laterality = 99)
     sl_fits = data_utils.cut_data(data=sl_fits, conditions=[("laterality","!=",99)], silent=silent)
     return sl_fits
+
+
+### group sl fits of one sl together in time
+def group_sl_fits_of_one_sl(sl_fits, idx_offset=0, *, silent=False):
+    # measurement duration
+    duration = 0.78e-9 * (np.amax(sl_fits["ts0"]) - np.amin(sl_fits["ts0"])) # secs
+    if not silent: print(f"measurement duration = {duration} s")
+    # group fits
+    sl_fits_sl = {} # sl fits of one sl
+    idx_grouped = {} # {sl: [group idx: [idx list of patterns in pattern list which belong to group]]}
+    ts_group = {} # {sl: [group idx: timestamp of group (mean of group member timestamps)]}
+    n_groups = {}
+    group_rate = {}
+    for sl in params._dt_chamber["sls"].keys():
+        if not silent: print(f"grouping sl fits of sl = {sl}...")
+        sl_fits_sl[sl] = data_utils.cut_data(data=sl_fits, conditions=[("sl","==",sl)], silent=True)
+        idx_grouped[sl], ts_group[sl] = combination_utils.time_grouping_indices_2(data=sl_fits_sl[sl], ts_tolerance=params._sl_fit_group_ts_tolerance, data_ts_key="t0")
+        n_groups[sl] = len(idx_grouped[sl])
+        group_rate[sl] = n_groups[sl] / duration
+    n_groups_sum = np.sum([n_groups[sl] for sl in params._dt_chamber["sls"].keys()])
+    if not silent: print(f"n_fit_groups per sl = {n_groups}")
+    if not silent: print(f"fit group rate per sl = {group_rate} Hz")
+    # sl_fit_groups = { "sl": superlayer, "tgroup": mean t0 of fits in group, "idcs": [indices of group member sl_fits], "n_fits": no of sl fits in group }
+    ### translate idcs of sl_fits_sl (only one sl) back to idcs of sl_fits (all sls together)
+    sl_fit_groups = {
+        "sl": np.zeros(n_groups_sum),
+        "tgroup": [0 for i in range(n_groups_sum)],
+        "idcs": [[] for i in range(n_groups_sum)],
+        "n_fits": [0 for i in range(n_groups_sum)],
+    }
+    # get original indices
+    for sl in params._dt_chamber["sls"].keys():
+        if not silent: print(f"translating back indices of groups in sl = {sl}...")
+        idx_shift = int( np.sum([n_groups[sl_i] for sl_i in params._dt_chamber["sls"].keys() if sl_i < sl]) )
+        for i in range(n_groups[sl]):
+            j = int( i + idx_shift )
+            glob_idcs = []
+            for loc_idx in idx_grouped[sl][i]:
+                glob_idx = np.where((sl_fits["t0"] == sl_fits_sl[sl]["t0"][loc_idx]) & (sl_fits["sl"] == sl))[0][0]
+                glob_idcs.append(glob_idx + idx_offset)
+            sl_fit_groups["idcs"][j] = glob_idcs
+            sl_fit_groups["tgroup"][j] = ts_group[sl][i]
+            sl_fit_groups["sl"][j] = sl
+            sl_fit_groups["n_fits"][j] = len(glob_idcs)
+    # sort sl_fit_groups by tgroup
+    sl_fit_groups = data_utils.sort_by_key(data=sl_fit_groups, sort_key="tgroup", silent=silent)
+    return sl_fit_groups
 
 ### combine sl fit groups for full chamber, generate muon object as output
 def reco_muons_from_sl_fit_groups(fits, fit_groups, *, silent=False, verbose=False):

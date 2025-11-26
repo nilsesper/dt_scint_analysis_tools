@@ -130,7 +130,12 @@ def merge_dataset(split_data, *, silent=False):
     any_key = list(split_data[0].keys())[0]
     n_data_parts = [len(split_data[i][any_key]) for i in range(n_parts)] # data entries of each part
     n_data = np.sum(n_data_parts) # total no of data entries
-    merged_data = {k: np.full(n_data, 0, dtype=v.dtype) for k,v in split_data[0].items()}
+    merged_data = {}
+    for k,v in split_data[0].items():
+        if type(v) == type([]):
+            merged_data[k] = [[] for i in range(n_data)]
+        else:
+            merged_data[k] = np.full(n_data, 0, dtype=v.dtype) 
     offset = 0
     if not silent: print(f"Merging dataset from {n_parts} parts into one...")
     for part in tqdm(range(n_parts), disable=silent):
