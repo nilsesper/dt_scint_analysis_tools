@@ -445,9 +445,12 @@ _muon_reco_z0 = 144 #170 #_scintillator["pos"][2] # in mm
 
 ### --- scint
 
+_raw_scint_hits_grouping_ts_tolerance = 100 # max temporal distance of raw scint groups, in tu
+
 # acceptance interval for scintillator hits (2 sipm coincidence of strips) -> muon areas (2 strip coincidence) grouping
 _scintillator_ts_acceptance_interval = 32 #32 #32 #1024 #32 #625 #64 #1250 #64 #32 # max temporal distance of ts values of scintillator that should be grouped together, in ts units
 # 1280 = 1 us , 64 = 50 ns , 500 ~ 391 ns , 16 = 12.5 ns , 32 = 25 ns
+
 # acceptance interval for raw scintillator hits (single sipm hits) -> scintillator hits (2 sipm coincidence of strips) grouping
 _raw_scintillator_ts_acceptance_interval = _scintillator_ts_acceptance_interval # in ts units
 # apply dead time for all channels individually (if value > 0)
@@ -736,6 +739,8 @@ _key_symbols = {
     "err_z0": "$\\sigma_{z,0}$",
     "err_phi": "$\\sigma_{\\phi}$",
     "err_theta": "$\\sigma_{\\theta}$",
+    "n_hits": "$N_\\text{hits}$",
+    "n_hits_nodupl": "$N_\\text{hit channels}$",
 }
 _key_units = {
     "x0": "mm",
@@ -833,6 +838,8 @@ _key_units = {
     "err_ts": "TU",
     "err_phi": "rad",
     "err_theta": "rad",
+    "n_hits": "",
+    "n_hits_nodupl": "",
 }
 
 ###############################
@@ -1405,10 +1412,10 @@ _mezzanine_2_fe_mapping_no_coinc = { # one sipm of all strips
 # if both sipms are masked, do not put it here since the strip is dead anyway
 _scint_masked_sipms = { # {ly: {st: sipm}} which is masked, use only other sipm
     0: {
-        st: 0 for st in range(16)
+        #st: 0 for st in range(16)
     },
     1: {
-        st: 1 for st in range(16)
+        #st: 1 for st in range(16)
     },
 }
 

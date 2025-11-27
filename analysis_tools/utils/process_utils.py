@@ -22,7 +22,7 @@ import analysis_tools.params.derived_params as derived_params
 # give function to be executed and (constant) keyword arguments
 # pass data (to be split) and data key explicitly
 # mute=True allows suppression of function output of multiprocesses
-def multiprocess_data(n_processes, n_batches, function, data_key, data, *, kwargs={}, silent=False, mute=False, give_idx_offset=False): # kwargs are all other keys passed to function, data_key is implicitly added
+def multiprocess_data(n_processes, n_batches, function, data_key, data, *, kwargs={}, silent=False, mute=False, give_idx_offset=False, return_unmerged=False): # kwargs are all other keys passed to function, data_key is implicitly added
     # calculate no of parts depending on data length and batch size
     any_key = list(data.keys())[0]
     n_data = len(data[any_key])
@@ -53,9 +53,12 @@ def multiprocess_data(n_processes, n_batches, function, data_key, data, *, kwarg
                 results[part] = result
                 pbar.update()
                 pbar.refresh()
-    # merge results
-    merged_data = data_utils.merge_dataset(split_data=results, silent=silent)
-    return merged_data
+    if not return_unmerged:
+        # merge results if desired
+        merged_data = data_utils.merge_dataset(split_data=results, silent=silent)
+        return merged_data
+    else:
+        return results
 
 
 

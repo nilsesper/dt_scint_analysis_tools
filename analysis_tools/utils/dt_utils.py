@@ -712,9 +712,9 @@ def group_sl_fits_of_one_sl(sl_fits, idx_offset=0, *, silent=False):
     ### translate idcs of sl_fits_sl (only one sl) back to idcs of sl_fits (all sls together)
     sl_fit_groups = {
         "sl": np.zeros(n_groups_sum),
-        "tgroup": [0 for i in range(n_groups_sum)],
+        "tgroup": np.zeros(n_groups_sum),
         "idcs": [[] for i in range(n_groups_sum)],
-        "n_fits": [0 for i in range(n_groups_sum)],
+        "n_fits": np.zeros(n_groups_sum),
     }
     # get original indices
     for sl in params._dt_chamber["sls"].keys():

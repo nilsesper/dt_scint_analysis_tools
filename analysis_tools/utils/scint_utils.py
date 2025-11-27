@@ -6,11 +6,13 @@ import numpy as np
 import copy
 import os.path
 from tqdm import tqdm
+from itertools import combinations
 
 import analysis_tools.utils.data_utils as data_utils
 import analysis_tools.utils.timestamp_utils as timestamp_utils
 import analysis_tools.utils.muon_utils as muon_utils
 import analysis_tools.utils.hist_utils as hist_utils
+import analysis_tools.utils.combination_utils as combination_utils
 
 import analysis_tools.params.params as params
 import analysis_tools.params.derived_params as derived_params
@@ -262,9 +264,7 @@ def reco_muon_area_from_hits(hits, *, silent=False, verbose=False):
         for st0 in derived_params._scint_inverted_remap_table[0].keys():
             for st1 in derived_params._scint_inverted_remap_table[1].keys():
                 ### skip pixels which are not relevant
-                if ly == 1 and st != st1:
-                    continue
-                if ly == 0 and st != st0:
+                if not((ly == 1 and st == st1) or (ly == 0 and st == st0)):
                     continue
                 ### check time interval
                 if np.abs((last_hits[0][st0]["ts"]) - (last_hits[1][st1]["ts"])) > params._scintillator_ts_acceptance_interval: # if 2 hits not within time interval, continue
@@ -590,6 +590,141 @@ def reco_hits_from_raw_hits(hits, *, silent=False):
         print("sort data by timestamp...")
         scint_hits = timestamp_utils.sort_by_timestamp(hits=scint_hits)
     return scint_hits
+
+
+### group closely lying raw scint hits (to analyze crosstalk)
+# ts_tolerance = 
+def group_raw_scint_hits(hits, *, ts_tolerance=200, idx_offset=0, silent=False):
+    # group all hits by ts_tolerance
+    if not silent: print(f"grouping raw scint hits...")
+    idx_grouped, ts_group = combination_utils.time_grouping_indices_2(data=hits, ts_tolerance=ts_tolerance, data_ts_key="ts")
+    n_groups = len(idx_grouped)
+    # storage format of scint hit groups
+    raw_scint_groups = {
+        "tgroup": np.zeros(n_groups),
+        "idcs": [[] for i in range(n_groups)], # idx in raw_scint_hits object
+        "tuples": [[] for i in range(n_groups)], # hit tuples (ly,st,sipm)
+        "n_hits": np.zeros(n_groups), # no of hits in group
+        "tuples_nodupl": [[] for i in range(n_groups)], # hit tuples (ly,st,sipm) with removed double hits of same channel
+        "n_hits_nodupl": np.zeros(n_groups), # no of hits in group counting each channel only once also if there are multiple hits of same channel
+        "idcs_nodupl": [[] for i in range(n_groups)], # idx in raw_scint_hits object, earliest hit of channel
+    }
+    # fill content into data structure
+    if not silent: print(f"filling information in data structure...")
+    for i in tqdm(range(n_groups), disable=silent):
+        # extract group hits
+        initial_idcs = idx_grouped[i]
+        n_initial_idcs = len(initial_idcs)
+        hit_tuples = []
+        hit_tuples_nodupl = []
+        idcs = []
+        idcs_nodupl = []
+        for j in range(n_initial_idcs):
+            idx = initial_idcs[j]
+            glob_idx = idx + idx_offset
+            idcs.append(glob_idx)
+            hit_tuple = (hits["ly"][idx], hits["st"][idx], hits["sipm"][idx])
+            hit_tuples.append(hit_tuple)
+            if hit_tuple not in hit_tuples_nodupl:
+                hit_tuples_nodupl.append(hit_tuple)
+                idcs_nodupl.append(glob_idx)
+        raw_scint_groups["tgroup"][i] = ts_group[i]
+        raw_scint_groups["tuples"][i] = hit_tuples
+        raw_scint_groups["idcs"][i] = idcs
+        raw_scint_groups["n_hits"][i] = n_initial_idcs
+        # remove double entries
+        n_idcs_nodupl = len(hit_tuples_nodupl)
+        raw_scint_groups["tuples_nodupl"][i] = hit_tuples_nodupl
+        raw_scint_groups["n_hits_nodupl"][i] = n_idcs_nodupl
+        raw_scint_groups["idcs_nodupl"][i] = idcs_nodupl
+    return raw_scint_groups
+
+### raw scint groups to strips (in both layers)
+# groups: raw scint hit groups
+# hits: raw scint hits with indices matching to those given in raw scint group data object
+# isolation_criterion: if True only accept strip coincidence if no other coincidence in same layer is found, if False do not care
+# coincidence window given by: params._scintillator_ts_acceptance_interval
+def raw_scint_groups_to_strips(groups, hits, *, silent=False, isolation_criterion=True):
+    n_groups = data_utils.length(groups)
+    n_hits = data_utils.length(hits)
+    strip_hits = []
+    # strip coincidence
+    if not silent: print(f"applying strip coincidence...")
+    ### loop twice: looking for coincidences in ly0 and ly1
+    for ref_ly in derived_params._scint_inverted_remap_table.keys():
+        if not silent: print(f"for ly {ref_ly}:")
+        # check all groups for possible coincidence of sipm0 and sipm1
+        for i in tqdm(range(n_groups), disable=silent):
+            # list of idcs of hits of each strip
+            cur_st_hits = [[] for st in derived_params._scint_inverted_remap_table[ref_ly].keys()]
+            # use nodupl idcs, since do not want two hits of same channel...
+            idcs = groups["idcs_nodupl"][i]
+            n_hits = 0 # no of hits in group of current layer ly=ref_ly
+            for idx in idcs:
+                ly, st = hits["ly"][idx], hits["st"][idx]
+                # only consider current layer (ref_ly)
+                if ly != ref_ly:
+                    continue
+                n_hits += 1
+                cur_st_hits[st].append(idx)
+            # check if there are strips with 2 hits
+            n_coinc = 0
+            for st in derived_params._scint_inverted_remap_table[ref_ly].keys():
+                if len(cur_st_hits[st]) < 2:
+                    continue
+                n_coinc += 1
+            if n_coinc == 0:
+                continue
+            if (n_hits > 2 or n_coinc > 1) and isolation_criterion == True: # ignore coincidence if more than one coincidence found in group and isolation criterion active
+                continue 
+            for st in derived_params._scint_inverted_remap_table[ref_ly].keys():
+                if len(cur_st_hits[st]) < 2:
+                    continue
+                idx0, idx1 = cur_st_hits[st][0], cur_st_hits[st][1]
+                ##### check ts coincindence window
+                ts0 = hits["ts"][idx0]
+                ts1 = hits["ts"][idx1]
+                if np.abs(ts0 - ts1) > params._scintillator_ts_acceptance_interval:
+                    continue
+                ###### if strip hit found: collect all info and store hit
+                # reco timestamp
+                ts_reco = np.mean([ ts0, ts1 ])
+                err_ts_reco = np.sqrt(hits["err_ts"][idx0]**2 + hits["err_ts"][idx1]**2)
+                (oc_reco, bx_reco, tdc_reco) = timestamp_utils.remap_htg_timestamp(ts_reco)
+                # calculate ts difference between hits (absolute value)
+                sipm_delta_ts = np.abs((ts0) - (ts1))
+                # extract from scint mapping table 
+                scint_ch_id = derived_params._scint_inverted_remap_table[ly][st]["ch_id"]
+                scint_ch = derived_params._scint_inverted_remap_table[ly][st]["ch"]
+                # store strip hit
+                strip_hits.append({
+                    "ly": ref_ly,
+                    "st": st,
+                    "ts": ts_reco,
+                    "err_ts": err_ts_reco,
+                    "ch_id": scint_ch_id,
+                    "oc": oc_reco,
+                    "bx": bx_reco,
+                    "tdc": tdc_reco,
+                    "sipm_delta_ts": sipm_delta_ts,
+                })
+    # store in proper format
+    n_scint_hits = len(strip_hits)
+    if not silent: print(f"Reconstructed {n_scint_hits} scintillator hits from {n_groups} raw scintillator hit groups.")
+    scint_keys_types = copy.deepcopy(params._scint_mapping_keys) | copy.deepcopy(params._scint_other_keys) | copy.deepcopy(params._htg_keys)
+    scint_hits = {k: np.full(n_scint_hits, 0, dtype=v) for k,v in scint_keys_types.items()}
+    if n_scint_hits > 0:
+        avail_keys = strip_hits[0].keys()
+    for i in range(n_scint_hits):
+        for k in avail_keys:
+            scint_hits[k][i] = strip_hits[i][k]
+    scint_hits = timestamp_utils.sort_by_timestamp(hits=scint_hits)
+    return scint_hits
+
+### raw scint groups to pixels (by combining 4 sipms of 2 layers and 2 strips)
+
+
+########### TESTPULSES
 
 ### extract timestamps of testpulse hits for full readout system
 def analyze_testpulses(hits, *, rel_thres=0.2, plot_hists=False, silent=False):

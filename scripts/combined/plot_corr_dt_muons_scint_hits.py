@@ -17,7 +17,7 @@ from analysis_tools.params import params, derived_params
 # ---------------------------------------------------------------
 
 # main function
-@mpl.rc_context({'font.family': 'sans-serif', 'font.size': 12}) #'font.sans-serif': 'Arial',
+@mpl.rc_context({'font.family': 'sans-serif', 'font.size': 20}) #'font.sans-serif': 'Arial',
 def main():
 
     ### argparse
@@ -68,16 +68,23 @@ def main():
 
     # some basic things
     delta_ts_corr = []
+    err_delta_ts_corr = []
     dt_idcs = []
     scint_idcs = []
     correlation_counter = 0
     for scint_idx, dt_idx in corr_list:
         correlation_counter += 1
         scint_ts = scint_hits["ts"][scint_idx]
+        err_scint_ts = scint_hits["err_ts"][scint_idx]
         dt_ts = dt_muons["ts"][dt_idx]
+        err_dt_ts = dt_muons["err_ts"][dt_idx]
         delta_ts_corr.append(np.float64(scint_ts) - np.float64(dt_ts))
+        err_delta_ts_corr.append(np.sqrt(err_scint_ts**2 + err_dt_ts**2))
         dt_idcs.append(dt_idx)
         scint_idcs.append(scint_idx)
+    # convert to ns
+    delta_ts_corr = np.array(delta_ts_corr) * 0.78
+    err_delta_ts_corr = np.array(err_delta_ts_corr) * 0.78
     
     dt_idcs = np.array(dt_idcs, dtype=int)
     scint_idcs = np.array(scint_idcs, dtype=int)
@@ -93,16 +100,42 @@ def main():
 
     ######## time difference between dt & scint correlated hits
 
-    additional_data = {}
-    print("Plotting time differences between dt muons...")
-    k = f"scint_area_ts - dt_muon_ts"
-    additional_data[k] = np.array(delta_ts_corr)
-    # plot
-    hist_bins = "step1" #np.linspace(0,1e6,500) #"auto500" 
-    hists, edges, centers, underflow, overflow = hist_utils.calculate_hist(data=additional_data, key=k, bin_centers=hist_bins, silent=True)
-    print(f"key \"{k}\": entries={data_utils.length(additional_data)} underflow={underflow}, overflow={overflow}")
-    xlabel = f"{k} [TU]"
-    hist_utils.plot_1hist(hist=hists, centers=centers, xlabel=xlabel, round_digits=0, bin_labels=False, silent=True, store=False, show=True, title=f"", scale="norm")
+    print("Plotting time differences between scint hit and dt muon...")
+
+    ## calculate histogram
+    hist_bins = "step1"
+    hist_data_obj = {"data": delta_ts_corr}
+    hist, edges, centers, underflow, overflow = hist_utils.calculate_hist(data=hist_data_obj, key="data", bin_centers=hist_bins, silent=True)
+    print(f"central hist: entries={data_utils.length(hist_data_obj)} underflow={underflow}, overflow={overflow}")
+    ## calculate errors
+    # left shift
+    hist_data_obj = {"data": delta_ts_corr-err_delta_ts_corr}
+    left_hist, _, _, underflow, overflow = hist_utils.calculate_hist(data=hist_data_obj, key="data", bin_centers=centers, silent=True)
+    print(f"left shifted hist: entries={data_utils.length(hist_data_obj)} underflow={underflow}, overflow={overflow}")
+    # right shift
+    hist_data_obj = {"data": delta_ts_corr+err_delta_ts_corr}
+    right_hist, _, _, underflow, overflow = hist_utils.calculate_hist(data=hist_data_obj, key="data", bin_centers=centers, silent=True)
+    print(f"right shifted hist: entries={data_utils.length(hist_data_obj)} underflow={underflow}, overflow={overflow}")
+    # mean shift
+    err_hist_shift = (np.abs(right_hist-hist)+np.abs(left_hist-hist))/2
+    # poisson (clip to >= 1)
+    err_hist_poisson = np.clip(a=np.sqrt(hist), a_min=1, a_max=None)
+    # combine errors
+    err_hist = np.sqrt(err_hist_poisson**2 + err_hist_shift**2)
+
+    ## plot
+    fig, ax = plt.subplots(1, 1, figsize=(12,8))
+    # plot hist and errorbar
+    barwidth = np.mean(np.diff(centers))
+    ax.bar(centers, hist, width=barwidth, align="center", facecolor="tab:blue")
+    ax.bar(centers, bottom=hist-err_hist, height=2*err_hist, width=barwidth, align="center", hatch="xxx", fill=False, edgecolor="0.2", linestyle="")
+    ax.set_ylim(bottom=0, top=np.amax(hist+err_hist)*1.1)
+    ax.set_xlabel("$T_\\text{0,scint}-T_\\text{0,DT}$ [ns]")
+    fig.tight_layout()
+    fig.show()
+
+
+
 
     #### rates
     duration = 0.78e-9 * (np.amax(dt_muons["ts"]) - np.amin(dt_muons["ts"])) # secs
@@ -184,6 +217,8 @@ def main():
     dt_corr_muons_scint = muon_utils.change_muon_base_point(muons=dt_corr_muons, z_new=derived_params.scint_z_center)
 
     pos_corr_muons_hist2d, _, _ = np.histogram2d(x=dt_corr_muons_scint["y0"], y=dt_corr_muons_scint["x0"], bins=(y_edges, x_edges))
+    # convert to rate
+    pos_corr_muons_hist2d /= duration
     # plot
     fig, ax = plt.subplots(1, 1, figsize=(12,8))
     im_obj = ax.imshow(X=pos_corr_muons_hist2d, origin="lower", extent=[min(x_bins), max(x_bins), min(y_bins), max(y_bins)])
@@ -203,7 +238,8 @@ def main():
     ax.set_ylabel("$y$ [mm]")
     ax.set_xlabel("$x$ [mm]")
     ax.legend()
-    plt.colorbar(im_obj)
+    cbar = fig.colorbar(im_obj, ax=ax, fraction=0.05)
+    cbar.set_label("Hz")
     fig.tight_layout()
     fig.show()
 
@@ -213,6 +249,8 @@ def main():
     dt_muons_scint = muon_utils.change_muon_base_point(muons=dt_muons, z_new=derived_params.scint_z_center)
 
     pos_dt_muons_hist2d, _, _ = np.histogram2d(x=dt_muons_scint["y0"], y=dt_muons_scint["x0"], bins=(y_edges, x_edges))
+    # convert to rate
+    pos_dt_muons_hist2d /= duration
     # plot
     fig, ax = plt.subplots(1, 1, figsize=(12,8))
     im_obj = ax.imshow(X=pos_dt_muons_hist2d, origin="lower", extent=[min(x_bins), max(x_bins), min(y_bins), max(y_bins)])
@@ -232,7 +270,8 @@ def main():
     ax.set_ylabel("$y$ [mm]")
     ax.set_xlabel("$x$ [mm]")
     ax.legend()
-    plt.colorbar(im_obj)
+    cbar = fig.colorbar(im_obj, ax=ax, fraction=0.05)
+    cbar.set_label("Hz")
     fig.tight_layout()
     fig.show()
 

@@ -48,8 +48,8 @@ def main():
     print(f"###### Reconstructing {n_scint_hits} scintillator hits to muon areas...")
     # reco muon areas from scintillator hits (+ assign pixel indices)
     scint_areas = scint_utils.reco_muon_area_from_hits(hits=scint_hits)
-    # remove crosstalk hits
-    scint_areas = scint_utils.remove_crosstalk_areas(areas=scint_areas)
+    ## remove crosstalk hits
+    #scint_areas = scint_utils.remove_crosstalk_areas(areas=scint_areas)
 
     print("scint_areas =",scint_areas)
 
