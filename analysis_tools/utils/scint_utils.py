@@ -289,7 +289,7 @@ def reco_muon_area_from_hits(hits, *, silent=False, verbose=False):
                 ycenter_reco = np.mean([ymin_reco, ymax_reco])
                 ### combine ts to muon arrival time (averaging)
                 ts_phi, ts_theta = last_hits[ly_phi][st_phi]["ts"], last_hits[ly_theta][st_theta]["ts"]
-                ts_reco = np.uint64(np.round(np.mean([ts_phi, ts_theta]), 0))
+                ts_reco = np.mean([ts_phi, ts_theta])
                 ### calculate ts difference between hits in both layers (absolute value)
                 ly_delta_ts = np.abs((ts_phi) - (ts_theta))
                 ### combine muon_id of hits (if there is one from simulation)
@@ -639,7 +639,7 @@ def group_raw_scint_hits(hits, *, ts_tolerance=200, idx_offset=0, silent=False):
         raw_scint_groups["idcs_nodupl"][i] = idcs_nodupl
     return raw_scint_groups
 
-### raw scint groups to strips (in both layers)
+### raw scint groups to strips / scint hits (in both layers)
 # groups: raw scint hit groups
 # hits: raw scint hits with indices matching to those given in raw scint group data object
 # isolation_criterion: if True only accept strip coincidence if no other coincidence in same layer is found, if False do not care
@@ -721,7 +721,108 @@ def raw_scint_groups_to_strips(groups, hits, *, silent=False, isolation_criterio
     scint_hits = timestamp_utils.sort_by_timestamp(hits=scint_hits)
     return scint_hits
 
-### raw scint groups to pixels (by combining 4 sipms of 2 layers and 2 strips)
+### raw scint groups to pixels / scint areas (by combining 4 sipms of 2 layers and 2 strips)
+# groups: raw scint hit groups
+# hits: raw scint hits with indices matching to those given in raw scint group data object
+# isolation_criterion: if True only accept strip coincidence if no other coincidence in same layer is found, if False do not care
+# coincidence window given by: params._scintillator_ts_acceptance_interval
+def raw_scint_groups_to_pixels(groups, hits, *, silent=False, isolation_criterion=True):
+    n_groups = data_utils.length(groups)
+    n_hits = data_utils.length(hits)
+    reco_muon_area_list = []
+    # extract sls in phi & theta orientation
+    phi_ly_idx = 0 if (params._scintillator["lys"][0]["orient"] == "phi") else 1
+    theta_ly_idx = 0 if (params._scintillator["lys"][0]["orient"] == "theta") else 1
+    # pixel coincidence
+    if not silent: print(f"applying pixel coincidence...")
+    # check all groups for possible coincidence of sipm0 and sipm1
+    for i in tqdm(range(n_groups), disable=silent):
+        # list of idcs of hits of each strip
+        cur_ly_st_hits = [[[] for st in derived_params._scint_inverted_remap_table[0].keys()] for ly in derived_params._scint_inverted_remap_table.keys()]
+        # use nodupl idcs, since do not want two hits of same channel...
+        idcs = groups["idcs_nodupl"][i]
+        n_hits = 0 # no of hits in group of current layer ly=ref_ly
+        for idx in idcs:
+            ly, st = hits["ly"][idx], hits["st"][idx]
+            n_hits += 1
+            cur_ly_st_hits[ly][st].append(idx)
+        # check if there are strips with 2 hits in both layers
+        n_coinc = [0, 0] # no. coinc in ly 0, 1
+        coinc_ly_st = [[] for ly in derived_params._scint_inverted_remap_table.keys()] # ly: (st, (idx0, idx1) of sipm hits of this st)
+        for ly in derived_params._scint_inverted_remap_table.keys():
+            for st in derived_params._scint_inverted_remap_table[ly].keys():
+                if len(cur_ly_st_hits[ly][st]) < 2:
+                    continue
+                coinc_ly_st[ly].append((st, cur_ly_st_hits[ly][st]))
+                n_coinc[ly] += 1
+        if n_coinc[0] == 0 or n_coinc[1] == 0:
+            continue
+        if (n_hits > 4 or n_coinc[0] > 1 or n_coinc[1] > 1) and isolation_criterion == True: # ignore coincidence if more than one coincidence found in group and isolation criterion active
+            continue
+        for j0 in range(len(coinc_ly_st[0])):
+            for j1 in range(len(coinc_ly_st[1])):
+                st0, (idx00, idx01) = coinc_ly_st[0][j0]
+                st1, (idx10, idx11) = coinc_ly_st[1][j1]
+                ##### check ts coincindence window
+                max_delta_ts = np.amax([
+                    np.abs(hits["ts"][idx00] - hits["ts"][idx01]),
+                    np.abs(hits["ts"][idx00] - hits["ts"][idx10]),
+                    np.abs(hits["ts"][idx00] - hits["ts"][idx11]),
+                    np.abs(hits["ts"][idx01] - hits["ts"][idx10]),
+                    np.abs(hits["ts"][idx01] - hits["ts"][idx11]),
+                    np.abs(hits["ts"][idx10] - hits["ts"][idx11]),
+                ])
+                if max_delta_ts > params._scintillator_ts_acceptance_interval:
+                    continue
+                ###### if pixel hit found: collect all info and store hit
+    ### muon area reco
+                pixel_index = derived_params._scint_pixel_mapping[(st0, st1)]
+                ly_phi = phi_ly_idx
+                st_phi = st0 if (ly_phi == 0) else st1
+                ly_theta = theta_ly_idx
+                st_theta = st0 if (ly_theta == 0) else st1
+                xmin_reco = derived_params._scintillator_strip_coordinates[ly_phi][st_phi][0][0]
+                xmax_reco = derived_params._scintillator_strip_coordinates[ly_phi][st_phi][0][1]
+                ymin_reco = derived_params._scintillator_strip_coordinates[ly_theta][st_theta][1][0]
+                ymax_reco = derived_params._scintillator_strip_coordinates[ly_theta][st_theta][1][1]
+                z0_reco = np.mean([derived_params._scintillator_strip_coordinates[ly_phi][st_phi][5], derived_params._scintillator_strip_coordinates[ly_theta][st_theta][5]])
+                #### ----      
+                xcenter_reco = np.mean([xmin_reco, xmax_reco])
+                ycenter_reco = np.mean([ymin_reco, ymax_reco])
+                ### combine ts to muon arrival time (averaging)
+                ts_reco = np.mean([hits["ts"][idx00], hits["ts"][idx01], hits["ts"][idx10], hits["ts"][idx11]])
+                ### calculate max ts difference between hits in both layers (absolute value)
+                ly_delta_ts = max_delta_ts
+                ### store reco obj
+                reco_muon_area_list.append({
+                    "xmin": xmin_reco, 
+                    "xmax": xmax_reco, 
+                    "ymin": ymin_reco, 
+                    "ymax": ymax_reco, 
+                    "z0": z0_reco, 
+                    "ts": ts_reco,
+                    "pixel": pixel_index, 
+                    "xcenter": xcenter_reco, 
+                    "ycenter": ycenter_reco, 
+                    "ly_delta_ts": ly_delta_ts,
+                    "st0": st0,
+                    "st1": st1,
+                })
+                ### remove the hits to not use them twice for multiple pixels
+                #last_hits[0][st0] = copy.deepcopy(dummy_scint_hit)
+                #last_hits[1][st1] = copy.deepcopy(dummy_scint_hit)
+    # store in proper format
+    n_reco_muon_areas = len(reco_muon_area_list)
+    if not silent: print(f"Reconstructed {n_reco_muon_areas} muon areas from {n_hits} scintillator hits.")
+    reco_muon_areas = {k: np.full(n_reco_muon_areas, 0, dtype=v) for k,v in params._muon_area_obj_keys.items()}
+    if n_reco_muon_areas > 0:
+        avail_keys = reco_muon_area_list[0].keys()
+    for i in range(n_reco_muon_areas):
+        for k in avail_keys:
+            reco_muon_areas[k][i] = reco_muon_area_list[i][k]
+    # sort by timestamp
+    reco_muon_areas = data_utils.sort_by_key(data=reco_muon_areas, sort_key="ts")
+    return reco_muon_areas
 
 
 ########### TESTPULSES
