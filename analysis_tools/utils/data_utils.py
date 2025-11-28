@@ -125,6 +125,7 @@ def split_dataset(data, n_parts, *, silent=False):
 ### merge split dataset into one
 # after parallel calculation
 # assume all data has same keys
+# split data = [ single datasets {} ]
 def merge_dataset(split_data, *, silent=False):
     n_parts = len(split_data)
     any_key = list(split_data[0].keys())[0]
@@ -144,7 +145,7 @@ def merge_dataset(split_data, *, silent=False):
                 merged_data[k][i+offset] = split_data[part][k][i]
         if n_data_parts[part] > 0:
             offset += i+1
-    return copy.deepcopy(merged_data)
+    return merged_data #copy.deepcopy(merged_data)
 
 ### restrict data to last X entries
 def restrict_to_last_entries(data, n_keep=1, *, silent=False):

@@ -15,6 +15,7 @@ import copy
 from datetime import datetime
 import json
 import argparse
+import matplotlib.patches as mpatches
 
 from analysis_tools.utils import dummy_gen, data_utils, dt_utils, scint_utils, timestamp_utils, geoplot_utils, muon_utils, math_utils, hist_utils, process_utils
 from analysis_tools.params import params, derived_params
@@ -54,11 +55,21 @@ def main():
         type     = str,
         help     = "validation dumpfile path (with recorded testpulses), if given create comparison plots to inputfile",
     )
+    parser.add_argument(
+        "--plot_ylim",
+        type     = str,
+        help     = "ymin,ymax for plots (optional)",
+    )
     # ---
     args = parser.parse_args()
     tp_dumpfile_name = args.inputfile
     if args.validationfile:
         tp_validationfile_name = args.validationfile
+
+    board_labels = {
+        27: "1",
+        25: "2",
+    }
 
     ### data import
     print(f"###### Importing dumpfile of testpulse run...")
@@ -125,7 +136,7 @@ def main():
     # plot timing as scatter
     # do not plot rejected/dead channels (which have tp_ts_mean = 0)
     for ro_ch in derived_params._raw_scint_ro_chs:
-        fig, ax = plt.subplots(1, 1, figsize=(12,8))
+        fig, ax = plt.subplots(1, 1, figsize=(8,8))
         for i, bank in enumerate(derived_params.fpga_banks):
             bank_ch_list = np.array(derived_params.mezzanine_input_bank_mapping[bank])
             bank_ch_list_plot, tp_ts_mean, tp_ts_err, bank_ch_list_validation_plot, tp_ts_validation_mean, tp_ts_validation_err = [], [], [], [], [], []
@@ -134,21 +145,32 @@ def main():
                     tp_ts_mean.append(tp_timing_remap[ro_ch][ch]["tp_ts_mean"])
                     tp_ts_err.append(tp_timing_remap[ro_ch][ch]["tp_ts_err"])
                     bank_ch_list_plot.append(ch)
-            ax.errorbar(x=np.array(bank_ch_list_plot)-0.1, y=tp_ts_mean, yerr=tp_ts_err, color="tab:blue", linestyle="", marker=derived_params.marker_wheel(i), markersize=5, label=f"Initial measurement (I/O bank {bank})")
+            ax.errorbar(x=np.array(bank_ch_list_plot)-0.05, y=tp_ts_mean, yerr=tp_ts_err, color="tab:blue", linestyle="", marker=derived_params.marker_wheel(i), markersize=5, label=f"Initial measurement (I/O bank {bank})")
         for i, bank in enumerate(derived_params.fpga_banks):
             if args.validationfile:
+                bank_ch_list = np.array(derived_params.mezzanine_input_bank_mapping[bank])
                 for ch in bank_ch_list:
                     if tp_validation_timing_remap[ro_ch][ch]["tp_ts_mean"] > 0:
                         tp_ts_validation_mean.append(tp_validation_timing_remap[ro_ch][ch]["tp_ts_mean"])
                         tp_ts_validation_err.append(tp_validation_timing_remap[ro_ch][ch]["tp_ts_err"])
                         bank_ch_list_validation_plot.append(ch)
-                ax.errorbar(x=np.array(bank_ch_list_validation_plot)+0.1, y=tp_ts_validation_mean, yerr=tp_ts_validation_err, color="tab:red", linestyle="", marker=derived_params.marker_wheel(i), markersize=5, label=f"After calibration (I/O bank {bank})")
+                ax.errorbar(x=np.array(bank_ch_list_validation_plot)+0.05, y=tp_ts_validation_mean, yerr=tp_ts_validation_err, color="tab:red", linestyle="", marker=derived_params.marker_wheel(i), markersize=5, label=f"After calibration (I/O bank {bank})")
         ax.set_xlabel(f"Input channel")
         ylabel = "$\\left\\langle T_{orbit} \\right\\rangle$"
         ylabel += " ["+params._key_units["ts_orbit"]+"]" if (params._key_units["ts_orbit"] != "") else ""
         ax.set_ylabel(ylabel)
-        ax.set_title(f"Testpulse timing calibration: Result") #({params._ro_ch_labels[ro_ch]})
-        ax.legend(loc="center")
+        ax.set_title(f"Testpulse timing (Board {board_labels[ro_ch]})")
+        if args.plot_ylim:
+            lims = args.plot_ylim.split(",")
+            ax.set_ylim(float(lims[0]), float(lims[1]))
+        #ax.legend(loc="center", prop={'size': 14})
+        color_label = ["Initial measurement", "After calibration"]
+        marker_label = [f"FPGA I/O bank {bank}" for bank in derived_params.fpga_banks]
+        colors = ["tab:blue", "tab:red"]
+        markers = [derived_params.marker_wheel(i) for i in range(len(derived_params.fpga_banks))]
+        color_sym = [mpatches.Patch(color=colors[i]) for i in range(len(colors))]
+        marker_sym = [plt.plot([], [], markers[i], markerfacecolor='w', markeredgecolor='k', markersize=5)[0] for i in range(len(markers))]
+        ax.legend(color_sym + marker_sym, color_label + marker_label, prop={'size': 16}, loc="center left")
         fig.tight_layout()
         fig.show()
 

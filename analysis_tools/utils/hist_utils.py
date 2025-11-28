@@ -175,3 +175,49 @@ def weighted_mean_peak_position(hist, centers, err_hist, err_centers, *, silent=
     return mean, err_mean
 
 
+###################################
+
+### calculate bin centers from bin edges
+def centers_from_edges(edges):
+    centers = np.array([(edges[i]+edges[i+1])/2 for i in range(len(edges)-1)])
+    return centers
+
+### calculate bin edges from bin centers
+def edges_from_centers(centers):
+    edges = np.zeros(len(centers)+1)
+    distance = np.mean(np.diff(centers))/2
+    for i in range(len(centers)):
+        edges[i] = centers[i]-distance
+    edges[len(centers)] = centers[-1]+distance
+    return edges
+
+### generate one histogram from given data
+# for given bin edges
+def calculate_histogram(data, edges):
+    # create edges w/ over/underflow
+    ou_step = 1
+    ou_clip = [np.amin(edges)-ou_step, np.amax(edges)+ou_step]
+    edges_with_ou = np.array(copy.deepcopy(edges))
+    edges_with_ou = np.insert(edges_with_ou, 0, ou_clip[0])
+    edges_with_ou = np.append(edges_with_ou, ou_clip[1])
+    data_ou_clip = np.clip(data, a_min=ou_clip[0], a_max=ou_clip[1])
+    hist_with_ou, edges_with_ou = np.histogram(data_ou_clip, bins=edges_with_ou)
+    underflow = hist_with_ou[0] # entries in underflow
+    overflow = hist_with_ou[-1] # entries in overflow
+    entries = np.sum(hist_with_ou[1:-1]) # entries in hist, so that: (entries + overflow+ + underflow) = len(data)
+    # calculate hists, bin centers & edges w/o over/underflow
+    hist = hist_with_ou[1:-1]
+    edges = edges_with_ou[1:-1]
+    centers = centers_from_edges(edges)
+    return hist, edges, centers, entries, underflow, overflow
+    
+
+
+
+
+
+
+
+
+
+

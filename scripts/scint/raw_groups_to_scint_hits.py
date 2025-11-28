@@ -56,9 +56,11 @@ def main():
     raw_scint_groups = data_utils.load_pickle(file=raw_scint_groups_file)
     raw_scint_hits = data_utils.load_pickle(file=raw_scint_hits_file)
 
+    print(f"raw_scint_hits = {raw_scint_hits}")
+
     ### coincidence to scint hits (sipm coincidence for scintillator strip hits)
     scint_hits = scint_utils.raw_scint_groups_to_strips(groups=raw_scint_groups, hits=raw_scint_hits, silent=False, isolation_criterion=isolation_criterion)
-        
+    
     ### sort sl_fit_groups by ts
     scint_hits = data_utils.sort_by_key(data=scint_hits, sort_key="ts")
 

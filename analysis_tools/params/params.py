@@ -397,6 +397,10 @@ _dt_max_drift_time_vd_min = (_dt_cell_width*1e-3/2) / (_drift_velocity_min*1e3) 
 # apply dead time for all channels individually (if value > 0)
 _dt_ts_individual_dead_time = 600 #1000 #600 #1250 #800 #0 # in ts units
 
+# additional uncertainty assiged to dt ts because of geometry (different path lengths for charges if not on height of wire)
+# assumed 5 ns = 6 tu uncertainty
+dt_hit_add_ts_unc = 6 # in tu
+
 ## --- dt hits -> sl patterns
 # timestamp window in which hits of sl must lie in order to be counted as pattern
 _t0_tolerance = 0 # tolerance of t0 beyond max drift time bound
@@ -457,9 +461,9 @@ _raw_scintillator_ts_acceptance_interval = _scintillator_ts_acceptance_interval 
 _raw_scintillator_ts_individual_dead_time = 0 #500 #100 #100 # 0, 64, 1250 # in ts units
 # dead time for scintillator strips
 _scintillator_ts_individual_dead_time = 0 #500 # in ts units
-# timestamp isolation of scint areas - to remove crosstalk hits
-_scint_area_clear_interval_down = 20 #200 # in ts units, isolation wrt last hit (extendable dead time)
-_scint_area_clear_interval_up = 0 #200 # in ts units, isolation wrt next hit
+## timestamp isolation of scint areas - to remove crosstalk hits
+#_scint_area_clear_interval_down = 20 #200 # in ts units, isolation wrt last hit (extendable dead time)
+#_scint_area_clear_interval_up = 0 #200 # in ts units, isolation wrt next hit
 
 ## --------- when simulating muon hits
 # global time delay for scintillator hits by muons (scint ts = muon ts + _scintillator_delay)
@@ -657,7 +661,7 @@ _key_symbols = {
     "ymax": "$y_\\text{max}$",
     "xcenter": "$x_\\text{center}$",
     "ycenter": "$y_\\text{center}$",
-    "ts": "$T_0$",
+    "ts": "$T$",
     "ts_muon": "$T$",
     "ts_area": "$T$",
     "t0": "$T_0$",

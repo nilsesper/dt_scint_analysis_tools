@@ -684,15 +684,17 @@ def raw_scint_groups_to_strips(groups, hits, *, silent=False, isolation_criterio
                 ##### check ts coincindence window
                 ts0 = hits["ts"][idx0]
                 ts1 = hits["ts"][idx1]
-                if np.abs(ts0 - ts1) > params._scintillator_ts_acceptance_interval:
+                delta_ts = np.abs(ts0 - ts1)
+                if delta_ts > params._scintillator_ts_acceptance_interval:
                     continue
                 ###### if strip hit found: collect all info and store hit
                 # reco timestamp
                 ts_reco = np.mean([ ts0, ts1 ])
+                #print(ts0, ts1, ts_reco, delta_ts)
                 err_ts_reco = np.sqrt(hits["err_ts"][idx0]**2 + hits["err_ts"][idx1]**2)
                 (oc_reco, bx_reco, tdc_reco) = timestamp_utils.remap_htg_timestamp(ts_reco)
                 # calculate ts difference between hits (absolute value)
-                sipm_delta_ts = np.abs((ts0) - (ts1))
+                sipm_delta_ts = delta_ts
                 # extract from scint mapping table 
                 scint_ch_id = derived_params._scint_inverted_remap_table[ly][st]["ch_id"]
                 scint_ch = derived_params._scint_inverted_remap_table[ly][st]["ch"]

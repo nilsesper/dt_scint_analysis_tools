@@ -55,10 +55,15 @@ def extract_dt_hits(hits, *, silent=False, has_timestamp=False, ignore_deadtime=
     if not has_timestamp:
         tmp_hits = timestamp_utils.add_timestamp(hits=tmp_hits)
     tmp_hits = timestamp_utils.sort_by_timestamp(hits=tmp_hits)
+    # add ts uncertainty
+    err_ts_com = np.sqrt( (1/np.sqrt(12))**2 + params.dt_hit_add_ts_unc**2)
+    if not silent:  print(f"add common ts uncertainty of {err_ts_com} TU...")
+    for i in tqdm(range(n_dt_hits), disable=silent):
+        tmp_hits["err_ts"][i] = err_ts_com
     ### ------------------------
     # cut away undefined wires (if wi >= n_wis in sl)
     # can happen due to bad remapping tables...
-    print("cut away undefined wires...")
+    if not silent: print("cut away undefined wires...")
     keep_ly = []
     for sl in params._dt_chamber["sls"].keys():
         for ly in params._dt_chamber["sls"][sl]["lys"].keys():
@@ -70,7 +75,7 @@ def extract_dt_hits(hits, *, silent=False, has_timestamp=False, ignore_deadtime=
     ### -----------------------
     # apply dead time constraint to all individual channels (if specified dead time is > 0)
     if params._dt_ts_individual_dead_time > 0 and ignore_deadtime == False:
-        print(f"apply dead time constraint for all individual channels of {params._dt_ts_individual_dead_time} TU")
+        if not silent: print(f"apply dead time constraint for all individual channels of {params._dt_ts_individual_dead_time} TU")
         cut_tmp_hits = {}
         for sl in derived_params._dt_inverted_remap_table.keys():
             cut_tmp_hits[sl] = {}
@@ -92,16 +97,16 @@ def extract_dt_hits(hits, *, silent=False, has_timestamp=False, ignore_deadtime=
                     for k in cut_tmp_hits[sl][ly][wi].keys():
                         cut_tmp_hits[sl][ly][wi][k] = cut_tmp_hits[sl][ly][wi][k][allowed_indices]
                     n_cut_hits_after = len(cut_tmp_hits[sl][ly][wi]['ts'])
-                    print(f"sl{sl} ly{ly} wi{wi} dead time cut flow: {n_cut_hits_after} / {n_cut_hits} = {n_cut_hits_after/max(1,n_cut_hits)}")
+                    if not silent: print(f"sl{sl} ly{ly} wi{wi} dead time cut flow: {n_cut_hits_after} / {n_cut_hits} = {n_cut_hits_after/max(1,n_cut_hits)}")
         # merge back to tmp_hits
-        print("merging data after applying individual dead time...")
+        if not silent: print("merging data after applying individual dead time...")
         merge_data = []
         for sl in derived_params._dt_inverted_remap_table.keys():
             for ly in derived_params._dt_inverted_remap_table[sl].keys():
                 for wi in range(params._dt_chamber["sls"][sl]["lys"][ly]["min_wi"], params._dt_chamber["sls"][sl]["lys"][ly]["max_wi"]+1):
                     merge_data.append(cut_tmp_hits[sl][ly][wi])
         tmp_hits = data_utils.merge_dataset(split_data=merge_data)
-        print("sort data by timestamp...")
+        if not silent: print("sort data by timestamp...")
         tmp_hits = timestamp_utils.sort_by_timestamp(hits=tmp_hits)
     return tmp_hits
 
@@ -191,7 +196,7 @@ def hits_from_muons(muons, *, silent=False, noise_ampl=0, sys_miscalib_ampl=0):
         # map back htg timestamp from drift time
         hit_ts = dt_hit_list[i]["hit_ts"]
         dt_hits["ts"][i] = hit_ts
-        dt_hits["err_ts"][i] = 1/np.sqrt(12)
+        dt_hits["err_ts"][i] = np.sqrt( (1/np.sqrt(12))**2 + params.dt_hit_add_ts_unc**2)
         (oc, bx, tdc) = timestamp_utils.remap_htg_timestamp(hit_ts)
         dt_hits["oc"][i], dt_hits["bx"][i], dt_hits["tdc"][i] = oc, bx, tdc
         # map back htg parameters
@@ -407,8 +412,7 @@ def fit_sl_patterns(patterns, *, silent=False, verbose=False, fit_vd=False):
             rel_wi = params._dt_sl_patterns[pat_name]["rel_wis"][ly]
             x_cell[ly] = derived_params._sl_pattern_coordinates[ly][rel_wi][2] # x values for fit => x positions of wires / cell centers for each layer, depends on pattern layout
         ts = np.array([np.float64(patterns[f"ts{ly}"][i]) for ly in range(4)], dtype=params._ts_float_type) # y values for fit => timestamps for hits of each layer
-        #err_ts = np.array([np.float64(patterns[f"err_ts{ly}"][i]) for ly in range(4)], dtype=params._ts_float_type) # ts uncertainty
-        err_ts = np.array([5 for ly in range(4)]) # uncomment to use constant ts uncertainty instead
+        err_ts = np.array([np.float64(patterns[f"err_ts{ly}"][i]) for ly in range(4)], dtype=params._ts_float_type) # ts uncertainty
         ts_min = np.amin(ts)
         ts_max = np.amax(ts)
         # scale timestamps by subtracting min timestamp

@@ -37,11 +37,20 @@ def main():
         type     = str,
         help     = "output file path: raw scint hits (pcl file)",
     )
+    # optional: store txt file with min and max ts of this dumpfile
+    parser.add_argument(
+        "--ts_range_file",
+        type     = str,
+        help     = "optional output file path: timestamp range (txt file)",
+    )
     # ---
     args = parser.parse_args()
     input_dumpfile = args.input_dumpfile
     dt_hits_file = args.dt_hits_file
     raw_scint_hits_file = args.raw_scint_hits_file
+    create_ts_file = False
+    if args.ts_range_file:
+        create_ts_file = True
 
     #################
 
@@ -72,6 +81,16 @@ def main():
     data_utils.store_pickle(data=dt_hits, file=dt_hits_file)
     print(f"###### Storing raw scint hit data to file \"{raw_scint_hits_file}\"...")
     data_utils.store_pickle(data=raw_scint_hits, file=raw_scint_hits_file)
+
+    ### optionally create ts file
+    if create_ts_file:
+        ts_min = np.amin(dumpfile_hits["ts"])
+        ts_max = np.amax(dumpfile_hits["ts"])
+        print(f"store ts range = [{ts_min}, {ts_max}] in file \"{args.ts_range_file}\".")
+        ts_file_string = f"{int(ts_min)},{int(ts_max)}"
+        with open(args.ts_range_file, 'w') as f:
+            f.write(ts_file_string)
+
 
 
 if __name__ == "__main__":

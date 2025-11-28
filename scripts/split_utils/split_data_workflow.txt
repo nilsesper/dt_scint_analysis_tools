@@ -1,0 +1,50 @@
+###########################################
+########## split data workflow
+###########################################
+
+##### split very large dumpfile into smaller parts
+
+split -C 1G --additional-suffix=.txt [dumpfilepath] [splitfilepath without .txt]
+
+
+##### create data config file
+txt file with:
+"dumpfilename,datafileprefix" (split_utils used for created pcl data files)
+in each line, no spaces or empty lines
+
+##### analysis of splitted sub datasets
+with run control
+
+...
+
+
+##### merging of splitted datasets (pcl files)
+
+python scripts/split_utils/merge_split_data.py --base_path thesis_data_files/large_combined_data_run/ --data_config_file thesis_data_files/large_combined_data_run/data_config_file_only_aa.txt --dataset DT_MUONS
+
+
+##### calculate histogram of sub datasets without merging, store hist as pcl
+
+python scripts/split_utils/hist_from_split_data.py --base_path thesis_data_files/large_combined_data_run/ --data_config_file thesis_data_files/large_combined_data_run/data_config_file_finished.txt --dataset DT_CORR_HITS --key "ts" --err_key "err_ts" --edges "auto,50"
+
+
+##### plot calculated hist from pcl
+
+python scripts/split_utils/plot_hist_from_split_data.py --base_path thesis_data_files/large_combined_data_run/ --store_path ~/masterarbeit/thesis/resources/images/large_combined_data_plots/ --data_config_file thesis_data_files/large_combined_data_run/data_config_file_finished.txt --dataset DT_CORR_HITS --key "ts"
+
+
+
+####################
+##### additionally, there are some specific scripts to analyze split data
+
+### ...for dt hits
+
+
+
+### ...for scint hits
+
+
+
+
+
+

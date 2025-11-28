@@ -29,11 +29,11 @@ def main():
         type     = str,
         help     = "input file path: raw scintillator groups (pcl file)",
     )
-    #parser.add_argument(
-    #    "--cuts",
-    #    type     = str,
-    #    help     = "cuts to apply to data in format \"key1,operator1,value1;key2,operator2,value;...\"",
-    #)
+    parser.add_argument(
+        "--cuts",
+        type     = str,
+        help     = "cuts to apply to data in format \"key1,operator1,value1;key2,operator2,value;...\"",
+    )
     parser.add_argument(
         "--show_plots",
         action = "store_true",
@@ -42,15 +42,15 @@ def main():
     # ---
     args = parser.parse_args()
     raw_scint_groups_file = args.raw_scint_groups_file
-    #cuts_list = []
-    #if args.cuts:
-    #    for cuts_str in args.cuts.split(";"):
-    #        key, operator, value = cuts_str.split(",")
-    #        if "params." in value:
-    #            value = getattr(params, value.split("params.")[1])
-    #        else:
-    #            value = float(value)
-    #        cuts_list.append((key, operator, value))
+    cuts_list = []
+    if args.cuts:
+        for cuts_str in args.cuts.split(";"):
+            key, operator, value = cuts_str.split(",")
+            if "params." in value:
+                value = getattr(params, value.split("params.")[1])
+            else:
+                value = float(value)
+            cuts_list.append((key, operator, value))
     show_plots = False
     if args.show_plots:
         show_plots = True
@@ -62,9 +62,10 @@ def main():
     # scint
     raw_scint_groups = data_utils.load_pickle(file=raw_scint_groups_file)
 
-    #### cut data
-    #print(f"###### Applying data cuts: {cuts_list}...")
-    #raw_scint_groups = data_utils.cut_data(data=raw_scint_groups, conditions=cuts_list)
+    ### cut data
+    if len(cuts_list) > 0:
+        print(f"###### Applying data cuts: {cuts_list}...")
+        raw_scint_groups = data_utils.cut_data(data=raw_scint_groups, conditions=cuts_list)
     n_raw_scint_groups = data_utils.length(raw_scint_groups)
 
     ########## general plots
@@ -137,6 +138,8 @@ def main():
             gm_idx0 = _group_matrix_index(tuple0)
             gm_idx1 = _group_matrix_index(tuple1)
             group_matrix[gm_idx0][gm_idx1] += 1
+            if gm_idx0 != gm_idx1:
+                group_matrix[gm_idx1][gm_idx0] += 1
         # count each hit also once on diagonal
         for tuple0 in tuples:
             gm_idx0 = _group_matrix_index(tuple0)
@@ -149,6 +152,14 @@ def main():
         for j in range(64):
             if i>j:
                 group_matrix[i][j] = None
+
+    # normalize matrix with diagonal value
+    #for i in range(64):
+    #    weight = group_matrix[i][i]
+    #    if weight == 0:
+    #        weight = 1
+    #    for j in range(i,64):
+    #        group_matrix[i][j] /= weight
 
     # index map
     group_matrix_idx_map = ["" for i in range(64)]
@@ -212,6 +223,121 @@ def main():
     fig.show()
 
 
+    ########## grouping matrix mapped to pcb inputs
+
+    ro_ch_mez_map = {ro_ch: i for i, ro_ch in enumerate(derived_params._scint_ro_chs)}
+    mez_ro_ch_map =  {v: k for k, v in ro_ch_mez_map.items()}
+    print(f"mez numbering to ro_ch: {mez_ro_ch_map}")
+    def _group_matrix_index_mez(hit_tuple):
+        (ly, st, sipm) = hit_tuple
+        ro_ch = derived_params._raw_scint_inverted_remap_table[ly][st][sipm]["ro_ch"]
+        ch = derived_params._raw_scint_inverted_remap_table[ly][st][sipm]["ch"]
+        mez = ro_ch_mez_map[ro_ch]
+        idx = 32*mez + ch
+        return idx
+    def _inv_group_matrix_index_mez(idx):
+        mez = idx//(32)
+        ch = idx%32
+        ro_ch = mez_ro_ch_map[mez]
+        ly = derived_params._raw_scint_remap_table[ro_ch][ch]["ly"]
+        st = derived_params._raw_scint_remap_table[ro_ch][ch]["st"]
+        sipm = derived_params._raw_scint_remap_table[ro_ch][ch]["sipm"]
+        return (mez, ch), (ly, st, sipm)
+
+    ### construct matrix
+    group_matrix = np.zeros((64,64))
+    # fill grouping matrix
+    # use "_nodupl" i.e. removed double hits of same channel
+    for i in range(n_raw_scint_groups):
+        n_hit_tuples = raw_scint_groups["n_hits_nodupl"][i]
+        tuples = raw_scint_groups["tuples_nodupl"][i]
+        for tuple0, tuple1 in combinations(tuples, 2):  # 2 for pairs, 3 for triplets, etc
+            gm_idx0 = _group_matrix_index_mez(tuple0)
+            gm_idx1 = _group_matrix_index_mez(tuple1)
+            group_matrix[gm_idx0][gm_idx1] += 1
+            if gm_idx0 != gm_idx1:
+                group_matrix[gm_idx1][gm_idx0] += 1
+        # count each hit also once on diagonal
+        for tuple0 in tuples:
+            gm_idx0 = _group_matrix_index_mez(tuple0)
+            group_matrix[gm_idx0][gm_idx0] += 1
+
+    ### plot matrix
+
+    # plot only half matrix
+    for i in range(64):
+        for j in range(64):
+            if i>j:
+                group_matrix[i][j] = None
+
+    # normalize matrix with diagonal value
+    #for i in range(64):
+    #    weight = group_matrix[i][i]
+    #    if weight == 0:
+    #        weight = 1
+    #    for j in range(i,64):
+    #        group_matrix[i][j] /= weight
+
+    # index map
+    group_matrix_idx_map = ["" for i in range(64)]
+    for i in range(64):
+        (mez, ch), _ = _inv_group_matrix_index_mez(idx=i)
+        group_matrix_idx_map[i] = f"mez{mez} ch{ch}"
+
+    ### plot ctm
+    print(f"plotting crosstalk matrix...")
+    fig, ax = plt.subplots(1, 1, figsize=(10,8))
+    imshow_obj = ax.imshow(group_matrix)
+    ax.invert_yaxis()
+    ax.set_xticks(list(range(64)))
+    ax.set_xticklabels(group_matrix_idx_map, rotation=90)
+    ax.set_yticks(list(range(64)))
+    ax.set_yticklabels(group_matrix_idx_map, rotation=0)
+    ax.set_title("Grouping matrix")
+    cbar = fig.colorbar(imshow_obj, ax=ax, fraction=0.05)
+    fig.tight_layout()
+    fig.show()
+
+    ### plot ctm without diagonal
+    group_matrix_nodiag = copy.deepcopy(group_matrix)
+    # remove diagonal
+    for i in range(64):
+        group_matrix_nodiag[i][i] = 0
+    fig, ax = plt.subplots(1, 1, figsize=(10,8))
+    imshow_obj = ax.imshow(group_matrix_nodiag)
+    ax.invert_yaxis()
+    ax.set_xticks(list(range(64)))
+    ax.set_xticklabels(group_matrix_idx_map, rotation=90)
+    ax.set_yticks(list(range(64)))
+    ax.set_yticklabels(group_matrix_idx_map, rotation=0)
+    ax.set_title("Grouping matrix: Removed diagonal")
+    cbar = fig.colorbar(imshow_obj, ax=ax, fraction=0.05)
+    fig.tight_layout()
+    fig.show()
+
+    ### plot ctm without diagonal and without expected coincidences
+    group_matrix_nocoinc = copy.deepcopy(group_matrix)
+    # remove diagonal
+    for i in range(64):
+        group_matrix_nocoinc[i][i] = 0
+    # remove expected coicidences
+    for i in range(64):
+        for j in range(i,64):
+            _, (ly0, st0, sipm0) = _inv_group_matrix_index_mez(idx=i)
+            _, (ly1, st1, sipm1) = _inv_group_matrix_index_mez(idx=j)
+            if (ly0 == ly1) and (st0 == st1):
+                group_matrix_nocoinc[i][j] = 0
+    fig, ax = plt.subplots(1, 1, figsize=(10,8))
+    imshow_obj = ax.imshow(group_matrix_nocoinc)
+    ax.invert_yaxis()
+    ax.set_xticks(list(range(64)))
+    ax.set_xticklabels(group_matrix_idx_map, rotation=90)
+    ax.set_yticks(list(range(64)))
+    ax.set_yticklabels(group_matrix_idx_map, rotation=0)
+    ax.set_title("Grouping matrix: Removed coincidences")
+    cbar = fig.colorbar(imshow_obj, ax=ax, fraction=0.05)
+    fig.tight_layout()
+    fig.show()
 
 
 

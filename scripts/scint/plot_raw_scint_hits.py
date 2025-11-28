@@ -74,6 +74,7 @@ def main():
     raw_scint_hits = data_utils.cut_data(data=raw_scint_hits, conditions=cuts_list)
 
     n_raw_scint_hits = data_utils.length(raw_scint_hits)
+    print(f"raw_scint_hits = {raw_scint_hits}")
 
     ### raw scintillator hits
     print(f"### raw scintillator hits")
