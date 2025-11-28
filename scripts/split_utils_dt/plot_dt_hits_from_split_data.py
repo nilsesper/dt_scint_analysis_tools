@@ -94,7 +94,7 @@ def main():
     print(f"duration = {duration_seconds} s")
 
     ########################
-    ####### occupancy plot
+    ####### occupancy plot (2d matrix)
 
     # generate chamber matrix
     chamber_matrix = np.full((12,58), np.nan) # -1: invalid cell
@@ -136,7 +136,7 @@ def main():
         fig.savefig(hist_plot_file)
 
     ########################
-    ####### occupancy plot
+    ####### rate plot (2d matrix)
 
     # generate chamber matrix
     chamber_matrix = np.full((12,58), np.nan) # -1: invalid cell
@@ -176,6 +176,86 @@ def main():
         hist_plot_file = args.store_path+"/"+common_file_prefix+"_"+dataset+"_SPECIFIC_"+"RATE"+".pdf"
         print(f"store plot as {hist_plot_file}.")
         fig.savefig(hist_plot_file)
+
+    ########################
+    ####### find dead & noisy cells
+
+    # mean rate all cells (incl dead and noisy ones)
+    total_count_all_cells = 0
+    mean_count_all_cells = 0
+    n_cells = 0
+    for sl in range(1,4):
+        for ly in range(0,4):
+            for wi in range(params._dt_chamber["sls"][sl]["lys"][ly]["min_wi"], params._dt_chamber["sls"][sl]["lys"][ly]["max_wi"]+1):
+                total_count_all_cells += cell_counts[sl][ly][wi]
+                n_cells += 1
+    mean_count_all_cells = total_count_all_cells/n_cells
+    mean_rate_all_cells = mean_count_all_cells/duration_seconds
+    print(f"total count all cells: {total_count_all_cells}")
+    print(f"mean count all cells: {mean_count_all_cells}")
+    print(f"mean rate all cells: {mean_rate_all_cells} Hz")
+
+    # find dead and noisy cells
+    print("dead and noisy cells:")
+    dead_cells = [] # list of (sl, ly, wi) with low rates - considered "dead" and are not considered in rate averaging
+    noisy_cells = [] # list of (sl, ly, wi) with high rates - considered "noisy" and are not considered in rate averaging
+    for sl in range(1,4):
+        for ly in range(0,4):
+            for wi in range(params._dt_chamber["sls"][sl]["lys"][ly]["min_wi"], params._dt_chamber["sls"][sl]["lys"][ly]["max_wi"]+1):
+                if cell_counts[sl][ly][wi] < 0.5*mean_count_all_cells:
+                    ro_ch = derived_params._dt_inverted_remap_table[sl][ly][wi]["ro_ch"]
+                    ch = derived_params._dt_inverted_remap_table[sl][ly][wi]["ch"]
+                    print(f"  low occupancy in  sl={sl:1}, ly={ly:1}, wi={wi:2} (ro_ch={ro_ch:2}, ch={ch:3})")
+                    dead_cells.append((sl,ly,wi))
+                if cell_counts[sl][ly][wi] > 1.5*mean_count_all_cells:
+                    ro_ch = derived_params._dt_inverted_remap_table[sl][ly][wi]["ro_ch"]
+                    ch = derived_params._dt_inverted_remap_table[sl][ly][wi]["ch"]
+                    print(f"  high occupancy in sl={sl:1}, ly={ly:1}, wi={wi:2} (ro_ch={ro_ch:2}, ch={ch:3})")
+
+    ########################
+    ####### average phi and theta rates (without dead channels)
+
+    phi_average_rate, theta_average_rate = 0, 0
+    n_phi, n_theta = 0, 0
+    for sl in range(1,4):
+        for ly in range(0,4):
+            for wi in range(params._dt_chamber["sls"][sl]["lys"][ly]["min_wi"], params._dt_chamber["sls"][sl]["lys"][ly]["max_wi"]+1):
+                if (sl,ly,wi) not in dead_cells:
+                    if sl in [1,3]:
+                        phi_average_rate += cell_counts[sl][ly][wi]/duration_seconds
+                        n_phi += 1
+                    elif sl in [2]:
+                        theta_average_rate += cell_counts[sl][ly][wi]/duration_seconds
+                        n_theta += 1
+    phi_average_rate /= n_phi
+    theta_average_rate /= n_theta
+    print(f"average phi cell rate: {phi_average_rate} +- {np.sqrt(phi_average_rate)} Hz")
+    print(f"average theta cell rate: {theta_average_rate} +- {np.sqrt(theta_average_rate)} Hz")
+
+    ########################
+    ####### rate plot (multiple bar plots)
+    ### plots of superlayers & layers
+    for sl in range(1,4):
+        fig, ax = plt.subplots(4, 1, figsize=(16,8), sharex=True)
+        # put all layers in one plot
+        for ly in range(0,4):
+            wires = np.array(list(range(params._dt_chamber["sls"][sl]["lys"][ly]["min_wi"], params._dt_chamber["sls"][sl]["lys"][ly]["max_wi"]+1)))
+            wire_rates = np.array([cell_counts[sl][ly][wi]/duration_seconds for wi in wires])
+            err_wire_rates = np.sqrt(wire_rates)
+            ax[ly].bar(wires, wire_rates, width=1, align="center")
+            ax[ly].bar(wires, bottom=wire_rates-err_wire_rates, height=2*err_wire_rates, width=1, align="center", hatch="xxx", fill=False, edgecolor="0.2", linestyle="")
+            ax[ly].set_ylim(bottom=0, top=np.amax(wire_rates+err_wire_rates)*1.1)
+            if ly == 3:
+                ax[ly].set_xlabel("Wire")
+            ax[ly].set_ylabel("Rate [Hz]")
+            ax[ly].set_title(f"SL {sl}, Ly {ly}")
+        fig.tight_layout()
+        fig.show()
+        ## store plot
+        if args.store_path:
+            hist_plot_file = args.store_path+"/"+common_file_prefix+"_"+dataset+"_SPECIFIC_"+f"SL{sl}_RATE"+".pdf"
+            print(f"store plot as {hist_plot_file}.")
+            fig.savefig(hist_plot_file)
 
 
     #########################

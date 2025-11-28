@@ -30,7 +30,7 @@ allowed_datasets = [
 ]
 # possible ts keys that need to be shifted
 ts_keys = [
-    "ts", "t0",
+    "ts", "t0", "tgroup",
 ]
 
 # ---------------------------------------------------------------

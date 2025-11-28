@@ -67,8 +67,7 @@ allowed_tasks = {
     "scint_pixels":
         "python scripts/scint/raw_groups_to_scint_areas.py --raw_scint_hits_file [RAW_SCINT_HITS] --raw_scint_groups_file [RAW_SCINT_GROUPS] --scint_areas_file [SCINT_AREAS]",
     ### other analysis
-    "dt_hit_differences":
-        "python scripts/analysis/dt_cell_hits/calculate_hit_differences.py --dt_hits_file [DT_HITS_NODEADTIME] --dt_hit_differences_file [DT_HIT_DIFFERENCES]"
+    
 }
 ### filepath wildcards:
 prefix_wildcard_list = [

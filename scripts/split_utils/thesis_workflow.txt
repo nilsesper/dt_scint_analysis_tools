@@ -1,0 +1,65 @@
+################################################################################
+#### here the analysis and plotting commands are listed which are used to produce the data and plots in the master thesis
+################################################################################
+
+############## FULL ANALYSIS
+
+######## run full analysis of split data:
+##### use split data
+# calculate
+    python scripts/utils/analysis_run_control.py --base_path thesis_data_files/large_combined_data_run/ --data_config_file thesis_data_files/large_combined_data_run/data_config_file_todo.txt --task_list "dump_import,dt_corr,dt_patterns,dt_fits,dt_fit_cuts,dt_fit_groups,dt_muons,scint_raw_groups,scint_hits,scint_pixels,dump_dt_nodeadtime" --task_for_each_set --n_proc 12
+
+############## DRIFT TUBES
+
+######## dt hits:
+##### use split data
+### cell occupancy, cell rate, dead cells etc.
+# calculate
+    python scripts/split_utils_dt/dt_hits_from_split_data.py --base_path thesis_data_files/large_combined_data_run/ --data_config_file thesis_data_files/large_combined_data_run/data_config_file_finished.txt --dataset DT_CORR_HITS
+# plot
+    python scripts/split_utils_dt/plot_dt_hits_from_split_data.py --base_path thesis_data_files/large_combined_data_run/ --store_path ~/masterarbeit/thesis/resources/images/large_combined_data_plots/ --data_config_file thesis_data_files/large_combined_data_run/data_config_file_finished.txt --dataset DT_CORR_HITS
+### photo peak hits (with no dead time)
+# calculate
+# plot
+
+######## sl patterns:
+#####
+# calculate
+# plot
+
+######## sl fits:
+#####
+# calculate
+# plot
+
+######## sl fit groups:
+#####
+# calculate
+# plot
+
+######## dt muons:
+#####
+# calculate
+# plot
+
+############## SCINTILLATOR
+
+######## raw scint hits (sipms):
+##### use split data
+### raw scint hits, sipm occupancy etc.
+# calculate
+# plot
+
+######## scint hits (strips):
+#####
+# calculate
+# plot
+
+############## COMBINED / CORRELATED DETECTORS
+
+######## correlate dt muons and scint hits:
+#####
+# calculate
+# plot
+
+

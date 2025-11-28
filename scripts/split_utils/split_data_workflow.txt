@@ -15,7 +15,7 @@ in each line, no spaces or empty lines
 ##### analysis of splitted sub datasets
 with run control
 
-...
+python scripts/utils/analysis_run_control.py --base_path thesis_data_files/large_combined_data_run/ --data_config_file thesis_data_files/large_combined_data_run/data_config_file_all.txt --task_list "dump_import,dt_corr,dt_patterns,dt_fits,dt_fit_cuts,dt_fit_groups,dt_muons,scint_raw_groups,scint_hits,scint_pixels,dump_dt_nodeadtime" --task_for_each_set --n_proc 12
 
 
 ##### merging of splitted datasets (pcl files)
