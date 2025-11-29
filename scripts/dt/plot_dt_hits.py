@@ -293,14 +293,14 @@ def main():
 
     ### plot all hists specified in this list
     hist_list = [ # ( data key , error data key or None , calculate stat error True/False , edge argument )
-        ( "ro_ch", None, True, np.arange(0, 32),  ),
-        ( "ch", None, True, np.arange(0, 255), ),
-        ( "tdc", None, True, np.arange(0, params._lhc_tdc_count+1), ),
+        ( "ro_ch", None, True, np.arange(-0.5+ 0, 0.5+ 32),  ),
+        ( "ch", None, True, np.arange(-0.5+ 0, 0.5+ 255), ),
+        ( "tdc", None, True, np.arange(-0.5+ 0, 0.5+ params._lhc_tdc_count), ),
         ( "bx", None, True, np.linspace(0, params._lhc_bunch_count, 50), ),
         ( "oc", None, True, "auto,50",  ), #"step1", #np.linspace(0, params._lhc_orbit_count, n_hist_bins),
-        ( "sl", None, True, "step1", ),
-        ( "ly", None, True, np.arange(0, 3+1), ),
-        ( "wi", None, True, np.arange(0, 100+1), ),
+        ( "sl", None, True, np.arange(-0.5+ 1, 0.5+ 4), ),
+        ( "ly", None, True, np.arange(-0.5+ 0, 0.5+ 4), ),
+        ( "wi", None, True, np.arange(-0.5+ 0, 0.5+ 60), ),
         ( "ts", "err_ts", True, "auto,50", ),
         ( "err_ts", None, True, "auto,50", ),
     ]

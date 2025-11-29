@@ -175,8 +175,10 @@ def weighted_mean_peak_position(hist, centers, err_hist, err_centers, *, silent=
     return mean, err_mean
 
 
-###################################
-###################################
+#########################################################################################################
+#########################################################################################################
+#########################################################################################################
+#########################################################################################################
 
 ### calculate bin centers from bin edges
 def centers_from_edges(edges):
@@ -219,13 +221,17 @@ def generate_histogram_edges(arg, *, data_min_val=None, data_max_val=None):
         if len(arg_split) != 1+1:
             raise Exception(f"arg: Need auto,n_bins.")
         n_auto_bins = int(arg_split[1])
-        edges = np.linspace(data_min_val, data_max_val, n_auto_bins+1)
-        #edges = hist_utils.edges_from_centers(centers)
+        if data_min_val == data_max_val:
+            data_min_val -= 0.01*data_min_val
+            data_max_val += 0.01*data_min_val
+        centers = np.linspace(data_min_val, data_max_val, n_auto_bins+1)
+        edges = edges_from_centers(centers)
     # "step1" =  automatic bin edges for bin width = 1
     elif arg_split[0] == "step1":
         if len(arg_split) != 1:
             raise Exception(f"arg: Need step1.")
-        edges = np.linspace(int(data_min_val)-1, int(data_max_val)+1, int(data_max_val)-int(data_min_val)+3)
+        centers = np.linspace(int(data_min_val)-1, int(data_max_val)+1, int(data_max_val)-int(data_min_val)+3)
+        edges = edges_from_centers(centers)
     else:
         raise Exception(f"arg: Need linear / range / auto / step1.")
     n_bins = len(edges)-1
