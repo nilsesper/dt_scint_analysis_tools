@@ -189,25 +189,24 @@ def main():
             for wi in range(params._dt_chamber["sls"][sl]["lys"][ly]["min_wi"], params._dt_chamber["sls"][sl]["lys"][ly]["max_wi"]+1):
                 total_count_all_cells += cell_counts[sl][ly][wi]
                 n_cells += 1
-    mean_count_all_cells = total_count_all_cells/n_cells
-    mean_rate_all_cells = mean_count_all_cells/duration_seconds
-    print(f"total count all cells: {total_count_all_cells}")
-    print(f"mean count all cells: {mean_count_all_cells}")
-    print(f"mean rate all cells: {mean_rate_all_cells} Hz")
+    print(f"total count all cells: {total_count_all_cells} +- {np.sqrt(total_count_all_cells)}")
+    print(f"mean count all cells: {total_count_all_cells/n_cells} +- {np.sqrt(total_count_all_cells)/n_cells}")
+    print(f"mean rate all cells: {total_count_all_cells/n_cells/duration_seconds} +- {np.sqrt(total_count_all_cells)/n_cells/duration_seconds} Hz")
 
     # find dead and noisy cells
     print("dead and noisy cells:")
+    count_thres = total_count_all_cells/n_cells
     dead_cells = [] # list of (sl, ly, wi) with low rates - considered "dead" and are not considered in rate averaging
     noisy_cells = [] # list of (sl, ly, wi) with high rates - considered "noisy" and are not considered in rate averaging
     for sl in range(1,4):
         for ly in range(0,4):
             for wi in range(params._dt_chamber["sls"][sl]["lys"][ly]["min_wi"], params._dt_chamber["sls"][sl]["lys"][ly]["max_wi"]+1):
-                if cell_counts[sl][ly][wi] < 0.5*mean_count_all_cells:
+                if cell_counts[sl][ly][wi] < 0.5*count_thres:
                     ro_ch = derived_params._dt_inverted_remap_table[sl][ly][wi]["ro_ch"]
                     ch = derived_params._dt_inverted_remap_table[sl][ly][wi]["ch"]
                     print(f"  low occupancy in  sl={sl:1}, ly={ly:1}, wi={wi:2} (ro_ch={ro_ch:2}, ch={ch:3})")
                     dead_cells.append((sl,ly,wi))
-                if cell_counts[sl][ly][wi] > 1.5*mean_count_all_cells:
+                if cell_counts[sl][ly][wi] > 1.5*count_thres:
                     ro_ch = derived_params._dt_inverted_remap_table[sl][ly][wi]["ro_ch"]
                     ch = derived_params._dt_inverted_remap_table[sl][ly][wi]["ch"]
                     print(f"  high occupancy in sl={sl:1}, ly={ly:1}, wi={wi:2} (ro_ch={ro_ch:2}, ch={ch:3})")
@@ -215,22 +214,27 @@ def main():
     ########################
     ####### average phi and theta rates (without dead channels)
 
-    phi_average_rate, theta_average_rate = 0, 0
-    n_phi, n_theta = 0, 0
+    phi1_total_count, phi3_total_count, theta_total_count = 0, 0, 0
+    n_phi1, n_phi3, n_theta = 0, 0, 0
     for sl in range(1,4):
         for ly in range(0,4):
             for wi in range(params._dt_chamber["sls"][sl]["lys"][ly]["min_wi"], params._dt_chamber["sls"][sl]["lys"][ly]["max_wi"]+1):
                 if (sl,ly,wi) not in dead_cells:
-                    if sl in [1,3]:
-                        phi_average_rate += cell_counts[sl][ly][wi]/duration_seconds
-                        n_phi += 1
+                    if sl in [1]:
+                        phi1_total_count += cell_counts[sl][ly][wi]
+                        n_phi1 += 1
+                    elif sl in [3]:
+                        phi3_total_count += cell_counts[sl][ly][wi]
+                        n_phi3 += 1
                     elif sl in [2]:
-                        theta_average_rate += cell_counts[sl][ly][wi]/duration_seconds
+                        theta_total_count += cell_counts[sl][ly][wi]
                         n_theta += 1
-    phi_average_rate /= n_phi
-    theta_average_rate /= n_theta
-    print(f"average phi cell rate: {phi_average_rate} +- {np.sqrt(phi_average_rate)} Hz")
-    print(f"average theta cell rate: {theta_average_rate} +- {np.sqrt(theta_average_rate)} Hz")
+    print(f"* = dead or noisy cells not considered")
+    print(f"average sl 1 phi cell rate *    : {phi1_total_count/n_phi1/duration_seconds} +- {np.sqrt(phi1_total_count)/n_phi1/duration_seconds} Hz")
+    print(f"average sl 2 theta cell rate *  : {theta_total_count/n_theta/duration_seconds} +- {np.sqrt(theta_total_count)/n_theta/duration_seconds} Hz")
+    print(f"average sl 3 phi cell rate *    : {phi3_total_count/n_phi3/duration_seconds} +- {np.sqrt(phi3_total_count)/n_phi3/duration_seconds} Hz")
+    print(f"average sl 1 & 3 phi cell rate *: {(phi1_total_count+phi3_total_count)/(n_phi1+n_phi3)/duration_seconds} +- {np.sqrt(phi1_total_count+phi3_total_count)/(n_phi1+n_phi3)/duration_seconds} Hz")
+    print(f"average chamber cell rate *     : {(phi1_total_count+phi3_total_count+theta_total_count)/(n_phi1+n_phi3+n_theta)/duration_seconds} +- {np.sqrt(phi1_total_count+phi3_total_count+theta_total_count)/(n_phi1+n_phi3+n_theta)/duration_seconds} Hz")
 
     ########################
     ####### rate plot (multiple bar plots)
@@ -240,8 +244,9 @@ def main():
         # put all layers in one plot
         for ly in range(0,4):
             wires = np.array(list(range(params._dt_chamber["sls"][sl]["lys"][ly]["min_wi"], params._dt_chamber["sls"][sl]["lys"][ly]["max_wi"]+1)))
-            wire_rates = np.array([cell_counts[sl][ly][wi]/duration_seconds for wi in wires])
-            err_wire_rates = np.sqrt(wire_rates)
+            wire_hits = np.array([cell_counts[sl][ly][wi] for wi in wires])
+            wire_rates = wire_hits/duration_seconds
+            err_wire_rates = np.sqrt(wire_hits)/duration_seconds
             ax[ly].bar(wires, wire_rates, width=1, align="center")
             ax[ly].bar(wires, bottom=wire_rates-err_wire_rates, height=2*err_wire_rates, width=1, align="center", hatch="xxx", fill=False, edgecolor="0.2", linestyle="")
             ax[ly].set_ylim(bottom=0, top=np.amax(wire_rates+err_wire_rates)*1.1)

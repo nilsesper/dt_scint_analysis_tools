@@ -64,6 +64,11 @@ def main():
     dt_hits = data_utils.load_pickle(file=dt_hits_file)
     n_dt_hits = data_utils.length(dt_hits)
 
+    ### measurement duration
+    duration_seconds = 0.78e-9 * (np.amax(dt_hits["ts"]) - np.amin(dt_hits["ts"])) # secs
+    print(f"measurement duration = {duration_seconds} s")
+
+    """
     ### dt hits
     print(f"### dt hits")
     n_hist_bins = 100
@@ -98,13 +103,9 @@ def main():
         if store_plots != None:
             plotname = store_plots+f"/dt_hits_{k}.png"
         hist_utils.plot_1hist(hist=hists, centers=centers, xlabel=xlabel, round_digits=round_digits, bin_labels=False, silent=True, store=plotname, show=show_plots) # scale="log"
-
-
-    ### measurement duration
-    duration = 0.78e-9 * (np.amax(dt_hits["ts"]) - np.amin(dt_hits["ts"])) # secs
-    print(f"measurement duration = {duration} s")
-
     #"""
+
+    """
     occupancies = {} # {sl: ly: wi: hits}
     rates = {} # {sl: ly: wi: rate}
     dead_cells = [] # list of (sl, ly, wi) with low rates - considered "dead" and are not considered in rate averaging
@@ -230,7 +231,7 @@ def main():
     hist_utils.plot_1hist(hist=hists, centers=centers, xlabel=xlabel, round_digits=round_digits, bin_labels=False, silent=True, store=plotname, show=show_plots, title=f"", scale="log") # scale="log"
     #"""
 
-    #"""
+    """
     ### occupancy plot of full chamber
     # generate chamber matrix
     chamber_matrix = np.full((12,58), np.nan) # -1: invalid cell
@@ -267,6 +268,7 @@ def main():
     fig.show()
     #"""
 
+    """
     ### average phi and theta rates (without dead channels)
     phi_average_rate, theta_average_rate = 0, 0
     n_phi, n_theta = 0, 0
@@ -284,7 +286,226 @@ def main():
     theta_average_rate /= n_theta
     print(f"average phi cell rate: {phi_average_rate} +- {np.sqrt(phi_average_rate)} Hz")
     print(f"average theta cell rate: {theta_average_rate} +- {np.sqrt(theta_average_rate)} Hz")
+    #"""
 
+    ########################
+    ####### plot generic histograms
+
+    ### plot all hists specified in this list
+    hist_list = [ # ( data key , error data key or None , calculate stat error True/False , edge argument )
+        ( "ro_ch", None, True, np.arange(0, 32),  ),
+        ( "ch", None, True, np.arange(0, 255), ),
+        ( "tdc", None, True, np.arange(0, params._lhc_tdc_count+1), ),
+        ( "bx", None, True, np.linspace(0, params._lhc_bunch_count, 50), ),
+        ( "oc", None, True, "auto,50",  ), #"step1", #np.linspace(0, params._lhc_orbit_count, n_hist_bins),
+        ( "sl", None, True, "step1", ),
+        ( "ly", None, True, np.arange(0, 3+1), ),
+        ( "wi", None, True, np.arange(0, 100+1), ),
+        ( "ts", "err_ts", True, "auto,50", ),
+        ( "err_ts", None, True, "auto,50", ),
+    ]
+    for (data_key, err_data_key, do_stat_err, edge_argument) in hist_list:
+        ## select data
+        data = dt_hits[data_key]
+        err_data = None
+        if err_data_key != None:
+            err_data = dt_hits[err_data_key]
+        ## find data min and max
+        data_min_val, data_max_val = np.amin(data), np.amax(data)
+        ## calculate hist bins
+        # string edge argument: calculate edges automatically
+        if type(edge_argument) == type(""):
+            edges, n_bins, centers = hist_utils.generate_histogram_edges(arg=edge_argument, data_min_val=data_min_val, data_max_val=data_max_val)
+        else:
+            # else accept given array and calculate edges
+            edges = edge_argument
+            centers = hist_utils.centers_from_edges(edge_argument)
+            n_bins = len(centers)
+        ## calculate hist of specified key and shifted hists to respect data error
+        hist, _, _, entries, underflow, overflow, hist_err_right, hist_err_left = hist_utils.calculate_histogram_and_shifted_histograms(data=data, edges=edges, err_data=err_data)
+        ## calculate hist uncertainty
+        err_hist = hist_utils.calculate_hist_uncertainty(hist=hist, hist_err_right=hist_err_right, hist_err_left=hist_err_left, do_stat_err=do_stat_err)
+        ## print hist info
+        print(f"hist: data_key={data_key}, err_data_key={err_data_key}, n_data={len(data)}, entries={entries}, underflow={underflow}, overflow={overflow}, n_bins={n_bins}")
+        ## plot hist
+        fig, ax = plt.subplots(1, 1, figsize=(12,8))
+        ax = hist_utils.plot_histogram(ax=ax, hist=hist, centers=centers, err_hist=err_hist)
+        xlabel = (params._key_symbols[data_key]) if (params._key_units[data_key] == "") else (params._key_symbols[data_key]+" ["+ params._key_units[data_key]+"]")
+        ax.set_xlabel(xlabel)
+        fig.tight_layout()
+        fig.show()
+
+    ########################
+    ####### calculate cell count map
+
+    ### prepare data frame
+    cell_counts = {}
+    for sl in range(1,4):
+        cell_counts[sl] = {}
+        for ly in range(0,4):
+            cell_counts[sl][ly] = {}
+            for wi in range(params._dt_chamber["sls"][sl]["lys"][ly]["min_wi"], params._dt_chamber["sls"][sl]["lys"][ly]["max_wi"]+1):
+                cell_counts[sl][ly][wi] = 0
+
+    ### fill data frame
+    print(f"calculate cell count map...")
+    for i in range(n_dt_hits):
+        sl, ly, wi = dt_hits["sl"][i], dt_hits["ly"][i], dt_hits["wi"][i]
+        cell_counts[sl][ly][wi] += 1
+
+    ########################
+    ####### occupancy plot (2d matrix)
+
+    # generate chamber matrix
+    chamber_matrix = np.full((12,58), np.nan) # -1: invalid cell
+    # fill chamber matrix
+    for sl in range(1,4):
+        for ly in range(0,4):
+            for wi in range(params._dt_chamber["sls"][sl]["lys"][ly]["min_wi"], params._dt_chamber["sls"][sl]["lys"][ly]["max_wi"]+1):
+                chamber_matrix[4*(sl-1)+ly][wi] = cell_counts[sl][ly][wi]
+    # plot
+    fig, ax = plt.subplots(1, 1, figsize=(16,6))
+    im_obj = ax.imshow(X=chamber_matrix, origin="lower", extent=[0-0.5, 57+0.5, 0-0.5, 11+0.5], vmin=0)
+    ax.set_xlabel("Wire")
+    layer_labels = {
+         0: "SL 1, Ly 0",
+         1: "SL 1, Ly 1",
+         2: "SL 1, Ly 2",
+         3: "SL 1, Ly 3",
+         4: "SL 2, Ly 0",
+         5: "SL 2, Ly 1",
+         6: "SL 2, Ly 2",
+         7: "SL 2, Ly 3",
+         8: "SL 3, Ly 0",
+         9: "SL 3, Ly 1",
+        10: "SL 3, Ly 2",
+        11: "SL 3, Ly 3",
+    }
+    ax.set_yticks(list(layer_labels.keys()))
+    ax.set_yticklabels(list(layer_labels.values()))
+    ax.set_aspect("auto")
+    cmap = plt.get_cmap('viridis')
+    cbar = fig.colorbar(im_obj, ax=ax, fraction=0.05, cmap=cmap)
+    #cbar.set_label("Rate [Hz]")
+    fig.tight_layout()
+    fig.show()
+
+    ########################
+    ####### rate plot (2d matrix)
+
+    # generate chamber matrix
+    chamber_matrix = np.full((12,58), np.nan) # -1: invalid cell
+    # fill chamber matrix
+    for sl in range(1,4):
+        for ly in range(0,4):
+            for wi in range(params._dt_chamber["sls"][sl]["lys"][ly]["min_wi"], params._dt_chamber["sls"][sl]["lys"][ly]["max_wi"]+1):
+                chamber_matrix[4*(sl-1)+ly][wi] = cell_counts[sl][ly][wi]/duration_seconds
+    # plot
+    fig, ax = plt.subplots(1, 1, figsize=(16,6))
+    im_obj = ax.imshow(X=chamber_matrix, origin="lower", extent=[0-0.5, 57+0.5, 0-0.5, 11+0.5], vmin=0)
+    ax.set_xlabel("Wire")
+    layer_labels = {
+         0: "SL 1, Ly 0",
+         1: "SL 1, Ly 1",
+         2: "SL 1, Ly 2",
+         3: "SL 1, Ly 3",
+         4: "SL 2, Ly 0",
+         5: "SL 2, Ly 1",
+         6: "SL 2, Ly 2",
+         7: "SL 2, Ly 3",
+         8: "SL 3, Ly 0",
+         9: "SL 3, Ly 1",
+        10: "SL 3, Ly 2",
+        11: "SL 3, Ly 3",
+    }
+    ax.set_yticks(list(layer_labels.keys()))
+    ax.set_yticklabels(list(layer_labels.values()))
+    ax.set_aspect("auto")
+    cmap = plt.get_cmap('viridis')
+    cbar = fig.colorbar(im_obj, ax=ax, fraction=0.05, cmap=cmap)
+    cbar.set_label("Rate [Hz]")
+    fig.tight_layout()
+    fig.show()
+
+    ########################
+    ####### find dead & noisy cells
+
+    # mean rate all cells (incl dead and noisy ones)
+    total_count_all_cells = 0
+    mean_count_all_cells = 0
+    n_cells = 0
+    for sl in range(1,4):
+        for ly in range(0,4):
+            for wi in range(params._dt_chamber["sls"][sl]["lys"][ly]["min_wi"], params._dt_chamber["sls"][sl]["lys"][ly]["max_wi"]+1):
+                total_count_all_cells += cell_counts[sl][ly][wi]
+                n_cells += 1
+    print(f"total count all cells: {total_count_all_cells} +- {np.sqrt(total_count_all_cells)}")
+    print(f"mean count all cells: {total_count_all_cells/n_cells} +- {np.sqrt(total_count_all_cells)/n_cells}")
+    print(f"mean rate all cells: {total_count_all_cells/n_cells/duration_seconds} +- {np.sqrt(total_count_all_cells)/n_cells/duration_seconds} Hz")
+
+    # find dead and noisy cells
+    print("dead and noisy cells:")
+    count_thres = total_count_all_cells/n_cells
+    dead_cells = [] # list of (sl, ly, wi) with low rates - considered "dead" and are not considered in rate averaging
+    noisy_cells = [] # list of (sl, ly, wi) with high rates - considered "noisy" and are not considered in rate averaging
+    for sl in range(1,4):
+        for ly in range(0,4):
+            for wi in range(params._dt_chamber["sls"][sl]["lys"][ly]["min_wi"], params._dt_chamber["sls"][sl]["lys"][ly]["max_wi"]+1):
+                if cell_counts[sl][ly][wi] < 0.5*count_thres:
+                    ro_ch = derived_params._dt_inverted_remap_table[sl][ly][wi]["ro_ch"]
+                    ch = derived_params._dt_inverted_remap_table[sl][ly][wi]["ch"]
+                    print(f"  low occupancy in  sl={sl:1}, ly={ly:1}, wi={wi:2} (ro_ch={ro_ch:2}, ch={ch:3})")
+                    dead_cells.append((sl,ly,wi))
+                if cell_counts[sl][ly][wi] > 1.5*count_thres:
+                    ro_ch = derived_params._dt_inverted_remap_table[sl][ly][wi]["ro_ch"]
+                    ch = derived_params._dt_inverted_remap_table[sl][ly][wi]["ch"]
+                    print(f"  high occupancy in sl={sl:1}, ly={ly:1}, wi={wi:2} (ro_ch={ro_ch:2}, ch={ch:3})")
+
+    ########################
+    ####### average phi and theta rates (without dead channels)
+
+    phi1_total_count, phi3_total_count, theta_total_count = 0, 0, 0
+    n_phi1, n_phi3, n_theta = 0, 0, 0
+    for sl in range(1,4):
+        for ly in range(0,4):
+            for wi in range(params._dt_chamber["sls"][sl]["lys"][ly]["min_wi"], params._dt_chamber["sls"][sl]["lys"][ly]["max_wi"]+1):
+                if (sl,ly,wi) not in dead_cells:
+                    if sl in [1]:
+                        phi1_total_count += cell_counts[sl][ly][wi]
+                        n_phi1 += 1
+                    elif sl in [3]:
+                        phi3_total_count += cell_counts[sl][ly][wi]
+                        n_phi3 += 1
+                    elif sl in [2]:
+                        theta_total_count += cell_counts[sl][ly][wi]
+                        n_theta += 1
+    print(f"* = dead or noisy cells not considered")
+    print(f"average sl 1 phi cell rate *    : {phi1_total_count/n_phi1/duration_seconds} +- {np.sqrt(phi1_total_count)/n_phi1/duration_seconds} Hz")
+    print(f"average sl 2 theta cell rate *  : {theta_total_count/n_theta/duration_seconds} +- {np.sqrt(theta_total_count)/n_theta/duration_seconds} Hz")
+    print(f"average sl 3 phi cell rate *    : {phi3_total_count/n_phi3/duration_seconds} +- {np.sqrt(phi3_total_count)/n_phi3/duration_seconds} Hz")
+    print(f"average sl 1 & 3 phi cell rate *: {(phi1_total_count+phi3_total_count)/(n_phi1+n_phi3)/duration_seconds} +- {np.sqrt(phi1_total_count+phi3_total_count)/(n_phi1+n_phi3)/duration_seconds} Hz")
+    print(f"average chamber cell rate *     : {(phi1_total_count+phi3_total_count+theta_total_count)/(n_phi1+n_phi3+n_theta)/duration_seconds} +- {np.sqrt(phi1_total_count+phi3_total_count+theta_total_count)/(n_phi1+n_phi3+n_theta)/duration_seconds} Hz")
+
+    ########################
+    ####### rate plot (multiple bar plots)
+    ### plots of superlayers & layers
+    for sl in range(1,4):
+        fig, ax = plt.subplots(4, 1, figsize=(16,8), sharex=True)
+        # put all layers in one plot
+        for ly in range(0,4):
+            wires = np.array(list(range(params._dt_chamber["sls"][sl]["lys"][ly]["min_wi"], params._dt_chamber["sls"][sl]["lys"][ly]["max_wi"]+1)))
+            wire_hits = np.array([cell_counts[sl][ly][wi] for wi in wires])
+            wire_rates = wire_hits/duration_seconds
+            err_wire_rates = np.sqrt(wire_hits)/duration_seconds
+            ax[ly].bar(wires, wire_rates, width=1, align="center")
+            ax[ly].bar(wires, bottom=wire_rates-err_wire_rates, height=2*err_wire_rates, width=1, align="center", hatch="xxx", fill=False, edgecolor="0.2", linestyle="")
+            ax[ly].set_ylim(bottom=0, top=np.amax(wire_rates+err_wire_rates)*1.1)
+            if ly == 3:
+                ax[ly].set_xlabel("Wire")
+            ax[ly].set_ylabel("Rate [Hz]")
+            ax[ly].set_title(f"SL {sl}, Ly {ly}")
+        fig.tight_layout()
+        fig.show()
 
 
 

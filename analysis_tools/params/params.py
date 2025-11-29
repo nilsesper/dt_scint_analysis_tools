@@ -469,7 +469,7 @@ _scintillator_ts_individual_dead_time = 0 #500 # in ts units
 # global time delay for scintillator hits by muons (scint ts = muon ts + _scintillator_delay)
 _scintillator_hit_delay = 0 # timestamp units
 # dt single cell hit efficiency
-_dt_cell_efficiency = 98.65 * 1e-2 # from cms 2024 performance
+_dt_cell_efficiency = 1 #98.65 * 1e-2 # from cms 2024 performance
 
 ### scintillator specific
 

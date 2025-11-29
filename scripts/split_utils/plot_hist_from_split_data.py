@@ -118,11 +118,7 @@ def main():
 
     ## plot
     fig, ax = plt.subplots(1, 1, figsize=(12,8))
-    # plot hist and errorbar
-    barwidth = np.mean(np.diff(centers))
-    ax.bar(centers, hist, width=barwidth, align="center", facecolor="tab:blue")
-    ax.bar(centers, bottom=hist-err_hist, height=2*err_hist, width=barwidth, align="center", hatch="xxx", fill=False, edgecolor="0.2", linestyle="")
-    ax.set_ylim(bottom=0, top=np.amax(hist+err_hist)*1.1)
+    ax = hist_utils.plot_histogram(ax=ax, hist=hist, centers=centers, err_hist=err_hist)
     xlabel = (params._key_symbols[hist_key]) if (params._key_units[hist_key] == "") else (params._key_symbols[hist_key]+" ["+ params._key_units[hist_key]+"]")
     ax.set_xlabel(xlabel)
     fig.tight_layout()

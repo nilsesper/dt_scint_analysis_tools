@@ -31,6 +31,8 @@
 #####
 # calculate
 # plot
+##### single fit illustration
+    python scripts/geomplot/singleplot_sl_fit.py --sl_fits_file thesis_data_files/large_combined_data_run/53_comb_a_SL_FITS_AFTERCUTS.pcl --indices 8
 
 ######## sl fit groups:
 #####

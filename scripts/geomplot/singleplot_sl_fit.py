@@ -118,7 +118,7 @@ def main():
         ###### plot fit
 
         ## plot fit, with residual plot
-        fig, ax = plt.subplots(2, 1, figsize=(12,7), sharex=True, height_ratios=(5,1))
+        fig, ax = plt.subplots(2, 1, figsize=(10, 8), sharex=True, height_ratios=(5,1))
         # main plot
         ts_label = "Hit timestamps"
         ax[0].errorbar(x=lys-0.02, y=ts, yerr=err_ts, color="tab:blue", marker="o", markersize=7, linestyle="", label=ts_label)
@@ -178,7 +178,7 @@ $\\chi^2/N_{{df}}={np.round(chi2ndf,2):.2f}$"""
         err_track = derived_params.err_f_x_muon(z=z_range, x0=x0, tan_alpha=tan_alpha, err_x0=err_x0, err_tan_alpha=err_tan_alpha, corr_x0_tan_alpha=corr_x0_tan_alpha)
         ax.plot(track, z_range, linewidth=2, color="tab:red", label=fit_label)
         ax.fill_betweenx(x1=track-err_track, x2=track+err_track, y=z_range, color="tab:red", alpha=0.2)
-        ax.legend(prop = { "size": 18 })
+        ax.legend(prop = { "size": 18 }, loc="center left")
         if sl != 2:
             ax.set_xlabel("$x-x_\\text{wire,ly=3}$ [mm]")
         else:

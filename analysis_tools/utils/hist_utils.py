@@ -176,6 +176,7 @@ def weighted_mean_peak_position(hist, centers, err_hist, err_centers, *, silent=
 
 
 ###################################
+###################################
 
 ### calculate bin centers from bin edges
 def centers_from_edges(edges):
@@ -190,6 +191,56 @@ def edges_from_centers(centers):
         edges[i] = centers[i]-distance
     edges[len(centers)] = centers[-1]+distance
     return edges
+
+### generate histogram edges
+# manually or automatically (requires min max value of data)
+# arg options:
+#   "linear,start,stop,n_bins+1" ,
+#   "range,start,stop+1" ,
+#   "auto,n_bins" ,
+#   "step1" ,
+def generate_histogram_edges(arg, *, data_min_val=None, data_max_val=None):
+    arg_split = arg.split(",")
+    edges = None
+    ## manual binning
+    # "linear" = linear bin edges
+    if arg_split[0] == "linear":
+        if len(arg_split) != 3+1:
+            raise Exception(f"arg: Need linear,start,stop,n_bins+1.")
+        edges = np.linspace(float(arg_split[1]), float(arg_split[2]), int(arg_split[3]))
+    # "range" = integer range bin edges
+    elif arg_split[0] == "range":
+        if len(arg_split) != 2+1:
+            raise Exception(f"arg: Need range,start,stop+1.")
+        edges = np.arange(int(arg_split[1]), int(arg_split[2]))
+    ## automatic binning
+    # "auto" = automatic bin edges for fixed no of bins
+    elif arg_split[0] == "auto":
+        if len(arg_split) != 1+1:
+            raise Exception(f"arg: Need auto,n_bins.")
+        n_auto_bins = int(arg_split[1])
+        edges = np.linspace(data_min_val, data_max_val, n_auto_bins+1)
+        #edges = hist_utils.edges_from_centers(centers)
+    # "step1" =  automatic bin edges for bin width = 1
+    elif arg_split[0] == "step1":
+        if len(arg_split) != 1:
+            raise Exception(f"arg: Need step1.")
+        edges = np.linspace(int(data_min_val)-1, int(data_max_val)+1, int(data_max_val)-int(data_min_val)+3)
+    else:
+        raise Exception(f"arg: Need linear / range / auto / step1.")
+    n_bins = len(edges)-1
+    centers = centers_from_edges(edges)
+    return edges, n_bins, centers
+
+### prepare empty hist
+def create_empty_histogram(edges):
+    n_bins = len(edges)-1
+    centers = centers_from_edges(edges)
+    hist = np.zeros(n_bins) # data hist
+    entries, underflow, overflow = 0, 0, 0
+    hist_err_right = np.zeros(n_bins) # data + err_data hist 
+    hist_err_left = np.zeros(n_bins) # data - err_data hist
+    return centers, hist, entries, underflow, overflow, hist_err_right, hist_err_left
 
 ### generate one histogram from given data
 # for given bin edges
@@ -211,12 +262,54 @@ def calculate_histogram(data, edges):
     centers = centers_from_edges(edges)
     return hist, edges, centers, entries, underflow, overflow
     
+### generate one histogram and two histograms with data shifted by +- err_data
+# data passed as np array / list
+def calculate_histogram_and_shifted_histograms(data, edges, err_data=None):
+    # prepare data frame
+    n_bins = len(edges)-1
+    centers, hist, entries, underflow, overflow, hist_err_right, hist_err_left = create_empty_histogram(edges)
+    # create histogram of specified key
+    hist, edges, centers, entries, underflow, overflow = calculate_histogram(data=data, edges=edges)
+    # propagate error of data into histogram
+    if type(err_data) != type(None):
+        hist_err_right = np.zeros(n_bins)
+        hist_err_left = np.zeros(n_bins)
+        #  shift right (data+err_data)
+        hist_err_right, _, _, _, _, _ = calculate_histogram(data=data+err_data, edges=edges)
+        #  shift left (data-err_data)
+        hist_err_left, _, _, _, _, _ = calculate_histogram(data=data-err_data, edges=edges)
+    else:
+        hist_err_right = None
+        hist_err_left = None
+    return hist, edges, centers, entries, underflow, overflow, hist_err_right, hist_err_left
 
+### combine hist and shifted hists to calculate uncertainty
+# also calculate poisson uncertainty per bin
+def calculate_hist_uncertainty(hist, *, hist_err_right=None, hist_err_left=None, do_stat_err=True):
+    n_bins = len(hist)
+    ## stat err
+    if do_stat_err:
+        # statistical error, slip to 1 entry if no entries
+        err_hist_stat = np.clip(a=np.sqrt(hist), a_min=1, a_max=None)
+    else:
+        err_hist_stat = np.zeros(n_bins)
+    ## data err
+    if type(hist_err_right) != type(None) and type(hist_err_left) != type(None):
+        # error of data entries (mean shift from left & right)
+        err_hist_data = (np.abs(hist_err_right-hist)+np.abs(hist_err_left-hist))/2
+    else:
+        err_hist_data = np.zeros(n_bins)
+    ## combine errors (assume uncorrelated)
+    err_hist = np.sqrt(err_hist_stat**2 + err_hist_data**2)
+    return err_hist
 
-
-
-
-
+### plot histogram with uncertainty bar into given ax, return ax
+def plot_histogram(ax, hist, centers, *, err_hist=None):
+    barwidth = np.mean(np.diff(centers))
+    ax.bar(centers, hist, width=barwidth, align="center", facecolor="tab:blue")
+    ax.bar(centers, bottom=hist-err_hist, height=2*err_hist, width=barwidth, align="center", hatch="xxx", fill=False, edgecolor="0.2", linestyle="")
+    ax.set_ylim(bottom=0, top=np.amax(hist+err_hist)*1.1)
+    return ax
 
 
 

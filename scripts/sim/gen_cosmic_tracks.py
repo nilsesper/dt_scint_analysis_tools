@@ -65,9 +65,11 @@ def main():
     # ts = t_start+t_step*np.arange(0,n_muons)
     
     ## poisson random
-    muon_area = np.abs(xrange[1]-xrange[0]) * np.abs(yrange[1]-yrange[0]) * 1e-6 # m^2 (mm^2 to m^2 -> 100^(1+1+1) = 100^3 = 1e6)
-    # vertical muon rate
-    muon_ref_rate = 147 * 0.78e-9 # 1/(tu*m^2) ( 0.78e-9 Hz / m^2 = 1/(tu*m^2) )
+    muon_area = np.abs(xrange[1]-xrange[0]) * np.abs(yrange[1]-yrange[0]) * 1e-6 # m^2    (mm^2 to m^2 -> 100^(1+1+1) = 100^3 = 1e6)
+    # muon rate on full sphere per area
+    #   flux = 70 m-2 s-1 sr-2
+    #   rate / area = integral phi (0, 2*pi) integral theta (0, pi/2) sin(theta)*cos^2(theta) of flux = 2*pi 1/3 * flux = 147 m-2 s-1
+    muon_ref_rate = 147 * 0.78e-9 # 1/(tu*m^2)     ( 0.78e-9 Hz / m^2 = 1/(tu*m^2) )
     muon_rate = muon_area * muon_ref_rate # 1 / timestamp units
     muon_lambda = muon_rate * t_sim # expected muon count in simulation time
     # number of muons in time interval is poisson distributed

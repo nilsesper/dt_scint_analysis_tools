@@ -46,7 +46,7 @@ def main():
 
     # list of cells to ignore manually
     blacklist = [ # (sl, ly, wi)
-        (1, 2, 23),
+        #(1, 2, 23),
     ]
 
 
@@ -55,7 +55,6 @@ def main():
     k = f"delta_ts"
     ch_list = []
     # time difference between hits
-    i_offset = 0
     for sl in range(1,4):
         for ly in range(0,4):
             print(f"  calculating for sl={sl}, ly={ly}...")

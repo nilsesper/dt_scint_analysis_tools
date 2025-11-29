@@ -175,42 +175,10 @@ def main():
     print(f"  data_val_range = {data_val_range}")
 
     ### calculate hist bins
-    arg_edges = args.edges.split(",")
-    edges = None
-    ## manual binning
-    # "linear" = linear bin edges
-    if arg_edges[0] == "linear":
-        if len(arg_edges) != 3+1:
-            raise Exception(f"--edges: Need linear,start,stop,n_bins+1.")
-        edges = np.linspace(float(arg_edges[1]), float(arg_edges[2]), int(arg_edges[3]))
-    # "range" = integer range bin edges
-    elif arg_edges[0] == "range":
-        if len(arg_edges) != 2+1:
-            raise Exception(f"--edges: Need range,start,stop+1.")
-        edges = np.arange(int(arg_edges[1]), int(arg_edges[2]))
-    ## automatic binning
-    # "auto" = automatic bin edges for fixed no of bins
-    elif arg_edges[0] == "auto":
-        if len(arg_edges) != 1+1:
-            raise Exception(f"--edges: Need auto,n_bins.")
-        n_auto_bins = int(arg_edges[1])
-        edges = np.linspace(data_min_val, data_max_val, n_auto_bins+1)
-        #edges = hist_utils.edges_from_centers(centers)
-    # "step1" =  automatic bin edges for bin width = 1
-    elif arg_edges[0] == "step1":
-        if len(arg_edges) != 1:
-            raise Exception(f"--edges: Need step1.")
-        centers = np.linspace(int(data_min_val)-1, int(data_max_val)+1, int(data_max_val)-int(data_min_val)+3)
-    else:
-        raise Exception(f"--edges: Need linear / range / auto / step1.")
-    n_bins = len(edges)-1
+    edges, n_bins, centers = hist_utils.generate_histogram_edges(arg=args.edges, data_min_val=data_min_val, data_max_val=data_max_val)
 
     ### prepare hists
-    centers = hist_utils.centers_from_edges(edges)
-    hist = np.zeros(n_bins) # data hist
-    entries, underflow, overflow = 0, 0, 0
-    hist_err_right = np.zeros(n_bins) # data + err_data hist 
-    hist_err_left = np.zeros(n_bins) # data - err_data hist
+    centers, hist, entries, underflow, overflow, hist_err_right, hist_err_left = hist_utils.create_empty_histogram(edges=edges)
 
     ### calculate histograms for sub datasets, merge hists consecutively
     ## import all data and apply the respective timing offset
@@ -226,18 +194,8 @@ def main():
             if ts_key in sub_data.keys():
                 sub_data[ts_key] = sub_data[ts_key] + ts_offset[data_idx]
         ### do something with data
-        # create histogram of specified key
-        hist_, edges_, centers_, entries_, underflow_, overflow_ = hist_utils.calculate_histogram(data=sub_data[hist_key], edges=edges)
-        # statistical error
-        err_hist_stat_ = np.sqrt(hist_)
-        # propagate error of data into histogram
-        hist_err_right_ = np.zeros(n_bins)
-        hist_err_left_ = np.zeros(n_bins)
-        if err_hist_key != None:
-            #  shift right (data+err_data)
-            hist_err_right_, _, _, _, _, _ = hist_utils.calculate_histogram(data=sub_data[hist_key]+sub_data[err_hist_key], edges=edges)
-            #  shift left (data-err_data)
-            hist_err_left_, _, _, _, _, _ = hist_utils.calculate_histogram(data=sub_data[hist_key]-sub_data[err_hist_key], edges=edges)
+        # create histogram of specified key and shifted hists to respect data error
+        hist_, _, _, entries_, underflow_, overflow_, hist_err_right_, hist_err_left_ = hist_utils.calculate_histogram_and_shifted_histograms(data=sub_data[hist_key], edges=edges, err_data=sub_data[err_hist_key])
         # add to combined histogram
         hist += hist_
         entries += entries_
@@ -247,12 +205,7 @@ def main():
         hist_err_left += hist_err_left_
 
     ### error calculation for full hist
-    # statistical error, slip to 1 entry if no entries
-    err_hist_stat = np.clip(a=np.sqrt(hist), a_min=1, a_max=None)
-    # error of data entries (mean shift from left & right)
-    err_hist_data = (np.abs(hist_err_right-hist)+np.abs(hist_err_left-hist))/2
-    # combine errors (assume uncorrelated)
-    err_hist = np.sqrt(err_hist_stat**2 + err_hist_data**2)
+    err_hist = hist_utils.calculate_hist_uncertainty(hist=hist, hist_err_right=hist_err_right, hist_err_left=hist_err_left, do_stat_err=True)
 
     print(f"created histogram:")
     print(f"  dataset = {dataset}  ,  key = {hist_key}  ,  err_key = {err_hist_key}")
