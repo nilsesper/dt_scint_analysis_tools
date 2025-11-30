@@ -1,5 +1,5 @@
 #######################
-### calculate dt hit difference information from split data
+### calculate sl pattern information from split data
 #######################
 
 import os
@@ -23,7 +23,7 @@ from analysis_tools.params import params, derived_params
 
 # allowed datasets
 allowed_datasets = [
-    "DT_HITS", "DT_HITS_NODEADTIME", "DT_CORR_HITS",
+    "SL_PATTERNS", "SL_FAKE_PATTERNS", "SL_FITS", "SL_FITS_AFTERCUTS",
 ]
 # possible ts keys that need to be shifted
 ts_keys = [
@@ -113,21 +113,19 @@ def main():
     ts_offset = np.array(ts_offset)
     print(f"   ts_offset = {ts_offset}")
 
-    ### fixed bins
-    n_bins = 500
-    edges = np.linspace(0, 5000/0.78, n_bins)
-
-    ### prepare hists
-    centers = hist_utils.centers_from_edges(edges)
-    hist = np.zeros(n_bins) # data hist
-    entries, underflow, overflow = 0, 0, 0
+    ### prepare data
+    pattern_count = {}
+    for sl in range(1,4):
+        pattern_count[sl] = {}
+        for pat_type in range(6):
+            pattern_count[sl][pat_type] = 0
+        pattern_count[sl]["com"] = 0
 
     ### calculate histograms for sub datasets, merge hists consecutively
     ## import all data and apply the respective timing offset
     ## extract the data of the specified hist key and calculate hist
     print(f"open {n_data} data files, apply timing offset and extract data for histogram...")
-    print(f"CALCULATING DT HIT TIME DIFFERENCE HISTOGRAM...")
-    data_to_merge = []
+    print(f"CALCULATING SL PATTERN OCCUPANCY...")
     for data_idx in tqdm(range(n_data)):
         sub_data_file = base_path+"/"+file_prefixes[data_idx]+"_"+dataset+".pcl"
         # pcl file import
@@ -137,65 +135,41 @@ def main():
         #    if ts_key in sub_data.keys():
         #        sub_data[ts_key] = sub_data[ts_key] + ts_offset[data_idx]
         ### do something with data
-        ## calculate time difference between hits
-        ch_list = []
+        ### rate of patterns per superlayer
         for sl in range(1,4):
-            for ly in range(0,4):
-                print(f"   sub_data_idx={data_idx}, sl={sl}, ly={ly}...")
-                for wi in range(params._dt_chamber["sls"][sl]["lys"][ly]["min_wi"], params._dt_chamber["sls"][sl]["lys"][ly]["max_wi"]+1):
-                    sub_data_cut = data_utils.cut_data(data=sub_data, conditions=[("sl","==",sl), ("ly","==",ly), ("wi","==",wi)], silent=True)
-                    sub_data_cut = timestamp_utils.sort_by_timestamp(hits=sub_data, silent=True)
-                    n_sub_data_cut = data_utils.length(sub_data_cut)
-                    ts_diff_list = []
-                    for i in range(1,n_sub_data_cut):
-                        ts_diff_list.append( int(sub_data_cut["ts"][i]) - int(sub_data_cut["ts"][i-1]) )
-                    ts_diff_list = np.array(ts_diff_list)
-                    ch_list.append({"key": ts_diff_list})
-        merged_ts_diff = data_utils.merge_dataset(split_data=ch_list, silent=True)["key"]
-        
-        ## create histogram of time difference between hits
-        hist_, edges_, centers_, entries_, underflow_, overflow_ = hist_utils.calculate_histogram(data=merged_ts_diff, edges=edges)
-        # statistical error
-        err_hist_stat_ = np.sqrt(hist_)
-        # propagate error of data into histogram
-        # (none)
-        # add to combined histogram
-        hist += hist_
-        entries += entries_
-        underflow += underflow_
-        overflow += overflow_
+            # by pattern type
+            for pat_type in range(6):
+                sl_patterns_cut = data_utils.cut_data(data=sub_data, conditions=[("sl","==",sl), ("pat_type","==",pat_type)], silent=True)
+                pattern_count[sl][pat_type] += data_utils.length(sl_patterns_cut)
+            # all patterns combined
+            sl_patterns_cut = data_utils.cut_data(data=sub_data, conditions=[("sl","==",sl)], silent=True)
+            pattern_count[sl]["com"] += data_utils.length(sl_patterns_cut)
 
     duration = cum_ts_length
     print(f"duration = {duration*0.78*1e-9} s")
+    duration_seconds = duration*0.78*1e-9
 
-    ### error calculation for full hist
-    # statistical error, slip to 1 entry if no entries
-    err_hist_stat = np.clip(a=np.sqrt(hist), a_min=1, a_max=None)
-    # error of data entries (mean shift from left & right)
-    # (none)
-    # combine errors (assume uncorrelated)
-    err_hist = np.sqrt(err_hist_stat**2)
-
-    print(f"created histogram:")
-    print(f"  dataset = {dataset}")
-    print(f"  entries   =  {entries}  ,  underflow =  {underflow}  ,  overflow  =  {overflow}")
-    if args.print_hist:
-        print(f"  edges     =  {edges}")
-        print(f"  centers   =  {centers}")
-        print(f"  hist      =  {hist}")
-        print(f"  err_hist  =  {err_hist}")
+    ### calculate rates
+    pattern_rate = {}
+    err_pattern_rate = {}
+    for sl in range(1,4):
+        pattern_rate[sl] = {}
+        err_pattern_rate[sl] = {}
+        for pat_type in range(6):
+            pattern_rate[sl][pat_type] = pattern_count[sl][pat_type] / duration_seconds
+            err_pattern_rate[sl][pat_type] = np.sqrt(pattern_count[sl][pat_type]) / duration_seconds
+        # common
+        pattern_rate[sl]["com"] = pattern_count[sl]["com"] / duration_seconds
+        err_pattern_rate[sl]["com"] = np.sqrt(pattern_count[sl]["com"]) / duration_seconds
 
     ### store histogram into file
     specific_data_to_store = {
-        "edges": edges,
-        "centers": centers,
-        "hist": hist,
-        "err_hist": err_hist,
-        "entries": entries,
-        "underflow": underflow,
-        "overflow": overflow,
+        "duration": duration,
+        "pattern_count": pattern_count,
+        "pattern_rate": pattern_rate,
+        "err_pattern_rate": err_pattern_rate,
     }
-    specific_data_file = base_path+"/"+common_file_prefix+"_"+dataset+"_DIFF_SPECIFIC.pcl"
+    specific_data_file = base_path+"/"+common_file_prefix+"_"+dataset+"_SPECIFIC.pcl"
     print(f"storing specific data as {specific_data_file}...")
     data_utils.store_pickle(data=specific_data_to_store, file=specific_data_file)
 

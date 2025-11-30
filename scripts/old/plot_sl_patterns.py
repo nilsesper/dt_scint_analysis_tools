@@ -282,17 +282,16 @@ def main():
 
     #"""
     ### rate of patterns per superlayer
+    pattern_count = {}
     pattern_rate = {}
     err_pattern_rate = {}
     for sl in range(1,4):
-        pattern_rate[sl] = {}
-        err_pattern_rate[sl] = {}
+        pattern_count[sl] = {}
         # by pattern type
         for pat_type in range(6):
             sl_patterns_cut = data_utils.cut_data(data=sl_patterns, conditions=[("sl","==",sl), ("pat_type","==",pat_type)], silent=True)
-            pattern_count = data_utils.length(sl_patterns_cut)
+            pattern_count[sl][pat_type] = data_utils.length(sl_patterns_cut)
             pattern_rate[sl][pat_type] = pattern_count / duration
-            err_pattern_rate[sl][pat_type] = np.sqrt(pattern_rate[sl][pat_type])
             print(f"sl={sl} pat_type={pat_type} pattern rate: {pattern_rate[sl][pat_type]} +- {err_pattern_rate[sl][pat_type]} Hz")
         # cumulated
         sl_patterns_cut = data_utils.cut_data(data=sl_patterns, conditions=[("sl","==",sl)], silent=True)
@@ -331,7 +330,7 @@ def main():
     sl_patterns = data_utils.sort_by_key(data=sl_patterns, sort_key="ts3")
     #"""
 
-    #"""
+    """
     #### time difference between sl fits
     additional_data = {}
     print("Plotting time differences between sl fits...")
@@ -353,7 +352,7 @@ def main():
     hist_utils.plot_1hist(hist=hists, centers=centers, xlabel=xlabel, round_digits=round_digits, bin_labels=False, silent=True, store=plotname, show=show_plots, title=f"", scale="log") # scale="log"
     #"""
 
-    #"""
+    """
     #### time difference between sl fits within same superlayer
     additional_data = {}
     print("Plotting time differences between sl fits within same sl...")

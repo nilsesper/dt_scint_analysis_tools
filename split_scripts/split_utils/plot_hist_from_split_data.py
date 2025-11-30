@@ -23,9 +23,8 @@ from analysis_tools.params import params, derived_params
 
 # allowed datasets
 allowed_datasets = [
-    "DT_HITS", "DT_HITS_NODEADTIME", "DT_CORR_HITS", "SL_PATTERNS", "SL_FITS", "SL_FITS_AFTERCUTS", "SL_FIT_GROUPS", "DT_MUONS",
+    "DT_HITS", "DT_HITS_NODEADTIME", "DT_CORR_HITS", "SL_PATTERNS", "SL_FAKE_PATTERNS", "SL_FITS", "SL_FITS_AFTERCUTS", "SL_FIT_GROUPS", "DT_MUONS",
     "RAW_SCINT_HITS", "RAW_SCINT_GROUPS", "SCINT_HITS", "SCINT_AREAS",
-    "DT_HIT_DIFFERENCES",
 ]
 
 # ---------------------------------------------------------------
@@ -64,6 +63,16 @@ def main():
         "--print_hist",
         action = "store_true",
     )
+    parser.add_argument( # if this flag is given: use log y axis
+        "--log_y_scale",
+        action = "store_true",
+    )
+    parser.add_argument(
+        "--fig_size",
+        type     = str,
+        default = "12,8",
+        help     = "custom fig_size of the plot in the format x_size,y_size (if desired)",
+    )
     parser.add_argument(
         "--store_path",
         type     = str,
@@ -91,11 +100,18 @@ def main():
     common_file_prefix = os.path.commonprefix(file_prefixes)
     # hist data key
     hist_key = args.key
+    # other params
+    log_y_scale = False
+    if args.log_y_scale:
+        log_y_scale = True
+    arg_fig_size = args.fig_size.split(",")
+    fig_size = (float(arg_fig_size[0]), float(arg_fig_size[1]))
 
     ####################
 
     ### import calculated hist
-    hist_data_file = base_path+"/"+common_file_prefix+"_"+dataset+"_HIST_"+hist_key+".pcl"
+    hist_key_str = hist_key.replace("/","-")
+    hist_data_file = base_path+"/"+common_file_prefix+"_"+dataset+"_HIST_"+hist_key_str+".pcl"
     print(f"open histogram from file \"{hist_data_file}\"...")
     hist_data = data_utils.load_pickle(file=hist_data_file, silent=True)
     # read data
@@ -117,8 +133,8 @@ def main():
         print(f"  err_hist  =  {err_hist}")
 
     ## plot
-    fig, ax = plt.subplots(1, 1, figsize=(12,8))
-    ax = hist_utils.plot_histogram(ax=ax, hist=hist, centers=centers, err_hist=err_hist)
+    fig, ax = plt.subplots(1, 1, figsize=fig_size)
+    ax = hist_utils.plot_histogram(ax=ax, hist=hist, centers=centers, err_hist=err_hist, log_scale=log_y_scale)
     xlabel = (params._key_symbols[hist_key]) if (params._key_units[hist_key] == "") else (params._key_symbols[hist_key]+" ["+ params._key_units[hist_key]+"]")
     ax.set_xlabel(xlabel)
     fig.tight_layout()
@@ -126,7 +142,8 @@ def main():
 
     ## store plot
     if args.store_path:
-        hist_plot_file = args.store_path+"/"+common_file_prefix+"_"+dataset+"_HIST_"+hist_key+".pdf"
+        hist_key_str = hist_key.replace("/","-")
+        hist_plot_file = args.store_path+"/"+common_file_prefix+"_"+dataset+"_HIST_"+hist_key_str+".pdf"
         print(f"store histogram plot as {hist_plot_file}.")
         fig.savefig(hist_plot_file)
 

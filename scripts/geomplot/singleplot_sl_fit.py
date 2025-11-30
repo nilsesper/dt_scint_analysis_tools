@@ -11,6 +11,7 @@ from mpl_toolkits.axes_grid1 import make_axes_locatable
 import copy
 import argparse
 from scipy.optimize import curve_fit
+from matplotlib.ticker import ScalarFormatter
 
 from analysis_tools.utils import dummy_gen, data_utils, dt_utils, scint_utils, timestamp_utils, geoplot_utils, muon_utils, math_utils, hist_utils, process_utils
 from analysis_tools.params import params, derived_params
@@ -139,6 +140,7 @@ $\\chi^2/N_{{df}}={np.round(chi2ndf,2):.2f}$"""
         ax[0].set_ylabel("Timestamp $T_{ly}$ [TU]")
         ax[0].legend(prop = { "size": 18 })
         ax[0].set_title(f"SL {sl} ({params._dt_chamber["sls"][sl]["orient"]}), Pattern {pat_type}, Laterality {[int(l) for l in laterality]}")
+        ax[0].yaxis.set_major_formatter(ScalarFormatter(useMathText=True)) 
         
         # residual plot
         residuals = ts - fit_ts

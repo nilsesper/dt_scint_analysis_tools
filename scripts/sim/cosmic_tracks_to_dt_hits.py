@@ -42,6 +42,12 @@ def main():
         type     = float,
         help     = "dt miscalibration noise amplitude (gaussian) in ts units, generated once for the full dataset",
     )
+    # optional: store txt file with min and max ts of this dumpfile
+    parser.add_argument(
+        "--ts_range_file",
+        type     = str,
+        help     = "optional output file path: timestamp range (txt file)",
+    )
     # ---
     args = parser.parse_args()
     cosmic_muons_file = args.cosmic_muons_file
@@ -52,6 +58,9 @@ def main():
     sys_miscalib_ampl = 0
     if args.sys_miscalib_ampl:
         sys_miscalib_ampl = args.sys_miscalib_ampl
+    create_ts_file = False
+    if args.ts_range_file:
+        create_ts_file = True
     
     #################
 
@@ -71,6 +80,15 @@ def main():
     ### store to pcl file
     print(f"###### Storing DT hits to file \"{dt_hits_file}\"...")
     data_utils.store_pickle(data=dt_hits, file=dt_hits_file)
+
+    ### optionally create ts file
+    if create_ts_file:
+        ts_min = np.amin(dt_hits["ts"])
+        ts_max = np.amax(dt_hits["ts"])
+        print(f"store ts range = [{ts_min}, {ts_max}] in file \"{args.ts_range_file}\".")
+        ts_file_string = f"{int(ts_min)},{int(ts_max)}"
+        with open(args.ts_range_file, 'w') as f:
+            f.write(ts_file_string)
 
 
 

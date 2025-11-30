@@ -9,6 +9,7 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as pat
 import matplotlib as mpl
 from mpl_toolkits.axes_grid1 import make_axes_locatable
+from matplotlib.ticker import ScalarFormatter
 
 import analysis_tools.params.params as params
 import analysis_tools.params.derived_params as derived_params
@@ -230,7 +231,10 @@ def generate_histogram_edges(arg, *, data_min_val=None, data_max_val=None):
     elif arg_split[0] == "step1":
         if len(arg_split) != 1:
             raise Exception(f"arg: Need step1.")
-        centers = np.linspace(int(data_min_val)-1, int(data_max_val)+1, int(data_max_val)-int(data_min_val)+3)
+        if data_min_val == data_max_val:
+            data_min_val -= 1
+            data_max_val += 1
+        centers = np.linspace(int(data_min_val), int(data_max_val), int(data_max_val)-int(data_min_val)+1)
         edges = edges_from_centers(centers)
     else:
         raise Exception(f"arg: Need linear / range / auto / step1.")
@@ -310,11 +314,19 @@ def calculate_hist_uncertainty(hist, *, hist_err_right=None, hist_err_left=None,
     return err_hist
 
 ### plot histogram with uncertainty bar into given ax, return ax
-def plot_histogram(ax, hist, centers, *, err_hist=None):
+def plot_histogram(ax, hist, centers, *, err_hist=None, log_scale=False):
     barwidth = np.mean(np.diff(centers))
     ax.bar(centers, hist, width=barwidth, align="center", facecolor="tab:blue")
     ax.bar(centers, bottom=hist-err_hist, height=2*err_hist, width=barwidth, align="center", hatch="xxx", fill=False, edgecolor="0.2", linestyle="")
-    ax.set_ylim(bottom=0, top=np.amax(hist+err_hist)*1.1)
+    if not log_scale:
+        ax.set_ylim(bottom=0, top=np.amax(hist+err_hist)*1.1)
+        ax.yaxis.set_major_formatter(ScalarFormatter(useMathText=True))
+        ax.yaxis.get_major_formatter().set_powerlimits([-2, 2]) # 10^X power limits for prescale
+    else:
+        ax.set_yscale("log")
+        ax.set_ylim(bottom=0.5, top=np.amax(hist+err_hist)*np.exp(1.1))
+    ax.xaxis.set_major_formatter(ScalarFormatter(useMathText=True)) 
+    ax.xaxis.get_major_formatter().set_powerlimits([-2, 2]) # 10^X power limits for prescale
     return ax
 
 

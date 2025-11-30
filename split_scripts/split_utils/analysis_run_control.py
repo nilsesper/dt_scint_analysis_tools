@@ -45,11 +45,14 @@ allowed_tasks = {
     "dump_dt_nodeadtime":
         "python scripts/dt/dumpfile_to_dt_hits.py --input_dumpfile [DUMPFILE] --dt_hits_file [DT_HITS_NODEADTIME] --nodeadtime",
     ### dt workflow
-    # dump_import,dt_corr,dt_patterns,dt_fits,dt_fit_cuts,dt_fit_groups,dt_muons
     "dt_corr":
         "python scripts/dt/dt_hits_timing_correction.py --dt_hits_file [DT_HITS] --dt_tp_corrections_file [DT_CORRECTIONS] --corr_dt_hits_file [DT_CORR_HITS]",
+    "dt_skip_corr":
+        "cp [DT_HITS] [DT_CORR_HITS]",
     "dt_patterns":
         "python scripts/dt/dt_hits_to_sl_patterns.py --dt_hits_file [DT_CORR_HITS] --sl_patterns_file [SL_PATTERNS] --n_proc [N_PROC]",
+    "dt_fake_patterns":
+        "python scripts/dt/dt_hits_to_sl_fake_patterns.py --dt_hits_file [DT_CORR_HITS] --sl_patterns_file [SL_FAKE_PATTERNS] --n_proc [N_PROC]",
     "dt_fits":
         "python scripts/dt/sl_patterns_to_sl_fits.py --sl_patterns_file [SL_PATTERNS] --sl_fits_file [SL_FITS] --n_proc [N_PROC]",
     "dt_fit_cuts":
@@ -59,21 +62,25 @@ allowed_tasks = {
     "dt_muons":
         "python scripts/dt/sl_fit_groups_to_dt_muons.py --sl_fits_file [SL_FITS_AFTERCUTS] --sl_fit_groups_file [SL_FIT_GROUPS] --dt_muons_file [DT_MUONS]",
     ### scint workflow
-    # dump_import,scint_raw_groups,scint_hits,scint_pixels
     "scint_raw_groups":
         "python scripts/scint/raw_scint_hits_to_raw_groups.py --raw_scint_hits_file [RAW_SCINT_HITS] --raw_scint_groups_file [RAW_SCINT_GROUPS] --n_proc [N_PROC]",
     "scint_hits":
         "python scripts/scint/raw_groups_to_scint_hits.py --raw_scint_hits_file [RAW_SCINT_HITS] --raw_scint_groups_file [RAW_SCINT_GROUPS] --scint_hits_file [SCINT_HITS]",
     "scint_pixels":
         "python scripts/scint/raw_groups_to_scint_areas.py --raw_scint_hits_file [RAW_SCINT_HITS] --raw_scint_groups_file [RAW_SCINT_GROUPS] --scint_areas_file [SCINT_AREAS]",
-    ### other analysis
+    ### simulation
+    "gen_muons_sim":
+        "python scripts/sim/gen_cosmic_tracks.py --cosmic_muons_file [SIM_MUONS]",
+    "dt_hits_sim":
+        "python scripts/sim/cosmic_tracks_to_dt_hits.py --cosmic_muons_file [SIM_MUONS] --dt_hits_file [DT_HITS] --ts_range_file [TS_RANGE]",
     
 }
 ### filepath wildcards:
 prefix_wildcard_list = [
-    "DT_HITS", "DT_HITS_NODEADTIME", "DT_CORR_HITS", "SL_PATTERNS", "SL_FITS", "SL_FITS_AFTERCUTS", "SL_FIT_GROUPS", "DT_MUONS",
+    "DT_HITS", "DT_HITS_NODEADTIME", "DT_CORR_HITS", "SL_PATTERNS", "SL_FAKE_PATTERNS", "SL_FITS", "SL_FITS_AFTERCUTS", "SL_FIT_GROUPS", "DT_MUONS",
     "RAW_SCINT_HITS", "RAW_SCINT_GROUPS", "SCINT_HITS", "SCINT_AREAS",
     "DT_HIT_DIFFERENCES",
+    "SIM_MUONS"
 ]
 def replace_wildcards(command, base_path, dump_file, file_prefix, n_proc):
     wildcard_dict = {

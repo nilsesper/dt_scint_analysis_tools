@@ -24,7 +24,7 @@ from analysis_tools.params import params, derived_params
 
 # allowed datasets
 allowed_datasets = [
-    "DT_HITS", "DT_HITS_NODEADTIME", "DT_CORR_HITS", "SL_PATTERNS", "SL_FITS", "SL_FITS_AFTERCUTS", "SL_FIT_GROUPS", "DT_MUONS",
+    "DT_HITS", "DT_HITS_NODEADTIME", "DT_CORR_HITS", "SL_PATTERNS", "SL_FAKE_PATTERNS", "SL_FITS", "SL_FITS_AFTERCUTS", "SL_FIT_GROUPS", "DT_MUONS",
     "RAW_SCINT_HITS", "RAW_SCINT_GROUPS", "SCINT_HITS", "SCINT_AREAS",
     "DT_HIT_DIFFERENCES",
 ]
@@ -158,8 +158,8 @@ def main():
                 sub_data[ts_key] = sub_data[ts_key] + ts_offset[data_idx]
         ### do something with data
         # find min and max
-        min_data_ = np.amin(sub_data[hist_key]-sub_data[err_hist_key])
-        max_data_ = np.amax(sub_data[hist_key]+sub_data[err_hist_key])
+        min_data_ = np.amin(sub_data[hist_key])
+        max_data_ = np.amax(sub_data[hist_key])
         if data_min_val == None: # initial values
             data_min_val = min_data_
             data_max_val = max_data_
@@ -193,16 +193,26 @@ def main():
         for ts_key in ts_keys:
             if ts_key in sub_data.keys():
                 sub_data[ts_key] = sub_data[ts_key] + ts_offset[data_idx]
+        ### select data
+        data = sub_data[hist_key]
+        err_data = None
+        if err_hist_key != None:
+            err_data = sub_data[err_hist_key]
         ### do something with data
         # create histogram of specified key and shifted hists to respect data error
-        hist_, _, _, entries_, underflow_, overflow_, hist_err_right_, hist_err_left_ = hist_utils.calculate_histogram_and_shifted_histograms(data=sub_data[hist_key], edges=edges, err_data=sub_data[err_hist_key])
+        hist_, _, _, entries_, underflow_, overflow_, hist_err_right_, hist_err_left_ = hist_utils.calculate_histogram_and_shifted_histograms(data=data, edges=edges, err_data=err_data)
         # add to combined histogram
         hist += hist_
         entries += entries_
         underflow += underflow_
         overflow += overflow_
-        hist_err_right += hist_err_right_
-        hist_err_left += hist_err_left_
+        if type(err_data) != type(None):
+            hist_err_right += hist_err_right_
+            hist_err_left += hist_err_left_
+
+    if type(err_data) == type(None):
+        hist_err_right = None
+        hist_err_left = None
 
     ### error calculation for full hist
     err_hist = hist_utils.calculate_hist_uncertainty(hist=hist, hist_err_right=hist_err_right, hist_err_left=hist_err_left, do_stat_err=True)
@@ -226,7 +236,8 @@ def main():
         "underflow": underflow,
         "overflow": overflow,
     }
-    hist_data_file = base_path+"/"+common_file_prefix+"_"+dataset+"_HIST_"+hist_key+".pcl"
+    hist_key_str = hist_key.replace("/","-")
+    hist_data_file = base_path+"/"+common_file_prefix+"_"+dataset+"_HIST_"+hist_key_str+".pcl"
     print(f"storing histogram as {hist_data_file}...")
     data_utils.store_pickle(data=hist_to_store, file=hist_data_file)
 
