@@ -136,31 +136,34 @@
 ## hist: "ts" +- "err_ts"
 # calculate & plot
     python split_scripts/split_utils/hist_from_split_data.py --base_path thesis_data_files/large_combined_data_run/ --data_config_file thesis_data_files/large_combined_data_run/data_config_file_finished.txt --dataset DT_MUONS --key "ts" --err_key "err_ts" --edges "auto,50" &&
-    python split_scripts/split_utils/plot_hist_from_split_data.py --base_path thesis_data_files/large_combined_data_run/ --data_config_file thesis_data_files/large_combined_data_run/data_config_file_finished.txt --store_path ~/masterarbeit/thesis/resources/images/large_combined_data_plots/ --dataset DT_MUONS --key "ts" --fig_size "7,6 --use_asymm_err
+    python split_scripts/split_utils/plot_hist_from_split_data.py --base_path thesis_data_files/large_combined_data_run/ --data_config_file thesis_data_files/large_combined_data_run/data_config_file_finished.txt --store_path ~/masterarbeit/thesis/resources/images/large_combined_data_plots/ --dataset DT_MUONS --key "ts" --fig_size "7,6" --use_asymm_err
 ## hist: "theta" +- "err_theta"
 # calculate & plot
     python split_scripts/split_utils/hist_from_split_data.py --base_path thesis_data_files/large_combined_data_run/ --data_config_file thesis_data_files/large_combined_data_run/data_config_file_finished.txt --dataset DT_MUONS --key "theta" --err_key "err_theta" --edges "linear,0,1.58,100" &&
-    python split_scripts/split_utils/plot_hist_from_split_data.py --base_path thesis_data_files/large_combined_data_run/ --data_config_file thesis_data_files/large_combined_data_run/data_config_file_finished.txt --store_path ~/masterarbeit/thesis/resources/images/large_combined_data_plots/ --dataset DT_MUONS --key "theta" --fig_size "7,6 --use_asymm_err
+    python split_scripts/split_utils/plot_hist_from_split_data.py --base_path thesis_data_files/large_combined_data_run/ --data_config_file thesis_data_files/large_combined_data_run/data_config_file_finished.txt --store_path ~/masterarbeit/thesis/resources/images/large_combined_data_plots/ --dataset DT_MUONS --key "theta" --fig_size "7,6" --use_asymm_err
 ## hist: "phi" +- "err_phi"
 # calculate & plot
     python split_scripts/split_utils/hist_from_split_data.py --base_path thesis_data_files/large_combined_data_run/ --data_config_file thesis_data_files/large_combined_data_run/data_config_file_finished.txt --dataset DT_MUONS --key "phi" --err_key "err_phi" --edges "linear,0,6.29,200" &&
-    python split_scripts/split_utils/plot_hist_from_split_data.py --base_path thesis_data_files/large_combined_data_run/ --data_config_file thesis_data_files/large_combined_data_run/data_config_file_finished.txt --store_path ~/masterarbeit/thesis/resources/images/large_combined_data_plots/ --dataset DT_MUONS --key "phi" --fig_size "7,6 --use_asymm_err
+    python split_scripts/split_utils/plot_hist_from_split_data.py --base_path thesis_data_files/large_combined_data_run/ --data_config_file thesis_data_files/large_combined_data_run/data_config_file_finished.txt --store_path ~/masterarbeit/thesis/resources/images/large_combined_data_plots/ --dataset DT_MUONS --key "phi" --fig_size "7,6" --use_asymm_err
 ## hist: "x0" +- "err_x0"
 # calculate & plot
     python split_scripts/split_utils/hist_from_split_data.py --base_path thesis_data_files/large_combined_data_run/ --data_config_file thesis_data_files/large_combined_data_run/data_config_file_finished.txt --dataset DT_MUONS --key "x0" --err_key "err_x0" --edges "auto,200" &&
-    python split_scripts/split_utils/plot_hist_from_split_data.py --base_path thesis_data_files/large_combined_data_run/ --data_config_file thesis_data_files/large_combined_data_run/data_config_file_finished.txt --store_path ~/masterarbeit/thesis/resources/images/large_combined_data_plots/ --dataset DT_MUONS --key "x0" --fig_size "7,6 --use_asymm_err
+    python split_scripts/split_utils/plot_hist_from_split_data.py --base_path thesis_data_files/large_combined_data_run/ --data_config_file thesis_data_files/large_combined_data_run/data_config_file_finished.txt --store_path ~/masterarbeit/thesis/resources/images/large_combined_data_plots/ --dataset DT_MUONS --key "x0" --fig_size "7,6" --use_asymm_err
 ## hist: "y0" +- "err_y0"
 # calculate & plot
     python split_scripts/split_utils/hist_from_split_data.py --base_path thesis_data_files/large_combined_data_run/ --data_config_file thesis_data_files/large_combined_data_run/data_config_file_finished.txt --dataset DT_MUONS --key "y0" --err_key "err_y0" --edges "auto,200" &&
-    python split_scripts/split_utils/plot_hist_from_split_data.py --base_path thesis_data_files/large_combined_data_run/ --data_config_file thesis_data_files/large_combined_data_run/data_config_file_finished.txt --store_path ~/masterarbeit/thesis/resources/images/large_combined_data_plots/ --dataset DT_MUONS --key "y0" --fig_size "7,6 --use_asymm_err
+    python split_scripts/split_utils/plot_hist_from_split_data.py --base_path thesis_data_files/large_combined_data_run/ --data_config_file thesis_data_files/large_combined_data_run/data_config_file_finished.txt --store_path ~/masterarbeit/thesis/resources/images/large_combined_data_plots/ --dataset DT_MUONS --key "y0" --fig_size "7,6" --use_asymm_err
 
-##### single dt muon event display
-
-##### merge split dt muon files into one, because some plotting scripts only work with merged data
-# merge dt
+##### advanced plotting
+### merge split dt muon files into one, because some plotting scripts only work with merged data
     python split_scripts/split_utils/merge_split_data.py --base_path thesis_data_files/large_combined_data_run/ --data_config_file thesis_data_files/large_combined_data_run/data_config_file_finished.txt --dataset DT_MUONS
 
-##### 2d views of dt muons
+### 2d views of dt muons
+    python scripts/geomplot/singleplot_dt_muon.py --dt_muons_file thesis_data_files/large_combined_data_run/53_comb_a_DT_MUONS.pcl --sl_fits_file thesis_data_files/large_combined_data_run/53_comb_a_SL_FITS_AFTERCUTS.pcl --sl_fit_groups_file thesis_data_files/large_combined_data_run/53_comb_a_SL_FIT_GROUPS.pcl --dt_muon_idcs 5
+    # manually store plots
+
+### dt track geometry plotting
+    python scripts/dt/plot_dt_muons.py --show_plots --dt_muons_file thesis_data_files/large_combined_data_run/53_comb_a_MERGED_DT_MUONS.pcl --fig_size "7,6" --store_path ~/masterarbeit/thesis/resources/images/large_combined_data_plots/
 
 
 ############## SCINTILLATOR
@@ -193,7 +196,7 @@
 # calculate
     python scripts/combined/correlate_dt_muons_and_scint_hits.py --dt_muons_file thesis_data_files/large_combined_data_run/53_comb__MERGED_DT_MUONS.pcl --scint_hits_file thesis_data_files/large_combined_data_run/53_comb__MERGED_SCINT_HITS.pcl --corr_hits_file thesis_data_files/large_combined_data_run/MERGED_CORR_HITS.pcl
 # plot
-
+    python scripts/combined/plot_corr_dt_muons_scint_hits.py --dt_muons_file thesis_data_files/large_combined_data_run/53_comb__MERGED_DT_MUONS.pcl --scint_hits_file thesis_data_files/large_combined_data_run/53_comb__MERGED_SCINT_HITS.pcl --corr_hits_file thesis_data_files/large_combined_data_run/MERGED_CORR_HITS.pcl --store_path ~/masterarbeit/thesis/resources/images/large_combined_data_plots/
 
 
 

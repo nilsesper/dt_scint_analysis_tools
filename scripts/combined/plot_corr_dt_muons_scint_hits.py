@@ -10,6 +10,7 @@ import matplotlib as mpl
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 import copy
 import argparse
+import matplotlib.patches as mpatches
 
 from analysis_tools.utils import dummy_gen, data_utils, dt_utils, scint_utils, timestamp_utils, geoplot_utils, muon_utils, math_utils, hist_utils, process_utils
 from analysis_tools.params import params, derived_params
@@ -43,7 +44,11 @@ def main():
         action   = "store_true",
         help     = "print info",
     )
-    
+    parser.add_argument(
+        "--store_path",
+        type     = str,
+        help     = "path to store pdf plot (if desired)",
+    )
     # ---
     args = parser.parse_args()
     dt_muons_file = args.dt_muons_file
@@ -97,6 +102,17 @@ def main():
     for k in scint_hits.keys():
         scint_corr_hits[k] = scint_hits[k][scint_idcs]
 
+    ### manual input of low occupancy wires to be shown in plot
+    # dt chamber
+    low_occ_wires = { # sl: (ly, wi)
+        1: [  ] + [ (1,49), ],
+        2: [ (0,2), (0,5), (0,13), (0,35), (0,50), (0,51), (1,4), (1,5), (1,44), (1,45), ] + [ (1,57), ],
+        3: [ (0,10), (1,41), (2,26), ] + [ (1,49), ],
+    }
+    # scintillator
+    low_occ_strips = [ # (ly, st)
+        
+    ]
 
     ######## time difference between dt & scint correlated hits
 
@@ -151,6 +167,7 @@ def main():
 
     ####### geomplot corr muons
 
+    """
     # generate dt cell data
     dt_cell_data = dt_utils._chamber_data()
         
@@ -198,14 +215,15 @@ def main():
         ax.text(x_topright, y_topleft+0.02, description, transform=plt.gcf().transFigure, horizontalalignment="right")
         # show/store figure
         fig.show()
+    #"""
 
-
-    ####### 2d projections
+    ####### 2d X-Y projections
 
     xy_marigin = 400
-    n_xy_bins = 60
-    x_edges = np.linspace(derived_params.scint_x_min-xy_marigin, derived_params.scint_x_max+xy_marigin, n_xy_bins)
-    y_edges = np.linspace(derived_params.scint_y_min-xy_marigin, derived_params.scint_y_max+xy_marigin, n_xy_bins)
+    x_bin_width = 5 # mm
+    y_bin_width = 5 # mm
+    x_edges = np.arange(start=derived_params.scint_x_min-xy_marigin, stop=derived_params.scint_x_max+xy_marigin, step=x_bin_width)
+    y_edges = np.arange(start=derived_params.scint_y_min-xy_marigin, stop=derived_params.scint_y_max+xy_marigin, step=y_bin_width)
     x_bins = np.array([(x_edges[i]+x_edges[i+1])/2 for i in range(len(x_edges)-1)])
     y_bins = np.array([(y_edges[i]+y_edges[i+1])/2 for i in range(len(y_edges)-1)])
     x_binwidth = x_edges[1]-x_edges[0]
@@ -217,8 +235,8 @@ def main():
     dt_corr_muons_scint = muon_utils.change_muon_base_point(muons=dt_corr_muons, z_new=derived_params.scint_z_center)
 
     pos_corr_muons_hist2d, _, _ = np.histogram2d(x=dt_corr_muons_scint["y0"], y=dt_corr_muons_scint["x0"], bins=(y_edges, x_edges))
-    # convert to rate
-    pos_corr_muons_hist2d /= duration
+    ## convert to rate
+    #pos_corr_muons_hist2d /= duration
     # plot
     fig, ax = plt.subplots(1, 1, figsize=(12,8))
     im_obj = ax.imshow(X=pos_corr_muons_hist2d, origin="lower", extent=[min(x_bins), max(x_bins), min(y_bins), max(y_bins)])
@@ -234,48 +252,241 @@ def main():
     for patch in patches:
         ax.add_patch(patch)
     # plot setup
-    ax.set_title(f"$N_\\text{{DT muons, correlated}}$ ($z={np.round(derived_params.scint_z_center,0):.0f}$mm)")
+    ax.set_title(f"$N_\\text{{DT tracks, correlated}}$ ($z={np.round(derived_params.scint_z_center,0):.0f}$mm)")
     ax.set_ylabel("$y$ [mm]")
     ax.set_xlabel("$x$ [mm]")
     ax.legend()
     cbar = fig.colorbar(im_obj, ax=ax, fraction=0.05)
-    cbar.set_label("Hz")
+    #cbar.set_label("Hz")
     fig.tight_layout()
     fig.show()
+    ## store plot
+    if args.store_path:
+        hist_plot_file = args.store_path+"/"+f"CORRELATED_HITS_SPECIFIC_xy.pdf"
+        print(f"store histogram plot as {hist_plot_file}.")
+        fig.savefig(hist_plot_file)
 
-    ### all muon x,y position plot (for z = mean_scint_z)
+    #### all muon x,y position plot (for z = mean_scint_z)
 
-    # project muons onto scintillator z pos
-    dt_muons_scint = muon_utils.change_muon_base_point(muons=dt_muons, z_new=derived_params.scint_z_center)
+    ## project muons onto scintillator z pos
+    #dt_muons_scint = muon_utils.change_muon_base_point(muons=dt_muons, z_new=derived_params.scint_z_center)
 
-    pos_dt_muons_hist2d, _, _ = np.histogram2d(x=dt_muons_scint["y0"], y=dt_muons_scint["x0"], bins=(y_edges, x_edges))
-    # convert to rate
-    pos_dt_muons_hist2d /= duration
-    # plot
-    fig, ax = plt.subplots(1, 1, figsize=(12,8))
-    im_obj = ax.imshow(X=pos_dt_muons_hist2d, origin="lower", extent=[min(x_bins), max(x_bins), min(y_bins), max(y_bins)])
-    # draw scint into plot
-    patches = []
-    patches.append( pat.Rectangle(
-        (derived_params.scint_x_min, derived_params.scint_y_min),
-        width=(derived_params.scint_x_max - derived_params.scint_x_min),
-        height=(derived_params.scint_y_max - derived_params.scint_y_min),
-        edgecolor="white", facecolor="None",
-        label="Scintillator position")
-    )
-    for patch in patches:
-        ax.add_patch(patch)
-    # plot setup
-    ax.set_title(f"$N_\\text{{DT muons}}$ ($z={np.round(derived_params.scint_z_center,0):.0f}$mm)")
-    ax.set_ylabel("$y$ [mm]")
-    ax.set_xlabel("$x$ [mm]")
-    ax.legend()
-    cbar = fig.colorbar(im_obj, ax=ax, fraction=0.05)
-    cbar.set_label("Hz")
-    fig.tight_layout()
-    fig.show()
+    #pos_dt_muons_hist2d, _, _ = np.histogram2d(x=dt_muons_scint["y0"], y=dt_muons_scint["x0"], bins=(y_edges, x_edges))
+    ### convert to rate
+    ##pos_dt_muons_hist2d /= duration
+    ## plot
+    #fig, ax = plt.subplots(1, 1, figsize=(12,8))
+    #im_obj = ax.imshow(X=pos_dt_muons_hist2d, origin="lower", extent=[min(x_bins), max(x_bins), min(y_bins), max(y_bins)])
+    ## draw scint into plot
+    #patches = []
+    #patches.append( pat.Rectangle(
+    #    (derived_params.scint_x_min, derived_params.scint_y_min),
+    #    width=(derived_params.scint_x_max - derived_params.scint_x_min),
+    #    height=(derived_params.scint_y_max - derived_params.scint_y_min),
+    #    edgecolor="white", facecolor="None",
+    #    label="Scintillator position")
+    #)
+    #for patch in patches:
+    #    ax.add_patch(patch)
+    ## plot setup
+    #ax.set_title(f"$N_\\text{{DT tracks}}$ ($z={np.round(derived_params.scint_z_center,0):.0f}$mm)")
+    #ax.set_ylabel("$y$ [mm]")
+    #ax.set_xlabel("$x$ [mm]")
+    #ax.legend()
+    #cbar = fig.colorbar(im_obj, ax=ax, fraction=0.05)
+    #cbar.set_label("Hz")
+    #fig.tight_layout()
+    #fig.show()
 
 
+    ####### X-Z and Y-Z 2d projections
+    #"""
+    for orient in ["phi", "theta"]:
+
+        # orientation
+        slice_name = None
+        if orient == "phi":
+            slice_name = "xz"
+        elif orient == "theta":
+            slice_name = "yz"
+
+        # chamber coordinates
+        sl_z_coord = (np.amin([derived_params.sl_z_min[sl] for sl in [1,2,3]] + [derived_params.scint_z_min]), np.amax([derived_params.sl_z_max[sl] for sl in [1,2,3]] + [derived_params.scint_z_max]))
+        if slice_name == "xz":
+            sl_x_coord = (np.amin([derived_params.sl_x_min[sl] for sl in [1,2,3]] + [derived_params.scint_x_min]), np.amax([derived_params.sl_x_max[sl] for sl in [1,2,3]] + [derived_params.scint_x_max]))
+        elif slice_name == "yz":
+            sl_x_coord = (np.amin([derived_params.sl_y_min[sl] for sl in [1,2,3]] + [derived_params.scint_y_min]), np.amax([derived_params.sl_y_max[sl] for sl in [1,2,3]] + [derived_params.scint_y_max]))
+
+        # plot range
+        x_margin = 100
+        z_margin = 100
+        x_bin_width = 5 # mm
+        z_bin_width = 5 # mm
+        x_edges = np.arange(start=sl_x_coord[0]-x_margin, stop=sl_x_coord[1]+x_margin, step=x_bin_width)
+        z_edges = np.arange(start=sl_z_coord[0]-z_margin, stop=sl_z_coord[1]+z_margin, step=z_bin_width)
+        x_bins = np.array([(x_edges[i]+x_edges[i+1])/2 for i in range(len(x_edges)-1)])
+        z_bins = np.array([(z_edges[i]+z_edges[i+1])/2 for i in range(len(z_edges)-1)])
+        x_binwidth = x_edges[1]-x_edges[0]
+        z_binwidth = z_edges[1]-z_edges[0]
+        
+        ### muon X-Z or Y-Z position plot
+
+        # project muons onto different z pos
+        x_muons = []
+        z_muons = []
+        for i, z_pos in enumerate(z_bins):
+            dt_muons_moved = muon_utils.change_muon_base_point(muons=dt_corr_muons_scint, z_new=z_pos)
+            if slice_name == "xz":
+                x_muons.extend(dt_muons_moved["x0"])
+            elif slice_name == "yz":
+                x_muons.extend(dt_muons_moved["y0"])
+            z_muons.extend(dt_muons_moved["z0"])
+        x_muons = np.array(x_muons)
+        z_muons = np.array(z_muons)
+
+        pos_muons_hist2d, _, _ = np.histogram2d(x=z_muons, y=x_muons, bins=(z_edges, x_edges)) 
+
+        # plot
+        fig, ax = plt.subplots(1, 1, figsize=(12,6)) # fig_size
+        im_obj = ax.imshow(X=pos_muons_hist2d, origin="lower", extent=[min(x_bins), max(x_bins), min(z_bins), max(z_bins)])
+
+        # store dead wires
+        dead_dt_cell_data = dt_utils._chamber_data()
+        for sl in [1,2,3]:
+            for ly, wi in low_occ_wires[sl]:
+                dead_dt_cell_data[sl][ly][wi]["color"] = "tab:red"
+        
+        # plot chamber geometry
+        ax = geoplot_utils.chamber_ax(ax=ax, orient=orient, cell_data=dead_dt_cell_data, wire=False, transparent=True)
+
+        # store dead strips
+        dead_scint_cell_data = scint_utils._scint_data()
+        for ly, st in low_occ_strips:
+            dead_scint_cell_data[ly][st]["color"] = "tab:red"
+
+        # plot scintillator geometry
+        ax = geoplot_utils.scintillator_ax(ax=ax, orient=orient, cell_data=dead_scint_cell_data, transparent=True)
+
+        # plot setup
+        ax.set_title(f"Correlated DT tracks", fontsize=20)
+        ax.set_ylabel("$z$ [mm]")
+        if slice_name == "xz":
+            ax.set_xlabel("$x$ [mm]")
+        elif slice_name == "yz":
+            ax.set_xlabel("$y$ [mm]")
+        plt.colorbar(im_obj)
+        # plot legend
+        #ax.legend(prop={"size":14}, loc="upper center")
+        legend_entries = {
+            "Detector geometry": mpatches.Patch(edgecolor="white", facecolor="none"),
+            "Low occupancy channels": mpatches.Patch(edgecolor="tab:red", facecolor="none")
+        }
+        ax.legend(legend_entries.values(), legend_entries.keys(), prop={'size': 14}, loc="center left")
+        # show plot
+        fig.tight_layout()
+        fig.show()
+        ## store plot
+        if args.store_path:
+            hist_plot_file = args.store_path+"/"+f"CORRELATED_HITS_SPECIFIC_{slice_name}.pdf"
+            print(f"store histogram plot as {hist_plot_file}.")
+            fig.savefig(hist_plot_file)
+    #"""
+
+
+
+    ####### X-Z and Y-Z 2d projections
+    ### SAME PLOT BUT BEFORE MATCHING
+    #"""
+    for orient in ["phi", "theta"]:
+
+        # orientation
+        slice_name = None
+        if orient == "phi":
+            slice_name = "xz"
+        elif orient == "theta":
+            slice_name = "yz"
+
+        # chamber coordinates
+        sl_z_coord = (np.amin([derived_params.sl_z_min[sl] for sl in [1,2,3]] + [derived_params.scint_z_min]), np.amax([derived_params.sl_z_max[sl] for sl in [1,2,3]] + [derived_params.scint_z_max]))
+        if slice_name == "xz":
+            sl_x_coord = (np.amin([derived_params.sl_x_min[sl] for sl in [1,2,3]] + [derived_params.scint_x_min]), np.amax([derived_params.sl_x_max[sl] for sl in [1,2,3]] + [derived_params.scint_x_max]))
+        elif slice_name == "yz":
+            sl_x_coord = (np.amin([derived_params.sl_y_min[sl] for sl in [1,2,3]] + [derived_params.scint_y_min]), np.amax([derived_params.sl_y_max[sl] for sl in [1,2,3]] + [derived_params.scint_y_max]))
+
+        # plot range
+        x_margin = 100
+        z_margin = 100
+        x_bin_width = 5 # mm
+        z_bin_width = 5 # mm
+        x_edges = np.arange(start=sl_x_coord[0]-x_margin, stop=sl_x_coord[1]+x_margin, step=x_bin_width)
+        z_edges = np.arange(start=sl_z_coord[0]-z_margin, stop=sl_z_coord[1]+z_margin, step=z_bin_width)
+        x_bins = np.array([(x_edges[i]+x_edges[i+1])/2 for i in range(len(x_edges)-1)])
+        z_bins = np.array([(z_edges[i]+z_edges[i+1])/2 for i in range(len(z_edges)-1)])
+        x_binwidth = x_edges[1]-x_edges[0]
+        z_binwidth = z_edges[1]-z_edges[0]
+        
+        ### muon X-Z or Y-Z position plot
+
+        # project muons onto different z pos
+        x_muons = []
+        z_muons = []
+        for i, z_pos in enumerate(z_bins):
+            dt_muons_moved = muon_utils.change_muon_base_point(muons=dt_muons, z_new=z_pos)
+            if slice_name == "xz":
+                x_muons.extend(dt_muons_moved["x0"])
+            elif slice_name == "yz":
+                x_muons.extend(dt_muons_moved["y0"])
+            z_muons.extend(dt_muons_moved["z0"])
+        x_muons = np.array(x_muons)
+        z_muons = np.array(z_muons)
+
+        pos_muons_hist2d, _, _ = np.histogram2d(x=z_muons, y=x_muons, bins=(z_edges, x_edges)) 
+
+        # plot
+        fig, ax = plt.subplots(1, 1, figsize=(12,6)) # fig_size
+        im_obj = ax.imshow(X=pos_muons_hist2d, origin="lower", extent=[min(x_bins), max(x_bins), min(z_bins), max(z_bins)])
+
+        # store dead wires
+        dead_dt_cell_data = dt_utils._chamber_data()
+        for sl in [1,2,3]:
+            for ly, wi in low_occ_wires[sl]:
+                dead_dt_cell_data[sl][ly][wi]["color"] = "tab:red"
+        
+        # plot chamber geometry
+        ax = geoplot_utils.chamber_ax(ax=ax, orient=orient, cell_data=dead_dt_cell_data, wire=False, transparent=True)
+
+        # store dead strips
+        dead_scint_cell_data = scint_utils._scint_data()
+        for ly, st in low_occ_strips:
+            dead_scint_cell_data[ly][st]["color"] = "tab:red"
+
+        # plot scintillator geometry
+        ax = geoplot_utils.scintillator_ax(ax=ax, orient=orient, cell_data=dead_scint_cell_data, transparent=True)
+
+        # plot setup
+        ax.set_title(f"All DT tracks", fontsize=20)
+        ax.set_ylabel("$z$ [mm]")
+        if slice_name == "xz":
+            ax.set_xlabel("$x$ [mm]")
+        elif slice_name == "yz":
+            ax.set_xlabel("$y$ [mm]")
+        plt.colorbar(im_obj)
+        # plot legend
+        #ax.legend(prop={"size":14}, loc="upper center")
+        legend_entries = {
+            "Detector geometry": mpatches.Patch(edgecolor="white", facecolor="none"),
+            "Low occupancy channels": mpatches.Patch(edgecolor="tab:red", facecolor="none")
+        }
+        ax.legend(legend_entries.values(), legend_entries.keys(), prop={'size': 14}, loc="center left")
+        # show plot
+        fig.tight_layout()
+        fig.show()
+        ## store plot
+        if args.store_path:
+            hist_plot_file = args.store_path+"/"+f"CORRELATED_HITS_SPECIFIC_{slice_name}_BEFOREMATCHING.pdf"
+            print(f"store histogram plot as {hist_plot_file}.")
+            fig.savefig(hist_plot_file)
+    #"""
 
 
 

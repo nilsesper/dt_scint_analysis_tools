@@ -10,6 +10,7 @@ import matplotlib as mpl
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 import copy
 import argparse
+import matplotlib.patches as mpatches
 
 from analysis_tools.utils import dummy_gen, data_utils, dt_utils, scint_utils, timestamp_utils, geoplot_utils, muon_utils, math_utils, hist_utils, process_utils
 from analysis_tools.params import params, derived_params
@@ -17,7 +18,7 @@ from analysis_tools.params import params, derived_params
 # ---------------------------------------------------------------
 
 # main function
-@mpl.rc_context({'font.family': 'sans-serif', 'font.size': 12}) #'font.sans-serif': 'Arial',
+@mpl.rc_context({'font.family': 'sans-serif', 'font.size': 20}) #'font.sans-serif': 'Arial',
 def main():
 
     ### argparse
@@ -43,6 +44,18 @@ def main():
         action   = "store_true",
         help     = "print info",
     )
+    # -
+    parser.add_argument(
+        "--fig_size",
+        type     = str,
+        default = "12,8",
+        help     = "custom fig_size of the plot in the format x_size,y_size (if desired)",
+    )
+    parser.add_argument(
+        "--store_path",
+        type     = str,
+        help     = "path to store pdf plot (if desired)",
+    )
     # ---
     args = parser.parse_args()
     dt_muons_file = args.dt_muons_file
@@ -55,6 +68,16 @@ def main():
     simulation = False
     if args.simulation:
         simulation = True
+    # other 
+    arg_fig_size = args.fig_size.split(",")
+    fig_size = (float(arg_fig_size[0]), float(arg_fig_size[1]))
+
+    ### manual input of low occupancy wires to be shown in plot
+    low_occ_wires = { # sl: (ly, wi)
+        1: [  ] + [ (1,49), ],
+        2: [ (0,2), (0,5), (0,13), (0,35), (0,50), (0,51), (1,4), (1,5), (1,44), (1,45), ] + [ (1,57), ],
+        3: [ (0,10), (1,41), (2,26), ] + [ (1,49), ],
+    }
 
     #################
 
@@ -66,6 +89,7 @@ def main():
     n_dt_muons = data_utils.length(dt_muons)
 
     ### dt hits
+    """
     print(f"### dt muons")
     n_hist_bins = 100
     hist_bins = {
@@ -100,7 +124,8 @@ def main():
             hists_solidangle = hists / np.sin(centers)
             ylabel = "Counts / $\\text{sin}\\theta$"
             hist_utils.plot_1hist(hist=hists_solidangle, centers=centers, xlabel=xlabel, ylabel=ylabel, round_digits=round_digits, bin_labels=False, silent=True, store=plotname, show=show_plots) # scale="log"
-    
+    #"""
+            
     ### measurement duration
     duration = 0.78e-9 * (np.amax(dt_muons["ts"]) - np.amin(dt_muons["ts"])) # secs
     print(f"measurement duration = {duration} s")
@@ -111,7 +136,7 @@ def main():
     print(f"dt muon rate: {pattern_rate:.03f} Hz")
 
     
-    #"""
+    """
     #### time difference between dt muons
     additional_data = {}
     print("Plotting time differences between dt muons...")
@@ -133,7 +158,7 @@ def main():
     hist_utils.plot_1hist(hist=hists, centers=centers, xlabel=xlabel, round_digits=round_digits, bin_labels=False, silent=True, store=plotname, show=show_plots, title=f"", scale="log") # scale="log"
     #"""
 
-    #"""
+    """
     if simulation:
         ### simulation muon difference
         print(f"### sl fit difference to simulation")
@@ -164,23 +189,19 @@ def main():
     #"""
 
 
-    ####### 2d projections
+    ####### X-Y 2d projections
     #"""
-    ### manual input of low occupancy wires to be shown in plot
-    low_occ_wires = { # sl: (ly, wi)
-        1: [  ], #(1,49),
-        2: [ (0,2), (0,5), (0,13), (0,35), (0,50), (0,51), (1,5), (1,45), ], #(1,57),
-        3: [ (0,10), (1,41), (2,26), ], #(1,49),
-    }
 
     ### for center of each superlayer separately
     for sl in [1,2,3]:
 
         # plot range
-        xy_marigin = 400
-        n_xy_bins = 60
-        x_edges = np.linspace(derived_params.sl_x_min[sl]-xy_marigin, derived_params.sl_x_max[sl]+xy_marigin, n_xy_bins)
-        y_edges = np.linspace(derived_params.sl_y_min[sl]-xy_marigin, derived_params.sl_y_max[sl]+xy_marigin, n_xy_bins)
+        x_margin = 100
+        y_margin = 100
+        x_bin_width = 10 # mm
+        z_bin_width = 10 # mm
+        x_edges = np.arange(start=derived_params.sl_x_min[sl]-x_margin, stop=derived_params.sl_x_max[sl]+x_margin, step=x_bin_width)
+        y_edges = np.arange(start=derived_params.sl_y_min[sl]-y_margin, stop=derived_params.sl_y_max[sl]+y_margin, step=z_bin_width)
         x_bins = np.array([(x_edges[i]+x_edges[i+1])/2 for i in range(len(x_edges)-1)])
         y_bins = np.array([(y_edges[i]+y_edges[i+1])/2 for i in range(len(y_edges)-1)])
         x_binwidth = x_edges[1]-x_edges[0]
@@ -193,7 +214,7 @@ def main():
 
         pos_muons_hist2d, _, _ = np.histogram2d(x=dt_muons_sl["y0"], y=dt_muons_sl["x0"], bins=(y_edges, x_edges))
         # plot
-        fig, ax = plt.subplots(1, 1, figsize=(12,8))
+        fig, ax = plt.subplots(1, 1, figsize=fig_size)
         im_obj = ax.imshow(X=pos_muons_hist2d, origin="lower", extent=[min(x_bins), max(x_bins), min(y_bins), max(y_bins)])
         # draw sl into plot
         patches = []
@@ -228,13 +249,103 @@ def main():
         for patch in patches:
             ax.add_patch(patch)
         # plot setup
-        ax.set_title(f"DT muons in SL={sl} ($z={np.round(derived_params.sl_z_center[sl],0):.0f}$mm)")
+        ax.set_title(f"DT tracks in SL {sl} ($z={np.round(derived_params.sl_z_center[sl],0):.0f}$mm)", fontsize=20)
         ax.set_ylabel("$y$ [mm]")
         ax.set_xlabel("$x$ [mm]")
-        ax.legend()
+        ax.legend(prop={"size":14}, loc="upper center")
         plt.colorbar(im_obj)
         fig.tight_layout()
         fig.show()
+        ## store plot
+        if args.store_path:
+            hist_plot_file = args.store_path+"/"+f"DT_MUON_SPECIFIC_xy_SL{sl}.pdf"
+            print(f"store histogram plot as {hist_plot_file}.")
+            fig.savefig(hist_plot_file)
+    #"""
+
+    ####### X-Z and Y-Z 2d projections
+    #"""
+    for orient in ["phi", "theta"]:
+
+        # orientation
+        slice_name = None
+        if orient == "phi":
+            slice_name = "xz"
+        elif orient == "theta":
+            slice_name = "yz"
+
+        # chamber coordinates
+        sl_z_coord = (np.amin([derived_params.sl_z_min[sl] for sl in [1,2,3]]), np.amax([derived_params.sl_z_max[sl] for sl in [1,2,3]]))
+        if slice_name == "xz":
+            sl_x_coord = (np.amin([derived_params.sl_x_min[sl] for sl in [1,2,3]]), np.amax([derived_params.sl_x_max[sl] for sl in [1,2,3]]))
+        elif slice_name == "yz":
+            sl_x_coord = (np.amin([derived_params.sl_y_min[sl] for sl in [1,2,3]]), np.amax([derived_params.sl_y_max[sl] for sl in [1,2,3]]))
+
+        # plot range
+        x_margin = 100
+        z_margin = 100
+        x_bin_width = 5 # mm
+        z_bin_width = 5 # mm
+        x_edges = np.arange(start=sl_x_coord[0]-x_margin, stop=sl_x_coord[1]+x_margin, step=x_bin_width)
+        z_edges = np.arange(start=sl_z_coord[0]-z_margin, stop=sl_z_coord[1]+z_margin, step=z_bin_width)
+        x_bins = np.array([(x_edges[i]+x_edges[i+1])/2 for i in range(len(x_edges)-1)])
+        z_bins = np.array([(z_edges[i]+z_edges[i+1])/2 for i in range(len(z_edges)-1)])
+        x_binwidth = x_edges[1]-x_edges[0]
+        z_binwidth = z_edges[1]-z_edges[0]
+        
+        ### muon X-Z or Y-Z position plot
+
+        # project muons onto different z pos
+        x_muons = []
+        z_muons = []
+        for i, z_pos in enumerate(z_bins):
+            dt_muons_moved = muon_utils.change_muon_base_point(muons=dt_muons, z_new=z_pos)
+            if slice_name == "xz":
+                x_muons.extend(dt_muons_moved["x0"])
+            elif slice_name == "yz":
+                x_muons.extend(dt_muons_moved["y0"])
+            z_muons.extend(dt_muons_moved["z0"])
+        x_muons = np.array(x_muons)
+        z_muons = np.array(z_muons)
+
+        pos_muons_hist2d, _, _ = np.histogram2d(x=z_muons, y=x_muons, bins=(z_edges, x_edges)) 
+
+        # plot
+        fig, ax = plt.subplots(1, 1, figsize=(12,3)) # fig_size
+        im_obj = ax.imshow(X=pos_muons_hist2d, origin="lower", extent=[min(x_bins), max(x_bins), min(z_bins), max(z_bins)])
+        
+        # store dead wires
+        dead_dt_cell_data = dt_utils._chamber_data()
+        for sl in [1,2,3]:
+            for ly, wi in low_occ_wires[sl]:
+                dead_dt_cell_data[sl][ly][wi]["color"] = "tab:red"
+        
+        # plot chamber geometry
+        ax = geoplot_utils.chamber_ax(ax=ax, orient=orient, cell_data=dead_dt_cell_data, wire=False, transparent=True)
+
+        # plot setup
+        ax.set_title(f"DT tracks", fontsize=20)
+        ax.set_ylabel("$z$ [mm]")
+        if slice_name == "xz":
+            ax.set_xlabel("$x$ [mm]")
+        elif slice_name == "yz":
+            ax.set_xlabel("$y$ [mm]")
+        plt.colorbar(im_obj)
+        # plot legend
+        #ax.legend(prop={"size":14}, loc="upper center")
+        legend_entries = {
+            "Chamber geometry": mpatches.Patch(edgecolor="white", facecolor="none"),
+            "Low occupancy cells": mpatches.Patch(edgecolor="tab:red", facecolor="none")
+        }
+        ax.legend(legend_entries.values(), legend_entries.keys(), prop={'size': 14}, loc="upper center")
+        # show plot
+        fig.tight_layout()
+        fig.show()
+        ## store plot
+        if args.store_path:
+            hist_plot_file = args.store_path+"/"+f"DT_MUON_SPECIFIC_"+slice_name+"_CHAMBER.pdf"
+            print(f"store histogram plot as {hist_plot_file}.")
+            fig.savefig(hist_plot_file)
     #"""
 
     """

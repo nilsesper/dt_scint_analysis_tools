@@ -17,7 +17,7 @@ from analysis_tools.params import params, derived_params
 # ---------------------------------------------------------------
 
 # main function
-@mpl.rc_context({'font.family': 'sans-serif', 'font.size': 12}) #'font.sans-serif': 'Arial',
+@mpl.rc_context({'font.family': 'sans-serif', 'font.size': 16}) #'font.sans-serif': 'Arial',
 def main():
 
     ### argparse
@@ -230,7 +230,7 @@ $\\phi=({np.round(phi*params.rad_to_deg,1):.1f}\\pm{np.round(err_phi*params.rad_
             ax.set_xlabel("$x$ [mm]")
             ax.set_ylabel("$z$ [mm]")
         #ax.text(x_topright, y_topleft+0.02, description, transform=plt.gcf().transFigure, horizontalalignment="right")
-        ax.set_title(f"Global track: {description}")
+        ax.set_title(f"DT track: {description}")
         # show/store figure
         fig.tight_layout()
         fig.show()
