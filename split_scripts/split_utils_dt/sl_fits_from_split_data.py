@@ -1,5 +1,5 @@
 #######################
-### calculate sl pattern information from split data
+### calculate sl fit information from split data
 #######################
 
 import os
@@ -23,7 +23,7 @@ from analysis_tools.params import params, derived_params
 
 # allowed datasets
 allowed_datasets = [
-    "SL_PATTERNS", "SL_FAKE_PATTERNS",
+    "SL_FITS", "SL_FITS_AFTERCUTS",
 ]
 # possible ts keys that need to be shifted
 ts_keys = [
@@ -114,18 +114,23 @@ def main():
     print(f"   ts_offset = {ts_offset}")
 
     ### prepare data
+    # fitted pattern count
     pattern_count = {}
     for sl in range(1,4):
         pattern_count[sl] = {}
         for pat_type in range(6):
             pattern_count[sl][pat_type] = 0
         pattern_count[sl]["com"] = 0
+    # time box hist
+    n_bins = 100
+    edges = np.linspace(0, 500, n_bins) # in tu
+    centers, hist, entries, underflow, overflow, hist_err_right, hist_err_left = hist_utils.create_empty_histogram(edges=edges)
 
     ### calculate histograms for sub datasets, merge hists consecutively
     ## import all data and apply the respective timing offset
     ## extract the data of the specified hist key and calculate hist
     print(f"open {n_data} data files, apply timing offset and extract data for histogram...")
-    print(f"CALCULATING SL PATTERN OCCUPANCY...")
+    print(f"CALCULATING SL FIT OCCUPANCY AND TIME BOX HISTOGRAM...")
     for data_idx in tqdm(range(n_data)):
         sub_data_file = base_path+"/"+file_prefixes[data_idx]+"_"+dataset+".pcl"
         # pcl file import
@@ -144,7 +149,20 @@ def main():
             # all patterns combined
             sl_patterns_cut = data_utils.cut_data(data=sub_data, conditions=[("sl","==",sl)], silent=True)
             pattern_count[sl]["com"] += data_utils.length(sl_patterns_cut)
-
+        ### time box hist for all 4 hits together
+        for ly in [0,1,2,3]:
+            data = sub_data[f"ts{ly}"] - sub_data[f"t0"]
+            err_data = np.sqrt(sub_data[f"err_ts{ly}"]**2 + sub_data[f"err_t0"]**2)
+            # create histogram of specified key and shifted hists to respect data error
+            hist_, _, _, entries_, underflow_, overflow_, hist_err_right_, hist_err_left_ = hist_utils.calculate_histogram_and_shifted_histograms(data=data, edges=edges, err_data=err_data)
+            # add to combined histogram
+            hist += hist_
+            entries += entries_
+            underflow += underflow_
+            overflow += overflow_
+            hist_err_right += hist_err_right_
+            hist_err_left += hist_err_left_
+    
     duration = cum_ts_length
     print(f"duration = {duration*0.78*1e-9} s")
     duration_seconds = duration*0.78*1e-9
@@ -162,12 +180,23 @@ def main():
         pattern_rate[sl]["com"] = pattern_count[sl]["com"] / duration_seconds
         err_pattern_rate[sl]["com"] = np.sqrt(pattern_count[sl]["com"]) / duration_seconds
 
+    ### error calculation for full drift time hist
+    err_hist, err_hist_down, err_hist_up = hist_utils.calculate_hist_uncertainty(hist=hist, hist_err_right=hist_err_right, hist_err_left=hist_err_left, do_stat_err=True)
+    print(f"created histogram:")
+    print(f"  dataset = {dataset}")
+    print(f"  entries   =  {entries}  ,  underflow =  {underflow}  ,  overflow  =  {overflow}")
+
     ### store histogram into file
     specific_data_to_store = {
         "duration": duration,
         "pattern_count": pattern_count,
         "pattern_rate": pattern_rate,
         "err_pattern_rate": err_pattern_rate,
+        "hist": hist,
+        "err_hist": err_hist,
+        "err_hist_down": err_hist_down,
+        "err_hist_up": err_hist_up,
+        "edges": edges,
     }
     specific_data_file = base_path+"/"+common_file_prefix+"_"+dataset+"_SPECIFIC.pcl"
     print(f"storing specific data as {specific_data_file}...")

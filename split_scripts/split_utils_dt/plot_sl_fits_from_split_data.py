@@ -23,7 +23,7 @@ from analysis_tools.params import params, derived_params
 
 # allowed datasets
 allowed_datasets = [
-    "SL_PATTERNS", "SL_FAKE_PATTERNS",
+    "SL_FITS", "SL_FITS_AFTERCUTS",
 ]
 
 # ---------------------------------------------------------------
@@ -57,6 +57,16 @@ def main():
         type     = str,
         help     = "path to store pdf plot (if desired)",
     )
+    parser.add_argument( # if this flag is given: use log y axis
+        "--log_y_scale",
+        action = "store_true",
+    )
+    parser.add_argument(
+        "--fig_size",
+        type     = str,
+        default = "12,8",
+        help     = "custom fig_size of the plot in the format x_size,y_size (if desired)",
+    )
     # ---
     args = parser.parse_args()
     # base file path
@@ -77,6 +87,12 @@ def main():
             dump_files.append(dump_file.replace("\n","").replace("\r","").replace("\t",""))
     n_data = len(dump_files)
     common_file_prefix = os.path.commonprefix(file_prefixes)
+    # other params
+    log_y_scale = False
+    if args.log_y_scale:
+        log_y_scale = True
+    arg_fig_size = args.fig_size.split(",")
+    fig_size = (float(arg_fig_size[0]), float(arg_fig_size[1]))
 
     ####################
 
@@ -89,6 +105,12 @@ def main():
     pattern_count = specific_data["pattern_count"]
     pattern_rate = specific_data["pattern_rate"]
     err_pattern_rate = specific_data["err_pattern_rate"]
+    hist = specific_data["hist"]
+    err_hist = specific_data["err_hist"]
+    err_hist_down = specific_data["err_hist_down"]
+    err_hist_up = specific_data["err_hist_up"]
+    edges = specific_data["edges"]
+    centers = hist_utils.centers_from_edges(edges)
 
     duration_seconds = duration*0.78*1e-9
     print(f"duration = {duration_seconds} s")
@@ -118,6 +140,38 @@ def main():
     for sl in range(1,4):
         total_pattern_count += pattern_count[sl]["com"]
     print(f"total pattern count: {total_pattern_count} +- {np.sqrt(total_pattern_count)}")
+
+    #########################
+    ####### plot drift time hist
+
+    ## plot in tu
+    fig, ax = plt.subplots(1, 1, figsize=fig_size)
+    ax = hist_utils.plot_histogram(ax=ax, hist=hist, centers=centers, err_hist_down=err_hist_down, err_hist_up=err_hist_up, log_scale=log_y_scale, power_limits=[-3, 3])
+    hist_key = "dt"
+    xlabel = (params._key_symbols[hist_key]) if (params._key_units[hist_key] == "") else (params._key_symbols[hist_key]+" ["+ params._key_units[hist_key]+"]")
+    ax.set_xlabel(xlabel)
+    fig.tight_layout()
+    fig.show()
+    ## store plot
+    if args.store_path:
+        hist_plot_file = args.store_path+"/"+common_file_prefix+"_"+dataset+"_HIST_TIMEBOX.pdf"
+        print(f"store histogram plot as {hist_plot_file}.")
+        fig.savefig(hist_plot_file)
+
+    ## plot in ns
+    centers_ns = centers*0.78
+    fig, ax = plt.subplots(1, 1, figsize=fig_size)
+    ax = hist_utils.plot_histogram(ax=ax, hist=hist, centers=centers_ns, err_hist_down=err_hist_down, err_hist_up=err_hist_up, log_scale=log_y_scale, power_limits=[-3, 3])
+    hist_key = "dt"
+    xlabel = params._key_symbols[hist_key] + " [ns]"
+    ax.set_xlabel(xlabel)
+    fig.tight_layout()
+    fig.show()
+    ## store plot
+    if args.store_path:
+        hist_plot_file = args.store_path+"/"+common_file_prefix+"_"+dataset+"_HIST_TIMEBOX_ns.pdf"
+        print(f"store histogram plot as {hist_plot_file}.")
+        fig.savefig(hist_plot_file)
 
 
     #########################

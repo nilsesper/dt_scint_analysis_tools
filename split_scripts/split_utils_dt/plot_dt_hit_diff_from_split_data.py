@@ -58,6 +58,12 @@ def main():
         type     = str,
         help     = "path to store pdf plot (if desired)",
     )
+    parser.add_argument(
+        "--fig_size",
+        type     = str,
+        default = "12,8",
+        help     = "custom fig_size of the plot in the format x_size,y_size (if desired)",
+    )
     # ---
     args = parser.parse_args()
     # base file path
@@ -78,11 +84,16 @@ def main():
             dump_files.append(dump_file.replace("\n","").replace("\r","").replace("\t",""))
     n_data = len(dump_files)
     common_file_prefix = os.path.commonprefix(file_prefixes)
+    # other args
+    arg_fig_size = args.fig_size.split(",")
+    fig_size = (float(arg_fig_size[0]), float(arg_fig_size[1]))
 
     ####################
 
     cell_half_width = 21000 # um
     err_cell_half_width = 100 # um
+
+    legend_font_size = 13
 
     ### import calculated hist
     specific_data_file = base_path+"/"+common_file_prefix+"_"+dataset+"_DIFF_SPECIFIC.pcl"
@@ -90,28 +101,33 @@ def main():
     specific_data = data_utils.load_pickle(file=specific_data_file, silent=True)
     # read data
     hist = np.array(specific_data["hist"])[1:]
-    #err_hist = np.array(specific_data["err_hist"])[1:]
-    # use only stat unc here:
-    err_hist = np.array(specific_data["err_hist_stat"])[1:]
+    err_hist = np.array(specific_data["err_hist"])[1:]
+    err_hist_down = np.array(specific_data["err_hist_down"])[1:]
+    err_hist_up = np.array(specific_data["err_hist_up"])[1:]
     edges = np.array(specific_data["edges"])[1:]*0.78 # convert from tu to ns
     centers = hist_utils.centers_from_edges(edges)
     bins = centers
-
 
     ######################
     ##### poisson bg subtraction
 
     ### plot dt hit differences
     # plot hist
-    fig, ax = plt.subplots(1, 1, figsize=(12,7))
-    ax = hist_utils.plot_histogram(ax, hist=hist, centers=bins, err_hist=err_hist, log_scale=True)
+    fig, ax = plt.subplots(1, 1, figsize=fig_size)
+    ax = hist_utils.plot_histogram(ax, hist=hist, centers=bins, err_hist_down=err_hist_down, err_hist_up=err_hist_up, log_scale=True, power_limits=[-4,4])
     ax.set_xlim(0,np.amax(bins))
     ax.set_xlabel("$\\Delta T_\\text{cell}$ [ns]")
     fig.tight_layout()
     fig.show()
+    ## store plot
+    if args.store_path:
+        hist_plot_file = args.store_path+"/"+common_file_prefix+"_"+dataset+"_DIFF_SPECIFIC_ALL.pdf"
+        print(f"store histogram plot as {hist_plot_file}.")
+        fig.savefig(hist_plot_file)
 
     ### remove exponential "poisson" background
     fit_index_range = (bins > 1000) # > 1000 ns
+    extrapol_index_range = (bins <= 1000)
     fit_bins = bins[fit_index_range]
     fit_hist = hist[fit_index_range]
     err_fit_hist = err_hist[fit_index_range]
@@ -133,22 +149,22 @@ def main():
     print(f"  chi2/ndf = {chi2} / {ndf} = {chi2ndf}")
 
     ## plot fit, with residual plot
-    fig, ax = plt.subplots(2, 1, figsize=(12,7), sharex=True, height_ratios=(5,1))
+    fig, ax = plt.subplots(2, 1, figsize=fig_size, sharex=True, height_ratios=(5,1))
     rel_spacing = 0
     # main plot
     barwidth = np.mean(np.diff(bins))*(1-rel_spacing) # relative spacing between bins
-    ax[0] = hist_utils.plot_histogram(ax[0], hist=hist, centers=bins, err_hist=err_hist, log_scale=True)
+    ax[0] = hist_utils.plot_histogram(ax[0], hist=hist, centers=bins, err_hist_down=err_hist_down, err_hist_up=err_hist_up, log_scale=True, power_limits=[-4,4])
     fit_label = f"""Exponential fit:
 $f(\\Delta T) = a \\cdot e^{{-x/b}}$
 $a=({np.round(a_fit,2):.2f}\\pm{np.round(err_a_fit,2):.2f})$
 $b=({np.round(b_fit,2):.2f}\\pm{np.round(err_b_fit,2):.2f})$ ns
 $\\chi^2 / N_{{df}} = {chi2:.1f}\\; / \\;{ndf:.0f} ={np.round(chi2ndf,1):.1f}$"""
     ax[0].plot(fit_bins, f_bg_fit(fit_bins, a=a_fit, b=b_fit), color="tab:red", label=fit_label)
-    ax[0].plot(bins[0:fit_index_range[0]], f_bg_fit(bins[0:fit_index_range[0]], a=a_fit, b=b_fit), color="tab:red", linestyle="--", label="Extrapolated fit")
     ax[0].fill_between(bins, y1=f_bg_fit(x=bins, a=a_fit, b=b_fit)-err_f_bg_fit(x=bins, a=a_fit, b=b_fit, err_a=err_a_fit, err_b=err_b_fit), y2=f_bg_fit(x=bins, a=a_fit, b=b_fit)+err_f_bg_fit(x=bins, a=a_fit, b=b_fit, err_a=err_a_fit, err_b=err_b_fit), color="tab:red", alpha=0.1)
+    ax[0].plot(bins[extrapol_index_range], f_bg_fit(bins[extrapol_index_range], a=a_fit, b=b_fit), color="tab:red", linestyle="--", label="Extrapolated fit")
     ax[0].set_yscale("log")
     ax[0].set_ylim(bottom=0.5, top=np.amax(hist)*np.exp(1.1))
-    ax[0].legend(loc="lower right", prop={'size': 14})
+    ax[0].legend(loc="lower right", prop={'size': legend_font_size})
     # residual plot
     residuals = fit_hist - f_bg_fit(fit_bins, a=a_fit, b=b_fit)
     err_residuals = err_fit_hist
@@ -162,38 +178,67 @@ $\\chi^2 / N_{{df}} = {chi2:.1f}\\; / \\;{ndf:.0f} ={np.round(chi2ndf,1):.1f}$""
     fig.tight_layout()
     fig.subplots_adjust(wspace=0, hspace=0.1)
     fig.show()
+    ## store plot
+    if args.store_path:
+        hist_plot_file = args.store_path+"/"+common_file_prefix+"_"+dataset+"_DIFF_SPECIFIC_BGFIT.pdf"
+        print(f"store histogram plot as {hist_plot_file}.")
+        fig.savefig(hist_plot_file)
 
     ### subtract exp bg
     hist_nobg = hist - f_bg_fit(bins, a=a_fit, b=b_fit)
-    err_hist_nobg = np.sqrt(
-          err_hist**2 # poisson error
-          + err_f_bg_fit(bins, a=a_fit, b=b_fit, err_a=err_a_fit, err_b=err_b_fit)**2 # bg subtraction error
-    )
+    err_hist_nobg = np.sqrt( err_hist**2 + err_f_bg_fit(bins, a=a_fit, b=b_fit, err_a=err_a_fit, err_b=err_b_fit)**2 )
+    err_hist_nobg_down = np.sqrt( err_hist_down**2 + err_f_bg_fit(bins, a=a_fit, b=b_fit, err_a=err_a_fit, err_b=err_b_fit)**2 )
+    err_hist_nobg_up = np.sqrt( err_hist_up**2 + err_f_bg_fit(bins, a=a_fit, b=b_fit, err_a=err_a_fit, err_b=err_b_fit)**2 )
     bins_nobg = bins
 
     # plot wo bg
-    fig, ax = plt.subplots(1, 1, figsize=(12,7))
+    fig, ax = plt.subplots(1, 1, figsize=fig_size)
     rel_spacing = 0
     barwidth = np.mean(np.diff(bins_nobg))*(1-rel_spacing) # relative spacing between bins
-    ax = hist_utils.plot_histogram(ax, hist=hist_nobg, centers=bins_nobg, err_hist=err_hist_nobg, log_scale=False)
+    ax = hist_utils.plot_histogram(ax, hist=hist_nobg, centers=bins_nobg, err_hist_down=err_hist_nobg_down, err_hist_up=err_hist_nobg_up, log_scale=False, power_limits=[-3,3])
     #ax.set_yscale("log")
     #ax.set_ylim(bottom=0.5, top=np.amax(hist_nobg)*np.exp(1.1))
-    ax.set_ylim(bottom=0, top=np.amax(hist_nobg)*1.1)
+    #ax.set_ylim(bottom=0, top=np.amax(hist_nobg)*1.1)
     ax.set_xlim(0,600)
     ax.set_xlabel("$\\Delta T_\\text{cell}$ [ns]")
     ax.legend(prop={'size': 14})
     fig.tight_layout()
     fig.show()
+    ## store plot
+    if args.store_path:
+        hist_plot_file = args.store_path+"/"+common_file_prefix+"_"+dataset+"_DIFF_SPECIFIC_NOBG.pdf"
+        print(f"store histogram plot as {hist_plot_file}.")
+        fig.savefig(hist_plot_file)
 
-    #input("Press enter to exit.")
-    #exit()
+    # plot wo bg -- IN TDC UNITS
+    fig, ax = plt.subplots(1, 1, figsize=fig_size)
+    rel_spacing = 0
+    barwidth = np.mean(np.diff(bins_nobg))*(1-rel_spacing) # relative spacing between bins
+    ax = hist_utils.plot_histogram(ax, hist=hist_nobg, centers=bins_nobg/0.78, err_hist_down=err_hist_nobg_down, err_hist_up=err_hist_nobg_up, log_scale=False, power_limits=[-3,3])
+    #ax.set_yscale("log")
+    #ax.set_ylim(bottom=0.5, top=np.amax(hist_nobg)*np.exp(1.1))
+    #ax.set_ylim(bottom=0, top=np.amax(hist_nobg)*1.1)
+    ax.set_xlim(0,600/0.78)
+    ax.set_xlabel("$\\Delta T_\\text{cell}$ [TU]")
+    ax.legend(prop={'size': 14})
+    fig.tight_layout()
+    fig.show()
+    ## store plot
+    if args.store_path:
+        hist_plot_file = args.store_path+"/"+common_file_prefix+"_"+dataset+"_DIFF_SPECIFIC_NOBG_tdc.pdf"
+        print(f"store histogram plot as {hist_plot_file}.")
+        fig.savefig(hist_plot_file)
 
+    """
+    input("Press enter to exit.")
+    exit()
+    #"""
 
     ######################
     ##### fit peak position
 
     ### fit parabola photopeak to determine position
-    fit_index_range = (bins_nobg >= 400) & (bins_nobg <= 430) # fit range in ns
+    fit_index_range = (bins_nobg >= 405) & (bins_nobg <= 425) # fit range in ns
     fit_bins = bins_nobg[fit_index_range]
     fit_hist = hist_nobg[fit_index_range]
     err_fit_hist = err_hist_nobg[fit_index_range]
@@ -201,7 +246,7 @@ $\\chi^2 / N_{{df}} = {chi2:.1f}\\; / \\;{ndf:.0f} ={np.round(chi2ndf,1):.1f}$""
         return a*(x-b)**2+c
     def err_f_peak_fit(x, a, b, c, err_a, err_b, err_c):
         return np.sqrt( ( err_a*(x-b)**2 )**2 + ( -2*a*(x-b)*err_b )**2 + ( err_c )**2 )
-    p0 = (-1, 500, 1000)
+    p0 = (-1, 420, 1000)
     popt, pcov, infodict, mesg, _ = curve_fit(f=f_peak_fit, xdata=fit_bins, ydata=fit_hist, p0=p0, sigma=err_fit_hist, absolute_sigma=True, full_output=True, )
     a_fit, b_fit, c_fit = popt
     err_a_fit = np.sqrt(pcov[0][0])
@@ -217,10 +262,10 @@ $\\chi^2 / N_{{df}} = {chi2:.1f}\\; / \\;{ndf:.0f} ={np.round(chi2ndf,1):.1f}$""
     print(f"  chi2/ndf = {chi2} / {ndf} = {chi2ndf}")
 
     # plot fit
-    fig, ax = plt.subplots(2, 1, figsize=(12,7), sharex=True, height_ratios=(5,1))
+    fig, ax = plt.subplots(2, 1, figsize=fig_size, sharex=True, height_ratios=(5,1))
     rel_spacing = 0
     barwidth = np.mean(np.diff(bins_nobg))*(1-rel_spacing) # relative spacing between bins
-    ax[0] = hist_utils.plot_histogram(ax[0], hist=hist_nobg, centers=bins_nobg, err_hist=err_hist_nobg, log_scale=False)
+    ax[0] = hist_utils.plot_histogram(ax[0], hist=hist_nobg, centers=bins_nobg, err_hist_down=err_hist_nobg_down, err_hist_up=err_hist_nobg_up, log_scale=False, power_limits=[-3,3])
     fit_label = f"""Parabolic fit:
 $f(\\Delta T) = a \\cdot (\\Delta T-b)^2+c$
 $a=({np.round(a_fit,2):.2f}\\pm{np.round(err_a_fit,2):.2f})$ 1/ns${{}}^2$
@@ -233,12 +278,12 @@ $\\chi^2 / N_{{df}} = {chi2:.1f}\\; / \\;{ndf:.0f} ={np.round(chi2ndf,1):.1f}$""
     ax[0].axvspan(xmin=b_fit-err_b_fit, xmax=b_fit+err_b_fit, color="tab:red", alpha=0.1)
     #ax.set_yscale("log")
     ax[0].set_ylim(bottom=0, top=np.amax(hist_nobg)*1.1)
-    ax[0].legend(loc="lower left", prop={'size': 14})
+    ax[0].legend(loc="lower left", prop={'size': legend_font_size})
     # residual plot
     residuals = fit_hist - f_peak_fit(fit_bins, a=a_fit, b=b_fit, c=c_fit)
     err_residuals = err_fit_hist
     ax[1].axhline(y=0, color="gray", linewidth=1)
-    ax[1].errorbar(x=fit_bins, y=residuals, yerr=err_residuals , color="black", marker="o", markersize=2, linewidth=1)
+    ax[1].errorbar(x=fit_bins, y=residuals, yerr=err_residuals , color="black", marker="o", markersize=2, linewidth=1, linestyle="")
     # show plot
     ax[1].set_xlim(0,600)
     ax[1].set_ylim(-np.amax(residuals+err_residuals)*1.1, np.amax(residuals+err_residuals)*1.1)
@@ -247,6 +292,11 @@ $\\chi^2 / N_{{df}} = {chi2:.1f}\\; / \\;{ndf:.0f} ={np.round(chi2ndf,1):.1f}$""
     fig.tight_layout()
     fig.subplots_adjust(wspace=0, hspace=0.1)
     fig.show()
+    ## store plot
+    if args.store_path:
+        hist_plot_file = args.store_path+"/"+common_file_prefix+"_"+dataset+"_DIFF_SPECIFIC_PEAKFIT.pdf"
+        print(f"store histogram plot as {hist_plot_file}.")
+        fig.savefig(hist_plot_file)
 
     ### estimate drift velocity
     v_drift = cell_half_width / b_fit # um/ns

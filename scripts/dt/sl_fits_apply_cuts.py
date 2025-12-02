@@ -1,5 +1,5 @@
 #################################################################
-### apply cuts to data
+### apply cuts to sl fits
 #################################################################
 
 import os
@@ -32,23 +32,12 @@ def main():
         type     = str,
         help     = "output file path: cut data subset (pcl file)",
     )
-    parser.add_argument(
-        "--cuts",
-        type     = str,
-        help     = "cuts to apply to data in format \"key1,operator1,value1;key2,operator2,value;...\"",
-    )
     # ---
     args = parser.parse_args()
     input_data_file = args.input_data_file
     cut_data_file = args.cut_data_file
-    cuts_list = []
-    for cuts_str in args.cuts.split(";"):
-        key, operator, value = cuts_str.split(",")
-        if "params." in value:
-            value = getattr(params, value.split("params.")[1])
-        else:
-            value = float(value)
-        cuts_list.append((key, operator, value))
+    
+    dt_cut_margin = 2.56 # 2.56 tu = 2 ns
 
     #################
 
@@ -59,19 +48,27 @@ def main():
     #print("input_data =",input_data)
 
     ### cut data
-    print(f"###### Applying data cuts: {cuts_list}...")
-    cut_data = copy.deepcopy(input_data)
-    for i in range(len(cuts_list)):
-        print("***")
-        cut_data = data_utils.cut_data(data=cut_data, conditions=[cuts_list[i]])
-        n_cut_data = data_utils.length(cut_data)
-        print(f"cut flow w.r.t. initial dataset: {n_cut_data} / {n_input_data} = {n_cut_data/n_input_data}")
-    print("***")
-    #print("cut_data =",cut_data)
+    print(f"###### Applying data cuts...")
+    last_data = copy.deepcopy(input_data)
+    masked_data = {}
+    mask = np.full(data_utils.length(last_data), True)
+    ## calculate cuts
+    # chi2 cut
+    mask &= (last_data["chi2/ndf"] < 10)
+    # drift time cut
+    for ly in range(0,4):
+        mask &= (last_data[f"ts{ly}"] - last_data["t0"] >= 0 + dt_cut_margin)
+        mask &= (last_data[f"ts{ly}"] - last_data["t0"] <= params._dt_max_drift_time - dt_cut_margin)
+    ## apply cuts
+    for name in last_data.keys():
+        masked_data[name] = copy.deepcopy(last_data[name][mask])
+    ## print cut flow
+    n_masked_data = data_utils.length(masked_data)
+    print(f"Cut flow: {n_masked_data} / {n_input_data} = {n_masked_data/n_input_data}")
 
     ### store to pcl file
     print(f"###### Storing sliced data to file \"{cut_data_file}\"...")
-    data_utils.store_pickle(data=cut_data, file=cut_data_file)
+    data_utils.store_pickle(data=masked_data, file=cut_data_file)
 
 
 

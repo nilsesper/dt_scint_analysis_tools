@@ -1,5 +1,5 @@
 #################################################################
-### apply cuts to data
+### apply cuts to sl fit groups
 #################################################################
 
 import os
@@ -32,23 +32,10 @@ def main():
         type     = str,
         help     = "output file path: cut data subset (pcl file)",
     )
-    parser.add_argument(
-        "--cuts",
-        type     = str,
-        help     = "cuts to apply to data in format \"key1,operator1,value1;key2,operator2,value;...\"",
-    )
     # ---
     args = parser.parse_args()
     input_data_file = args.input_data_file
     cut_data_file = args.cut_data_file
-    cuts_list = []
-    for cuts_str in args.cuts.split(";"):
-        key, operator, value = cuts_str.split(",")
-        if "params." in value:
-            value = getattr(params, value.split("params.")[1])
-        else:
-            value = float(value)
-        cuts_list.append((key, operator, value))
 
     #################
 
@@ -59,19 +46,36 @@ def main():
     #print("input_data =",input_data)
 
     ### cut data
-    print(f"###### Applying data cuts: {cuts_list}...")
-    cut_data = copy.deepcopy(input_data)
-    for i in range(len(cuts_list)):
-        print("***")
-        cut_data = data_utils.cut_data(data=cut_data, conditions=[cuts_list[i]])
-        n_cut_data = data_utils.length(cut_data)
-        print(f"cut flow w.r.t. initial dataset: {n_cut_data} / {n_input_data} = {n_cut_data/n_input_data}")
-    print("***")
-    #print("cut_data =",cut_data)
+    print(f"###### Applying data cuts...")
+    last_data = copy.deepcopy(input_data)
+    masked_data = {}
+    mask = np.full(data_utils.length(last_data), True)
+    ## calculate cuts
+    # nfits cut
+    mask &= (last_data["n_fits"] == 1)
+    
+    ## apply mask to data
+    masked_data = {}
+    for name in input_data.keys():
+        # if python list at this key
+        masked_data[name] = []
+        if isinstance(last_data[name], list):
+            for i in range(len(last_data[name])):
+                if mask[i]:
+                    masked_data[name].append(last_data[name][i])
+        # if numpy array at this key
+        elif isinstance(last_data[name], np.ndarray):
+            masked_data[name] = copy.deepcopy(last_data[name][mask])
+        else:
+            raise Exception(f"CUT_DATA ERROR: data[{name}] is of unsupported type {type(last_data[name])}. can only cut lists or numpy arrays")
+
+    ## print cut flow
+    n_masked_data = data_utils.length(masked_data)
+    print(f"Cut flow: {n_masked_data} / {n_input_data} = {n_masked_data/n_input_data}")
 
     ### store to pcl file
     print(f"###### Storing sliced data to file \"{cut_data_file}\"...")
-    data_utils.store_pickle(data=cut_data, file=cut_data_file)
+    data_utils.store_pickle(data=masked_data, file=cut_data_file)
 
 
 

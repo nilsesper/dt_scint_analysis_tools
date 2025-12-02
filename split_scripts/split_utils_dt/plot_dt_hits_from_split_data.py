@@ -15,6 +15,7 @@ import atexit
 import sys
 import time
 from tqdm import tqdm
+from matplotlib.ticker import ScalarFormatter
 
 from analysis_tools.utils import dummy_gen, data_utils, dt_utils, scint_utils, timestamp_utils, geoplot_utils, muon_utils, math_utils, hist_utils, process_utils
 from analysis_tools.params import params, derived_params
@@ -125,7 +126,9 @@ def main():
     ax.set_yticklabels(list(layer_labels.values()))
     ax.set_aspect("auto")
     cmap = plt.get_cmap('viridis')
-    cbar = fig.colorbar(im_obj, ax=ax, fraction=0.05, cmap=cmap)
+    formatter = ScalarFormatter(useMathText=True)
+    formatter.set_powerlimits([-3, 3]) # 10^X power limits for prescale
+    cbar = fig.colorbar(im_obj, ax=ax, fraction=0.05, cmap=cmap, format=formatter)
     #cbar.set_label("Rate [Hz]")
     fig.tight_layout()
     fig.show()

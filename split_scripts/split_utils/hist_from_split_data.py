@@ -24,7 +24,7 @@ from analysis_tools.params import params, derived_params
 
 # allowed datasets
 allowed_datasets = [
-    "DT_HITS", "DT_HITS_NODEADTIME", "DT_CORR_HITS", "SL_PATTERNS", "SL_FAKE_PATTERNS", "SL_FITS", "SL_FITS_AFTERCUTS", "SL_FIT_GROUPS", "DT_MUONS",
+    "DT_HITS", "DT_HITS_NODEADTIME", "DT_CORR_HITS", "SL_PATTERNS", "SL_FAKE_PATTERNS", "SL_FITS", "SL_FITS_AFTERCUTS", "SL_FIT_GROUPS", "SL_FIT_GROUPS_AFTERCUTS", "DT_MUONS",
     "RAW_SCINT_HITS", "RAW_SCINT_GROUPS", "SCINT_HITS", "SCINT_AREAS",
     "DT_HIT_DIFFERENCES",
 ]
@@ -215,7 +215,7 @@ def main():
         hist_err_left = None
 
     ### error calculation for full hist
-    err_hist = hist_utils.calculate_hist_uncertainty(hist=hist, hist_err_right=hist_err_right, hist_err_left=hist_err_left, do_stat_err=True)
+    err_hist, err_hist_down, err_hist_up = hist_utils.calculate_hist_uncertainty(hist=hist, hist_err_right=hist_err_right, hist_err_left=hist_err_left, do_stat_err=True)
 
     print(f"created histogram:")
     print(f"  dataset = {dataset}  ,  key = {hist_key}  ,  err_key = {err_hist_key}")
@@ -225,6 +225,8 @@ def main():
         print(f"  centers   =  {centers}")
         print(f"  hist      =  {hist}")
         print(f"  err_hist  =  {err_hist}")
+        print(f"  err_hist_down  =  {err_hist_down}")
+        print(f"  err_hist_up    =  {err_hist_up}")
 
     ### store histogram into file
     hist_to_store = {
@@ -232,6 +234,8 @@ def main():
         "centers": centers,
         "hist": hist,
         "err_hist": err_hist,
+        "err_hist_down": err_hist_down,
+        "err_hist_up": err_hist_up,
         "entries": entries,
         "underflow": underflow,
         "overflow": overflow,

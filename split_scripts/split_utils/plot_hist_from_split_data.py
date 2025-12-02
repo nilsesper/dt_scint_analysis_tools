@@ -23,7 +23,7 @@ from analysis_tools.params import params, derived_params
 
 # allowed datasets
 allowed_datasets = [
-    "DT_HITS", "DT_HITS_NODEADTIME", "DT_CORR_HITS", "SL_PATTERNS", "SL_FAKE_PATTERNS", "SL_FITS", "SL_FITS_AFTERCUTS", "SL_FIT_GROUPS", "DT_MUONS",
+    "DT_HITS", "DT_HITS_NODEADTIME", "DT_CORR_HITS", "SL_PATTERNS", "SL_FAKE_PATTERNS", "SL_FITS", "SL_FITS_AFTERCUTS", "SL_FIT_GROUPS", "SL_FIT_GROUPS_AFTERCUTS", "DT_MUONS",
     "RAW_SCINT_HITS", "RAW_SCINT_GROUPS", "SCINT_HITS", "SCINT_AREAS",
 ]
 
@@ -67,6 +67,10 @@ def main():
         "--log_y_scale",
         action = "store_true",
     )
+    parser.add_argument( # if this flag is given: use log y axis
+        "--use_asymm_err",
+        action = "store_true",
+    )
     parser.add_argument(
         "--fig_size",
         type     = str,
@@ -106,6 +110,9 @@ def main():
         log_y_scale = True
     arg_fig_size = args.fig_size.split(",")
     fig_size = (float(arg_fig_size[0]), float(arg_fig_size[1]))
+    use_asym_err = False
+    if args.use_asymm_err:
+        use_asym_err = True
 
     ####################
 
@@ -120,6 +127,8 @@ def main():
     overflow = hist_data["overflow"]
     hist = hist_data["hist"]
     err_hist = hist_data["err_hist"]
+    err_hist_down = hist_data["err_hist_down"]
+    err_hist_up = hist_data["err_hist_up"]
     edges = hist_data["edges"]
     centers = hist_data["centers"]
 
@@ -131,10 +140,15 @@ def main():
         print(f"  centers   =  {centers}")
         print(f"  hist      =  {hist}")
         print(f"  err_hist  =  {err_hist}")
+        print(f"  err_hist_down  =  {err_hist_down}")
+        print(f"  err_hist_up    =  {err_hist_up}")
 
     ## plot
     fig, ax = plt.subplots(1, 1, figsize=fig_size)
-    ax = hist_utils.plot_histogram(ax=ax, hist=hist, centers=centers, err_hist=err_hist, log_scale=log_y_scale)
+    if not use_asym_err: # symm err
+        ax = hist_utils.plot_histogram(ax=ax, hist=hist, centers=centers, err_hist=err_hist, log_scale=log_y_scale)
+    else: # asymm err
+        ax = hist_utils.plot_histogram(ax=ax, hist=hist, centers=centers, err_hist_down=err_hist_down, err_hist_up=err_hist_up, log_scale=log_y_scale)
     xlabel = (params._key_symbols[hist_key]) if (params._key_units[hist_key] == "") else (params._key_symbols[hist_key]+" ["+ params._key_units[hist_key]+"]")
     ax.set_xlabel(xlabel)
     fig.tight_layout()

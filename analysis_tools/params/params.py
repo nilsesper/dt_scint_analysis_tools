@@ -439,7 +439,7 @@ _sl_time_offset = {
 _sl_fit_group_ts_tolerance = _dt_max_drift_time
 
 ## --- sl fit groups -> dt muons
-_muon_tgroup_tolerance = _dt_max_drift_time / 2 # time interval in which sl fit groups of different sls are combined to "muon"
+_muon_tgroup_tolerance = 20/0.78 # time interval in which sl fit groups of different sls are combined to "muon"
 _muon_n_fits_max = 1 # max n_fits in sl fit groups selected for "muon"
 _muon_slphi_tan_alpha_tolerance = 0.1 # max deviation of tan_alpha for both sl fits in phi sl
 _muon_slphi_xproj_tolerance = 30 # max deviation of x_proj (projected sl fit track position at z=_muon_reco_z0) for both sl fits in phi sl

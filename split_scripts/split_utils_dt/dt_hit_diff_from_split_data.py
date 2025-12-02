@@ -155,7 +155,7 @@ def main():
                     ch_list.append({"key": ts_diff_list})
                     err_ch_list.append({"key": err_ts_diff_list})
         merged_ts_diff = data_utils.merge_dataset(split_data=ch_list, silent=True)["key"]
-        merged_err_ts_diff = data_utils.merge_dataset(split_data=ch_list, silent=True)["key"]
+        merged_err_ts_diff = data_utils.merge_dataset(split_data=err_ch_list, silent=True)["key"]
         
         # create histogram of specified key and shifted hists to respect data error
         hist_, _, _, entries_, underflow_, overflow_, hist_err_right_, hist_err_left_ = hist_utils.calculate_histogram_and_shifted_histograms(data=merged_ts_diff, edges=edges, err_data=merged_err_ts_diff)
@@ -171,7 +171,7 @@ def main():
     print(f"duration = {duration*0.78*1e-9} s")
 
     ### error calculation for full hist
-    err_hist = hist_utils.calculate_hist_uncertainty(hist=hist, hist_err_right=hist_err_right, hist_err_left=hist_err_left, do_stat_err=True)
+    err_hist, err_hist_down, err_hist_up = hist_utils.calculate_hist_uncertainty(hist=hist, hist_err_right=hist_err_right, hist_err_left=hist_err_left, do_stat_err=True)
     ### calculate once only stat unc
     err_hist_stat = np.sqrt(hist)
 
@@ -186,6 +186,8 @@ def main():
         "hist": hist,
         "err_hist": err_hist,
         "err_hist_stat": err_hist_stat,
+        "err_hist_down": err_hist_down,
+        "err_hist_up": err_hist_up,
         "entries": entries,
         "underflow": underflow,
         "overflow": overflow,

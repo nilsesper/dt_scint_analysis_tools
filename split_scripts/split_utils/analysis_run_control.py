@@ -56,11 +56,13 @@ allowed_tasks = {
     "dt_fits":
         "python scripts/dt/sl_patterns_to_sl_fits.py --sl_patterns_file [SL_PATTERNS] --sl_fits_file [SL_FITS] --n_proc [N_PROC]",
     "dt_fit_cuts":
-        "python scripts/general/apply_cuts.py --input_data_file [SL_FITS] --cut_data_file [SL_FITS_AFTERCUTS] --cuts \"chi2/ndf,<,10;dt0,>=,0;dt0,<=,params._dt_max_drift_time;dt1,>=,0;dt1,<=,params._dt_max_drift_time;dt2,>=,0;dt2,<=,params._dt_max_drift_time;dt3,>=,0;dt3,<=,params._dt_max_drift_time\"",
+        "python scripts/dt/sl_fits_apply_cuts.py --input_data_file [SL_FITS] --cut_data_file [SL_FITS_AFTERCUTS]",
     "dt_fit_groups":
         "python scripts/dt/sl_fits_to_sl_fit_groups.py --sl_fits_file [SL_FITS_AFTERCUTS] --sl_fit_groups_file [SL_FIT_GROUPS] --n_proc [N_PROC]",
+    "dt_fit_group_cuts":
+        "python scripts/dt/sl_fit_groups_apply_cuts.py --input_data_file [SL_FIT_GROUPS] --cut_data_file [SL_FIT_GROUPS_AFTERCUTS]",
     "dt_muons":
-        "python scripts/dt/sl_fit_groups_to_dt_muons.py --sl_fits_file [SL_FITS_AFTERCUTS] --sl_fit_groups_file [SL_FIT_GROUPS] --dt_muons_file [DT_MUONS]",
+        "python scripts/dt/sl_fit_groups_to_dt_muons.py --sl_fits_file [SL_FITS_AFTERCUTS] --sl_fit_groups_file [SL_FIT_GROUPS_AFTERCUTS] --dt_muons_file [DT_MUONS]",
     ### scint workflow
     "scint_raw_groups":
         "python scripts/scint/raw_scint_hits_to_raw_groups.py --raw_scint_hits_file [RAW_SCINT_HITS] --raw_scint_groups_file [RAW_SCINT_GROUPS] --n_proc [N_PROC]",
@@ -77,7 +79,7 @@ allowed_tasks = {
 }
 ### filepath wildcards:
 prefix_wildcard_list = [
-    "DT_HITS", "DT_HITS_NODEADTIME", "DT_CORR_HITS", "SL_PATTERNS", "SL_FAKE_PATTERNS", "SL_FITS", "SL_FITS_AFTERCUTS", "SL_FIT_GROUPS", "DT_MUONS",
+    "DT_HITS", "DT_HITS_NODEADTIME", "DT_CORR_HITS", "SL_PATTERNS", "SL_FAKE_PATTERNS", "SL_FITS", "SL_FITS_AFTERCUTS", "SL_FIT_GROUPS", "SL_FIT_GROUPS_AFTERCUTS", "DT_MUONS",
     "RAW_SCINT_HITS", "RAW_SCINT_GROUPS", "SCINT_HITS", "SCINT_AREAS",
     "DT_HIT_DIFFERENCES",
     "SIM_MUONS"

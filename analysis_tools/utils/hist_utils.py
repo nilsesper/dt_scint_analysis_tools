@@ -295,38 +295,45 @@ def calculate_histogram_and_shifted_histograms(data, edges, err_data=None):
 
 ### combine hist and shifted hists to calculate uncertainty
 # also calculate poisson uncertainty per bin
-def calculate_hist_uncertainty(hist, *, hist_err_right=None, hist_err_left=None, do_stat_err=True):
+# calculates symm and asymm errors
+def calculate_hist_uncertainty(hist, *, hist_err_right=None, hist_err_left=None, do_stat_err=True, min_stat_err=1):
     n_bins = len(hist)
-    ## stat err
+    ## stat err (clip to min_stat_err)
     if do_stat_err:
-        # statistical error, slip to 1 entry if no entries
-        err_hist_stat = np.clip(a=np.sqrt(hist), a_min=1, a_max=None)
+        err_hist_stat = np.clip(a=np.sqrt(hist), a_min=min_stat_err, a_max=None)
     else:
         err_hist_stat = np.zeros(n_bins)
-    ## data err
-    if type(hist_err_right) != type(None) and type(hist_err_left) != type(None):
-        # error of data entries (mean shift from left & right)
-        err_hist_data = (np.abs(hist_err_right-hist)+np.abs(hist_err_left-hist))/2
-    else:
-        err_hist_data = np.zeros(n_bins)
-    ## combine errors (assume uncorrelated)
-    err_hist = np.sqrt(err_hist_stat**2 + err_hist_data**2)
-    return err_hist
+    ## final err
+    err_hist_up = err_hist_stat
+    # asymm err: for now use same as symm err
+    err_hist_down = err_hist_stat
+    err_hist = err_hist_stat
+    return err_hist, err_hist_down, err_hist_up
 
 ### plot histogram with uncertainty bar into given ax, return ax
-def plot_histogram(ax, hist, centers, *, err_hist=None, log_scale=False):
+# give hist to plot
+# optionally give err_hist (symm errors)
+# or err_hist_down and err_hist_up (asymm errors)
+def plot_histogram(ax, hist, centers, *, err_hist=None, err_hist_down=None, err_hist_up=None, log_scale=False, power_limits=[-2, 2]):
     barwidth = np.mean(np.diff(centers))
     ax.bar(centers, hist, width=barwidth, align="center", facecolor="tab:blue")
-    ax.bar(centers, bottom=hist-err_hist, height=2*err_hist, width=barwidth, align="center", hatch="xxx", fill=False, edgecolor="0.2", linestyle="")
+    # if up down errors given
+    if type(err_hist_down) != type(None) and type(err_hist_up) != type(None):
+        ax.bar(centers, bottom=hist-err_hist_down, height=err_hist_down+err_hist_up, width=barwidth, align="center", hatch="xxx", fill=False, edgecolor="0.2", linestyle="")
+        max_hist_val = np.amax(hist+err_hist_up)
+    # if symm errors given
+    elif type(err_hist) != type(None):
+        ax.bar(centers, bottom=hist-err_hist, height=2*err_hist, width=barwidth, align="center", hatch="xxx", fill=False, edgecolor="0.2", linestyle="")
+        max_hist_val = np.amax(hist+err_hist)
     if not log_scale:
-        ax.set_ylim(bottom=0, top=np.amax(hist+err_hist)*1.1)
+        ax.set_ylim(bottom=0, top=max_hist_val*1.1)
         ax.yaxis.set_major_formatter(ScalarFormatter(useMathText=True))
-        ax.yaxis.get_major_formatter().set_powerlimits([-2, 2]) # 10^X power limits for prescale
+        ax.yaxis.get_major_formatter().set_powerlimits(power_limits) # 10^X power limits for prescale
     else:
         ax.set_yscale("log")
-        ax.set_ylim(bottom=0.5, top=np.amax(hist+err_hist)*np.exp(1.1))
+        ax.set_ylim(bottom=0.5, top=max_hist_val*np.exp(1.1))
     ax.xaxis.set_major_formatter(ScalarFormatter(useMathText=True)) 
-    ax.xaxis.get_major_formatter().set_powerlimits([-2, 2]) # 10^X power limits for prescale
+    ax.xaxis.get_major_formatter().set_powerlimits(power_limits) # 10^X power limits for prescale
     return ax
 
 
