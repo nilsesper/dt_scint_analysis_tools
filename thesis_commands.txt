@@ -154,6 +154,27 @@
     python split_scripts/split_utils/hist_from_split_data.py --base_path thesis_data_files/large_combined_data_run/ --data_config_file thesis_data_files/large_combined_data_run/data_config_file_finished.txt --dataset DT_MUONS --key "y0" --err_key "err_y0" --edges "auto,200" &&
     python split_scripts/split_utils/plot_hist_from_split_data.py --base_path thesis_data_files/large_combined_data_run/ --data_config_file thesis_data_files/large_combined_data_run/data_config_file_finished.txt --store_path ~/masterarbeit/thesis/resources/images/large_combined_data_plots/ --dataset DT_MUONS --key "y0" --fig_size "7,6" --use_asymm_err
 
+## hist: "err_ts"
+# calculate & plot
+    python split_scripts/split_utils/hist_from_split_data.py --base_path thesis_data_files/large_combined_data_run/ --data_config_file thesis_data_files/large_combined_data_run/data_config_file_finished.txt --dataset DT_MUONS --key "err_ts" --edges "auto,10" &&
+    python split_scripts/split_utils/plot_hist_from_split_data.py --base_path thesis_data_files/large_combined_data_run/ --data_config_file thesis_data_files/large_combined_data_run/data_config_file_finished.txt --store_path ~/masterarbeit/thesis/resources/images/large_combined_data_plots/ --dataset DT_MUONS --key "err_ts" --fig_size "7,6" --use_asymm_err
+## hist: "err_theta"
+# calculate & plot
+    python split_scripts/split_utils/hist_from_split_data.py --base_path thesis_data_files/large_combined_data_run/ --data_config_file thesis_data_files/large_combined_data_run/data_config_file_finished.txt --dataset DT_MUONS --key "err_theta" --edges "linear,0,0.5,20" &&
+    python split_scripts/split_utils/plot_hist_from_split_data.py --base_path thesis_data_files/large_combined_data_run/ --data_config_file thesis_data_files/large_combined_data_run/data_config_file_finished.txt --store_path ~/masterarbeit/thesis/resources/images/large_combined_data_plots/ --dataset DT_MUONS --key "err_theta" --fig_size "7,6" --use_asymm_err
+## hist: "err_phi"
+# calculate & plot
+    python split_scripts/split_utils/hist_from_split_data.py --base_path thesis_data_files/large_combined_data_run/ --data_config_file thesis_data_files/large_combined_data_run/data_config_file_finished.txt --dataset DT_MUONS --key "err_phi" --edges "linear,0,0.5,20" &&
+    python split_scripts/split_utils/plot_hist_from_split_data.py --base_path thesis_data_files/large_combined_data_run/ --data_config_file thesis_data_files/large_combined_data_run/data_config_file_finished.txt --store_path ~/masterarbeit/thesis/resources/images/large_combined_data_plots/ --dataset DT_MUONS --key "err_phi" --fig_size "7,6" --use_asymm_err
+## hist: "err_x0"
+# calculate & plot
+    python split_scripts/split_utils/hist_from_split_data.py --base_path thesis_data_files/large_combined_data_run/ --data_config_file thesis_data_files/large_combined_data_run/data_config_file_finished.txt --dataset DT_MUONS --key "err_x0" --edges "auto,10" &&
+    python split_scripts/split_utils/plot_hist_from_split_data.py --base_path thesis_data_files/large_combined_data_run/ --data_config_file thesis_data_files/large_combined_data_run/data_config_file_finished.txt --store_path ~/masterarbeit/thesis/resources/images/large_combined_data_plots/ --dataset DT_MUONS --key "err_x0" --fig_size "7,6" --use_asymm_err
+## hist: "err_y0"
+# calculate & plot
+    python split_scripts/split_utils/hist_from_split_data.py --base_path thesis_data_files/large_combined_data_run/ --data_config_file thesis_data_files/large_combined_data_run/data_config_file_finished.txt --dataset DT_MUONS --key "err_y0" --edges "auto,10" &&
+    python split_scripts/split_utils/plot_hist_from_split_data.py --base_path thesis_data_files/large_combined_data_run/ --data_config_file thesis_data_files/large_combined_data_run/data_config_file_finished.txt --store_path ~/masterarbeit/thesis/resources/images/large_combined_data_plots/ --dataset DT_MUONS --key "err_y0" --fig_size "7,6" --use_asymm_err
+
 ##### advanced plotting
 ### merge split dt muon files into one, because some plotting scripts only work with merged data
     python split_scripts/split_utils/merge_split_data.py --base_path thesis_data_files/large_combined_data_run/ --data_config_file thesis_data_files/large_combined_data_run/data_config_file_finished.txt --dataset DT_MUONS

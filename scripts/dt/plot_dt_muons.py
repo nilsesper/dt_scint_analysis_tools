@@ -11,6 +11,7 @@ from mpl_toolkits.axes_grid1 import make_axes_locatable
 import copy
 import argparse
 import matplotlib.patches as mpatches
+from functools import partial
 
 from analysis_tools.utils import dummy_gen, data_utils, dt_utils, scint_utils, timestamp_utils, geoplot_utils, muon_utils, math_utils, hist_utils, process_utils
 from analysis_tools.params import params, derived_params
@@ -18,7 +19,7 @@ from analysis_tools.params import params, derived_params
 # ---------------------------------------------------------------
 
 # main function
-@mpl.rc_context({'font.family': 'sans-serif', 'font.size': 20}) #'font.sans-serif': 'Arial',
+@mpl.rc_context({'font.family': 'sans-serif', 'font.size': 16}) #'font.sans-serif': 'Arial',
 def main():
 
     ### argparse
@@ -132,8 +133,8 @@ def main():
 
     ### rate of muons
     muon_count = data_utils.length(dt_muons)
-    pattern_rate = muon_count / duration
-    print(f"dt muon rate: {pattern_rate:.03f} Hz")
+    print(f"dt muon count: {muon_count}")
+    print(f"dt muon rate: {muon_count/duration} +- {np.sqrt(muon_count)/duration} Hz")
 
     
     """
@@ -252,7 +253,7 @@ def main():
         ax.set_title(f"DT tracks in SL {sl} ($z={np.round(derived_params.sl_z_center[sl],0):.0f}$mm)", fontsize=20)
         ax.set_ylabel("$y$ [mm]")
         ax.set_xlabel("$x$ [mm]")
-        ax.legend(prop={"size":14}, loc="upper center")
+        ax.legend(prop={"size":14}, loc="center left")
         plt.colorbar(im_obj)
         fig.tight_layout()
         fig.show()
@@ -311,7 +312,7 @@ def main():
         pos_muons_hist2d, _, _ = np.histogram2d(x=z_muons, y=x_muons, bins=(z_edges, x_edges)) 
 
         # plot
-        fig, ax = plt.subplots(1, 1, figsize=(12,3)) # fig_size
+        fig, ax = plt.subplots(1, 1, figsize=(12,2.8)) # fig_size
         im_obj = ax.imshow(X=pos_muons_hist2d, origin="lower", extent=[min(x_bins), max(x_bins), min(z_bins), max(z_bins)])
         
         # store dead wires
@@ -337,7 +338,7 @@ def main():
             "Chamber geometry": mpatches.Patch(edgecolor="white", facecolor="none"),
             "Low occupancy cells": mpatches.Patch(edgecolor="tab:red", facecolor="none")
         }
-        ax.legend(legend_entries.values(), legend_entries.keys(), prop={'size': 14}, loc="upper center")
+        ax.legend(legend_entries.values(), legend_entries.keys(), prop={'size': 12}, loc="lower center")
         # show plot
         fig.tight_layout()
         fig.show()
@@ -347,6 +348,60 @@ def main():
             print(f"store histogram plot as {hist_plot_file}.")
             fig.savefig(hist_plot_file)
     #"""
+
+    ######################
+    ### TIME DIFFERENCE OF ARRIVAL TIMES
+
+    ts = dt_muons["ts"]
+    # calculate hist
+    edges, n_bins, centers = hist_utils.generate_histogram_edges(arg=f"auto,50", data_min_val=np.amin(ts), data_max_val=np.amax(ts))
+    hist, _, _, entries, underflow, overflow, hist_err_right, hist_err_left = hist_utils.calculate_histogram_and_shifted_histograms(data=ts, edges=edges)
+    err_hist, err_hist_down, err_hist_up = hist_utils.calculate_hist_uncertainty(hist=hist, hist_err_right=hist_err_right, hist_err_left=hist_err_left, do_stat_err=True)
+    # tu to ns
+    centers = centers*0.78
+    # plot
+    fig, ax = plt.subplots(1, 1, figsize=(7,6))
+    ax = hist_utils.plot_histogram(ax=ax, hist=hist, centers=centers, err_hist=err_hist, log_scale=True)
+    xlabel = "$T$ [ns]"
+    ax.set_xlabel(xlabel)
+    fig.tight_layout()
+    fig.show()
+    ## store plot
+    if args.store_path:
+        hist_plot_file = args.store_path+"/"+f"DT_MUON_SPECIFIC_TS.pdf"
+        print(f"store histogram plot as {hist_plot_file}.")
+        fig.savefig(hist_plot_file)
+    
+
+    ######################
+    ### TIME DIFFERENCE OF ARRIVAL TIMES
+
+    # calculate ts difference of consecutive muons
+    dt_muons = timestamp_utils.sort_by_timestamp(hits=dt_muons, silent=True)
+    n_dt_muons = data_utils.length(dt_muons)
+    ts_diff_list = []
+    for i in range(1,n_dt_muons):
+        ts_diff_list.append(dt_muons["ts"][i] - dt_muons["ts"][i-1])
+    ts_diff = np.array(ts_diff_list)
+    # calculate hist
+    edges, n_bins, centers = hist_utils.generate_histogram_edges(arg=f"linear,0,{np.amax(ts_diff)},100")
+    hist, _, _, entries, underflow, overflow, hist_err_right, hist_err_left = hist_utils.calculate_histogram_and_shifted_histograms(data=ts_diff, edges=edges)
+    err_hist, err_hist_down, err_hist_up = hist_utils.calculate_hist_uncertainty(hist=hist, hist_err_right=hist_err_right, hist_err_left=hist_err_left, do_stat_err=True)
+    # tu to ns
+    centers = centers*0.78
+    # plot
+    fig, ax = plt.subplots(1, 1, figsize=(7,6))
+    ax = hist_utils.plot_histogram(ax=ax, hist=hist, centers=centers, err_hist=err_hist, log_scale=True)
+    xlabel = "$\\Delta T$ [ns]"
+    ax.set_xlabel(xlabel)
+    fig.tight_layout()
+    fig.show()
+    ## store plot
+    if args.store_path:
+        hist_plot_file = args.store_path+"/"+f"DT_MUON_SPECIFIC_DELTA-TS.pdf"
+        print(f"store histogram plot as {hist_plot_file}.")
+        fig.savefig(hist_plot_file)
+
 
     """
     ### for ceiling of teststand
@@ -395,14 +450,8 @@ def main():
 
 
 
-
-
-
     input("Press enter to exit.")
     exit()
-
-
-
 
 
 

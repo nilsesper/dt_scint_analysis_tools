@@ -18,7 +18,7 @@ from analysis_tools.params import params, derived_params
 # ---------------------------------------------------------------
 
 # main function
-@mpl.rc_context({'font.family': 'sans-serif', 'font.size': 20}) #'font.sans-serif': 'Arial',
+@mpl.rc_context({'font.family': 'sans-serif', 'font.size': 16}) #'font.sans-serif': 'Arial',
 def main():
 
     ### argparse
@@ -219,9 +219,9 @@ def main():
 
     ####### 2d X-Y projections
 
-    xy_marigin = 400
-    x_bin_width = 5 # mm
-    y_bin_width = 5 # mm
+    xy_marigin = 200
+    x_bin_width = 10 # mm
+    y_bin_width = 10 # mm
     x_edges = np.arange(start=derived_params.scint_x_min-xy_marigin, stop=derived_params.scint_x_max+xy_marigin, step=x_bin_width)
     y_edges = np.arange(start=derived_params.scint_y_min-xy_marigin, stop=derived_params.scint_y_max+xy_marigin, step=y_bin_width)
     x_bins = np.array([(x_edges[i]+x_edges[i+1])/2 for i in range(len(x_edges)-1)])

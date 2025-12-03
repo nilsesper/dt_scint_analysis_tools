@@ -843,11 +843,23 @@ def reco_muons_from_sl_fit_groups(fits, fit_groups, *, silent=False, verbose=Fal
             continue
         counter_xproj += 1
         # reco x, y positions of muon in 2d slice of global coord frame
+        ### x0 phi
         x0_reco_phi = np.mean([x0_reco_sl[sl] for sl in phi_sls])
-        err_x0_reco_phi = np.sqrt(
-              (err_x0_reco_sl[phi_sl1]/2)**2
-            + (err_x0_reco_sl[phi_sl2]/2)**2
-        )
+        ### x0 phi uncertainty
+        # calc deviaion
+        max_x0_dev = np.abs(x0_reco_sl[phi_sls[0]] - x0_reco_sl[phi_sls[1]])
+        # check if max compatible within all errors
+        min_x0_phi_sigma = np.amin([fit[sl]["err_x0"] for sl in phi_sls])
+        # if compatible do error on mean (1/sqrt(N))
+        if max_x0_dev <= min_x0_phi_sigma:
+            err_x0_reco_phi = np.sqrt(
+                  (err_x0_reco_sl[phi_sl1]/2)**2
+                + (err_x0_reco_sl[phi_sl2]/2)**2
+            )
+        # if not compatible do error as max deviation between ts
+        else:
+            err_x0_reco_phi = max_x0_dev
+        ### x0 theta and uncertainty
         x0_reco_theta = x0_reco_sl[theta_sl]
         err_x0_reco_theta = err_x0_reco_sl[theta_sl]
         x0_reco, err_x0_reco = (x0_reco_phi, err_x0_reco_phi) if (params._orientation["phi"][0] == 0) else (x0_reco_theta, err_x0_reco_theta)
@@ -872,9 +884,22 @@ def reco_muons_from_sl_fit_groups(fits, fit_groups, *, silent=False, verbose=Fal
               ( (2*np.cos(phi_reco)) / (2*tan_alpha_x**2+np.cos(2*phi_reco)+1) )**2 * err_tan_alpha_x**2
             + ( (tan_alpha_x*np.sin(phi_reco)) / (tan_alpha_x**2+np.cos(phi_reco)**2) )**2 * err_phi_reco**2
         )
-        ### combine t0 to muon arrival time (averaging)
+        ### combine t0 to muon arrival time ts (averaging)
         ts_reco = np.mean([fit[sl]["t0"] for sl in params._dt_chamber["sls"].keys()])
-        err_ts_reco = np.sqrt(np.sum([(fit[sl]["err_t0"]/3)**2 for sl in params._dt_chamber["sls"].keys()]))
+        ### ts uncertainty
+        # check if max ts difference compatible within all errors
+        max_ts_diff = np.amax([
+            np.abs(fit[1]["t0"]-fit[2]["t0"]),
+            np.abs(fit[1]["t0"]-fit[3]["t0"]),
+            np.abs(fit[2]["t0"]-fit[3]["t0"]),
+        ])
+        min_ts_sigma = np.amin([fit[sl]["err_t0"] for sl in params._dt_chamber["sls"].keys()])
+        # if compatible do error on mean (1/sqrt(N))
+        if max_ts_diff <= min_ts_sigma:
+            err_ts_reco = np.sqrt(np.sum([(fit[sl]["err_t0"]/3)**2 for sl in params._dt_chamber["sls"].keys()]))
+        # if not compatible do error as max deviation between ts
+        else:
+            err_ts_reco = max_ts_diff
         ### combine muon_id of hits (if there is one from simulation)
         # raise error of muon_id of combined sl patters is not single value
         muon_id = fit[sl]["muon_id"]

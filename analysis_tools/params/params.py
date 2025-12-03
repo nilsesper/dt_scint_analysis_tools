@@ -737,7 +737,6 @@ _key_symbols = {
     "corr_x0_vd": "$\\text{cov}(x_0,\\; v_D)$", 
     "corr_tan_alpha_vd": "$\\text{cov}(\\tan\\alpha,\\; v_D)$",
     "impossible": "Impossible to fit",
-    "err_ts": "$\\sigma_{T_0}$",
     "err_x0": "$\\sigma_{x_0}$",
     "err_y0": "$\\sigma_{y_0}$",
     "err_z0": "$\\sigma_{z_0}$",
