@@ -1,6 +1,5 @@
 #######################
-### calculate hist by summing variables of all sub datasets
-# open sub datasets sequentially to save ram
+### calculate raw scint hit difference information from split data
 #######################
 
 import os
@@ -24,14 +23,11 @@ from analysis_tools.params import params, derived_params
 
 # allowed datasets
 allowed_datasets = [
-    "DT_HITS", "DT_HITS_NODEADTIME", "DT_CORR_HITS", "SL_PATTERNS", "SL_FAKE_PATTERNS", "SL_FITS", "SL_FITS_AFTERCUTS", "SL_FIT_GROUPS", "SL_FIT_GROUPS_AFTERCUTS", "DT_MUONS",
-    "RAW_SCINT_HITS", "RAW_SCINT_HITS_DEADTIME", "RAW_SCINT_GROUPS", "SCINT_HITS", "SCINT_AREAS",
-    "DT_HIT_DIFFERENCES",
-    "SIM_MUONS", "DT_HITS_SIM",
+    "RAW_SCINT_HITS", "RAW_SCINT_HITS_DEADTIME",
 ]
 # possible ts keys that need to be shifted
 ts_keys = [
-    "ts", "t0", "tgroup",
+    "ts", "t0",
 ]
 
 # ---------------------------------------------------------------
@@ -61,25 +57,21 @@ def main():
         required=True,
     )
     parser.add_argument(
-        "--key",
-        type     = str,
-        help     = "key of dataset to create histogram from",
-        required=True,
-    )
-    parser.add_argument(
-        "--err_key",
-        type     = str,
-        help     = "uncertainty key of dataset to create histogram from (if available)",
-    )
-    parser.add_argument( # hist bin edges: linspace = "linear,start,stop,nbins+1" , arange = "range,start,stop+1"
         "--edges",
         type     = str,
-        help     = "specification of histogram bin edges",
         required=True,
+        help     = "custom fig_size of the plot in the format x_size,y_size (if desired)",
     )
-    parser.add_argument( # if this flag is given: print hist & err_hist when finished
-        "--print_hist",
-        action = "store_true",
+    parser.add_argument(
+        "--suffix",
+        type     = str,
+        default="",
+        help     = "add suffix to output file",
+    )
+    parser.add_argument(
+        "--cuts",
+        type     = str,
+        help     = "cuts to apply to data in format \"key1,operator1,value1;key2,operator2,value;...\"",
     )
     # ---
     args = parser.parse_args()
@@ -101,11 +93,16 @@ def main():
             dump_files.append(dump_file.replace("\n","").replace("\r","").replace("\t",""))
     n_data = len(dump_files)
     common_file_prefix = os.path.commonprefix(file_prefixes)
-    # hist data key
-    hist_key = args.key
-    err_hist_key = None
-    if args.err_key:
-        err_hist_key = args.err_key
+    # cuts
+    cuts_list = []
+    if args.cuts:
+        for cuts_str in args.cuts.split(";"):
+            key, operator, value = cuts_str.split(",")
+            if "params." in value:
+                value = getattr(params, value.split("params.")[1])
+            else:
+                value = float(value)
+            cuts_list.append((key, operator, value))
 
     ####################
 
@@ -143,109 +140,80 @@ def main():
     ts_offset = np.array(ts_offset)
     print(f"   ts_offset = {ts_offset}")
 
-    ### open all data files once to find out min and max value (for automatic binning)
-    ## import all data and apply the respective timing offset
-    ## extract the data of the specified hist key and calculate hist
-    data_min_val, data_max_val = None, None
-    print(f"open {n_data} data files, apply timing offset and find out min / max value...")
-    data_to_merge = []
-    for data_idx in tqdm(range(n_data)):
-        sub_data_file = base_path+"/"+file_prefixes[data_idx]+"_"+dataset+".pcl"
-        # pcl file import
-        sub_data = data_utils.load_pickle(file=sub_data_file, silent=True)
-        # apply ts shift
-        for ts_key in ts_keys:
-            if ts_key in sub_data.keys():
-                sub_data[ts_key] = sub_data[ts_key] + ts_offset[data_idx]
-        ### do something with data
-        # find min and max
-        min_data_ = np.amin(sub_data[hist_key])
-        max_data_ = np.amax(sub_data[hist_key])
-        if data_min_val == None: # initial values
-            data_min_val = min_data_
-            data_max_val = max_data_
-        else: # update minimum / maximum
-            data_min_val = np.amin([data_min_val, min_data_])
-            data_max_val = np.amax([data_max_val, max_data_])
-    # calculate data range
-    data_val_range = data_max_val - data_min_val
-    if data_val_range == 0: # if all data points equal, artificially introduce bins
-        data_val_range = 1
-    print(f"  data_min_val = {data_min_val}")
-    print(f"  data_max_val = {data_max_val}")
-    print(f"  data_val_range = {data_val_range}")
-
-    ### calculate hist bins
-    edges, n_bins, centers = hist_utils.generate_histogram_edges(arg=args.edges, data_min_val=data_min_val, data_max_val=data_max_val)
-
     ### prepare hists
-    centers, hist, entries, underflow, overflow, hist_err_right, hist_err_left = hist_utils.create_empty_histogram(edges=edges)
+    edges, n_bins, centers = hist_utils.generate_histogram_edges(arg=args.edges)
+    centers, hist, entries, underflow, overflow, _, _ = hist_utils.create_empty_histogram(edges=edges)
 
     ### calculate histograms for sub datasets, merge hists consecutively
     ## import all data and apply the respective timing offset
     ## extract the data of the specified hist key and calculate hist
     print(f"open {n_data} data files, apply timing offset and extract data for histogram...")
+    print(f"CALCULATING RAW SCINT HIT TIME DIFFERENCE HISTOGRAM...")
     data_to_merge = []
     for data_idx in tqdm(range(n_data)):
         sub_data_file = base_path+"/"+file_prefixes[data_idx]+"_"+dataset+".pcl"
         # pcl file import
         sub_data = data_utils.load_pickle(file=sub_data_file, silent=True)
-        # apply ts shift
-        for ts_key in ts_keys:
-            if ts_key in sub_data.keys():
-                sub_data[ts_key] = sub_data[ts_key] + ts_offset[data_idx]
-        ### select data
-        data = sub_data[hist_key]
-        err_data = None
-        if err_hist_key != None:
-            err_data = sub_data[err_hist_key]
+        ## apply ts shift
+        #for ts_key in ts_keys:
+        #    if ts_key in sub_data.keys():
+        #        sub_data[ts_key] = sub_data[ts_key] + ts_offset[data_idx]
         ### do something with data
+        ## apply specified cuts
+        sub_data = data_utils.cut_data(data=sub_data, conditions=cuts_list, silent=True)
+        n_sub_data = data_utils.length(sub_data)
+        ## calculate time difference between hits
+        ch_list = []
+        for ly in range(0,2):
+            #print(f"   sub_data_idx={data_idx}, ly={ly}...")
+            for st in range(0,16):
+                for sipm in range(0,2):
+                    sub_data_cut = data_utils.cut_data(data=sub_data, conditions=[("ly","==",ly), ("st","==",st), ("sipm","==",sipm)], silent=True)
+                    sub_data_cut = timestamp_utils.sort_by_timestamp(hits=sub_data_cut, silent=True)
+                    n_sub_data_cut = data_utils.length(sub_data_cut)
+                    ts_diff_list = []
+                    for i in range(1,n_sub_data_cut):
+                        ts_diff_list.append(sub_data_cut["ts"][i] - sub_data_cut["ts"][i-1])
+                    ts_diff_list = np.array(ts_diff_list)
+                    ch_list.append({"key": ts_diff_list})
+        merged_ts_diff = data_utils.merge_dataset(split_data=ch_list, silent=True)["key"]
+        
         # create histogram of specified key and shifted hists to respect data error
-        hist_, _, _, entries_, underflow_, overflow_, hist_err_right_, hist_err_left_ = hist_utils.calculate_histogram_and_shifted_histograms(data=data, edges=edges, err_data=err_data)
+        hist_, _, _, entries_, underflow_, overflow_, _, _ = hist_utils.calculate_histogram_and_shifted_histograms(data=merged_ts_diff, edges=edges)
         # add to combined histogram
         hist += hist_
         entries += entries_
         underflow += underflow_
         overflow += overflow_
-        if type(err_data) != type(None):
-            hist_err_right += hist_err_right_
-            hist_err_left += hist_err_left_
 
-    if type(err_data) == type(None):
-        hist_err_right = None
-        hist_err_left = None
+    duration = cum_ts_length
+    print(f"duration = {duration*0.78*1e-9} s")
 
     ### error calculation for full hist
-    err_hist, err_hist_down, err_hist_up = hist_utils.calculate_hist_uncertainty(hist=hist, hist_err_right=hist_err_right, hist_err_left=hist_err_left, do_stat_err=True)
+    err_hist, err_hist_down, err_hist_up = hist_utils.calculate_hist_uncertainty(hist=hist, do_stat_err=True)
+    ### calculate once only stat unc
+    err_hist_stat = np.sqrt(hist)
 
     print(f"created histogram:")
-    print(f"  dataset = {dataset}  ,  key = {hist_key}  ,  err_key = {err_hist_key}")
+    print(f"  dataset = {dataset}")
     print(f"  entries   =  {entries}  ,  underflow =  {underflow}  ,  overflow  =  {overflow}")
-    if args.print_hist:
-        print(f"  edges     =  {edges}")
-        print(f"  centers   =  {centers}")
-        print(f"  hist      =  {hist}")
-        print(f"  err_hist  =  {err_hist}")
-        print(f"  err_hist_down  =  {err_hist_down}")
-        print(f"  err_hist_up    =  {err_hist_up}")
 
     ### store histogram into file
-    hist_to_store = {
+    specific_data_to_store = {
         "edges": edges,
         "centers": centers,
         "hist": hist,
         "err_hist": err_hist,
+        "err_hist_stat": err_hist_stat,
         "err_hist_down": err_hist_down,
         "err_hist_up": err_hist_up,
         "entries": entries,
         "underflow": underflow,
         "overflow": overflow,
     }
-    hist_key_str = hist_key.replace("/","-")
-    hist_data_file = base_path+"/"+common_file_prefix+"_"+dataset+"_HIST_"+hist_key_str+".pcl"
-    print(f"storing histogram as {hist_data_file}...")
-    data_utils.store_pickle(data=hist_to_store, file=hist_data_file)
-
+    specific_data_file = base_path+"/"+common_file_prefix+"_"+dataset+"_DIFF_SPECIFIC_"+args.suffix+".pcl"
+    print(f"storing specific data as {specific_data_file}...")
+    data_utils.store_pickle(data=specific_data_to_store, file=specific_data_file)
 
 
 if __name__ == "__main__":

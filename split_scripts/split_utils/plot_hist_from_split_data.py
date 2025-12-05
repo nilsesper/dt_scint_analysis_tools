@@ -24,7 +24,9 @@ from analysis_tools.params import params, derived_params
 # allowed datasets
 allowed_datasets = [
     "DT_HITS", "DT_HITS_NODEADTIME", "DT_CORR_HITS", "SL_PATTERNS", "SL_FAKE_PATTERNS", "SL_FITS", "SL_FITS_AFTERCUTS", "SL_FIT_GROUPS", "SL_FIT_GROUPS_AFTERCUTS", "DT_MUONS",
-    "RAW_SCINT_HITS", "RAW_SCINT_GROUPS", "SCINT_HITS", "SCINT_AREAS",
+    "RAW_SCINT_HITS", "RAW_SCINT_HITS_DEADTIME", "RAW_SCINT_GROUPS", "SCINT_HITS", "SCINT_AREAS",
+    "DT_HIT_DIFFERENCES",
+    "SIM_MUONS", "DT_HITS_SIM",
 ]
 
 # ---------------------------------------------------------------

@@ -17,7 +17,7 @@ from analysis_tools.params import params, derived_params
 # ---------------------------------------------------------------
 
 # main function
-@mpl.rc_context({'font.family': 'sans-serif', 'font.size': 12}) #'font.sans-serif': 'Arial',
+@mpl.rc_context({'font.family': 'sans-serif', 'font.size': 20}) #'font.sans-serif': 'Arial',
 def main():
 
     ### argparse
@@ -43,6 +43,18 @@ def main():
         type     = str,
         help     = "cuts to apply to data in format \"key1,operator1,value1;key2,operator2,value;...\"",
     )
+    # -
+    parser.add_argument(
+        "--fig_size",
+        type     = str,
+        default = "12,8",
+        help     = "custom fig_size of the plot in the format x_size,y_size (if desired)",
+    )
+    parser.add_argument(
+        "--store_path",
+        type     = str,
+        help     = "path to store pdf plot (if desired)",
+    )
     # ---
     args = parser.parse_args()
     scint_hits_file = args.scint_hits_file
@@ -61,6 +73,9 @@ def main():
             else:
                 value = float(value)
             cuts_list.append((key, operator, value))
+    # other 
+    arg_fig_size = args.fig_size.split(",")
+    fig_size = (float(arg_fig_size[0]), float(arg_fig_size[1]))
 
     #################
 
@@ -79,6 +94,9 @@ def main():
     duration = 0.78e-9 * (np.amax(scint_hits["ts"]) - np.amin(scint_hits["ts"])) # secs
     print(f"measurement duration = {duration} s")
 
+    print(f"total rate = {n_scint_hits/duration} +- {np.sqrt(n_scint_hits)/duration} Hz")
+
+    """
     ### scintillator hits
     print(f"### scintillator hits")
     n_hist_bins = 100
@@ -106,7 +124,9 @@ def main():
         if store_plots != None:
             plotname = store_plots+f"/scint_hits_{k}.png"
         hist_utils.plot_1hist(hist=hists, centers=centers, xlabel=xlabel, round_digits=round_digits, bin_labels=False, silent=True, store=plotname, show=show_plots) # scale="log"
-    
+    #"""
+        
+    """
     ### 2d plots of layers
     for ly in range(2):
         hist_bins = {
@@ -150,7 +170,7 @@ def main():
                 fig.tight_layout()
                 if show_plots:
                     fig.show()
-
+    #"""
 
     """
     ## separate for both scintillator layers
@@ -205,8 +225,8 @@ def main():
                 hist_utils.plot_1hist(hist=hists, centers=centers, xlabel=xlabel, round_digits=round_digits, bin_labels=False, silent=True, store=plotname, show=show_plots, title=f"ly{ly} st{st}")
     #"""
 
-    #"""
-    ### plots of strip rates
+    """
+    ### plots of strip occupancies
     fig, ax = plt.subplots(2, 1, figsize=(12,8), sharex=True)
     for ly in range(0,2):
         hist_bins = {
@@ -219,22 +239,22 @@ def main():
             hists, edges, centers, underflow, overflow = hist_utils.calculate_hist(data=scint_hits_cut, key=k, bin_centers=hist_bins[k], silent=True)
             print(f"key \"{k}\": entries={data_utils.length(scint_hits_cut)} underflow={underflow}, overflow={overflow}")
             if k == "st":
-                # calculate rate
-                rate_hists = hists / duration
+                ## calculate rate
+                #rate_hists = hists / duration
                 # plot hist
                 rel_spacing = 0
                 barwidth = np.mean(np.diff(centers))*(1-rel_spacing) # relative spacing between bins
-                ax[ly].bar(centers, rate_hists, width=barwidth, align="center")
-                ax[ly].set_ylim(bottom=0, top=np.amax(rate_hists)*1.1)
+                ax[ly].bar(centers, hists, width=barwidth, align="center")
+                ax[ly].set_ylim(bottom=0, top=np.amax(hists)*1.1)
                 ax[ly].set_xlabel("Strip")
-                ax[ly].set_ylabel("Rate [Hz]")
+                #ax[ly].set_ylabel("Rate [Hz]")
                 ax[ly].set_title(f"Layer {ly}")
     # show plot
     fig.tight_layout()
     fig.show()
     #"""
 
-    #"""
+    """
     #### time difference between scint hits
     additional_data = {}
     print("Plotting time differences between scint hits...")
@@ -247,13 +267,13 @@ def main():
     hists, edges, centers, underflow, overflow = hist_utils.calculate_hist(data=additional_data, key=k, bin_centers=hist_bins, silent=True)
     print(f"key \"{k}\": entries={data_utils.length(additional_data)} underflow={underflow}, overflow={overflow}")
     xlabel = f"delta_ts [TU]"
-    hist_utils.plot_1hist(hist=hists, centers=centers, xlabel=xlabel, round_digits=round_digits, bin_labels=False, silent=True, store=plotname, show=show_plots, title=f"", scale="log") # scale="log"
+    hist_utils.plot_1hist(hist=hists, centers=centers, xlabel=xlabel, round_digits=0, bin_labels=False, silent=True, store=False, show=show_plots, title=f"", scale="log") # scale="log"
     # plot
     hist_bins = "auto500" #np.linspace(0,1e6,500) #"auto500" 
     hists, edges, centers, underflow, overflow = hist_utils.calculate_hist(data=additional_data, key=k, bin_centers=hist_bins, silent=True)
     print(f"key \"{k}\": entries={data_utils.length(additional_data)} underflow={underflow}, overflow={overflow}")
     xlabel = f"delta_ts [TU]"
-    hist_utils.plot_1hist(hist=hists, centers=centers, xlabel=xlabel, round_digits=round_digits, bin_labels=False, silent=True, store=plotname, show=show_plots, title=f"", scale="log") # scale="log"
+    hist_utils.plot_1hist(hist=hists, centers=centers, xlabel=xlabel, round_digits=0, bin_labels=False, silent=True, store=False, show=show_plots, title=f"", scale="log") # scale="log"
     #"""
 
     """
@@ -282,7 +302,7 @@ def main():
     #"""
 
     
-    #"""
+    """
     #### time difference between hits of same channel
     print("Plotting time differences between hits of same strip...")
     k = f"delta_ts_same_st"
@@ -306,16 +326,16 @@ def main():
     hists, edges, centers, underflow, overflow = hist_utils.calculate_hist(data=additional_data, key=k, bin_centers=hist_bins, silent=True)
     print(f"key \"{k}\": entries={data_utils.length(additional_data)} underflow={underflow}, overflow={overflow}")
     xlabel = f"{k} [TU]"
-    hist_utils.plot_1hist(hist=hists, centers=centers, xlabel=xlabel, round_digits=round_digits, bin_labels=False, silent=True, store=plotname, show=show_plots, title=f"", scale="log") # scale="log"
+    hist_utils.plot_1hist(hist=hists, centers=centers, xlabel=xlabel, round_digits=0, bin_labels=False, silent=True, store=False, show=show_plots, title=f"", scale="log") # scale="log"
     #
     hist_bins = np.linspace(0, 1e3,int(1e3))
     hists, edges, centers, underflow, overflow = hist_utils.calculate_hist(data=additional_data, key=k, bin_centers=hist_bins, silent=True)
     print(f"key \"{k}\": entries={data_utils.length(additional_data)} underflow={underflow}, overflow={overflow}")
     xlabel = f"{k} [TU]"
-    hist_utils.plot_1hist(hist=hists, centers=centers, xlabel=xlabel, round_digits=round_digits, bin_labels=False, silent=True, store=plotname, show=show_plots, title=f"", scale="log") # scale="log"
+    hist_utils.plot_1hist(hist=hists, centers=centers, xlabel=xlabel, round_digits=0, bin_labels=False, silent=True, store=False, show=show_plots, title=f"", scale="log") # scale="log"
     #"""
 
-    #"""
+    """
     #### time difference between hits of same layer
     print("Plotting time differences between hits of same layer...")
     k = f"delta_ts_same_ly"
@@ -338,14 +358,197 @@ def main():
     hists, edges, centers, underflow, overflow = hist_utils.calculate_hist(data=additional_data, key=k, bin_centers=hist_bins, silent=True)
     print(f"key \"{k}\": entries={data_utils.length(additional_data)} underflow={underflow}, overflow={overflow}")
     xlabel = f"{k} [TU]"
-    hist_utils.plot_1hist(hist=hists, centers=centers, xlabel=xlabel, round_digits=round_digits, bin_labels=False, silent=True, store=plotname, show=show_plots, title=f"", scale="log") # scale="log"
+    hist_utils.plot_1hist(hist=hists, centers=centers, xlabel=xlabel, round_digits=0, bin_labels=False, silent=True, store=False, show=show_plots, title=f"", scale="log") # scale="log"
     #
     hist_bins = np.linspace(0, 1e3,int(1e3))
     hists, edges, centers, underflow, overflow = hist_utils.calculate_hist(data=additional_data, key=k, bin_centers=hist_bins, silent=True)
     print(f"key \"{k}\": entries={data_utils.length(additional_data)} underflow={underflow}, overflow={overflow}")
     xlabel = f"{k} [TU]"
-    hist_utils.plot_1hist(hist=hists, centers=centers, xlabel=xlabel, round_digits=round_digits, bin_labels=False, silent=True, store=plotname, show=show_plots, title=f"", scale="log") # scale="log"
+    hist_utils.plot_1hist(hist=hists, centers=centers, xlabel=xlabel, round_digits=0, bin_labels=False, silent=True, store=False, show=show_plots, title=f"", scale="log") # scale="log"
     #"""
+
+    ### count hits
+    # prepare data frame
+    raw_counts = {}
+    for ly in range(0,2):
+        raw_counts[ly] = {}
+        for st in range(0,16):
+            raw_counts[ly][st] = 0
+    # fill count map
+    for i in range(n_scint_hits):
+        ly, st = scint_hits["ly"][i], scint_hits["st"][i]
+        raw_counts[ly][st] += 1
+
+    ########################
+    ####### rate plot (multiple bar plots)
+    ############ occupancy
+    fig, ax = plt.subplots(2, 1, figsize=(16,8), sharex=True)
+    # put both layers in one plot
+    for ly in range(0,2):
+        strips = np.arange(0,16)
+        strip_hits = np.array([raw_counts[ly][st] for st in strips])
+        err_strip_hits = np.sqrt(strip_hits)
+        strip_rates = strip_hits/duration
+        err_strip_rates = np.sqrt(strip_hits)/duration
+        ax[ly].bar(strips, strip_hits, width=1, align="center")
+        ax[ly].bar(strips, bottom=strip_hits-err_strip_hits, height=2*err_strip_hits, width=1, align="center", hatch="xxx", fill=False, edgecolor="0.2", linestyle="")
+        if ly == 1:
+            ax[ly].set_xlabel("Strip")
+        ax[ly].set_title(f"Layer {ly}", fontsize=20)
+        # ax limits
+        ax[ly].set_ylim(bottom=0, top=np.amax(strip_hits+err_strip_hits)*1.1)
+        #ax[2*ly+sipm].set_yscale("log")
+        #ax[2*ly+sipm].set_ylim(bottom=5000, top=np.amax(strip_hits+err_strip_hits)*np.exp(1.1))
+        fig.tight_layout()
+        fig.show()
+    ## store plot
+    if args.store_path:
+            hist_plot_file = args.store_path+"/"+f"SCINT_HITS_SPECIFIC_OCCUPANCY.pdf"
+            print(f"store histogram plot as {hist_plot_file}.")
+            fig.savefig(hist_plot_file)
+    ############# rate
+    fig, ax = plt.subplots(2, 1, figsize=(16,8), sharex=True)
+    # put both layers in one plot
+    for ly in range(0,2):
+        strips = np.arange(0,16)
+        strip_hits = np.array([raw_counts[ly][st] for st in strips])
+        err_strip_hits = np.sqrt(strip_hits)
+        strip_rates = strip_hits/duration
+        err_strip_rates = np.sqrt(strip_hits)/duration
+        ax[ly].bar(strips, strip_rates, width=1, align="center")
+        ax[ly].bar(strips, bottom=strip_rates-err_strip_rates, height=2*err_strip_rates, width=1, align="center", hatch="xxx", fill=False, edgecolor="0.2", linestyle="")
+        if ly == 1:
+            ax[ly].set_xlabel("Strip")
+        ax[ly].set_xlabel("Rate [Hz]")
+        ax[ly].set_title(f"Layer {ly}", fontsize=20)
+        # ax limits
+        ax[ly].set_ylim(bottom=0, top=np.amax(strip_rates+err_strip_rates)*1.1)
+        #ax[2*ly+sipm].set_yscale("log")
+        #ax[2*ly+sipm].set_ylim(bottom=5000, top=np.amax(strip_hits+err_strip_hits)*np.exp(1.1))
+        fig.tight_layout()
+        fig.show()
+    ## store plot
+    if args.store_path:
+            hist_plot_file = args.store_path+"/"+f"SCINT_HITS_SPECIFIC_RATE.pdf"
+            print(f"store histogram plot as {hist_plot_file}.")
+            fig.savefig(hist_plot_file)
+
+
+    ######################
+    ### TIME DIFFERENCE OF ARRIVAL TIMES
+    ### FOR ALL SCINT HITS
+
+    # calculate ts difference of consecutive scint hits
+    scint_hits = timestamp_utils.sort_by_timestamp(hits=scint_hits, silent=True)
+    n_scint_hits = data_utils.length(scint_hits)
+    ts_diff_list = []
+    for i in range(1,n_scint_hits):
+        ts_diff_list.append(scint_hits["ts"][i] - scint_hits["ts"][i-1])
+    ts_diff = np.array(ts_diff_list)
+
+    binnings = [ # (binning name, binning arg)
+        ( "fullrange", f"linear,0,{np.amax(ts_diff)},100" ),
+        ( "closeup", f"linear,0,10000,100" ),
+    ]
+    for binning_name, binning_arg in binnings:
+        # calculate hist
+        edges, n_bins, centers = hist_utils.generate_histogram_edges(arg=binning_arg)
+        hist, _, _, entries, underflow, overflow, hist_err_right, hist_err_left = hist_utils.calculate_histogram_and_shifted_histograms(data=ts_diff, edges=edges)
+        err_hist, err_hist_down, err_hist_up = hist_utils.calculate_hist_uncertainty(hist=hist, hist_err_right=hist_err_right, hist_err_left=hist_err_left, do_stat_err=True)
+        # tu to ns
+        centers = centers*0.78
+        # plot
+        fig, ax = plt.subplots(1, 1, figsize=(7,6))
+        ax = hist_utils.plot_histogram(ax=ax, hist=hist, centers=centers, err_hist=err_hist, log_scale=True)
+        xlabel = "$\\Delta T$(all hits) [ns]"
+        ax.set_xlabel(xlabel)
+        fig.tight_layout()
+        fig.show()
+        ## store plot
+        if args.store_path:
+            hist_plot_file = args.store_path+"/"+f"SCINT_HITS_SPECIFIC_DELTA-TS_ALL_{binning_name}.pdf"
+            print(f"store histogram plot as {hist_plot_file}.")
+            fig.savefig(hist_plot_file)
+
+    ######################
+    ### TIME DIFFERENCE OF ARRIVAL TIMES
+    ### FOR ALL SCINT HITS OF SAME LAYER
+
+    # calculate ts difference of consecutive scint hits
+    ts_diff_list = []
+    for ly in range(0,2):
+        cut_scint_hits = data_utils.cut_data(data=scint_hits, conditions=[("ly","==",ly)], silent=True)
+        cut_scint_hits = timestamp_utils.sort_by_timestamp(hits=cut_scint_hits, silent=True)
+        n_cut_scint_hits = data_utils.length(cut_scint_hits)
+        for i in range(1,n_cut_scint_hits):
+            ts_diff_list.append(cut_scint_hits["ts"][i] - cut_scint_hits["ts"][i-1])
+    ts_diff = np.array(ts_diff_list)
+
+    binnings = [ # (binning name, binning arg)
+        ( "fullrange", f"linear,0,{np.amax(ts_diff)},100" ),
+        ( "closeup", f"linear,0,10000,100" ),
+    ]
+    for binning_name, binning_arg in binnings:
+        # calculate hist
+        edges, n_bins, centers = hist_utils.generate_histogram_edges(arg=binning_arg)
+        hist, _, _, entries, underflow, overflow, hist_err_right, hist_err_left = hist_utils.calculate_histogram_and_shifted_histograms(data=ts_diff, edges=edges)
+        err_hist, err_hist_down, err_hist_up = hist_utils.calculate_hist_uncertainty(hist=hist, hist_err_right=hist_err_right, hist_err_left=hist_err_left, do_stat_err=True)
+        # tu to ns
+        centers = centers*0.78
+        # plot
+        fig, ax = plt.subplots(1, 1, figsize=(7,6))
+        ax = hist_utils.plot_histogram(ax=ax, hist=hist, centers=centers, err_hist=err_hist, log_scale=True)
+        xlabel = "$\\Delta T$(same layer) [ns]"
+        ax.set_xlabel(xlabel)
+        fig.tight_layout()
+        fig.show()
+        ## store plot
+        if args.store_path:
+            hist_plot_file = args.store_path+"/"+f"SCINT_HITS_SPECIFIC_DELTA-TS_SAME-LY_{binning_name}.pdf"
+            print(f"store histogram plot as {hist_plot_file}.")
+            fig.savefig(hist_plot_file)
+
+    ######################
+    ### TIME DIFFERENCE OF ARRIVAL TIMES
+    ### FOR ALL SCINT HITS OF SAME STRIP
+
+    # calculate ts difference of consecutive scint hits
+    ts_diff_list = []
+    for ly in range(0,2):
+        for st in range(0,16):
+            cut_scint_hits = data_utils.cut_data(data=scint_hits, conditions=[("ly","==",ly),("st","==",st)], silent=True)
+            cut_scint_hits = timestamp_utils.sort_by_timestamp(hits=cut_scint_hits, silent=True)
+            n_cut_scint_hits = data_utils.length(cut_scint_hits)
+            for i in range(1,n_cut_scint_hits):
+                ts_diff_list.append(cut_scint_hits["ts"][i] - cut_scint_hits["ts"][i-1])
+    ts_diff = np.array(ts_diff_list)
+
+    binnings = [ # (binning name, binning arg)
+        ( "fullrange", f"linear,0,{np.amax(ts_diff)},100" ),
+        ( "closeup", f"linear,0,10000,100" ),
+    ]
+    for binning_name, binning_arg in binnings:
+        # calculate hist
+        edges, n_bins, centers = hist_utils.generate_histogram_edges(arg=binning_arg)
+        hist, _, _, entries, underflow, overflow, hist_err_right, hist_err_left = hist_utils.calculate_histogram_and_shifted_histograms(data=ts_diff, edges=edges)
+        err_hist, err_hist_down, err_hist_up = hist_utils.calculate_hist_uncertainty(hist=hist, hist_err_right=hist_err_right, hist_err_left=hist_err_left, do_stat_err=True)
+        # tu to ns
+        centers = centers*0.78
+        # plot
+        fig, ax = plt.subplots(1, 1, figsize=(7,6))
+        ax = hist_utils.plot_histogram(ax=ax, hist=hist, centers=centers, err_hist=err_hist, log_scale=True)
+        xlabel = "$\\Delta T$(same strip) [ns]"
+        ax.set_xlabel(xlabel)
+        fig.tight_layout()
+        fig.show()
+        ## store plot
+        if args.store_path:
+            hist_plot_file = args.store_path+"/"+f"SCINT_HITS_SPECIFIC_DELTA-TS_SAME-ST_{binning_name}.pdf"
+            print(f"store histogram plot as {hist_plot_file}.")
+            fig.savefig(hist_plot_file)
+
+    
+
 
 
 

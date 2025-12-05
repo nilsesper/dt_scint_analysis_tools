@@ -11,6 +11,7 @@ from mpl_toolkits.axes_grid1 import make_axes_locatable
 import copy
 import argparse
 import matplotlib.patches as mpatches
+from matplotlib.ticker import ScalarFormatter
 
 from analysis_tools.utils import dummy_gen, data_utils, dt_utils, scint_utils, timestamp_utils, geoplot_utils, muon_utils, math_utils, hist_utils, process_utils
 from analysis_tools.params import params, derived_params
@@ -48,6 +49,11 @@ def main():
         "--store_path",
         type     = str,
         help     = "path to store pdf plot (if desired)",
+    )
+    parser.add_argument(
+        "--also_plot_unmatched",
+        action   = "store_true",
+        help     = "print info",
     )
     # ---
     args = parser.parse_args()
@@ -87,9 +93,8 @@ def main():
         err_delta_ts_corr.append(np.sqrt(err_scint_ts**2 + err_dt_ts**2))
         dt_idcs.append(dt_idx)
         scint_idcs.append(scint_idx)
-    # convert to ns
-    delta_ts_corr = np.array(delta_ts_corr) * 0.78
-    err_delta_ts_corr = np.array(err_delta_ts_corr) * 0.78
+    delta_ts_corr = np.array(delta_ts_corr)
+    err_delta_ts_corr = np.array(err_delta_ts_corr)
     
     dt_idcs = np.array(dt_idcs, dtype=int)
     scint_idcs = np.array(scint_idcs, dtype=int)
@@ -114,41 +119,6 @@ def main():
         
     ]
 
-    ######## time difference between dt & scint correlated hits
-
-    print("Plotting time differences between scint hit and dt muon...")
-
-    ## calculate histogram
-    hist_bins = "step1"
-    hist_data_obj = {"data": delta_ts_corr}
-    hist, edges, centers, underflow, overflow = hist_utils.calculate_hist(data=hist_data_obj, key="data", bin_centers=hist_bins, silent=True)
-    print(f"central hist: entries={data_utils.length(hist_data_obj)} underflow={underflow}, overflow={overflow}")
-    ## calculate errors
-    # left shift
-    hist_data_obj = {"data": delta_ts_corr-err_delta_ts_corr}
-    left_hist, _, _, underflow, overflow = hist_utils.calculate_hist(data=hist_data_obj, key="data", bin_centers=centers, silent=True)
-    print(f"left shifted hist: entries={data_utils.length(hist_data_obj)} underflow={underflow}, overflow={overflow}")
-    # right shift
-    hist_data_obj = {"data": delta_ts_corr+err_delta_ts_corr}
-    right_hist, _, _, underflow, overflow = hist_utils.calculate_hist(data=hist_data_obj, key="data", bin_centers=centers, silent=True)
-    print(f"right shifted hist: entries={data_utils.length(hist_data_obj)} underflow={underflow}, overflow={overflow}")
-    # mean shift
-    err_hist_shift = (np.abs(right_hist-hist)+np.abs(left_hist-hist))/2
-    # poisson (clip to >= 1)
-    err_hist_poisson = np.clip(a=np.sqrt(hist), a_min=1, a_max=None)
-    # combine errors
-    err_hist = np.sqrt(err_hist_poisson**2 + err_hist_shift**2)
-
-    ## plot
-    fig, ax = plt.subplots(1, 1, figsize=(12,8))
-    # plot hist and errorbar
-    barwidth = np.mean(np.diff(centers))
-    ax.bar(centers, hist, width=barwidth, align="center", facecolor="tab:blue")
-    ax.bar(centers, bottom=hist-err_hist, height=2*err_hist, width=barwidth, align="center", hatch="xxx", fill=False, edgecolor="0.2", linestyle="")
-    ax.set_ylim(bottom=0, top=np.amax(hist+err_hist)*1.1)
-    ax.set_xlabel("$T_\\text{0,scint}-T_\\text{0,DT}$ [ns]")
-    fig.tight_layout()
-    fig.show()
 
 
 
@@ -256,7 +226,10 @@ def main():
     ax.set_ylabel("$y$ [mm]")
     ax.set_xlabel("$x$ [mm]")
     ax.legend()
-    cbar = fig.colorbar(im_obj, ax=ax, fraction=0.05)
+    cmap = plt.get_cmap('viridis')
+    formatter = ScalarFormatter(useMathText=True)
+    formatter.set_powerlimits([-3, 3]) # 10^X power limits for prescale
+    cbar = fig.colorbar(im_obj, ax=ax, fraction=0.05, cmap=cmap, format=formatter)
     #cbar.set_label("Hz")
     fig.tight_layout()
     fig.show()
@@ -374,7 +347,10 @@ def main():
             ax.set_xlabel("$x$ [mm]")
         elif slice_name == "yz":
             ax.set_xlabel("$y$ [mm]")
-        plt.colorbar(im_obj)
+        cmap = plt.get_cmap('viridis')
+        formatter = ScalarFormatter(useMathText=True)
+        formatter.set_powerlimits([-3, 3]) # 10^X power limits for prescale
+        cbar = fig.colorbar(im_obj, ax=ax, fraction=0.05, cmap=cmap, format=formatter)
         # plot legend
         #ax.legend(prop={"size":14}, loc="upper center")
         legend_entries = {
@@ -392,100 +368,188 @@ def main():
             fig.savefig(hist_plot_file)
     #"""
 
+    ######################
+    ### MATCHED MUONS: ARRIVAL TIMES
 
+    ts = dt_corr_muons["ts"]
+    # calculate hist
+    edges, n_bins, centers = hist_utils.generate_histogram_edges(arg=f"auto,50", data_min_val=np.amin(ts), data_max_val=np.amax(ts))
+    hist, _, _, entries, underflow, overflow, hist_err_right, hist_err_left = hist_utils.calculate_histogram_and_shifted_histograms(data=ts, edges=edges)
+    err_hist, err_hist_down, err_hist_up = hist_utils.calculate_hist_uncertainty(hist=hist, hist_err_right=hist_err_right, hist_err_left=hist_err_left, do_stat_err=True)
+    # tu to ns
+    centers = centers*0.78
+    # plot
+    fig, ax = plt.subplots(1, 1, figsize=(7,6))
+    ax = hist_utils.plot_histogram(ax=ax, hist=hist, centers=centers, err_hist=err_hist, log_scale=False)
+    xlabel = "$T_\\text{DT} \\text{(matched)}$ [ns]"
+    ax.set_xlabel(xlabel)
+    fig.tight_layout()
+    fig.show()
+    ## store plot
+    if args.store_path:
+        hist_plot_file = args.store_path+"/"+f"CORRELATED_HITS_SPECIFIC_MUON_TS.pdf"
+        print(f"store histogram plot as {hist_plot_file}.")
+        fig.savefig(hist_plot_file)
 
-    ####### X-Z and Y-Z 2d projections
-    ### SAME PLOT BUT BEFORE MATCHING
-    #"""
-    for orient in ["phi", "theta"]:
+    ######################
+    ### MATCHED MUONS: TIME DIFFERENCE OF ARRIVAL TIMES
 
-        # orientation
-        slice_name = None
-        if orient == "phi":
-            slice_name = "xz"
-        elif orient == "theta":
-            slice_name = "yz"
-
-        # chamber coordinates
-        sl_z_coord = (np.amin([derived_params.sl_z_min[sl] for sl in [1,2,3]] + [derived_params.scint_z_min]), np.amax([derived_params.sl_z_max[sl] for sl in [1,2,3]] + [derived_params.scint_z_max]))
-        if slice_name == "xz":
-            sl_x_coord = (np.amin([derived_params.sl_x_min[sl] for sl in [1,2,3]] + [derived_params.scint_x_min]), np.amax([derived_params.sl_x_max[sl] for sl in [1,2,3]] + [derived_params.scint_x_max]))
-        elif slice_name == "yz":
-            sl_x_coord = (np.amin([derived_params.sl_y_min[sl] for sl in [1,2,3]] + [derived_params.scint_y_min]), np.amax([derived_params.sl_y_max[sl] for sl in [1,2,3]] + [derived_params.scint_y_max]))
-
-        # plot range
-        x_margin = 100
-        z_margin = 100
-        x_bin_width = 5 # mm
-        z_bin_width = 5 # mm
-        x_edges = np.arange(start=sl_x_coord[0]-x_margin, stop=sl_x_coord[1]+x_margin, step=x_bin_width)
-        z_edges = np.arange(start=sl_z_coord[0]-z_margin, stop=sl_z_coord[1]+z_margin, step=z_bin_width)
-        x_bins = np.array([(x_edges[i]+x_edges[i+1])/2 for i in range(len(x_edges)-1)])
-        z_bins = np.array([(z_edges[i]+z_edges[i+1])/2 for i in range(len(z_edges)-1)])
-        x_binwidth = x_edges[1]-x_edges[0]
-        z_binwidth = z_edges[1]-z_edges[0]
-        
-        ### muon X-Z or Y-Z position plot
-
-        # project muons onto different z pos
-        x_muons = []
-        z_muons = []
-        for i, z_pos in enumerate(z_bins):
-            dt_muons_moved = muon_utils.change_muon_base_point(muons=dt_muons, z_new=z_pos)
-            if slice_name == "xz":
-                x_muons.extend(dt_muons_moved["x0"])
-            elif slice_name == "yz":
-                x_muons.extend(dt_muons_moved["y0"])
-            z_muons.extend(dt_muons_moved["z0"])
-        x_muons = np.array(x_muons)
-        z_muons = np.array(z_muons)
-
-        pos_muons_hist2d, _, _ = np.histogram2d(x=z_muons, y=x_muons, bins=(z_edges, x_edges)) 
-
+    # calculate ts difference of consecutive muons
+    dt_corr_muons = timestamp_utils.sort_by_timestamp(hits=dt_corr_muons, silent=True)
+    n_dt_corr_muons = data_utils.length(dt_corr_muons)
+    ts_diff_list = []
+    for i in range(1,n_dt_corr_muons):
+        ts_diff_list.append(dt_corr_muons["ts"][i] - dt_corr_muons["ts"][i-1])
+    ts_diff = np.array(ts_diff_list)
+    # calculate hist
+    binnings = [ # (binning name, binning arg)
+        ( "fullrange", f"linear,0,{np.amax(ts_diff)},100" ),
+        ( "closeup", f"linear,0,10000,100" ),
+    ]
+    for binning_name, binning_arg in binnings:
+        edges, n_bins, centers = hist_utils.generate_histogram_edges(arg=binning_arg)
+        hist, _, _, entries, underflow, overflow, hist_err_right, hist_err_left = hist_utils.calculate_histogram_and_shifted_histograms(data=ts_diff, edges=edges)
+        err_hist, err_hist_down, err_hist_up = hist_utils.calculate_hist_uncertainty(hist=hist, hist_err_right=hist_err_right, hist_err_left=hist_err_left, do_stat_err=True)
+        # tu to ns
+        centers = centers*0.78
         # plot
-        fig, ax = plt.subplots(1, 1, figsize=(12,6)) # fig_size
-        im_obj = ax.imshow(X=pos_muons_hist2d, origin="lower", extent=[min(x_bins), max(x_bins), min(z_bins), max(z_bins)])
-
-        # store dead wires
-        dead_dt_cell_data = dt_utils._chamber_data()
-        for sl in [1,2,3]:
-            for ly, wi in low_occ_wires[sl]:
-                dead_dt_cell_data[sl][ly][wi]["color"] = "tab:red"
-        
-        # plot chamber geometry
-        ax = geoplot_utils.chamber_ax(ax=ax, orient=orient, cell_data=dead_dt_cell_data, wire=False, transparent=True)
-
-        # store dead strips
-        dead_scint_cell_data = scint_utils._scint_data()
-        for ly, st in low_occ_strips:
-            dead_scint_cell_data[ly][st]["color"] = "tab:red"
-
-        # plot scintillator geometry
-        ax = geoplot_utils.scintillator_ax(ax=ax, orient=orient, cell_data=dead_scint_cell_data, transparent=True)
-
-        # plot setup
-        ax.set_title(f"All DT tracks", fontsize=20)
-        ax.set_ylabel("$z$ [mm]")
-        if slice_name == "xz":
-            ax.set_xlabel("$x$ [mm]")
-        elif slice_name == "yz":
-            ax.set_xlabel("$y$ [mm]")
-        plt.colorbar(im_obj)
-        # plot legend
-        #ax.legend(prop={"size":14}, loc="upper center")
-        legend_entries = {
-            "Detector geometry": mpatches.Patch(edgecolor="white", facecolor="none"),
-            "Low occupancy channels": mpatches.Patch(edgecolor="tab:red", facecolor="none")
-        }
-        ax.legend(legend_entries.values(), legend_entries.keys(), prop={'size': 14}, loc="center left")
-        # show plot
+        fig, ax = plt.subplots(1, 1, figsize=(7,6))
+        ax = hist_utils.plot_histogram(ax=ax, hist=hist, centers=centers, err_hist=err_hist, log_scale=True)
+        xlabel = "$\\Delta T_\\text{DT} \\text{(matched)}$ [ns]"
+        ax.set_xlabel(xlabel)
         fig.tight_layout()
         fig.show()
         ## store plot
         if args.store_path:
-            hist_plot_file = args.store_path+"/"+f"CORRELATED_HITS_SPECIFIC_{slice_name}_BEFOREMATCHING.pdf"
+            hist_plot_file = args.store_path+"/"+f"CORRELATED_HITS_SPECIFIC_MUON_DELTA-TS_{binning_name}.pdf"
             print(f"store histogram plot as {hist_plot_file}.")
             fig.savefig(hist_plot_file)
+
+    ######################
+    ### MATCHED MUONS AND SCINT HITS: TIME DIFFERENCE
+    # delta_ts_corr = ts_scint - ts_dt
+
+    # calculate hist
+    edges, n_bins, centers = hist_utils.generate_histogram_edges(arg=f"linear,{np.amin(delta_ts_corr)},{np.amax(delta_ts_corr)},100")
+    hist, _, _, entries, underflow, overflow, hist_err_right, hist_err_left = hist_utils.calculate_histogram_and_shifted_histograms(data=delta_ts_corr, edges=edges)
+    err_hist, err_hist_down, err_hist_up = hist_utils.calculate_hist_uncertainty(hist=hist, hist_err_right=hist_err_right, hist_err_left=hist_err_left, do_stat_err=True)
+    # tu to ns
+    centers = centers*0.78
+    # plot
+    fig, ax = plt.subplots(1, 1, figsize=(7,6))
+    ax = hist_utils.plot_histogram(ax=ax, hist=hist, centers=centers, err_hist=err_hist, log_scale=True)
+    xlabel = "$T_\\text{scint} \\text{(matched)} - T_\\text{DT} \\text{(matched)}$ [ns]"
+    ax.set_xlabel(xlabel)
+    fig.tight_layout()
+    fig.show()
+    ## store plot
+    if args.store_path:
+        hist_plot_file = args.store_path+"/"+f"CORRELATED_HITS_SPECIFIC_CORR_DELTA-TS.pdf"
+        print(f"store histogram plot as {hist_plot_file}.")
+        fig.savefig(hist_plot_file)
+
+
+
+
+
+    ################################################
+
+    ####### X-Z and Y-Z 2d projections
+    ### SAME PLOT BUT BEFORE MATCHING
+    #"""
+    if args.also_plot_unmatched:
+        for orient in ["phi", "theta"]:
+
+            # orientation
+            slice_name = None
+            if orient == "phi":
+                slice_name = "xz"
+            elif orient == "theta":
+                slice_name = "yz"
+
+            # chamber coordinates
+            sl_z_coord = (np.amin([derived_params.sl_z_min[sl] for sl in [1,2,3]] + [derived_params.scint_z_min]), np.amax([derived_params.sl_z_max[sl] for sl in [1,2,3]] + [derived_params.scint_z_max]))
+            if slice_name == "xz":
+                sl_x_coord = (np.amin([derived_params.sl_x_min[sl] for sl in [1,2,3]] + [derived_params.scint_x_min]), np.amax([derived_params.sl_x_max[sl] for sl in [1,2,3]] + [derived_params.scint_x_max]))
+            elif slice_name == "yz":
+                sl_x_coord = (np.amin([derived_params.sl_y_min[sl] for sl in [1,2,3]] + [derived_params.scint_y_min]), np.amax([derived_params.sl_y_max[sl] for sl in [1,2,3]] + [derived_params.scint_y_max]))
+
+            # plot range
+            x_margin = 100
+            z_margin = 100
+            x_bin_width = 5 # mm
+            z_bin_width = 5 # mm
+            x_edges = np.arange(start=sl_x_coord[0]-x_margin, stop=sl_x_coord[1]+x_margin, step=x_bin_width)
+            z_edges = np.arange(start=sl_z_coord[0]-z_margin, stop=sl_z_coord[1]+z_margin, step=z_bin_width)
+            x_bins = np.array([(x_edges[i]+x_edges[i+1])/2 for i in range(len(x_edges)-1)])
+            z_bins = np.array([(z_edges[i]+z_edges[i+1])/2 for i in range(len(z_edges)-1)])
+            x_binwidth = x_edges[1]-x_edges[0]
+            z_binwidth = z_edges[1]-z_edges[0]
+            
+            ### muon X-Z or Y-Z position plot
+
+            # project muons onto different z pos
+            x_muons = []
+            z_muons = []
+            for i, z_pos in enumerate(z_bins):
+                dt_muons_moved = muon_utils.change_muon_base_point(muons=dt_muons, z_new=z_pos)
+                if slice_name == "xz":
+                    x_muons.extend(dt_muons_moved["x0"])
+                elif slice_name == "yz":
+                    x_muons.extend(dt_muons_moved["y0"])
+                z_muons.extend(dt_muons_moved["z0"])
+            x_muons = np.array(x_muons)
+            z_muons = np.array(z_muons)
+
+            pos_muons_hist2d, _, _ = np.histogram2d(x=z_muons, y=x_muons, bins=(z_edges, x_edges)) 
+
+            # plot
+            fig, ax = plt.subplots(1, 1, figsize=(12,6)) # fig_size
+            im_obj = ax.imshow(X=pos_muons_hist2d, origin="lower", extent=[min(x_bins), max(x_bins), min(z_bins), max(z_bins)])
+
+            # store dead wires
+            dead_dt_cell_data = dt_utils._chamber_data()
+            for sl in [1,2,3]:
+                for ly, wi in low_occ_wires[sl]:
+                    dead_dt_cell_data[sl][ly][wi]["color"] = "tab:red"
+            
+            # plot chamber geometry
+            ax = geoplot_utils.chamber_ax(ax=ax, orient=orient, cell_data=dead_dt_cell_data, wire=False, transparent=True)
+
+            # store dead strips
+            dead_scint_cell_data = scint_utils._scint_data()
+            for ly, st in low_occ_strips:
+                dead_scint_cell_data[ly][st]["color"] = "tab:red"
+
+            # plot scintillator geometry
+            ax = geoplot_utils.scintillator_ax(ax=ax, orient=orient, cell_data=dead_scint_cell_data, transparent=True)
+
+            # plot setup
+            ax.set_title(f"All DT tracks", fontsize=20)
+            ax.set_ylabel("$z$ [mm]")
+            if slice_name == "xz":
+                ax.set_xlabel("$x$ [mm]")
+            elif slice_name == "yz":
+                ax.set_xlabel("$y$ [mm]")
+            cmap = plt.get_cmap('viridis')
+            formatter = ScalarFormatter(useMathText=True)
+            formatter.set_powerlimits([-3, 3]) # 10^X power limits for prescale
+            cbar = fig.colorbar(im_obj, ax=ax, fraction=0.05, cmap=cmap, format=formatter)
+            # plot legend
+            #ax.legend(prop={"size":14}, loc="upper center")
+            legend_entries = {
+                "Detector geometry": mpatches.Patch(edgecolor="white", facecolor="none"),
+                "Low occupancy channels": mpatches.Patch(edgecolor="tab:red", facecolor="none")
+            }
+            ax.legend(legend_entries.values(), legend_entries.keys(), prop={'size': 14}, loc="center left")
+            # show plot
+            fig.tight_layout()
+            fig.show()
+            ## store plot
+            if args.store_path:
+                hist_plot_file = args.store_path+"/"+f"CORRELATED_HITS_SPECIFIC_{slice_name}_BEFOREMATCHING.pdf"
+                print(f"store histogram plot as {hist_plot_file}.")
+                fig.savefig(hist_plot_file)
     #"""
 
 

@@ -956,19 +956,28 @@ _cell_wire_width = 0.5 # only for illustration (real width much smaller)
 
 ### calculate x10 from cmssw, since they use cm and I use mm
 
-global_shift = (-388.4 , -65 , -4175.5)#(-391.2 , -8.5, -4311.75)
+### this coord frame:
+# ( X: phi cell granularity , Y: theta cell granularity , Z: chamber height )
+
+# chosen so that sl 1 (phi) wi 0 bottom corner is at coord frame origin (x=0, y=0, z=0)  [ on the corner where sl 2 (theta) has wi 0 ]
+global_shift = (-388.4 , -65 , -4175.5) #(-391.2 , -8.5, -4311.75)
 cmssw_layershift = (0, 0, 1.5 * 13)
 cmssw_wireshift_sl1 = (26.4/2, 113.1/2, 1.4/2)
 cmssw_wireshift_sl2 = (113.1/2, 26.4/2, 1.4/2)
 cmssw_wireshift_sl3 = (26.4/2, 113.1/2, 1.4/2)
 cmssw_chamber_pos = (391.2, 8.5, 4311.75 - 362/2)
 cmssw_chamber_size = (2180, 2511, 362)
-cmssw_sl1_pos = (375.2-cmssw_chamber_pos[0]-cmssw_layershift[0] , 8.5-cmssw_chamber_pos[1]-cmssw_layershift[1] , 4194.25-cmssw_chamber_pos[2]-cmssw_layershift[2] )
+
 cmssw_sl1_size = (2126.4, 2511, 53.5)
-cmssw_sl2_pos = (396.2-cmssw_chamber_pos[0]-cmssw_layershift[0] , 8.5-cmssw_chamber_pos[1]-cmssw_layershift[1] , 4375.75-cmssw_chamber_pos[2]-cmssw_layershift[2] )
+cmssw_sl1_pos = (375.2-cmssw_chamber_pos[0]-cmssw_layershift[0] , 8.5-cmssw_chamber_pos[1]-cmssw_layershift[1] , 4194.25-cmssw_chamber_pos[2]-cmssw_layershift[2] )
 cmssw_sl2_size = (2170, 2462.4, 53.5)
-cmssw_sl3_pos = (396.2-cmssw_chamber_pos[0]-cmssw_layershift[0] , 8.5-cmssw_chamber_pos[1]-cmssw_layershift[1] , 4429.25-cmssw_chamber_pos[2]-cmssw_layershift[2] )
+# in cmssw the offsets are = 0, but seems off
+sl2_y_offset = (cmssw_sl1_size[1]-cmssw_sl2_size[1])/2
+sl2_x_offset = (cmssw_sl1_size[0]-cmssw_sl2_size[0])/2
+cmssw_sl2_pos = (396.2-cmssw_chamber_pos[0]-cmssw_layershift[0]+sl2_x_offset , 8.5-cmssw_chamber_pos[1]-cmssw_layershift[1]+sl2_y_offset , 4375.75-cmssw_chamber_pos[2]-cmssw_layershift[2] )
 cmssw_sl3_size = (2126.4, 2511, 53.5)
+cmssw_sl3_pos = (396.2-cmssw_chamber_pos[0]-cmssw_layershift[0] , 8.5-cmssw_chamber_pos[1]-cmssw_layershift[1] , 4429.25-cmssw_chamber_pos[2]-cmssw_layershift[2] )
+
 cmssw_sl1_ly1_n_wi = 49
 cmssw_sl1_ly1_min_wi = 0
 cmssw_sl1_ly1_max_wi = 48
@@ -989,26 +998,28 @@ cmssw_sl1_ly4_min_wi = 1
 cmssw_sl1_ly4_max_wi = 48
 cmssw_sl1_ly4_pos = ( 375.2-cmssw_chamber_pos[0]-cmssw_sl1_pos[0], 8.5-cmssw_chamber_pos[1]-cmssw_sl1_pos[1], 4213.75-cmssw_chamber_pos[2]-cmssw_sl1_pos[2],)
 cmssw_sl1_ly4_size = (2017.3, 2398, 11.5)
+
 cmssw_sl2_ly1_n_wi = 57
 cmssw_sl2_ly1_min_wi = 0
 cmssw_sl2_ly1_max_wi = 56
-cmssw_sl2_ly1_pos = ( 396.2-cmssw_chamber_pos[0]-cmssw_sl2_pos[0], 8.5-cmssw_chamber_pos[1]-cmssw_sl2_pos[1], 4356.25-cmssw_chamber_pos[2]-cmssw_sl2_pos[2],)
+cmssw_sl2_ly1_pos = ( 396.2-cmssw_chamber_pos[0]-cmssw_sl2_pos[0]+sl2_x_offset, 8.5-cmssw_chamber_pos[1]-cmssw_sl2_pos[1]+sl2_y_offset, 4356.25-cmssw_chamber_pos[2]-cmssw_sl2_pos[2],)
 cmssw_sl2_ly1_size = (2057, 2395.3, 11.5)
 cmssw_sl2_ly2_n_wi = 58
 cmssw_sl2_ly2_min_wi = 0
 cmssw_sl2_ly2_max_wi = 57
-cmssw_sl2_ly2_pos = ( 396.2-cmssw_chamber_pos[0]-cmssw_sl2_pos[0], 8.5-cmssw_chamber_pos[1]-cmssw_sl2_pos[1], 4369.25-cmssw_chamber_pos[2]-cmssw_sl2_pos[2],)
+cmssw_sl2_ly2_pos = ( 396.2-cmssw_chamber_pos[0]-cmssw_sl2_pos[0]+sl2_x_offset, 8.5-cmssw_chamber_pos[1]-cmssw_sl2_pos[1]+sl2_y_offset, 4369.25-cmssw_chamber_pos[2]-cmssw_sl2_pos[2],)
 cmssw_sl2_ly2_size = (2057, 2437.3, 11.5)
 cmssw_sl2_ly3_n_wi = 57
 cmssw_sl2_ly3_min_wi = 0
 cmssw_sl2_ly3_max_wi = 56
-cmssw_sl2_ly3_pos = ( 396.2-cmssw_chamber_pos[0]-cmssw_sl2_pos[0], 8.5-cmssw_chamber_pos[1]-cmssw_sl2_pos[1], 4382.25-cmssw_chamber_pos[2]-cmssw_sl2_pos[2],)
+cmssw_sl2_ly3_pos = ( 396.2-cmssw_chamber_pos[0]-cmssw_sl2_pos[0]+sl2_x_offset, 8.5-cmssw_chamber_pos[1]-cmssw_sl2_pos[1]+sl2_y_offset, 4382.25-cmssw_chamber_pos[2]-cmssw_sl2_pos[2],)
 cmssw_sl2_ly3_size = (2057, 2395.3, 11.5)
 cmssw_sl2_ly4_n_wi = 56
 cmssw_sl2_ly4_min_wi = 1
 cmssw_sl2_ly4_max_wi = 56
-cmssw_sl2_ly4_pos = ( 396.2-cmssw_chamber_pos[0]-cmssw_sl2_pos[0], 8.5-cmssw_chamber_pos[1]-cmssw_sl2_pos[1], 4395.25-cmssw_chamber_pos[2]-cmssw_sl2_pos[2],)
+cmssw_sl2_ly4_pos = ( 396.2-cmssw_chamber_pos[0]-cmssw_sl2_pos[0]+sl2_x_offset, 8.5-cmssw_chamber_pos[1]-cmssw_sl2_pos[1]+sl2_y_offset, 4395.25-cmssw_chamber_pos[2]-cmssw_sl2_pos[2],)
 cmssw_sl2_ly4_size = (2057, 2353.3, 11.5)
+
 cmssw_sl3_ly1_n_wi = 49
 cmssw_sl3_ly1_min_wi = 0
 cmssw_sl3_ly1_max_wi = 48
@@ -1311,6 +1322,18 @@ _strip_height = 5.
 _strip_length = 500.
 _strip_w_spacer = 20/15
 _strip_h_spacer = 0.
+# scint position
+scint_size = (-520., -520., 40.) 
+# MEASUREMENT: sl1 bottom left edge to scint top left edge (smallest x,y coordinates)
+scint_edge_to_sl1_edge = ( 760, None, -990 )
+# MEASUREMENT: sl2 bottom left edge to scint top left edge (smallest x,y coordinates)
+scint_edge_to_sl2_edge = ( None, 1170, None )
+# translate to used global coord frame
+scint_pos = (
+    scint_edge_to_sl1_edge[0]-scint_size[0]+(cmssw_sl1_pos[0]-cmssw_sl1_ly1_pos[0]),
+    scint_edge_to_sl2_edge[1]-scint_size[1]+(cmssw_sl2_pos[1]-cmssw_sl2_ly1_pos[1]),
+    scint_edge_to_sl1_edge[2]+(cmssw_sl1_pos[2]-cmssw_sl1_ly1_pos[2])
+) # shift from sl1 casing edge to wi0 ly0 cell edge - which is the coordinate origin
 # full scintillator
 _scintillator = {
     "type": "hodoscope",
@@ -1319,7 +1342,7 @@ _scintillator = {
             "type": "strips",
             "orient": "phi",
             "size": (0., 0., 0.),
-            "pos": (-10., -10., 20.), # corner with smallest coordinates of this layer, *RELATIVE TO* base point of chamber point with smallest coordinates
+            "pos": (-10., -10., 20+(10-_strip_height/2)), # corner with smallest coordinates of this layer, *RELATIVE TO* base point of chamber point with smallest coordinates
             "n_sts": 16, # no of strips
             "ch_pos": (0., 0., 0.), # corner with smallest coordinates of first strip (st=0), *RELATIVE TO* ly point with smallest coordinates
             "ch_spacer": (-_strip_w_spacer, -_strip_w_spacer, _strip_h_spacer), # size of spacer between strips
@@ -1329,7 +1352,7 @@ _scintillator = {
             "type": "strips",
             "orient": "theta",
             "size": (0., 0., 0.),
-            "pos": (-10., -10., 5.), 
+            "pos": (-10., -10., 0+(10-_strip_height/2)), 
             "n_sts": 16,
             "ch_pos": (0., 0., 0.),
             "ch_spacer": (-_strip_w_spacer, -_strip_w_spacer, _strip_h_spacer),
@@ -1337,8 +1360,10 @@ _scintillator = {
         },
     },
     "n_lys": 2,
-    "size": (-520., -520., 30.),
-    "pos": (2189 -950 , 2511 -720 , -980), # point with smallest coordinates of scintillator
+    "size": scint_size,
+    # dt chamber coordinates: sl 1 (phi) wi 0 is at (0, 0, 0), on the side where sl 2 (theta) has wi 0
+    #"pos": (2189 -950 , 2511 -720 , -980), # point with smallest coordinates of scintillator
+    "pos": scint_pos,
 }
 ### mezzanine scintillator mapping: {coinc_ch_name: {ch: ch id, ly: scint layer, st: scint strip}}
 ## scint hits

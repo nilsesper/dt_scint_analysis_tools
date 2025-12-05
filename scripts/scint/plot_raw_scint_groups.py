@@ -170,7 +170,7 @@ def main():
     ### plot ctm
     print(f"plotting crosstalk matrix...")
     fig, ax = plt.subplots(1, 1, figsize=(10,8))
-    imshow_obj = ax.imshow(group_matrix)
+    imshow_obj = ax.imshow(group_matrix, norm=mpl.colors.LogNorm())
     ax.invert_yaxis()
     ax.set_xticks(list(range(64)))
     ax.set_xticklabels(group_matrix_idx_map, rotation=90)
@@ -187,7 +187,7 @@ def main():
     for i in range(64):
         group_matrix_nodiag[i][i] = 0
     fig, ax = plt.subplots(1, 1, figsize=(10,8))
-    imshow_obj = ax.imshow(group_matrix_nodiag)
+    imshow_obj = ax.imshow(group_matrix_nodiag, norm=mpl.colors.LogNorm())
     ax.invert_yaxis()
     ax.set_xticks(list(range(64)))
     ax.set_xticklabels(group_matrix_idx_map, rotation=90)
@@ -211,7 +211,7 @@ def main():
             if (ly0 == ly1) and (st0 == st1):
                 group_matrix_nocoinc[i][j] = 0
     fig, ax = plt.subplots(1, 1, figsize=(10,8))
-    imshow_obj = ax.imshow(group_matrix_nocoinc)
+    imshow_obj = ax.imshow(group_matrix_nocoinc, norm=mpl.colors.LogNorm())
     ax.invert_yaxis()
     ax.set_xticks(list(range(64)))
     ax.set_xticklabels(group_matrix_idx_map, rotation=90)
@@ -287,7 +287,7 @@ def main():
     ### plot ctm
     print(f"plotting crosstalk matrix...")
     fig, ax = plt.subplots(1, 1, figsize=(10,8))
-    imshow_obj = ax.imshow(group_matrix)
+    imshow_obj = ax.imshow(group_matrix, norm=mpl.colors.LogNorm())
     ax.invert_yaxis()
     ax.set_xticks(list(range(64)))
     ax.set_xticklabels(group_matrix_idx_map, rotation=90)
@@ -304,7 +304,7 @@ def main():
     for i in range(64):
         group_matrix_nodiag[i][i] = 0
     fig, ax = plt.subplots(1, 1, figsize=(10,8))
-    imshow_obj = ax.imshow(group_matrix_nodiag)
+    imshow_obj = ax.imshow(group_matrix_nodiag, norm=mpl.colors.LogNorm())
     ax.invert_yaxis()
     ax.set_xticks(list(range(64)))
     ax.set_xticklabels(group_matrix_idx_map, rotation=90)
@@ -328,7 +328,7 @@ def main():
             if (ly0 == ly1) and (st0 == st1):
                 group_matrix_nocoinc[i][j] = 0
     fig, ax = plt.subplots(1, 1, figsize=(10,8))
-    imshow_obj = ax.imshow(group_matrix_nocoinc)
+    imshow_obj = ax.imshow(group_matrix_nocoinc, norm=mpl.colors.LogNorm())
     ax.invert_yaxis()
     ax.set_xticks(list(range(64)))
     ax.set_xticklabels(group_matrix_idx_map, rotation=90)

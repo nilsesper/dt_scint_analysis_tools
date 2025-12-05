@@ -581,6 +581,7 @@ def fit_sl_patterns(patterns, *, silent=False, verbose=False, fit_vd=False):
         # but if not using the +-d pattern, do not care :)
     return sl_fits
 
+"""
 ### fit sl patterns WITH MEANTIMER METHOD
 def fit_sl_patterns_meantimer(patterns, *, silent=False, verbose=False):
     patterns = data_utils.cut_data(data=patterns, conditions=[("pat_type","in",list(params._meantimer_patterns.keys()))], silent=silent)
@@ -690,6 +691,7 @@ def fit_sl_patterns_meantimer(patterns, *, silent=False, verbose=False):
     # cut away invalid meantimer fits (with laterality = 99)
     sl_fits = data_utils.cut_data(data=sl_fits, conditions=[("laterality","!=",99)], silent=silent)
     return sl_fits
+#"""
 
 
 ### group sl fits of one sl together in time
@@ -809,11 +811,23 @@ def reco_muons_from_sl_fit_groups(fits, fit_groups, *, silent=False, verbose=Fal
         for sl in params._dt_chamber["sls"].keys():
             if fit[sl]["sl"] != sl:
                 raise Exception(fit)
+        ### tan_alpha_phi
         tan_alpha_phi = np.mean([fit[phi_sl1]["tan_alpha"], fit[phi_sl2]["tan_alpha"]])
-        err_tan_alpha_phi = np.sqrt(
-              (fit[phi_sl1]["err_tan_alpha"]/2)**2
-            + (fit[phi_sl2]["err_tan_alpha"]/2)**2
-        )
+        ### tan_alpha_phi uncertainty
+        # calc deviaion
+        dev_tan_alpa_phi = np.abs(fit[phi_sl1]["tan_alpha"] - fit[phi_sl2]["tan_alpha"])
+        # check if max compatible within all errors
+        min_tan_alpa_phi_sigma = np.amin([fit[sl]["err_tan_alpha"] for sl in phi_sls])
+        # if compatible do error on mean (1/sqrt(N))
+        if dev_tan_alpa_phi <= min_tan_alpa_phi_sigma:
+            err_tan_alpha_phi = np.sqrt(
+                (fit[phi_sl1]["err_tan_alpha"]/2)**2
+                + (fit[phi_sl2]["err_tan_alpha"]/2)**2
+            )
+        # if not compatible do error as max deviation between ts
+        else:
+            err_tan_alpha_phi = dev_tan_alpa_phi
+        ### tan_alpha_theta
         tan_alpha_theta = fit[theta_sl]["tan_alpha"]
         err_tan_alpha_theta = fit[theta_sl]["err_tan_alpha"]
         ### do propagation of local sl fits to z = _muon_reco_z0 (z reco target coordinate)

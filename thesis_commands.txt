@@ -13,9 +13,14 @@
     split into parts a - m
 
 ############## RUN FULL ANALYSIS CHAIN
-# calculate
-    python split_scripts/utils/analysis_run_control.py --base_path thesis_data_files/large_combined_data_run/ --data_config_file thesis_data_files/large_combined_data_run/data_config_file_todo.txt --task_list "dump_import,dt_corr,dt_patterns,dt_fits,dt_fit_cuts,dt_fit_groups,dt_muons,scint_raw_groups,scint_hits,scint_pixels,dump_dt_nodeadtime" --task_for_each_set --n_proc 12
+# calculate dumpfile
+    python split_scripts/split_utils/analysis_run_control.py --base_path thesis_data_files/large_combined_data_run/ --data_config_file thesis_data_files/large_combined_data_run/data_config_file_all.txt --task_list "dump_import" --task_for_each_set --n_proc 12
+# calculate dt
+    python split_scripts/split_utils/analysis_run_control.py --base_path thesis_data_files/large_combined_data_run/ --data_config_file thesis_data_files/large_combined_data_run/data_config_file_all.txt --task_list "dump_dt_nodeadtime,dt_corr,dt_patterns,dt_fits,dt_fit_cuts,dt_fit_groups,dt_muons" --task_for_each_set --n_proc 12
+# calculate scint
+    python split_scripts/split_utils/analysis_run_control.py --base_path thesis_data_files/large_combined_data_run/ --data_config_file thesis_data_files/large_combined_data_run/data_config_file_all.txt --task_list "scint_dead_time,scint_raw_groups,scint_hits,scint_pixels" --task_for_each_set --n_proc 12
 
+########################################################
 ############## DRIFT TUBES
 
 ######## dt hits:
@@ -126,10 +131,6 @@
     python split_scripts/split_utils/hist_from_split_data.py --base_path thesis_data_files/large_combined_data_run/ --data_config_file thesis_data_files/large_combined_data_run/data_config_file_finished.txt --dataset SL_FIT_GROUPS_AFTERCUTS --key "n_fits" --edges "step1" &&
     python split_scripts/split_utils/plot_hist_from_split_data.py --base_path thesis_data_files/large_combined_data_run/ --data_config_file thesis_data_files/large_combined_data_run/data_config_file_finished.txt --store_path ~/masterarbeit/thesis/resources/images/large_combined_data_plots/ --dataset SL_FIT_GROUPS_AFTERCUTS --key "n_fits" --fig_size "7,6" --log_y_scale --use_asymm_err
 
-++++++++++++++++++++++++++++++++++++++++++++++++++
-++++++ CURRENT PROGRESS IS HERE
-++++++++++++++++++++++++++++++++++++++++++++++++++
-
 ######## dt muons:
 
 ### general histograms
@@ -179,38 +180,156 @@
 ### merge split dt muon files into one, because some plotting scripts only work with merged data
     python split_scripts/split_utils/merge_split_data.py --base_path thesis_data_files/large_combined_data_run/ --data_config_file thesis_data_files/large_combined_data_run/data_config_file_finished.txt --dataset DT_MUONS
 
-### 2d views of dt muons
+### event display of one dt muon
     python scripts/geomplot/singleplot_dt_muon.py --dt_muons_file thesis_data_files/large_combined_data_run/53_comb_a_DT_MUONS.pcl --sl_fits_file thesis_data_files/large_combined_data_run/53_comb_a_SL_FITS_AFTERCUTS.pcl --sl_fit_groups_file thesis_data_files/large_combined_data_run/53_comb_a_SL_FIT_GROUPS.pcl --dt_muon_idcs 5
     # manually store plots
 
-### dt track geometry plotting
-    python scripts/dt/plot_dt_muons.py --show_plots --dt_muons_file thesis_data_files/large_combined_data_run/53_comb_a_MERGED_DT_MUONS.pcl --fig_size "7,6" --store_path ~/masterarbeit/thesis/resources/images/large_combined_data_plots/
+### dt track geometry plotting & other analysis
+    python scripts/dt/plot_dt_muons.py --show_plots --dt_muons_file thesis_data_files/large_combined_data_run/53_comb__MERGED_DT_MUONS.pcl --fig_size "7,6" --store_path ~/masterarbeit/thesis/resources/images/large_combined_data_plots/
 
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
++++++++++++++++++++++++++ CURRENT PROGRESS IS HERE
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
+########################################################
 ############## SCINTILLATOR
 
 ######## raw scint hits (sipms):
 
 ##### use split data
 
-### raw scint hits, sipm occupancy etc.
+### raw scint channel occupancies without offline dead time
 # calculate
+    python split_scripts/split_utils_scint/raw_scint_hits_from_split_data.py --base_path thesis_data_files/large_combined_data_run/ --data_config_file thesis_data_files/large_combined_data_run/data_config_file_finished.txt --dataset RAW_SCINT_HITS
 # plot
+    python split_scripts/split_utils_scint/plot_raw_scint_hits_from_split_data.py --base_path thesis_data_files/large_combined_data_run/ --data_config_file thesis_data_files/large_combined_data_run/data_config_file_finished.txt --store_path ~/masterarbeit/thesis/resources/images/large_combined_data_plots/ --dataset RAW_SCINT_HITS
+
+### raw scint hit time differences without offline dead time
+## closeup
+# calculate
+    python split_scripts/split_utils_scint/raw_scint_hit_diff_from_split_data.py --base_path thesis_data_files/large_combined_data_run/ --data_config_file thesis_data_files/large_combined_data_run/data_config_file_finished.txt --dataset RAW_SCINT_HITS --edges "linear,0,1000,200" --suffix closeup
+# plot
+    python split_scripts/split_utils_scint/plot_raw_scint_hit_diff_from_split_data.py --base_path thesis_data_files/large_combined_data_run/ --data_config_file thesis_data_files/large_combined_data_run/data_config_file_finished.txt --store_path ~/masterarbeit/thesis/resources/images/large_combined_data_plots/ --dataset RAW_SCINT_HITS --fig_size "7,6" --suffix closeup
+
+### raw scint hit time differences without offline dead time -- single sipm
+## closeup
+# calculate
+    python split_scripts/split_utils_scint/raw_scint_hit_diff_from_split_data.py --base_path thesis_data_files/large_combined_data_run/ --data_config_file thesis_data_files/large_combined_data_run/data_config_file_finished.txt --dataset RAW_SCINT_HITS --edges "linear,0,1000,200" --cuts "ly,==,0;st,==,0;sipm,==,0" --suffix closeup_single
+# plot
+    python split_scripts/split_utils_scint/plot_raw_scint_hit_diff_from_split_data.py --base_path thesis_data_files/large_combined_data_run/ --data_config_file thesis_data_files/large_combined_data_run/data_config_file_finished.txt --store_path ~/masterarbeit/thesis/resources/images/large_combined_data_plots/ --dataset RAW_SCINT_HITS --fig_size "7,6" --suffix closeup_single
+
+### raw scint channel occupancies
+# calculate
+    python split_scripts/split_utils_scint/raw_scint_hits_from_split_data.py --base_path thesis_data_files/large_combined_data_run/ --data_config_file thesis_data_files/large_combined_data_run/data_config_file_finished.txt --dataset RAW_SCINT_HITS_DEADTIME
+# plot
+    python split_scripts/split_utils_scint/plot_raw_scint_hits_from_split_data.py --base_path thesis_data_files/large_combined_data_run/ --data_config_file thesis_data_files/large_combined_data_run/data_config_file_finished.txt --store_path ~/masterarbeit/thesis/resources/images/large_combined_data_plots/ --dataset RAW_SCINT_HITS_DEADTIME
+
+### general histograms
+## hist: "ts" +- "err_ts"
+# calculate & plot
+    python split_scripts/split_utils/hist_from_split_data.py --base_path thesis_data_files/large_combined_data_run/ --data_config_file thesis_data_files/large_combined_data_run/data_config_file_finished.txt --dataset RAW_SCINT_HITS_DEADTIME --key "ts" --err_key "err_ts" --edges "auto,50" &&
+    python split_scripts/split_utils/plot_hist_from_split_data.py --base_path thesis_data_files/large_combined_data_run/ --data_config_file thesis_data_files/large_combined_data_run/data_config_file_finished.txt --store_path ~/masterarbeit/thesis/resources/images/large_combined_data_plots/ --dataset RAW_SCINT_HITS_DEADTIME --key "ts" --fig_size "7,6" --use_asymm_err
+## hist: "ly"
+# calculate & plot
+    python split_scripts/split_utils/hist_from_split_data.py --base_path thesis_data_files/large_combined_data_run/ --data_config_file thesis_data_files/large_combined_data_run/data_config_file_finished.txt --dataset RAW_SCINT_HITS_DEADTIME --key "ly" --edges "step1" &&
+    python split_scripts/split_utils/plot_hist_from_split_data.py --base_path thesis_data_files/large_combined_data_run/ --data_config_file thesis_data_files/large_combined_data_run/data_config_file_finished.txt --store_path ~/masterarbeit/thesis/resources/images/large_combined_data_plots/ --dataset RAW_SCINT_HITS_DEADTIME --key "ly" --fig_size "7,6" --use_asymm_err
+
+### raw scint hit time differences -- single sipm
+## full bin range
+# calculate
+    python split_scripts/split_utils_scint/raw_scint_hit_diff_from_split_data.py --base_path thesis_data_files/large_combined_data_run/ --data_config_file thesis_data_files/large_combined_data_run/data_config_file_finished.txt --dataset RAW_SCINT_HITS_DEADTIME --edges "linear,0,500000000,200" --cuts "ly,==,0;st,==,0;sipm,==,0" --suffix fullview_single
+# plot
+    python split_scripts/split_utils_scint/plot_raw_scint_hit_diff_from_split_data.py --base_path thesis_data_files/large_combined_data_run/ --data_config_file thesis_data_files/large_combined_data_run/data_config_file_finished.txt --store_path ~/masterarbeit/thesis/resources/images/large_combined_data_plots/ --dataset RAW_SCINT_HITS_DEADTIME --fig_size "7,6" --suffix fullview_single
+## closeup
+# calculate
+    python split_scripts/split_utils_scint/raw_scint_hit_diff_from_split_data.py --base_path thesis_data_files/large_combined_data_run/ --data_config_file thesis_data_files/large_combined_data_run/data_config_file_finished.txt --dataset RAW_SCINT_HITS_DEADTIME --edges "linear,0,1000,200" --cuts "ly,==,0;st,==,0;sipm,==,0" --suffix closeup_single
+# plot
+    python split_scripts/split_utils_scint/plot_raw_scint_hit_diff_from_split_data.py --base_path thesis_data_files/large_combined_data_run/ --data_config_file thesis_data_files/large_combined_data_run/data_config_file_finished.txt --store_path ~/masterarbeit/thesis/resources/images/large_combined_data_plots/ --dataset RAW_SCINT_HITS_DEADTIME --fig_size "7,6" --suffix closeup_single
+
+### raw scint hit time differences -- all sipms
+## full bin range
+# calculate
+    python split_scripts/split_utils_scint/raw_scint_hit_diff_from_split_data.py --base_path thesis_data_files/large_combined_data_run/ --data_config_file thesis_data_files/large_combined_data_run/data_config_file_finished.txt --dataset RAW_SCINT_HITS_DEADTIME --edges "linear,0,13000000000,200" --suffix fullview
+# plot
+    python split_scripts/split_utils_scint/plot_raw_scint_hit_diff_from_split_data.py --base_path thesis_data_files/large_combined_data_run/ --data_config_file thesis_data_files/large_combined_data_run/data_config_file_finished.txt --store_path ~/masterarbeit/thesis/resources/images/large_combined_data_plots/ --dataset RAW_SCINT_HITS_DEADTIME --fig_size "7,6" --suffix fullview
+## closeup
+# calculate
+    python split_scripts/split_utils_scint/raw_scint_hit_diff_from_split_data.py --base_path thesis_data_files/large_combined_data_run/ --data_config_file thesis_data_files/large_combined_data_run/data_config_file_finished.txt --dataset RAW_SCINT_HITS_DEADTIME --edges "linear,0,1000,200" --suffix closeup
+# plot
+    python split_scripts/split_utils_scint/plot_raw_scint_hit_diff_from_split_data.py --base_path thesis_data_files/large_combined_data_run/ --data_config_file thesis_data_files/large_combined_data_run/data_config_file_finished.txt --store_path ~/masterarbeit/thesis/resources/images/large_combined_data_plots/ --dataset RAW_SCINT_HITS_DEADTIME --fig_size "7,6" --suffix closeup
 
 ######## scint hits (strips):
 
-#####
-# calculate
-# plot
+##### advanced plotting
+### merge split scint hit files into one, because some plotting scripts only work with merged data
+    python split_scripts/split_utils/merge_split_data.py --base_path thesis_data_files/large_combined_data_run/ --data_config_file thesis_data_files/large_combined_data_run/data_config_file_finished.txt --dataset SCINT_HITS
+### scint hit analysis
+    python scripts/scint/plot_scint_hits.py --show_plots --scint_hits_file thesis_data_files/large_combined_data_run/53_comb__MERGED_SCINT_HITS.pcl --fig_size "7,6" --store_path ~/masterarbeit/thesis/resources/images/large_combined_data_plots/
 
+
+
+############### SCINT TESTING PLOTS -- TO ILLUSTRATE SYSTEMATICS (i.e. ringing)
+
+### dead0
+
+## import
+# calculate dumpfile
+    python split_scripts/split_utils/analysis_run_control.py --base_path thesis_data_files/scint_testing/ --data_config_file thesis_data_files/scint_testing/data_config_file_dead0.txt --task_list "dump_import" --task_for_each_set --n_proc 12
+
+## raw scint channel occupancies
+# calculate
+    python split_scripts/split_utils_scint/raw_scint_hits_from_split_data.py --base_path thesis_data_files/scint_testing/ --data_config_file thesis_data_files/scint_testing/data_config_file_dead0.txt --dataset RAW_SCINT_HITS
+# plot
+    python split_scripts/split_utils_scint/plot_raw_scint_hits_from_split_data.py --base_path thesis_data_files/scint_testing/ --data_config_file thesis_data_files/scint_testing/data_config_file_dead0.txt --store_path ~/masterarbeit/thesis/resources/images/scint_testing_plots/ --dataset RAW_SCINT_HITS
+
+## plotting single sipm
+python split_scripts/split_utils_scint/raw_scint_hit_diff_from_split_data.py --base_path thesis_data_files/scint_testing/ --data_config_file thesis_data_files/scint_testing/data_config_file_dead0.txt --dataset RAW_SCINT_HITS --edges "linear,0,13000000,100" --suffix mediumrange2_single --cuts "ly,==,0;st,==,0;sipm,==,0" &&     python split_scripts/split_utils_scint/plot_raw_scint_hit_diff_from_split_data.py --base_path thesis_data_files/scint_testing/ --data_config_file thesis_data_files/scint_testing/data_config_file_dead0.txt --store_path ~/masterarbeit/thesis/resources/images/scint_testing_plots/ --dataset RAW_SCINT_HITS --fig_size "7,6" --suffix mediumrange2_single
+&&
+python split_scripts/split_utils_scint/raw_scint_hit_diff_from_split_data.py --base_path thesis_data_files/scint_testing/ --data_config_file thesis_data_files/scint_testing/data_config_file_dead0.txt --dataset RAW_SCINT_HITS --edges "linear,0,129,129" --suffix closeup_single --cuts "ly,==,0;st,==,0;sipm,==,0" &&     python split_scripts/split_utils_scint/plot_raw_scint_hit_diff_from_split_data.py --base_path thesis_data_files/scint_testing/ --data_config_file thesis_data_files/scint_testing/data_config_file_dead0.txt --store_path ~/masterarbeit/thesis/resources/images/scint_testing_plots/ --dataset RAW_SCINT_HITS --fig_size "7,6" --suffix closeup_single
+
+## plotting all sipms
+python split_scripts/split_utils_scint/raw_scint_hit_diff_from_split_data.py --base_path thesis_data_files/scint_testing/ --data_config_file thesis_data_files/scint_testing/data_config_file_dead0.txt --dataset RAW_SCINT_HITS --edges "linear,0,5000000000,200" --suffix fullview &&     python split_scripts/split_utils_scint/plot_raw_scint_hit_diff_from_split_data.py --base_path thesis_data_files/scint_testing/ --data_config_file thesis_data_files/scint_testing/data_config_file_dead0.txt --store_path ~/masterarbeit/thesis/resources/images/scint_testing_plots/ --dataset RAW_SCINT_HITS --fig_size "7,6" --suffix fullview
+&&
+python split_scripts/split_utils_scint/raw_scint_hit_diff_from_split_data.py --base_path thesis_data_files/scint_testing/ --data_config_file thesis_data_files/scint_testing/data_config_file_dead0.txt --dataset RAW_SCINT_HITS --edges "linear,0,193,193" --suffix closeup &&     python split_scripts/split_utils_scint/plot_raw_scint_hit_diff_from_split_data.py --base_path thesis_data_files/scint_testing/ --data_config_file thesis_data_files/scint_testing/data_config_file_dead0.txt --store_path ~/masterarbeit/thesis/resources/images/scint_testing_plots/ --dataset RAW_SCINT_HITS --fig_size "7,6" --suffix closeup
+&&
+python split_scripts/split_utils_scint/raw_scint_hit_diff_from_split_data.py --base_path thesis_data_files/scint_testing/ --data_config_file thesis_data_files/scint_testing/data_config_file_dead0.txt --dataset RAW_SCINT_HITS --edges "linear,0,1283,1283" --suffix smallrange &&     python split_scripts/split_utils_scint/plot_raw_scint_hit_diff_from_split_data.py --base_path thesis_data_files/scint_testing/ --data_config_file thesis_data_files/scint_testing/data_config_file_dead0.txt --store_path ~/masterarbeit/thesis/resources/images/scint_testing_plots/ --dataset RAW_SCINT_HITS --fig_size "7,6" --suffix smallrange
+&&
+python split_scripts/split_utils_scint/raw_scint_hit_diff_from_split_data.py --base_path thesis_data_files/scint_testing/ --data_config_file thesis_data_files/scint_testing/data_config_file_dead0.txt --dataset RAW_SCINT_HITS --edges "linear,0,1000000000,100" --suffix mediumrange &&     python split_scripts/split_utils_scint/plot_raw_scint_hit_diff_from_split_data.py --base_path thesis_data_files/scint_testing/ --data_config_file thesis_data_files/scint_testing/data_config_file_dead0.txt --store_path ~/masterarbeit/thesis/resources/images/scint_testing_plots/ --dataset RAW_SCINT_HITS --fig_size "7,6" --suffix mediumrange
+&&
+python split_scripts/split_utils_scint/raw_scint_hit_diff_from_split_data.py --base_path thesis_data_files/scint_testing/ --data_config_file thesis_data_files/scint_testing/data_config_file_dead0.txt --dataset RAW_SCINT_HITS --edges "linear,0,13000000,100" --suffix mediumrange2 &&     python split_scripts/split_utils_scint/plot_raw_scint_hit_diff_from_split_data.py --base_path thesis_data_files/scint_testing/ --data_config_file thesis_data_files/scint_testing/data_config_file_dead0.txt --store_path ~/masterarbeit/thesis/resources/images/scint_testing_plots/ --dataset RAW_SCINT_HITS --fig_size "7,6" --suffix mediumrange2
+
+## hist: "tdc"
+# calculate & plot
+    python split_scripts/split_utils/hist_from_split_data.py --base_path thesis_data_files/scint_testing/ --data_config_file thesis_data_files/scint_testing/data_config_file_dead0.txt --dataset RAW_SCINT_HITS --key "tdc" --edges "step1" &&
+    python split_scripts/split_utils/plot_hist_from_split_data.py --base_path thesis_data_files/scint_testing/ --data_config_file thesis_data_files/scint_testing/data_config_file_dead0.txt --dataset RAW_SCINT_HITS --store_path ~/masterarbeit/thesis/resources/images/scint_testing_plots/ --dataset RAW_SCINT_HITS --key "tdc" --fig_size "7,6" --use_asymm_err
+
+### apply dead time
+
+## plotting single sipm
+ython split_scripts/split_utils_scint/raw_scint_hit_diff_from_split_data.py --base_path thesis_data_files/scint_testing/ --data_config_file thesis_data_files/scint_testing/data_config_file_dead0.txt --dataset RAW_SCINT_HITS_DEADTIME --edges "linear,0,13000000,100" --suffix mediumrange2_single --cuts "ly,==,0;st,==,0;sipm,==,0" &&
+python split_scripts/split_utils_scint/plot_raw_scint_hit_diff_from_split_data.py --base_path thesis_data_files/scint_testing/ --data_config_file thesis_data_files/scint_testing/data_config_file_dead0.txt --store_path ~/masterarbeit/thesis/resources/images/scint_testing_plots/ --dataset RAW_SCINT_HITS_DEADTIME --fig_size "7,6" --suffix mediumrange2_single
+
+## plotting all sipms
+python split_scripts/split_utils_scint/raw_scint_hit_diff_from_split_data.py --base_path thesis_data_files/scint_testing/ --data_config_file thesis_data_files/scint_testing/data_config_file_dead0.txt --dataset RAW_SCINT_HITS_DEADTIME --edges "linear,0,5000000000,200" --suffix fullview &&     python split_scripts/split_utils_scint/plot_raw_scint_hit_diff_from_split_data.py --base_path thesis_data_files/scint_testing/ --data_config_file thesis_data_files/scint_testing/data_config_file_dead0.txt --store_path ~/masterarbeit/thesis/resources/images/scint_testing_plots/ --dataset RAW_SCINT_HITS_DEADTIME --fig_size "7,6" --suffix fullview
+&&
+python split_scripts/split_utils_scint/raw_scint_hit_diff_from_split_data.py --base_path thesis_data_files/scint_testing/ --data_config_file thesis_data_files/scint_testing/data_config_file_dead0.txt --dataset RAW_SCINT_HITS_DEADTIME --edges "linear,0,193,193" --suffix closeup &&     python split_scripts/split_utils_scint/plot_raw_scint_hit_diff_from_split_data.py --base_path thesis_data_files/scint_testing/ --data_config_file thesis_data_files/scint_testing/data_config_file_dead0.txt --store_path ~/masterarbeit/thesis/resources/images/scint_testing_plots/ --dataset RAW_SCINT_HITS_DEADTIME --fig_size "7,6" --suffix closeup
+&&
+python split_scripts/split_utils_scint/raw_scint_hit_diff_from_split_data.py --base_path thesis_data_files/scint_testing/ --data_config_file thesis_data_files/scint_testing/data_config_file_dead0.txt --dataset RAW_SCINT_HITS_DEADTIME --edges "linear,0,1283,1283" --suffix smallrange &&     python split_scripts/split_utils_scint/plot_raw_scint_hit_diff_from_split_data.py --base_path thesis_data_files/scint_testing/ --data_config_file thesis_data_files/scint_testing/data_config_file_dead0.txt --store_path ~/masterarbeit/thesis/resources/images/scint_testing_plots/ --dataset RAW_SCINT_HITS_DEADTIME --fig_size "7,6" --suffix smallrange
+&&
+python split_scripts/split_utils_scint/raw_scint_hit_diff_from_split_data.py --base_path thesis_data_files/scint_testing/ --data_config_file thesis_data_files/scint_testing/data_config_file_dead0.txt --dataset RAW_SCINT_HITS_DEADTIME --edges "linear,0,1000000000,100" --suffix mediumrange &&     python split_scripts/split_utils_scint/plot_raw_scint_hit_diff_from_split_data.py --base_path thesis_data_files/scint_testing/ --data_config_file thesis_data_files/scint_testing/data_config_file_dead0.txt --store_path ~/masterarbeit/thesis/resources/images/scint_testing_plots/ --dataset RAW_SCINT_HITS_DEADTIME --fig_size "7,6" --suffix mediumrange
+&&
+python split_scripts/split_utils_scint/raw_scint_hit_diff_from_split_data.py --base_path thesis_data_files/scint_testing/ --data_config_file thesis_data_files/scint_testing/data_config_file_dead0.txt --dataset RAW_SCINT_HITS_DEADTIME --edges "linear,0,13000000,100" --suffix mediumrange2 &&     python split_scripts/split_utils_scint/plot_raw_scint_hit_diff_from_split_data.py --base_path thesis_data_files/scint_testing/ --data_config_file thesis_data_files/scint_testing/data_config_file_dead0.txt --store_path ~/masterarbeit/thesis/resources/images/scint_testing_plots/ --dataset RAW_SCINT_HITS_DEADTIME --fig_size "7,6" --suffix mediumrange2
+
+
+########################################################
 ############## COMBINED / CORRELATED DETECTORS
 
 ######## scint & dt muon hit matching:
 
 ##### merge split dt muon & scintillator files into one, because the scint-muon matching only works with single files
-# merge dt
+# merge dt muons
     python split_scripts/split_utils/merge_split_data.py --base_path thesis_data_files/large_combined_data_run/ --data_config_file thesis_data_files/large_combined_data_run/data_config_file_finished.txt --dataset DT_MUONS
-# merge scint
+# merge scint hits
     python split_scripts/split_utils/merge_split_data.py --base_path thesis_data_files/large_combined_data_run/ --data_config_file thesis_data_files/large_combined_data_run/data_config_file_finished.txt --dataset SCINT_HITS
 
 ##### correlate dt muons and scint hits
@@ -233,7 +352,6 @@
 
 
 
-
 #################################################
 ##### FOR SIMULATED TRACKS
 #################################################
@@ -241,9 +359,12 @@
     thesis_data_files/sim/
 
 ############## RUN FULL GENERATION & ANALYSIS CHAIN
-# calculate
-    python split_scripts/split_utils/analysis_run_control.py --base_path thesis_data_files/sim/ --data_config_file thesis_data_files/sim/data_config_file_finished.txt --task_list "dt_hits_sim,dt_skip_corr,dt_patterns,dt_fake_patterns,dt_fits,dt_fit_cuts,dt_fit_groups,dt_muons" --task_for_each_set --n_proc 14
+# generate simulated cosmic muons
+    python split_scripts/split_utils/analysis_run_control.py --base_path thesis_data_files/sim/ --data_config_file thesis_data_files/sim/data_config_file_finished.txt --task_list "gen_muons_sim" --task_for_each_set --n_proc 14
+# propagate through dt analysis chain
+    python split_scripts/split_utils/analysis_run_control.py --base_path thesis_data_files/sim/ --data_config_file thesis_data_files/sim/data_config_file_finished.txt --task_list "dt_hits_sim,dt_cut_dead_cells,dt_skip_corr,dt_patterns,dt_fake_patterns,dt_fits,dt_fit_cuts,dt_fit_groups,dt_fit_group_cuts,dt_muons" --task_for_each_set --n_proc 14
 
+########################################################
 ############## DRIFT TUBES
 
 ######## dt hits:
@@ -258,7 +379,7 @@
 ## hist: "ts" +- "err_ts"
 # calculate & plot
     python split_scripts/split_utils/hist_from_split_data.py --base_path thesis_data_files/sim/ --data_config_file thesis_data_files/sim/data_config_file_finished.txt --dataset DT_CORR_HITS --key "ts" --err_key "err_ts" --edges "auto,50" &&
-    python split_scripts/split_utils/plot_hist_from_split_data.py --base_path thesis_data_files/sim/ --data_config_file thesis_data_files/sim/data_config_file_finished.txt --store_path ~/masterarbeit/thesis/resources/images/sim_data_plots/ --dataset DT_CORR_HITS --key "ts" --fig_size "7,6 --use_asymm_err
+    python split_scripts/split_utils/plot_hist_from_split_data.py --base_path thesis_data_files/sim/ --data_config_file thesis_data_files/sim/data_config_file_finished.txt --store_path ~/masterarbeit/thesis/resources/images/sim_data_plots/ --dataset DT_CORR_HITS --key "ts" --fig_size "7,6" --use_asymm_err
 
 ######## sl patterns:
 
@@ -272,7 +393,7 @@
 ## hist: "pat_type"
 # calculate & plot
     python split_scripts/split_utils/hist_from_split_data.py --base_path thesis_data_files/sim/ --data_config_file thesis_data_files/sim/data_config_file_finished.txt --dataset SL_PATTERNS --key "pat_type" --edges "step1" &&
-    python split_scripts/split_utils/plot_hist_from_split_data.py --base_path thesis_data_files/sim/ --data_config_file thesis_data_files/sim/data_config_file_finished.txt --store_path ~/masterarbeit/thesis/resources/images/sim_data_plots/ --dataset SL_PATTERNS --key "pat_type" --fig_size "7,6 --use_asymm_err
+    python split_scripts/split_utils/plot_hist_from_split_data.py --base_path thesis_data_files/sim/ --data_config_file thesis_data_files/sim/data_config_file_finished.txt --store_path ~/masterarbeit/thesis/resources/images/sim_data_plots/ --dataset SL_PATTERNS --key "pat_type" --fig_size "7,6" --use_asymm_err
 
 ######## sl fake patterns:
 
@@ -286,7 +407,7 @@
 ## hist: "pat_type"
 # calculate & plot
     python split_scripts/split_utils/hist_from_split_data.py --base_path thesis_data_files/sim/ --data_config_file thesis_data_files/sim/data_config_file_finished.txt --dataset SL_FAKE_PATTERNS --key "pat_type" --edges "linear,-0.5,5.5,7" &&
-    python split_scripts/split_utils/plot_hist_from_split_data.py --base_path thesis_data_files/sim/ --data_config_file thesis_data_files/sim/data_config_file_finished.txt --store_path ~/masterarbeit/thesis/resources/images/sim_data_plots/ --dataset SL_FAKE_PATTERNS --key "pat_type" --fig_size "7,6 --use_asymm_err
+    python split_scripts/split_utils/plot_hist_from_split_data.py --base_path thesis_data_files/sim/ --data_config_file thesis_data_files/sim/data_config_file_finished.txt --store_path ~/masterarbeit/thesis/resources/images/sim_data_plots/ --dataset SL_FAKE_PATTERNS --key "pat_type" --fig_size "7,6" --use_asymm_err
 
 ######## sl fits:
 
@@ -294,19 +415,19 @@
 ## hist: "chi2/ndf"
 # calculate & plot
     python split_scripts/split_utils/hist_from_split_data.py --base_path thesis_data_files/sim/ --data_config_file thesis_data_files/sim/data_config_file_finished.txt --dataset SL_FITS_AFTERCUTS --key "chi2/ndf" --edges "auto,50" &&
-    python split_scripts/split_utils/plot_hist_from_split_data.py --base_path thesis_data_files/sim/ --data_config_file thesis_data_files/sim/data_config_file_finished.txt --store_path ~/masterarbeit/thesis/resources/images/sim_data_plots/ --dataset SL_FITS_AFTERCUTS --key "chi2/ndf" --fig_size "7,6 --use_asymm_err
+    python split_scripts/split_utils/plot_hist_from_split_data.py --base_path thesis_data_files/sim/ --data_config_file thesis_data_files/sim/data_config_file_finished.txt --store_path ~/masterarbeit/thesis/resources/images/sim_data_plots/ --dataset SL_FITS_AFTERCUTS --key "chi2/ndf" --fig_size "7,6" --use_asymm_err
 ## hist: "t0" +- "err_t0"
 # calculate & plot
     python split_scripts/split_utils/hist_from_split_data.py --base_path thesis_data_files/sim/ --data_config_file thesis_data_files/sim/data_config_file_finished.txt --dataset SL_FITS_AFTERCUTS --key "t0" --err_key "err_t0" --edges "auto,50" &&
-    python split_scripts/split_utils/plot_hist_from_split_data.py --base_path thesis_data_files/sim/ --data_config_file thesis_data_files/sim/data_config_file_finished.txt --store_path ~/masterarbeit/thesis/resources/images/sim_data_plots/ --dataset SL_FITS_AFTERCUTS --key "t0" --fig_size "7,6 --use_asymm_err
+    python split_scripts/split_utils/plot_hist_from_split_data.py --base_path thesis_data_files/sim/ --data_config_file thesis_data_files/sim/data_config_file_finished.txt --store_path ~/masterarbeit/thesis/resources/images/sim_data_plots/ --dataset SL_FITS_AFTERCUTS --key "t0" --fig_size "7,6" --use_asymm_err
 ## hist: "x0" +- "err_x0"
 # calculate & plot
     python split_scripts/split_utils/hist_from_split_data.py --base_path thesis_data_files/sim/ --data_config_file thesis_data_files/sim/data_config_file_finished.txt --dataset SL_FITS_AFTERCUTS --key "x0" --err_key "err_x0" --edges "linear,-21,21,101" &&
-    python split_scripts/split_utils/plot_hist_from_split_data.py --base_path thesis_data_files/sim/ --data_config_file thesis_data_files/sim/data_config_file_finished.txt --store_path ~/masterarbeit/thesis/resources/images/sim_data_plots/ --dataset SL_FITS_AFTERCUTS --key "x0" --fig_size "7,6 --use_asymm_err
+    python split_scripts/split_utils/plot_hist_from_split_data.py --base_path thesis_data_files/sim/ --data_config_file thesis_data_files/sim/data_config_file_finished.txt --store_path ~/masterarbeit/thesis/resources/images/sim_data_plots/ --dataset SL_FITS_AFTERCUTS --key "x0" --fig_size "7,6" --use_asymm_err
 ## hist: "tan_alpha" +- "err_tan_alpha"
 # calculate & plot
     python split_scripts/split_utils/hist_from_split_data.py --base_path thesis_data_files/sim/ --data_config_file thesis_data_files/sim/data_config_file_finished.txt --dataset SL_FITS_AFTERCUTS --key "tan_alpha" --err_key "err_tan_alpha" --edges "linear,-1.62,1.62,101" &&
-    python split_scripts/split_utils/plot_hist_from_split_data.py --base_path thesis_data_files/sim/ --data_config_file thesis_data_files/sim/data_config_file_finished.txt --store_path ~/masterarbeit/thesis/resources/images/sim_data_plots/ --dataset SL_FITS_AFTERCUTS --key "tan_alpha" --fig_size "7,6 --use_asymm_err
+    python split_scripts/split_utils/plot_hist_from_split_data.py --base_path thesis_data_files/sim/ --data_config_file thesis_data_files/sim/data_config_file_finished.txt --store_path ~/masterarbeit/thesis/resources/images/sim_data_plots/ --dataset SL_FITS_AFTERCUTS --key "tan_alpha" --fig_size "7,6" --use_asymm_err
 
 ######## sl fit groups:
 
@@ -314,7 +435,7 @@
 ## hist: "n_fits"
 # calculate & plot
     python split_scripts/split_utils/hist_from_split_data.py --base_path thesis_data_files/sim/ --data_config_file thesis_data_files/sim/data_config_file_finished.txt --dataset SL_FIT_GROUPS --key "n_fits" --edges "step1" &&
-    python split_scripts/split_utils/plot_hist_from_split_data.py --base_path thesis_data_files/sim/ --data_config_file thesis_data_files/sim/data_config_file_finished.txt --store_path ~/masterarbeit/thesis/resources/images/sim_data_plots/ --dataset SL_FIT_GROUPS --key "n_fits" --fig_size "7,6 --log_y_scale --use_asymm_err
+    python split_scripts/split_utils/plot_hist_from_split_data.py --base_path thesis_data_files/sim/ --data_config_file thesis_data_files/sim/data_config_file_finished.txt --store_path ~/masterarbeit/thesis/resources/images/sim_data_plots/ --dataset SL_FIT_GROUPS --key "n_fits" --fig_size "7,6" --log_y_scale --use_asymm_err
 
 ######## dt muons:
 
@@ -322,23 +443,30 @@
 ## hist: "ts" +- "err_ts"
 # calculate & plot
     python split_scripts/split_utils/hist_from_split_data.py --base_path thesis_data_files/sim/ --data_config_file thesis_data_files/sim/data_config_file_finished.txt --dataset DT_MUONS --key "ts" --err_key "err_ts" --edges "auto,50" &&
-    python split_scripts/split_utils/plot_hist_from_split_data.py --base_path thesis_data_files/sim/ --data_config_file thesis_data_files/sim/data_config_file_finished.txt --store_path ~/masterarbeit/thesis/resources/images/sim_data_plots/ --dataset DT_MUONS --key "ts" --fig_size "7,6 --use_asymm_err
+    python split_scripts/split_utils/plot_hist_from_split_data.py --base_path thesis_data_files/sim/ --data_config_file thesis_data_files/sim/data_config_file_finished.txt --store_path ~/masterarbeit/thesis/resources/images/sim_data_plots/ --dataset DT_MUONS --key "ts" --fig_size "7,6" --use_asymm_err
 ## hist: "theta" +- "err_theta"
 # calculate & plot
     python split_scripts/split_utils/hist_from_split_data.py --base_path thesis_data_files/sim/ --data_config_file thesis_data_files/sim/data_config_file_finished.txt --dataset DT_MUONS --key "theta" --err_key "err_theta" --edges "linear,0,1.58,100" &&
-    python split_scripts/split_utils/plot_hist_from_split_data.py --base_path thesis_data_files/sim/ --data_config_file thesis_data_files/sim/data_config_file_finished.txt --store_path ~/masterarbeit/thesis/resources/images/sim_data_plots/ --dataset DT_MUONS --key "theta" --fig_size "7,6 --use_asymm_err
+    python split_scripts/split_utils/plot_hist_from_split_data.py --base_path thesis_data_files/sim/ --data_config_file thesis_data_files/sim/data_config_file_finished.txt --store_path ~/masterarbeit/thesis/resources/images/sim_data_plots/ --dataset DT_MUONS --key "theta" --fig_size "7,6" --use_asymm_err
 ## hist: "phi" +- "err_phi"
 # calculate & plot
     python split_scripts/split_utils/hist_from_split_data.py --base_path thesis_data_files/sim/ --data_config_file thesis_data_files/sim/data_config_file_finished.txt --dataset DT_MUONS --key "phi" --err_key "err_phi" --edges "linear,0,6.29,200" &&
-    python split_scripts/split_utils/plot_hist_from_split_data.py --base_path thesis_data_files/sim/ --data_config_file thesis_data_files/sim/data_config_file_finished.txt --store_path ~/masterarbeit/thesis/resources/images/sim_data_plots/ --dataset DT_MUONS --key "phi" --fig_size "7,6 --use_asymm_err
+    python split_scripts/split_utils/plot_hist_from_split_data.py --base_path thesis_data_files/sim/ --data_config_file thesis_data_files/sim/data_config_file_finished.txt --store_path ~/masterarbeit/thesis/resources/images/sim_data_plots/ --dataset DT_MUONS --key "phi" --fig_size "7,6" --use_asymm_err
 ## hist: "x0" +- "err_x0"
 # calculate & plot
     python split_scripts/split_utils/hist_from_split_data.py --base_path thesis_data_files/sim/ --data_config_file thesis_data_files/sim/data_config_file_finished.txt --dataset DT_MUONS --key "x0" --err_key "err_x0" --edges "auto,200" &&
-    python split_scripts/split_utils/plot_hist_from_split_data.py --base_path thesis_data_files/sim/ --data_config_file thesis_data_files/sim/data_config_file_finished.txt --store_path ~/masterarbeit/thesis/resources/images/sim_data_plots/ --dataset DT_MUONS --key "x0" --fig_size "7,6 --use_asymm_err
+    python split_scripts/split_utils/plot_hist_from_split_data.py --base_path thesis_data_files/sim/ --data_config_file thesis_data_files/sim/data_config_file_finished.txt --store_path ~/masterarbeit/thesis/resources/images/sim_data_plots/ --dataset DT_MUONS --key "x0" --fig_size "7,6" --use_asymm_err
 ## hist: "y0" +- "err_y0"
 # calculate & plot
     python split_scripts/split_utils/hist_from_split_data.py --base_path thesis_data_files/sim/ --data_config_file thesis_data_files/sim/data_config_file_finished.txt --dataset DT_MUONS --key "y0" --err_key "err_y0" --edges "auto,200" &&
-    python split_scripts/split_utils/plot_hist_from_split_data.py --base_path thesis_data_files/sim/ --data_config_file thesis_data_files/sim/data_config_file_finished.txt --store_path ~/masterarbeit/thesis/resources/images/sim_data_plots/ --dataset DT_MUONS --key "y0" --fig_size "7,6 --use_asymm_err
+    python split_scripts/split_utils/plot_hist_from_split_data.py --base_path thesis_data_files/sim/ --data_config_file thesis_data_files/sim/data_config_file_finished.txt --store_path ~/masterarbeit/thesis/resources/images/sim_data_plots/ --dataset DT_MUONS --key "y0" --fig_size "7,6" --use_asymm_err
+
+########################################################
+############## SCINTILLATOR
+
+########################################################
+############## COMBINED
+
 
 
 

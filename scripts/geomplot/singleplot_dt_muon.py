@@ -211,7 +211,7 @@ $\\phi=({np.round(phi*params.rad_to_deg,1):.1f}\\pm{np.round(err_phi*params.rad_
         # axis limits
         #ax.margins(x=0.05, y=0.05)
         ax.set_ylim(np.amin(z_range), np.amax(z_range))
-        ax.legend()
+        ax.legend(prop={"size":14})
         # text labels
         #ax.set_aspect('equal', adjustable='box')
         axbox = ax.get_position()

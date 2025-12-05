@@ -24,9 +24,7 @@ from analysis_tools.params import params, derived_params
 
 # allowed datasets
 allowed_datasets = [
-    "DT_HITS", "DT_HITS_NODEADTIME", "DT_CORR_HITS", "SL_PATTERNS", "SL_FITS", "SL_FITS_AFTERCUTS", "SL_FIT_GROUPS", "DT_MUONS",
-    "RAW_SCINT_HITS", "RAW_SCINT_GROUPS", "SCINT_HITS", "SCINT_AREAS",
-    "DT_HIT_DIFFERENCES",
+    "DT_HITS", "DT_HITS_NODEADTIME", "DT_CORR_HITS", "DT_HITS_SIM",
 ]
 
 # ---------------------------------------------------------------
@@ -185,7 +183,6 @@ def main():
 
     # mean rate all cells (incl dead and noisy ones)
     total_count_all_cells = 0
-    mean_count_all_cells = 0
     n_cells = 0
     for sl in range(1,4):
         for ly in range(0,4):
@@ -213,6 +210,7 @@ def main():
                     ro_ch = derived_params._dt_inverted_remap_table[sl][ly][wi]["ro_ch"]
                     ch = derived_params._dt_inverted_remap_table[sl][ly][wi]["ch"]
                     print(f"  high occupancy in sl={sl:1}, ly={ly:1}, wi={wi:2} (ro_ch={ro_ch:2}, ch={ch:3})")
+                    noisy_cells.append((sl,ly,wi))
 
     ########################
     ####### average phi and theta rates (without dead channels)

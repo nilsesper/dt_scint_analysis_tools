@@ -37,52 +37,53 @@ atexit.register(cleanup)
 # ---------------------------------------------------------------
 
 allowed_tasks = {
-    ### general
-    # dumpfile to dt hits & scint hits
-    "dump_import":
+    ### dumpfile workflow
+    "dump_import": # dumpfile to dt hits & scint hits
         "python scripts/combined/dumpfile_to_dt_and_raw_scint_hits.py --input_dumpfile [DUMPFILE] --dt_hits_file [DT_HITS] --raw_scint_hits_file [RAW_SCINT_HITS] --ts_range_file [TS_RANGE]",
-    # only dt hits w/o dead time
-    "dump_dt_nodeadtime":
+    "dump_dt_nodeadtime": # only dt hits w/o dead time
         "python scripts/dt/dumpfile_to_dt_hits.py --input_dumpfile [DUMPFILE] --dt_hits_file [DT_HITS_NODEADTIME] --nodeadtime",
     ### dt workflow
-    "dt_corr":
+    "dt_corr": # apply timing correction (from testpulses) to dt hit timestamps
         "python scripts/dt/dt_hits_timing_correction.py --dt_hits_file [DT_HITS] --dt_tp_corrections_file [DT_CORRECTIONS] --corr_dt_hits_file [DT_CORR_HITS]",
-    "dt_skip_corr":
-        "cp [DT_HITS] [DT_CORR_HITS]",
-    "dt_patterns":
+    "dt_patterns": # construct track-like sl patterns from cell hits
         "python scripts/dt/dt_hits_to_sl_patterns.py --dt_hits_file [DT_CORR_HITS] --sl_patterns_file [SL_PATTERNS] --n_proc [N_PROC]",
-    "dt_fake_patterns":
+    "dt_fake_patterns": # construct fake (not track-like) patterns from cell hits
         "python scripts/dt/dt_hits_to_sl_fake_patterns.py --dt_hits_file [DT_CORR_HITS] --sl_patterns_file [SL_FAKE_PATTERNS] --n_proc [N_PROC]",
-    "dt_fits":
+    "dt_fits": # fit track-like sl patterns to straight tracks
         "python scripts/dt/sl_patterns_to_sl_fits.py --sl_patterns_file [SL_PATTERNS] --sl_fits_file [SL_FITS] --n_proc [N_PROC]",
-    "dt_fit_cuts":
+    "dt_fit_cuts": # apply cuts to resulting sl pattern fits
         "python scripts/dt/sl_fits_apply_cuts.py --input_data_file [SL_FITS] --cut_data_file [SL_FITS_AFTERCUTS]",
-    "dt_fit_groups":
+    "dt_fit_groups": # group fits together within same sl, which lie close in time
         "python scripts/dt/sl_fits_to_sl_fit_groups.py --sl_fits_file [SL_FITS_AFTERCUTS] --sl_fit_groups_file [SL_FIT_GROUPS] --n_proc [N_PROC]",
-    "dt_fit_group_cuts":
+    "dt_fit_group_cuts": # apply cuts to fit groups
         "python scripts/dt/sl_fit_groups_apply_cuts.py --input_data_file [SL_FIT_GROUPS] --cut_data_file [SL_FIT_GROUPS_AFTERCUTS]",
-    "dt_muons":
+    "dt_muons": # construct global muon tracks by combining pattern fits from all three sls
         "python scripts/dt/sl_fit_groups_to_dt_muons.py --sl_fits_file [SL_FITS_AFTERCUTS] --sl_fit_groups_file [SL_FIT_GROUPS_AFTERCUTS] --dt_muons_file [DT_MUONS]",
     ### scint workflow
-    "scint_raw_groups":
-        "python scripts/scint/raw_scint_hits_to_raw_groups.py --raw_scint_hits_file [RAW_SCINT_HITS] --raw_scint_groups_file [RAW_SCINT_GROUPS] --n_proc [N_PROC]",
-    "scint_hits":
-        "python scripts/scint/raw_groups_to_scint_hits.py --raw_scint_hits_file [RAW_SCINT_HITS] --raw_scint_groups_file [RAW_SCINT_GROUPS] --scint_hits_file [SCINT_HITS]",
-    "scint_pixels":
-        "python scripts/scint/raw_groups_to_scint_areas.py --raw_scint_hits_file [RAW_SCINT_HITS] --raw_scint_groups_file [RAW_SCINT_GROUPS] --scint_areas_file [SCINT_AREAS]",
-    ### simulation
-    "gen_muons_sim":
+    "scint_dead_time": # apply offline dead time
+        "python scripts/scint/raw_scint_hits_dead_time.py --raw_scint_hits_file [RAW_SCINT_HITS] --raw_scint_hits_deadtime_file [RAW_SCINT_HITS_DEADTIME]",
+    "scint_raw_groups": # construct groups of sipm hits, which lie close in time
+        "python scripts/scint/raw_scint_hits_to_raw_groups.py --raw_scint_hits_file [RAW_SCINT_HITS_DEADTIME] --raw_scint_groups_file [RAW_SCINT_GROUPS] --n_proc [N_PROC]",
+    "scint_hits": # construct scintillator strip hits from groups
+        "python scripts/scint/raw_groups_to_scint_hits.py --raw_scint_hits_file [RAW_SCINT_HITS_DEADTIME] --raw_scint_groups_file [RAW_SCINT_GROUPS] --scint_hits_file [SCINT_HITS]",
+    "scint_pixels": # construct scintillator pixel hits from groups
+        "python scripts/scint/raw_groups_to_scint_areas.py --raw_scint_hits_file [RAW_SCINT_HITS_DEADTIME] --raw_scint_groups_file [RAW_SCINT_GROUPS] --scint_areas_file [SCINT_AREAS]",
+    ### simulation workflow
+    "gen_muons_sim": # generate cosmic muon tracks with monte carlo method
         "python scripts/sim/gen_cosmic_tracks.py --cosmic_muons_file [SIM_MUONS]",
-    "dt_hits_sim":
-        "python scripts/sim/cosmic_tracks_to_dt_hits.py --cosmic_muons_file [SIM_MUONS] --dt_hits_file [DT_HITS] --ts_range_file [TS_RANGE]",
-    
+    "dt_hits_sim": # propagate cosmic muon tracks through dt chamber geometry and generate simulated dt hits
+        "python scripts/sim/cosmic_tracks_to_dt_hits.py --cosmic_muons_file [SIM_MUONS] --dt_hits_file [DT_HITS_SIM] --ts_range_file [TS_RANGE]",
+    "dt_cut_dead_cells": # cut away simulated cell hits which are dead in the real detector
+        "python scripts/sim/sim_dt_hits_apply_cuts.py --input_data_file [DT_HITS_SIM] --cut_data_file [DT_HITS]",
+    "dt_skip_corr": # skip correction (as in simulation it is not necessary)
+        "cp [DT_HITS] [DT_CORR_HITS]",
 }
 ### filepath wildcards:
 prefix_wildcard_list = [
     "DT_HITS", "DT_HITS_NODEADTIME", "DT_CORR_HITS", "SL_PATTERNS", "SL_FAKE_PATTERNS", "SL_FITS", "SL_FITS_AFTERCUTS", "SL_FIT_GROUPS", "SL_FIT_GROUPS_AFTERCUTS", "DT_MUONS",
-    "RAW_SCINT_HITS", "RAW_SCINT_GROUPS", "SCINT_HITS", "SCINT_AREAS",
+    "RAW_SCINT_HITS", "RAW_SCINT_HITS_DEADTIME", "RAW_SCINT_GROUPS", "SCINT_HITS", "SCINT_AREAS",
     "DT_HIT_DIFFERENCES",
-    "SIM_MUONS"
+    "SIM_MUONS", "DT_HITS_SIM",
 ]
 def replace_wildcards(command, base_path, dump_file, file_prefix, n_proc):
     wildcard_dict = {
@@ -184,14 +185,15 @@ def main():
         for task_step, task in enumerate(task_list):
             print(f"+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
             print(f"+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
-            print(f"+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
-            print(f"+++++++++++ EXECUTING TASK \"{task}\" ({task_step+1} / {n_tasks}): +++++++++++")
             for data_step, data_idx in enumerate(range(n_data)):
                 print(f"+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
-                print(f"+++++++++++ FOR DATA \"{file_prefixes[data_idx]}\" ({data_step+1} / {n_data}): +++++++++++")
+                print(f"+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
+                print(f"+++++++++++ EXECUTING TASK \"{task}\" ({task_step+1} / {n_tasks}): +++++++++++")
+                print(f"+++++++++++ -> FOR DATA \"{file_prefixes[data_idx]}\" ({data_step+1} / {n_data}): +++++++++++")
                 raw_command = allowed_tasks[task]
                 command = replace_wildcards(raw_command, base_path=base_path, dump_file=dump_files[data_idx], file_prefix=file_prefixes[data_idx], n_proc=n_proc)
                 print(f"+++++++++++ bash command = {command}")
+                print(f"+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
                 print(f"+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
                 if run:
                     my_env = os.environ.copy()
@@ -206,14 +208,15 @@ def main():
         for data_step, data_idx in enumerate(range(n_data)):
             print(f"+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
             print(f"+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
-            print(f"+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
-            print(f"+++++++++++ FOR DATA \"{file_prefixes[data_idx]}\" ({data_step+1} / {n_data}): +++++++++++")
             for task_step, task in enumerate(task_list):
                 print(f"+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
-                print(f"+++++++++++ EXECUTING TASK \"{task}\" ({task_step+1} / {n_tasks}): +++++++++++")
+                print(f"+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
+                print(f"+++++++++++ FOR DATA \"{file_prefixes[data_idx]}\" ({data_step+1} / {n_data}): +++++++++++")
+                print(f"+++++++++++ -> EXECUTING TASK \"{task}\" ({task_step+1} / {n_tasks}): +++++++++++")
                 raw_command = allowed_tasks[task]
                 command = replace_wildcards(raw_command, base_path=base_path, dump_file=dump_files[data_idx], file_prefix=file_prefixes[data_idx], n_proc=n_proc)
                 print(f"+++++++++++ bash command = {command}")
+                print(f"+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
                 print(f"+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
                 if run:
                     my_env = os.environ.copy()

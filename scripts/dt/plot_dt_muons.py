@@ -12,6 +12,7 @@ import copy
 import argparse
 import matplotlib.patches as mpatches
 from functools import partial
+from matplotlib.ticker import ScalarFormatter
 
 from analysis_tools.utils import dummy_gen, data_utils, dt_utils, scint_utils, timestamp_utils, geoplot_utils, muon_utils, math_utils, hist_utils, process_utils
 from analysis_tools.params import params, derived_params
@@ -254,7 +255,10 @@ def main():
         ax.set_ylabel("$y$ [mm]")
         ax.set_xlabel("$x$ [mm]")
         ax.legend(prop={"size":14}, loc="center left")
-        plt.colorbar(im_obj)
+        cmap = plt.get_cmap('viridis')
+        formatter = ScalarFormatter(useMathText=True)
+        formatter.set_powerlimits([-3, 3]) # 10^X power limits for prescale
+        cbar = fig.colorbar(im_obj, ax=ax, fraction=0.05, cmap=cmap, format=formatter)
         fig.tight_layout()
         fig.show()
         ## store plot
@@ -331,7 +335,10 @@ def main():
             ax.set_xlabel("$x$ [mm]")
         elif slice_name == "yz":
             ax.set_xlabel("$y$ [mm]")
-        plt.colorbar(im_obj)
+        cmap = plt.get_cmap('viridis')
+        formatter = ScalarFormatter(useMathText=True)
+        formatter.set_powerlimits([-3, 3]) # 10^X power limits for prescale
+        cbar = fig.colorbar(im_obj, ax=ax, fraction=0.05, cmap=cmap, format=formatter)
         # plot legend
         #ax.legend(prop={"size":14}, loc="upper center")
         legend_entries = {
@@ -350,7 +357,7 @@ def main():
     #"""
 
     ######################
-    ### TIME DIFFERENCE OF ARRIVAL TIMES
+    ### ARRIVAL TIMES
 
     ts = dt_muons["ts"]
     # calculate hist
@@ -361,7 +368,7 @@ def main():
     centers = centers*0.78
     # plot
     fig, ax = plt.subplots(1, 1, figsize=(7,6))
-    ax = hist_utils.plot_histogram(ax=ax, hist=hist, centers=centers, err_hist=err_hist, log_scale=True)
+    ax = hist_utils.plot_histogram(ax=ax, hist=hist, centers=centers, err_hist=err_hist, log_scale=False)
     xlabel = "$T$ [ns]"
     ax.set_xlabel(xlabel)
     fig.tight_layout()
