@@ -452,7 +452,7 @@ _muon_reco_z0 = 144 #170 #_scintillator["pos"][2] # in mm
 _raw_scint_hits_grouping_ts_tolerance = 100 # max temporal distance of raw scint groups, in tu
 
 # acceptance interval for scintillator hits (2 sipm coincidence of strips) -> muon areas (2 strip coincidence) grouping
-_scintillator_ts_acceptance_interval = 32 #32 #32 #1024 #32 #625 #64 #1250 #64 #32 # max temporal distance of ts values of scintillator that should be grouped together, in ts units
+_scintillator_ts_acceptance_interval = 32 #10 #32 #32 #32 #1024 #32 #625 #64 #1250 #64 #32 # max temporal distance of ts values of scintillator that should be grouped together, in ts units
 # 1280 = 1 us , 64 = 50 ns , 500 ~ 391 ns , 16 = 12.5 ns , 32 = 25 ns
 
 # acceptance interval for raw scintillator hits (single sipm hits) -> scintillator hits (2 sipm coincidence of strips) grouping
@@ -1338,7 +1338,7 @@ scint_pos = (
 _scintillator = {
     "type": "hodoscope",
     "lys": {
-        0: {
+        1: {
             "type": "strips",
             "orient": "phi",
             "size": (0., 0., 0.),
@@ -1348,7 +1348,7 @@ _scintillator = {
             "ch_spacer": (-_strip_w_spacer, -_strip_w_spacer, _strip_h_spacer), # size of spacer between strips
             "ch_size": (-_strip_width, -_strip_length, _strip_height), # size of strip
         },
-        1: {
+        0: {
             "type": "strips",
             "orient": "theta",
             "size": (0., 0., 0.),

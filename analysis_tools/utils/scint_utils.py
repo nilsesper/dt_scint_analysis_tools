@@ -853,7 +853,7 @@ def deadtime_raw_hits(hits, *, silent=False, dead_time=params._raw_scintillator_
                             cur_ts = ts_list[i] # deadtime wrt first hit
                             allowed_indices.append(i)
                         for k in cut_tmp_hits[ly][st][sipm].keys():
-                            cut_tmp_hits[ly][st][sipm][k] = cut_tmp_hits[ly][st][sipm][k][allowed_indices]
+                            cut_tmp_hits[ly][st][sipm][k] = copy.deepcopy(cut_tmp_hits[ly][st][sipm][k][allowed_indices])
                         n_cut_hits_after = len(cut_tmp_hits[ly][st][sipm]['ts'])
                         if not silent: print(f"ly{ly} st{st} sipm{sipm} dead time cut flow: {n_cut_hits_after} / {n_cut_hits} = {n_cut_hits_after/max(1,n_cut_hits)}")
         # merge back to tmp_hits

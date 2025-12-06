@@ -30,14 +30,14 @@ def main():
         help     = "input file path: dt reco muons (pcl file)",
     )
     parser.add_argument(
-        "--scint_hits_file",
+        "--scint_areas_file",
         type     = str,
-        help     = "input file path: scint hits (pcl file)",
+        help     = "input file path: scint areas (pcl file)",
     )
     parser.add_argument(
         "--corr_hits_file",
         type     = str,
-        help     = "input file path: indices of correlated hits (pcl file)",
+        help     = "input file path: indices of correlated areas (pcl file)",
     )
     ###
     parser.add_argument(
@@ -58,7 +58,7 @@ def main():
     # ---
     args = parser.parse_args()
     dt_muons_file = args.dt_muons_file
-    scint_hits_file = args.scint_hits_file
+    scint_areas_file = args.scint_areas_file
     corr_hits_file = args.corr_hits_file
     verbose = False
     if args.verbose:
@@ -73,28 +73,28 @@ def main():
     print(f"###### Importing scint & dt data...")
     dt_muons = data_utils.load_pickle(file=dt_muons_file)
     #print(f"sl_fit_groups =",sl_fit_groups)
-    scint_hits = data_utils.load_pickle(file=scint_hits_file)
+    scint_areas = data_utils.load_pickle(file=scint_areas_file)
     #print(f"scint_areas =",scint_areas)
     corr_list = copy.deepcopy(data_utils.load_pickle(file=corr_hits_file))
 
     # some basic things
     delta_ts_corr = []
-    err_delta_ts_corr = []
+    #err_delta_ts_corr = []
     dt_idcs = []
     scint_idcs = []
     correlation_counter = 0
     for scint_idx, dt_idx in corr_list:
         correlation_counter += 1
-        scint_ts = scint_hits["ts"][scint_idx]
-        err_scint_ts = scint_hits["err_ts"][scint_idx]
+        scint_ts = scint_areas["ts"][scint_idx]
+        #err_scint_ts = scint_areas["err_ts"][scint_idx]
         dt_ts = dt_muons["ts"][dt_idx]
         err_dt_ts = dt_muons["err_ts"][dt_idx]
         delta_ts_corr.append(np.float64(scint_ts) - np.float64(dt_ts))
-        err_delta_ts_corr.append(np.sqrt(err_scint_ts**2 + err_dt_ts**2))
+        #err_delta_ts_corr.append(np.sqrt(err_scint_ts**2 + err_dt_ts**2))
         dt_idcs.append(dt_idx)
         scint_idcs.append(scint_idx)
     delta_ts_corr = np.array(delta_ts_corr)
-    err_delta_ts_corr = np.array(err_delta_ts_corr)
+    #err_delta_ts_corr = np.array(err_delta_ts_corr)
     
     dt_idcs = np.array(dt_idcs, dtype=int)
     scint_idcs = np.array(scint_idcs, dtype=int)
@@ -104,8 +104,8 @@ def main():
     for k in dt_muons.keys():
         dt_corr_muons[k] = dt_muons[k][dt_idcs]
     scint_corr_hits = {}
-    for k in scint_hits.keys():
-        scint_corr_hits[k] = scint_hits[k][scint_idcs]
+    for k in scint_areas.keys():
+        scint_corr_hits[k] = scint_areas[k][scint_idcs]
 
     ### manual input of low occupancy wires to be shown in plot
     # dt chamber
@@ -116,7 +116,7 @@ def main():
     }
     # scintillator
     low_occ_strips = [ # (ly, st)
-        (0, 8), (0, 14),
+        
     ]
 
 
@@ -126,7 +126,7 @@ def main():
     #### rates
     duration = 0.78e-9 * (np.amax(dt_muons["ts"]) - np.amin(dt_muons["ts"])) # secs
     print(f"duration = {duration} s")
-    scint_rate = data_utils.length(scint_hits) / duration
+    scint_rate = data_utils.length(scint_areas) / duration
     print(f"scintillator rate = {scint_rate} Hz")
     dt_rate = data_utils.length(dt_muons) / duration
     print(f"dt total rate = {dt_rate} Hz")
@@ -235,7 +235,7 @@ def main():
     fig.show()
     ## store plot
     if args.store_path:
-        hist_plot_file = args.store_path+"/"+f"CORRELATED_HITS_SPECIFIC_xy.pdf"
+        hist_plot_file = args.store_path+"/"+f"CORRELATED_AREAS_SPECIFIC_xy.pdf"
         print(f"store histogram plot as {hist_plot_file}.")
         fig.savefig(hist_plot_file)
 
@@ -363,7 +363,7 @@ def main():
         fig.show()
         ## store plot
         if args.store_path:
-            hist_plot_file = args.store_path+"/"+f"CORRELATED_HITS_SPECIFIC_{slice_name}.pdf"
+            hist_plot_file = args.store_path+"/"+f"CORRELATED_AREAS_SPECIFIC_{slice_name}.pdf"
             print(f"store histogram plot as {hist_plot_file}.")
             fig.savefig(hist_plot_file)
     #"""
@@ -387,7 +387,7 @@ def main():
     fig.show()
     ## store plot
     if args.store_path:
-        hist_plot_file = args.store_path+"/"+f"CORRELATED_HITS_SPECIFIC_MUON_TS.pdf"
+        hist_plot_file = args.store_path+"/"+f"CORRELATED_AREAS_SPECIFIC_MUON_TS.pdf"
         print(f"store histogram plot as {hist_plot_file}.")
         fig.savefig(hist_plot_file)
 
@@ -421,7 +421,7 @@ def main():
         fig.show()
         ## store plot
         if args.store_path:
-            hist_plot_file = args.store_path+"/"+f"CORRELATED_HITS_SPECIFIC_MUON_DELTA-TS_{binning_name}.pdf"
+            hist_plot_file = args.store_path+"/"+f"CORRELATED_AREAS_SPECIFIC_MUON_DELTA-TS_{binning_name}.pdf"
             print(f"store histogram plot as {hist_plot_file}.")
             fig.savefig(hist_plot_file)
 
@@ -444,7 +444,7 @@ def main():
     fig.show()
     ## store plot
     if args.store_path:
-        hist_plot_file = args.store_path+"/"+f"CORRELATED_HITS_SPECIFIC_CORR_DELTA-TS.pdf"
+        hist_plot_file = args.store_path+"/"+f"CORRELATED_AREAS_SPECIFIC_CORR_DELTA-TS.pdf"
         print(f"store histogram plot as {hist_plot_file}.")
         fig.savefig(hist_plot_file)
 
@@ -547,7 +547,7 @@ def main():
             fig.show()
             ## store plot
             if args.store_path:
-                hist_plot_file = args.store_path+"/"+f"CORRELATED_HITS_SPECIFIC_{slice_name}_BEFOREMATCHING.pdf"
+                hist_plot_file = args.store_path+"/"+f"CORRELATED_AREAS_SPECIFIC_{slice_name}_BEFOREMATCHING.pdf"
                 print(f"store histogram plot as {hist_plot_file}.")
                 fig.savefig(hist_plot_file)
     #"""

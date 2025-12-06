@@ -10,6 +10,7 @@ import matplotlib as mpl
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 import copy
 import argparse
+from matplotlib.ticker import ScalarFormatter
 
 from analysis_tools.utils import dummy_gen, data_utils, dt_utils, scint_utils, timestamp_utils, geoplot_utils, muon_utils, math_utils, hist_utils, process_utils
 from analysis_tools.params import params, derived_params
@@ -382,7 +383,7 @@ def main():
     ########################
     ####### rate plot (multiple bar plots)
     ############ occupancy
-    fig, ax = plt.subplots(2, 1, figsize=(16,8), sharex=True)
+    fig, ax = plt.subplots(2, 1, figsize=(16,6), sharex=True)
     # put both layers in one plot
     for ly in range(0,2):
         strips = np.arange(0,16)
@@ -397,6 +398,8 @@ def main():
         ax[ly].set_title(f"Layer {ly}", fontsize=20)
         # ax limits
         ax[ly].set_ylim(bottom=0, top=np.amax(strip_hits+err_strip_hits)*1.1)
+        ax[ly].yaxis.set_major_formatter(ScalarFormatter(useMathText=True))
+        ax[ly].yaxis.get_major_formatter().set_powerlimits([-3, 3]) # 10^X power limits for prescale
         #ax[2*ly+sipm].set_yscale("log")
         #ax[2*ly+sipm].set_ylim(bottom=5000, top=np.amax(strip_hits+err_strip_hits)*np.exp(1.1))
         fig.tight_layout()
@@ -407,7 +410,7 @@ def main():
             print(f"store histogram plot as {hist_plot_file}.")
             fig.savefig(hist_plot_file)
     ############# rate
-    fig, ax = plt.subplots(2, 1, figsize=(16,8), sharex=True)
+    fig, ax = plt.subplots(2, 1, figsize=(16,6), sharex=True)
     # put both layers in one plot
     for ly in range(0,2):
         strips = np.arange(0,16)
@@ -419,10 +422,12 @@ def main():
         ax[ly].bar(strips, bottom=strip_rates-err_strip_rates, height=2*err_strip_rates, width=1, align="center", hatch="xxx", fill=False, edgecolor="0.2", linestyle="")
         if ly == 1:
             ax[ly].set_xlabel("Strip")
-        ax[ly].set_xlabel("Rate [Hz]")
+        ax[ly].set_ylabel("Rate [Hz]")
         ax[ly].set_title(f"Layer {ly}", fontsize=20)
         # ax limits
         ax[ly].set_ylim(bottom=0, top=np.amax(strip_rates+err_strip_rates)*1.1)
+        ax[ly].yaxis.set_major_formatter(ScalarFormatter(useMathText=True))
+        ax[ly].yaxis.get_major_formatter().set_powerlimits([-3, 3]) # 10^X power limits for prescale
         #ax[2*ly+sipm].set_yscale("log")
         #ax[2*ly+sipm].set_ylim(bottom=5000, top=np.amax(strip_hits+err_strip_hits)*np.exp(1.1))
         fig.tight_layout()
@@ -433,6 +438,27 @@ def main():
             print(f"store histogram plot as {hist_plot_file}.")
             fig.savefig(hist_plot_file)
 
+    ######################
+    ### COINCIDENCE: TIME DIFFERENCE OF SIPMS OF THIS STRIP HIT
+
+    # import data
+    delta_ts_sipm = scint_hits["sipm_delta_ts"]
+    # calculate hist
+    edges, n_bins, centers = hist_utils.generate_histogram_edges(arg="step1", data_min_val=np.amin(delta_ts_sipm), data_max_val=np.amax(delta_ts_sipm))
+    hist, _, _, entries, underflow, overflow, hist_err_right, hist_err_left = hist_utils.calculate_histogram_and_shifted_histograms(data=delta_ts_sipm, edges=edges)
+    err_hist, err_hist_down, err_hist_up = hist_utils.calculate_hist_uncertainty(hist=hist, hist_err_right=hist_err_right, hist_err_left=hist_err_left, do_stat_err=True)
+    # plot
+    fig, ax = plt.subplots(1, 1, figsize=(7,6))
+    ax = hist_utils.plot_histogram(ax=ax, hist=hist, centers=centers, err_hist=err_hist, log_scale=False)
+    xlabel = "$\\Delta T_\\text{SiPMs}$ [ns]"
+    ax.set_xlabel(xlabel)
+    fig.tight_layout()
+    fig.show()
+    ## store plot
+    if args.store_path:
+        hist_plot_file = args.store_path+"/"+f"SCINT_HITS_SPECIFIC_SIPM-TS-DIFF.pdf"
+        print(f"store histogram plot as {hist_plot_file}.")
+        fig.savefig(hist_plot_file)
 
     ######################
     ### TIME DIFFERENCE OF ARRIVAL TIMES
@@ -448,7 +474,7 @@ def main():
 
     binnings = [ # (binning name, binning arg)
         ( "fullrange", f"linear,0,{np.amax(ts_diff)},100" ),
-        ( "closeup", f"linear,0,10000,100" ),
+        ( "closeup", f"linear,0,200,200" ),
     ]
     for binning_name, binning_arg in binnings:
         # calculate hist
@@ -486,7 +512,7 @@ def main():
 
     binnings = [ # (binning name, binning arg)
         ( "fullrange", f"linear,0,{np.amax(ts_diff)},100" ),
-        ( "closeup", f"linear,0,10000,100" ),
+        ( "closeup", f"linear,0,200,200" ),
     ]
     for binning_name, binning_arg in binnings:
         # calculate hist
@@ -525,7 +551,7 @@ def main():
 
     binnings = [ # (binning name, binning arg)
         ( "fullrange", f"linear,0,{np.amax(ts_diff)},100" ),
-        ( "closeup", f"linear,0,10000,100" ),
+        ( "closeup", f"linear,0,200,200" ),
     ]
     for binning_name, binning_arg in binnings:
         # calculate hist

@@ -18,7 +18,7 @@
 # calculate dt
     python split_scripts/split_utils/analysis_run_control.py --base_path thesis_data_files/large_combined_data_run/ --data_config_file thesis_data_files/large_combined_data_run/data_config_file_all.txt --task_list "dump_dt_nodeadtime,dt_corr,dt_patterns,dt_fits,dt_fit_cuts,dt_fit_groups,dt_muons" --task_for_each_set --n_proc 12
 # calculate scint
-    python split_scripts/split_utils/analysis_run_control.py --base_path thesis_data_files/large_combined_data_run/ --data_config_file thesis_data_files/large_combined_data_run/data_config_file_all.txt --task_list "scint_dead_time,scint_raw_groups,scint_hits,scint_pixels" --task_for_each_set --n_proc 12
+    python split_scripts/split_utils/analysis_run_control.py --base_path thesis_data_files/large_combined_data_run/ --data_config_file thesis_data_files/large_combined_data_run/data_config_file_all.txt --task_list "scint_dead_time,scint_raw_groups,scint_hits" --task_for_each_set --n_proc 12
 
 ########################################################
 ############## DRIFT TUBES
@@ -258,6 +258,13 @@
 # plot
     python split_scripts/split_utils_scint/plot_raw_scint_hit_diff_from_split_data.py --base_path thesis_data_files/large_combined_data_run/ --data_config_file thesis_data_files/large_combined_data_run/data_config_file_finished.txt --store_path ~/masterarbeit/thesis/resources/images/large_combined_data_plots/ --dataset RAW_SCINT_HITS_DEADTIME --fig_size "7,6" --suffix closeup
 
+######## raw scint hit groups:
+
+## hist: "n_hits"
+# calculate & plot
+    python split_scripts/split_utils/hist_from_split_data.py --base_path thesis_data_files/large_combined_data_run/ --data_config_file thesis_data_files/large_combined_data_run/data_config_file_finished.txt --dataset RAW_SCINT_GROUPS --key "n_hits" --edges "step1" &&
+    python split_scripts/split_utils/plot_hist_from_split_data.py --base_path thesis_data_files/large_combined_data_run/ --data_config_file thesis_data_files/large_combined_data_run/data_config_file_finished.txt --store_path ~/masterarbeit/thesis/resources/images/large_combined_data_plots/ --dataset RAW_SCINT_GROUPS --key "n_hits" --fig_size "7,6" --use_asymm_err --log_y_scale
+
 ######## scint hits (strips):
 
 ##### advanced plotting
@@ -337,8 +344,16 @@ python split_scripts/split_utils_scint/raw_scint_hit_diff_from_split_data.py --b
     python scripts/combined/correlate_dt_muons_and_scint_hits.py --dt_muons_file thesis_data_files/large_combined_data_run/53_comb__MERGED_DT_MUONS.pcl --scint_hits_file thesis_data_files/large_combined_data_run/53_comb__MERGED_SCINT_HITS.pcl --corr_hits_file thesis_data_files/large_combined_data_run/MERGED_CORR_HITS.pcl
 # plot
     python scripts/combined/plot_corr_dt_muons_scint_hits.py --dt_muons_file thesis_data_files/large_combined_data_run/53_comb__MERGED_DT_MUONS.pcl --scint_hits_file thesis_data_files/large_combined_data_run/53_comb__MERGED_SCINT_HITS.pcl --corr_hits_file thesis_data_files/large_combined_data_run/MERGED_CORR_HITS.pcl --store_path ~/masterarbeit/thesis/resources/images/large_combined_data_plots/
+# plot also unmatched dt tracks
+    python scripts/combined/plot_corr_dt_muons_scint_hits.py --dt_muons_file thesis_data_files/large_combined_data_run/53_comb__MERGED_DT_MUONS.pcl --scint_hits_file thesis_data_files/large_combined_data_run/53_comb__MERGED_SCINT_HITS.pcl --corr_hits_file thesis_data_files/large_combined_data_run/MERGED_CORR_HITS.pcl --store_path ~/masterarbeit/thesis/resources/images/large_combined_data_plots/ --also_plot_unmatched
 
-
+##### correlate dt muons and scint areas
+# calculate
+    python scripts/combined/correlate_dt_muons_and_scint_areas.py --dt_muons_file thesis_data_files/large_combined_data_run/53_comb__MERGED_DT_MUONS.pcl --scint_areas_file thesis_data_files/large_combined_data_run/53_comb__MERGED_SCINT_AREAS.pcl --corr_hits_file thesis_data_files/large_combined_data_run/MERGED_CORR_AREAS.pcl
+# plot
+    python scripts/combined/plot_corr_dt_muons_scint_areas.py --dt_muons_file thesis_data_files/large_combined_data_run/53_comb__MERGED_DT_MUONS.pcl --scint_areas_file thesis_data_files/large_combined_data_run/53_comb__MERGED_SCINT_AREAS.pcl --corr_hits_file thesis_data_files/large_combined_data_run/MERGED_CORR_AREAS.pcl --store_path ~/masterarbeit/thesis/resources/images/large_combined_data_plots/
+# plot also unmatched dt tracks
+    python scripts/combined/plot_corr_dt_muons_scint_areas.py --dt_muons_file thesis_data_files/large_combined_data_run/53_comb__MERGED_DT_MUONS.pcl --scint_areas_file thesis_data_files/large_combined_data_run/53_comb__MERGED_SCINT_AREAS.pcl --corr_hits_file thesis_data_files/large_combined_data_run/MERGED_CORR_AREAS.pcl --store_path ~/masterarbeit/thesis/resources/images/large_combined_data_plots/ --also_plot_unmatched
 
 
 
