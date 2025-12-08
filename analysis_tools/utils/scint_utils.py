@@ -114,10 +114,15 @@ def hits_from_muons(muons, *, silent=False):
         (x,y,z) = muon_utils.propagate_muons(muons=muons, z=z_pos) # propagate all muons together
         if not silent: print(f"  Progress: LY {ly}...")
         for st in tqdm(range(params._scintillator["lys"][ly]["n_sts"]), disable=silent):
+            # scint coordinates
+            scint_x_min = np.amin([derived_params._scintillator_strip_coordinates[ly][st][0][0], derived_params._scintillator_strip_coordinates[ly][st][0][1]])
+            scint_x_max = np.amax([derived_params._scintillator_strip_coordinates[ly][st][0][0], derived_params._scintillator_strip_coordinates[ly][st][0][1]])
+            scint_y_min = np.amin([derived_params._scintillator_strip_coordinates[ly][st][1][0], derived_params._scintillator_strip_coordinates[ly][st][1][1]])
+            scint_y_max = np.amax([derived_params._scintillator_strip_coordinates[ly][st][1][0], derived_params._scintillator_strip_coordinates[ly][st][1][1]])
             # check for all muons separately
             for i in range(n_muons):
                 # check if muon propagated inside of x and y range of cell, use >= but < to suppress double hits
-                if (x[i] >= derived_params._scintillator_strip_coordinates[ly][st][0][0] and x[i] < derived_params._scintillator_strip_coordinates[ly][st][0][1]) and (y[i] >= derived_params._scintillator_strip_coordinates[ly][st][1][0] and y[i] < derived_params._scintillator_strip_coordinates[ly][st][1][1]):
+                if (x[i] >= scint_x_min and x[i] < scint_x_max) and (y[i] >= scint_y_min and y[i] < scint_y_max):
                     # calculate drift distance
                     hit_coord = x[i] if (params._scintillator["lys"][ly]["orient"] == "phi") else y[i]
                     xleft_strip_coord = derived_params._scintillator_strip_coordinates[ly][st][0][0] if (params._scintillator["lys"][ly]["orient"] == "phi") else derived_params._scintillator_strip_coordinates[ly][st][1][0]
@@ -127,6 +132,7 @@ def hits_from_muons(muons, *, silent=False):
                     hit_ts = np.uint64(muon_ts + params._scintillator_hit_delay) # assume constant delay: hit timestamp = muon timestamp + scint delay
                     # store this hit
                     scint_hit_list.append({"muon_ts": muon_ts, "ly": ly, "st": st, "xhit": xhit, "hit_ts": hit_ts, "muon_id": i})
+                #print(f"ly = {ly} , st={st} , muon = ( {x[i]}, {y[i]}, {z_pos} )  ,  scint = ( {derived_params._scintillator_strip_coordinates[ly][st][0][0]} - {derived_params._scintillator_strip_coordinates[ly][st][0][1]} , {derived_params._scintillator_strip_coordinates[ly][st][1][0]} - {derived_params._scintillator_strip_coordinates[ly][st][1][1]} , {derived_params._scintillator_strip_coordinates[ly][st][5]} )")
     # convert dt_hit_list to proper format object dt_hits
     n_hits = len(scint_hit_list)
     # map sl,ly,wi to all other keys of dt -> map back to obdt channels & oc,bx,tdc timestamp
@@ -695,9 +701,14 @@ def raw_scint_groups_to_strips(groups, hits, *, silent=False, isolation_criterio
                 (oc_reco, bx_reco, tdc_reco) = timestamp_utils.remap_htg_timestamp(ts_reco)
                 # calculate ts difference between hits (absolute value)
                 sipm_delta_ts = delta_ts
+                # signed time difference sipm0 - sipm1
+                sipm_0_idx = idx0 if (hits["sipm"][idx0] == 0) else idx1
+                sipm_1_idx = idx0 if (hits["sipm"][idx0] == 1) else idx1
+                sipm_delta_ts_signed = hits["ts"][sipm_0_idx] - hits["ts"][sipm_1_idx]
                 # extract from scint mapping table 
                 scint_ch_id = derived_params._scint_inverted_remap_table[ly][st]["ch_id"]
                 scint_ch = derived_params._scint_inverted_remap_table[ly][st]["ch"]
+                print(f"ly={ref_ly}, st={st}, delta_ts={sipm_delta_ts_signed}, n_hits_st={len(cur_st_hits[st])}, hit0=[ly={hits['ly'][sipm_0_idx]}, ly={hits['ly'][sipm_0_idx]}, st={hits['st'][sipm_0_idx]}, sipm={hits['sipm'][sipm_0_idx]}, ts={hits['ts'][sipm_0_idx]}], hit1=[ly={hits['ly'][sipm_1_idx]}, ly={hits['ly'][sipm_1_idx]}, st={hits['st'][sipm_1_idx]}, sipm={hits['sipm'][sipm_1_idx]}, ts={hits['ts'][sipm_1_idx]}]")
                 # store strip hit
                 strip_hits.append({
                     "ly": ref_ly,
@@ -709,6 +720,7 @@ def raw_scint_groups_to_strips(groups, hits, *, silent=False, isolation_criterio
                     "bx": bx_reco,
                     "tdc": tdc_reco,
                     "sipm_delta_ts": sipm_delta_ts,
+                    "sipm_delta_ts_signed": sipm_delta_ts_signed,
                 })
     # store in proper format
     n_scint_hits = len(strip_hits)

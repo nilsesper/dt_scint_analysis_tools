@@ -490,6 +490,7 @@ _scint_other_keys = {
     "xhit": np.float64, # relative hit position: x_hit = xhit + xleft(lower x coord of strip) (in mm)
     "muon_id": np.uint64, # id / idx of correlated muon
     "sipm_delta_ts": _ts_type, # ts difference between two sipm hits of the strip
+    "sipm_delta_ts_signed": _ts_type,
     "st_delta_last_ts0": _ts_type, # time difference to last scint hit for sipm0 hit ts
     "st_delta_last_ts1": _ts_type, # time difference to last scint hit for sipm1 hit ts
     "st_delta_last_ts": _ts_type, # time difference to last scint hit (mean ts)

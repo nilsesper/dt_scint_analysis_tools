@@ -439,6 +439,30 @@ def main():
             fig.savefig(hist_plot_file)
 
     ######################
+    ### HIT TIMESTAMPS
+
+    # import data
+    ts_list = scint_hits["ts"]
+    # calculate hist
+    edges, n_bins, centers = hist_utils.generate_histogram_edges(arg=f"linear,0,{np.amax(ts_list)},100")
+    hist, _, _, entries, underflow, overflow, hist_err_right, hist_err_left = hist_utils.calculate_histogram_and_shifted_histograms(data=ts_list, edges=edges)
+    err_hist, err_hist_down, err_hist_up = hist_utils.calculate_hist_uncertainty(hist=hist, hist_err_right=hist_err_right, hist_err_left=hist_err_left, do_stat_err=True)
+    # tu to ns
+    centers = centers*0.78
+    # plot
+    fig, ax = plt.subplots(1, 1, figsize=(7,6))
+    ax = hist_utils.plot_histogram(ax=ax, hist=hist, centers=centers, err_hist=err_hist, log_scale=False)
+    xlabel = "$T$ [ns]"
+    ax.set_xlabel(xlabel)
+    fig.tight_layout()
+    fig.show()
+    ## store plot
+    if args.store_path:
+        hist_plot_file = args.store_path+"/"+f"SCINT_HITS_SPECIFIC_TS.pdf"
+        print(f"store histogram plot as {hist_plot_file}.")
+        fig.savefig(hist_plot_file)
+
+    ######################
     ### COINCIDENCE: TIME DIFFERENCE OF SIPMS OF THIS STRIP HIT
 
     # import data
@@ -447,6 +471,8 @@ def main():
     edges, n_bins, centers = hist_utils.generate_histogram_edges(arg="step1", data_min_val=np.amin(delta_ts_sipm), data_max_val=np.amax(delta_ts_sipm))
     hist, _, _, entries, underflow, overflow, hist_err_right, hist_err_left = hist_utils.calculate_histogram_and_shifted_histograms(data=delta_ts_sipm, edges=edges)
     err_hist, err_hist_down, err_hist_up = hist_utils.calculate_hist_uncertainty(hist=hist, hist_err_right=hist_err_right, hist_err_left=hist_err_left, do_stat_err=True)
+    # tu to ns
+    centers = centers*0.78
     # plot
     fig, ax = plt.subplots(1, 1, figsize=(7,6))
     ax = hist_utils.plot_histogram(ax=ax, hist=hist, centers=centers, err_hist=err_hist, log_scale=False)
@@ -457,6 +483,109 @@ def main():
     ## store plot
     if args.store_path:
         hist_plot_file = args.store_path+"/"+f"SCINT_HITS_SPECIFIC_SIPM-TS-DIFF.pdf"
+        print(f"store histogram plot as {hist_plot_file}.")
+        fig.savefig(hist_plot_file)
+
+    ######################
+    ### COINCIDENCE: SIGNED TIME DIFFERENCE OF SIPMS OF THIS STRIP HIT
+
+    # import data
+    delta_ts_sipm = scint_hits["sipm_delta_ts_signed"]
+    # calculate hist
+    edges, n_bins, centers = hist_utils.generate_histogram_edges(arg="step1", data_min_val=np.amin(delta_ts_sipm), data_max_val=np.amax(delta_ts_sipm))
+    hist, _, _, entries, underflow, overflow, hist_err_right, hist_err_left = hist_utils.calculate_histogram_and_shifted_histograms(data=delta_ts_sipm, edges=edges)
+    err_hist, err_hist_down, err_hist_up = hist_utils.calculate_hist_uncertainty(hist=hist, hist_err_right=hist_err_right, hist_err_left=hist_err_left, do_stat_err=True)
+    # tu to ns
+    centers = centers*0.78
+    # plot
+    fig, ax = plt.subplots(1, 1, figsize=(7,6))
+    ax = hist_utils.plot_histogram(ax=ax, hist=hist, centers=centers, err_hist=err_hist, log_scale=False)
+    xlabel = "$\\Delta T_\\text{SiPMs}$ [ns]"
+    ax.set_xlabel(xlabel)
+    fig.tight_layout()
+    fig.show()
+    ## store plot
+    if args.store_path:
+        hist_plot_file = args.store_path+"/"+f"SCINT_HITS_SPECIFIC_SIPM-TS-DIFF_SIGNED.pdf"
+        print(f"store histogram plot as {hist_plot_file}.")
+        fig.savefig(hist_plot_file)
+
+    ######################
+    ### COINCIDENCE: TIME DIFFERENCE OF SIPMS OF THIS STRIP HIT
+    ### SEPARATELY PLOTTED FOR ALL STRIPS
+
+    # calculate ts difference of consecutive scint hits
+    ts_diffs = {} # (ly,st): ts_diffs
+    for ly in range(0,2):
+        for st in range(0,16):
+            cut_scint_hits = data_utils.cut_data(data=scint_hits, conditions=[("ly","==",ly),("st","==",st)], silent=True)
+            cut_scint_hits = timestamp_utils.sort_by_timestamp(hits=cut_scint_hits, silent=True)
+            n_cut_scint_hits = data_utils.length(cut_scint_hits)
+            ts_diff_list = cut_scint_hits["sipm_delta_ts"]
+            ts_diffs[(ly,st)] = np.array(ts_diff_list)
+
+    fig, ax = plt.subplots(4, 8, figsize=(17,10), sharex=True, sharey=True)
+    for ly in range(0,2):
+        for st in range(0,16):
+            if ly == 1 and st//8 == 1:
+                ax[2*ly+st//8][st%8].set_xlabel(f"$\\Delta T_\\text{{SiPMs}}$ [ns]")
+            ax[2*ly+st//8][st%8].set_title(f"Ly {ly}, St {st}", fontsize=20)
+            # calculate hist
+            ts_diff = ts_diffs[(ly,st)]
+            if len(ts_diff) == 0:
+                continue
+            edges, n_bins, centers = hist_utils.generate_histogram_edges(arg="step1", data_min_val=np.amin(ts_diff), data_max_val=np.amax(ts_diff))
+            hist, _, _, entries, underflow, overflow, hist_err_right, hist_err_left = hist_utils.calculate_histogram_and_shifted_histograms(data=ts_diff, edges=edges)
+            err_hist, err_hist_down, err_hist_up = hist_utils.calculate_hist_uncertainty(hist=hist, hist_err_right=hist_err_right, hist_err_left=hist_err_left, do_stat_err=True)
+            # tu to ns
+            centers = centers*0.78
+            # plot
+            ax[2*ly+st//8][st%8] = hist_utils.plot_histogram(ax=ax[2*ly+st//8][st%8], hist=hist, centers=centers, err_hist=err_hist, log_scale=False)
+    fig.tight_layout()
+    fig.show()
+    ## store plot
+    if args.store_path:
+        hist_plot_file = args.store_path+"/"+f"SCINT_HITS_SPECIFIC_DELTA-TS_SEPARATE.pdf"
+        print(f"store histogram plot as {hist_plot_file}.")
+        fig.savefig(hist_plot_file)
+
+    ######################
+    ### COINCIDENCE: SIGNED TIME DIFFERENCE OF SIPMS OF THIS STRIP HIT
+    ### SEPARATELY PLOTTED FOR ALL STRIPS
+
+    # calculate ts difference of consecutive scint hits
+    ts_diffs = {} # (ly,st): ts_diffs
+    for ly in range(0,2):
+        for st in range(0,16):
+            cut_scint_hits = data_utils.cut_data(data=scint_hits, conditions=[("ly","==",ly),("st","==",st)], silent=True)
+            cut_scint_hits = timestamp_utils.sort_by_timestamp(hits=cut_scint_hits, silent=True)
+            n_cut_scint_hits = data_utils.length(cut_scint_hits)
+            ts_diff_list = cut_scint_hits["sipm_delta_ts_signed"]
+            ts_diffs[(ly,st)] = np.array(ts_diff_list)
+
+    fig, ax = plt.subplots(4, 8, figsize=(17,10), sharex=True, sharey=True) # constrained_layout=True
+    for ly in range(0,2):
+        for st in range(0,16):
+            if ly == 1 and st//8 == 1:
+                ax[2*ly+st//8][st%8].set_xlabel(f"$\\Delta T_\\text{{SiPMs}}$ [ns]")
+            ax[2*ly+st//8][st%8].set_title(f"Ly {ly}, St {st}", fontsize=20)
+            # calculate hist
+            ts_diff = ts_diffs[(ly,st)]
+            if len(ts_diff) == 0:
+                continue
+            edges, n_bins, centers = hist_utils.generate_histogram_edges(arg="step1", data_min_val=np.amin(ts_diff), data_max_val=np.amax(ts_diff))
+            hist, _, _, entries, underflow, overflow, hist_err_right, hist_err_left = hist_utils.calculate_histogram_and_shifted_histograms(data=ts_diff, edges=edges)
+            err_hist, err_hist_down, err_hist_up = hist_utils.calculate_hist_uncertainty(hist=hist, hist_err_right=hist_err_right, hist_err_left=hist_err_left, do_stat_err=True)
+            # tu to ns
+            centers = centers*0.78
+            # plot
+            ax[2*ly+st//8][st%8] = hist_utils.plot_histogram(ax=ax[2*ly+st//8][st%8], hist=hist, centers=centers, err_hist=err_hist, log_scale=False)
+    #fig.subplots_adjust(wspace=0.01, hspace=0.01)
+    fig.tight_layout(pad=0.4, w_pad=0.5, h_pad=1.0)
+    fig.show()
+    ## store plot
+    if args.store_path:
+        hist_plot_file = args.store_path+"/"+f"SCINT_HITS_SPECIFIC_DELTA-TS_SIGNED_SEPARATE.pdf"
         print(f"store histogram plot as {hist_plot_file}.")
         fig.savefig(hist_plot_file)
 
@@ -573,7 +702,57 @@ def main():
             print(f"store histogram plot as {hist_plot_file}.")
             fig.savefig(hist_plot_file)
 
-    
+    ########################
+    ####### find dead & noisy cells
+
+    # mean rate all cells (incl dead and noisy ones)
+    total_count_all_cells = 0
+    n_cells = 0
+    for ly in range(0, 2):
+        for st in range(0, 16):
+            total_count_all_cells += raw_counts[ly][st]
+            n_cells += 1
+    duration_seconds = duration
+    print(f"total count all strips: {total_count_all_cells} +- {np.sqrt(total_count_all_cells)}")
+    print(f"mean count all strips: {total_count_all_cells/n_cells} +- {np.sqrt(total_count_all_cells)/n_cells}")
+    print(f"mean rate all strips: {total_count_all_cells/n_cells/duration_seconds} +- {np.sqrt(total_count_all_cells)/n_cells/duration_seconds} Hz")
+
+    # find dead and noisy cells
+    print("dead and noisy chs:")
+    count_thres = total_count_all_cells/n_cells
+    dead_cells = [] # list of (ly, st) with low rates - considered "dead" and are not considered in rate averaging
+    noisy_cells = [] # list of (ly, st) with high rates - considered "noisy" and are not considered in rate averaging
+    thres_fac = 50
+    for ly in range(0, 2):
+        for st in range(0, 16):
+            if raw_counts[ly][st] < 1/thres_fac*count_thres:
+                print(f"  low occupancy in  ly={ly:1}, st={st:2}")
+                dead_cells.append((ly,st))
+            if raw_counts[ly][st] > thres_fac*count_thres:
+                print(f"  high occupancy in ly={ly:1}, st={st:2}")
+                noisy_cells.append((ly,st))
+
+    #"""
+    ########################
+    ####### average scint rates (without dead channels)
+
+    ly0_total_count, ly1_total_count = 0, 0
+    n_ly0, n_ly1 = 0, 0
+    for ly in range(0, 2):
+        for st in range(0, 16):
+            if (ly,st) not in dead_cells:
+                if ly == 0:
+                    ly0_total_count += raw_counts[ly][st]
+                    n_ly0 += 1
+                if ly == 1:
+                    ly1_total_count += raw_counts[ly][st]
+                    n_ly1 += 1
+    print(f"* = dead or noisy cells not considered")
+    print(f"average ly 0 strip rate *  : {ly0_total_count/n_ly0/duration_seconds} +- {np.sqrt(ly0_total_count)/n_ly0/duration_seconds} Hz")
+    print(f"average ly 1 strip rate *  : {ly1_total_count/n_ly1/duration_seconds} +- {np.sqrt(ly1_total_count)/n_ly1/duration_seconds} Hz")
+    print(f"average strip rate *       : {(ly0_total_count+ly1_total_count)/(n_ly0+n_ly1)/duration_seconds} +- {np.sqrt(ly0_total_count+ly1_total_count)/(n_ly0+n_ly1)/duration_seconds} Hz")
+    #"""
+
 
 
 

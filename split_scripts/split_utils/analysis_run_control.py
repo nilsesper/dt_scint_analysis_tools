@@ -69,6 +69,7 @@ allowed_tasks = {
     "scint_pixels": # construct scintillator pixel hits from groups
         "python scripts/scint/raw_groups_to_scint_areas.py --raw_scint_hits_file [RAW_SCINT_HITS_DEADTIME] --raw_scint_groups_file [RAW_SCINT_GROUPS] --scint_areas_file [SCINT_AREAS]",
     ### simulation workflow
+    # dt sim
     "gen_muons_sim": # generate cosmic muon tracks with monte carlo method
         "python scripts/sim/gen_cosmic_tracks.py --cosmic_muons_file [SIM_MUONS]",
     "dt_hits_sim": # propagate cosmic muon tracks through dt chamber geometry and generate simulated dt hits
@@ -77,6 +78,9 @@ allowed_tasks = {
         "python scripts/sim/sim_dt_hits_apply_cuts.py --input_data_file [DT_HITS_SIM] --cut_data_file [DT_HITS]",
     "dt_skip_corr": # skip correction (as in simulation it is not necessary)
         "cp [DT_HITS] [DT_CORR_HITS]",
+    # scint sim
+    "scint_hits_sim":
+        "python scripts/sim/cosmic_tracks_to_scint_hits.py --cosmic_muons_file [SIM_MUONS] --scint_hits_file [SCINT_HITS] --ts_range_file [TS_RANGE]",
 }
 ### filepath wildcards:
 prefix_wildcard_list = [
