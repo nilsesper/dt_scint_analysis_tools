@@ -396,7 +396,7 @@ def err_proj_glob_muon(orient, z, x0, y0, z0, theta, phi, err_x0, err_y0, err_z0
 ### scintillator geometry --> in global coord frame
 # calculate positions of center axis for all strips
 # allows to easily check if muon has hit scintillator
-# _dt_cell_coordinates = {ly: {st: [[xmin, xmax], [ymin, ymax], [zmin, zmax], x_center_pos, y_center_pos, z_center_pos]}}
+# _scintillator_strip_coordinates = {ly: {st: [[xmin, xmax], [ymin, ymax], [zmin, zmax], x_center_pos, y_center_pos, z_center_pos]}}
 _scintillator_strip_coordinates = {}
 for ly in range(params._scintillator["n_lys"]):
     _scintillator_strip_coordinates[ly] = {}
