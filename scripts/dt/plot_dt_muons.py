@@ -216,7 +216,7 @@ def main():
 
         pos_muons_hist2d, _, _ = np.histogram2d(x=dt_muons_sl["y0"], y=dt_muons_sl["x0"], bins=(y_edges, x_edges))
         # plot
-        fig, ax = plt.subplots(1, 1, figsize=fig_size)
+        fig, ax = plt.subplots(1, 1, figsize=(8.2,8))
         im_obj = ax.imshow(X=pos_muons_hist2d, origin="lower", extent=[min(x_bins), max(x_bins), min(y_bins), max(y_bins)])
         # draw sl into plot
         patches = []
@@ -254,11 +254,19 @@ def main():
         ax.set_title(f"DT tracks in SL {sl} ($z={np.round(derived_params.sl_z_center[sl],0):.0f}$mm)", fontsize=20)
         ax.set_ylabel("$y$ [mm]")
         ax.set_xlabel("$x$ [mm]")
-        ax.legend(prop={"size":14}, loc="center left", fancybox=False)
+        ax.legend(prop={"size":14}, loc="center left", fancybox=False, framealpha=params._legend_alpha)
         cmap = plt.get_cmap('viridis')
         formatter = ScalarFormatter(useMathText=True)
         formatter.set_powerlimits([-3, 3]) # 10^X power limits for prescale
         cbar = fig.colorbar(im_obj, ax=ax, fraction=0.05, cmap=cmap, format=formatter)
+        cbar.set_label("Counts")
+        # info box
+        info_font_size = 10
+        entries = int(np.sum(pos_muons_hist2d))
+        not_shown = int(data_utils.length(dt_muons_sl)-entries)
+        info_str = f"entries = {entries}\nnot shown = {not_shown}\ntotal = {entries+not_shown}\nbin count = {len(x_edges)*len(y_edges)}\nbin width = {x_bin_width} mm $\\times$ {z_bin_width} mm"
+        ax = hist_utils.add_infobox(ax=ax, info_str=info_str, info_font_size=info_font_size, info_loc="bottom left")
+        # show plot
         fig.tight_layout()
         fig.show()
         ## store plot
@@ -316,7 +324,10 @@ def main():
         pos_muons_hist2d, _, _ = np.histogram2d(x=z_muons, y=x_muons, bins=(z_edges, x_edges)) 
 
         # plot
-        fig, ax = plt.subplots(1, 1, figsize=(12,2.8)) # fig_size
+        if slice_name == "xz":
+            fig, ax = plt.subplots(1, 1, figsize=(12,3)) # fig_size
+        elif slice_name == "yz":
+            fig, ax = plt.subplots(1, 1, figsize=(12,3)) # fig_size
         im_obj = ax.imshow(X=pos_muons_hist2d, origin="lower", extent=[min(x_bins), max(x_bins), min(z_bins), max(z_bins)])
         
         # store dead wires
@@ -339,13 +350,17 @@ def main():
         formatter = ScalarFormatter(useMathText=True)
         formatter.set_powerlimits([-3, 3]) # 10^X power limits for prescale
         cbar = fig.colorbar(im_obj, ax=ax, fraction=0.05, cmap=cmap, format=formatter)
+        if slice_name == "xz":
+            cbar.set_label("Counts for each $z$ height\n(cumulated over $y$)")
+        elif slice_name == "yz":
+            cbar.set_label("Counts for each $z$ height\n(cumulated over $x$)")
         # plot legend
         #ax.legend(prop={"size":14}, loc="upper center")
         legend_entries = {
             "Chamber geometry": mpatches.Patch(edgecolor="white", facecolor="none"),
             "Low occupancy cells": mpatches.Patch(edgecolor="tab:red", facecolor="none")
         }
-        ax.legend(legend_entries.values(), legend_entries.keys(), prop={'size': 12}, loc="lower center", fancybox=False)
+        ax.legend(legend_entries.values(), legend_entries.keys(), prop={'size': 12}, loc="lower center", fancybox=False, framealpha=params._legend_alpha)
         # show plot
         fig.tight_layout()
         fig.show()

@@ -80,6 +80,16 @@ def main():
         help     = "custom fig_size of the plot in the format x_size,y_size (if desired)",
     )
     parser.add_argument(
+        "--info_box_loc",
+        type     = str,
+        default = "top right",
+        help     = "custom location of info box (if desired)",
+    )
+    parser.add_argument( # if this flag is given: do not write full info box but only give sum of entries
+        "--info_box_only_entries",
+        action = "store_true",
+    )
+    parser.add_argument(
         "--store_path",
         type     = str,
         help     = "path to store pdf plot (if desired)",
@@ -148,9 +158,21 @@ def main():
     ## plot
     fig, ax = plt.subplots(1, 1, figsize=fig_size)
     if not use_asym_err: # symm err
-        ax = hist_utils.plot_histogram(ax=ax, hist=hist, centers=centers, err_hist=err_hist, log_scale=log_y_scale, add_info=True, entries=entries, overflow=overflow, underflow=underflow, bin_unit=params._key_units[hist_key])
+        if not args.info_box_only_entries:
+            ax = hist_utils.plot_histogram(ax=ax, hist=hist, centers=centers, err_hist=err_hist, log_scale=log_y_scale, add_info=True, entries=entries, overflow=overflow, underflow=underflow, bin_unit=params._key_units[hist_key], info_loc=args.info_box_loc)
+        else:
+            ax = hist_utils.plot_histogram(ax=ax, hist=hist, centers=centers, err_hist=err_hist, log_scale=log_y_scale, add_info=False)
+            # info box
+            info_str = f"entries = {entries}"
+            ax = hist_utils.add_infobox(ax=ax, info_str=info_str, info_loc=args.info_box_loc)
     else: # asymm err
-        ax = hist_utils.plot_histogram(ax=ax, hist=hist, centers=centers, err_hist_down=err_hist_down, err_hist_up=err_hist_up, log_scale=log_y_scale, add_info=True, entries=entries, overflow=overflow, underflow=underflow, bin_unit=params._key_units[hist_key])
+        if not args.info_box_only_entries:
+            ax = hist_utils.plot_histogram(ax=ax, hist=hist, centers=centers, err_hist_down=err_hist_down, err_hist_up=err_hist_up, log_scale=log_y_scale, add_info=True, entries=entries, overflow=overflow, underflow=underflow, bin_unit=params._key_units[hist_key], info_loc=args.info_box_loc)
+        else:
+            ax = hist_utils.plot_histogram(ax=ax, hist=hist, centers=centers, err_hist_down=err_hist_down, err_hist_up=err_hist_up, log_scale=log_y_scale)
+            # info box
+            info_str = f"entries = {entries}"
+            ax = hist_utils.add_infobox(ax=ax, info_str=info_str, info_loc=args.info_box_loc)
     xlabel = (params._key_symbols[hist_key]) if (params._key_units[hist_key] == "") else (params._key_symbols[hist_key]+" ["+ params._key_units[hist_key]+"]")
     ax.set_xlabel(xlabel)
     fig.tight_layout()

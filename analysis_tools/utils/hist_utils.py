@@ -317,7 +317,7 @@ def calculate_hist_uncertainty(hist, *, hist_err_right=None, hist_err_left=None,
 # give hist to plot
 # optionally give err_hist (symm errors)
 # or err_hist_down and err_hist_up (asymm errors)
-def plot_histogram(ax, hist, centers, *, err_hist=None, err_hist_down=None, err_hist_up=None, log_scale=False, power_limits=[-2, 2], add_info=True, overflow=None, underflow=None, entries=None, bin_unit=None, bin_width_digits=2, set_y_label=True, info_font_size=10, info_loc="top right"):
+def plot_histogram(ax, hist, centers, *, err_hist=None, err_hist_down=None, err_hist_up=None, log_scale=False, power_limits=[-2, 2], add_info=False, overflow=None, underflow=None, entries=None, bin_unit=None, bin_width_digits=3, set_y_label=True, info_font_size=10, info_loc="top right"):
     barwidth = np.mean(np.diff(centers))
     ax.bar(centers, hist, width=barwidth, align="center", facecolor="tab:blue")
     # if up down errors given
@@ -345,26 +345,29 @@ def plot_histogram(ax, hist, centers, *, err_hist=None, err_hist_down=None, err_
             barwidth_str += f" {bin_unit}"
         info_str = f"entries = {entries}\nunderflow = {underflow}\noverflow = {overflow}\ntotal = {entries+overflow+underflow}\nbin count = {len(centers)}\nbin width = {barwidth_str}"
         #ax.text(0.99, 0.99, info_str, horizontalalignment='right', verticalalignment='top', transform=ax.transAxes, fontsize=8, bbox=dict(facecolor='white', edgecolor='lightgray', alpha=0.7))
-        if info_loc == "top right":
-            ax.annotate(info_str, xy=(1, 1), xytext=(-info_font_size-0.5, -info_font_size-0.5), xycoords='axes fraction', textcoords='offset points', fontsize=info_font_size, horizontalalignment='right', verticalalignment='top', bbox=dict(facecolor='white', edgecolor='lightgray', alpha=params._hist_info_alpha))
-        elif info_loc == "bottom right":
-            ax.annotate(info_str, xy=(1, 0), xytext=(-info_font_size-0.5, info_font_size+0.5), xycoords='axes fraction', textcoords='offset points', fontsize=info_font_size, horizontalalignment='right', verticalalignment='bottom', bbox=dict(facecolor='white', edgecolor='lightgray', alpha=params._hist_info_alpha))
-        elif info_loc == "bottom left":
-            ax.annotate(info_str, xy=(0, 0), xytext=(info_font_size+0.5, info_font_size+0.5), xycoords='axes fraction', textcoords='offset points', fontsize=info_font_size, horizontalalignment='left', verticalalignment='bottom', bbox=dict(facecolor='white', edgecolor='lightgray', alpha=params._hist_info_alpha))
-        elif info_loc == "top left":
-            ax.annotate(info_str, xy=(0, 1), xytext=(info_font_size+0.5, -info_font_size-0.5), xycoords='axes fraction', textcoords='offset points', fontsize=info_font_size, horizontalalignment='left', verticalalignment='top', bbox=dict(facecolor='white', edgecolor='lightgray', alpha=params._hist_info_alpha))
-        elif info_loc == "top center":
-            ax.annotate(info_str, xy=(0.5, 1), xytext=(0, -info_font_size-0.5), xycoords='axes fraction', textcoords='offset points', fontsize=info_font_size, horizontalalignment='center', verticalalignment='top', bbox=dict(facecolor='white', edgecolor='lightgray', alpha=params._hist_info_alpha))
-        elif info_loc == "bottom center":
-            ax.annotate(info_str, xy=(0.5, 0), xytext=(0, info_font_size+0.5), xycoords='axes fraction', textcoords='offset points', fontsize=info_font_size, horizontalalignment='center', verticalalignment='bottom', bbox=dict(facecolor='white', edgecolor='lightgray', alpha=params._hist_info_alpha))
-        elif info_loc == "center left":
-            ax.annotate(info_str, xy=(0, 0.5), xytext=(info_font_size+0.5, 0), xycoords='axes fraction', textcoords='offset points', fontsize=info_font_size, horizontalalignment='left', verticalalignment='center', bbox=dict(facecolor='white', edgecolor='lightgray', alpha=params._hist_info_alpha))
-        elif info_loc == "center right":
-            ax.annotate(info_str, xy=(1, 0.5), xytext=(-info_font_size-0.5, 0), xycoords='axes fraction', textcoords='offset points', fontsize=info_font_size, horizontalalignment='right', verticalalignment='center', bbox=dict(facecolor='white', edgecolor='lightgray', alpha=params._hist_info_alpha))
+        ax = add_infobox(ax, info_str=info_str, info_font_size=info_font_size, info_loc=info_loc)
     # set y label
     if set_y_label:
         ax.set_ylabel(f"Counts")
     return ax
 
-
+### add infobox to ax subplot
+def add_infobox(ax, info_str, info_font_size=10, info_loc="top right"):
+    if info_loc == "top right":
+        ax.annotate(info_str, xy=(1, 1), xytext=(-info_font_size-0.5, -info_font_size-0.5), xycoords='axes fraction', textcoords='offset points', fontsize=info_font_size, horizontalalignment='right', verticalalignment='top', bbox=dict(facecolor='white', edgecolor='lightgray', alpha=params._hist_info_alpha))
+    elif info_loc == "bottom right":
+        ax.annotate(info_str, xy=(1, 0), xytext=(-info_font_size-0.5, info_font_size+0.5), xycoords='axes fraction', textcoords='offset points', fontsize=info_font_size, horizontalalignment='right', verticalalignment='bottom', bbox=dict(facecolor='white', edgecolor='lightgray', alpha=params._hist_info_alpha))
+    elif info_loc == "bottom left":
+        ax.annotate(info_str, xy=(0, 0), xytext=(info_font_size+0.5, info_font_size+0.5), xycoords='axes fraction', textcoords='offset points', fontsize=info_font_size, horizontalalignment='left', verticalalignment='bottom', bbox=dict(facecolor='white', edgecolor='lightgray', alpha=params._hist_info_alpha))
+    elif info_loc == "top left":
+        ax.annotate(info_str, xy=(0, 1), xytext=(info_font_size+0.5, -info_font_size-0.5), xycoords='axes fraction', textcoords='offset points', fontsize=info_font_size, horizontalalignment='left', verticalalignment='top', bbox=dict(facecolor='white', edgecolor='lightgray', alpha=params._hist_info_alpha))
+    elif info_loc == "top center":
+        ax.annotate(info_str, xy=(0.5, 1), xytext=(0, -info_font_size-0.5), xycoords='axes fraction', textcoords='offset points', fontsize=info_font_size, horizontalalignment='center', verticalalignment='top', bbox=dict(facecolor='white', edgecolor='lightgray', alpha=params._hist_info_alpha))
+    elif info_loc == "bottom center":
+        ax.annotate(info_str, xy=(0.5, 0), xytext=(0, info_font_size+0.5), xycoords='axes fraction', textcoords='offset points', fontsize=info_font_size, horizontalalignment='center', verticalalignment='bottom', bbox=dict(facecolor='white', edgecolor='lightgray', alpha=params._hist_info_alpha))
+    elif info_loc == "center left":
+        ax.annotate(info_str, xy=(0, 0.5), xytext=(info_font_size+0.5, 0), xycoords='axes fraction', textcoords='offset points', fontsize=info_font_size, horizontalalignment='left', verticalalignment='center', bbox=dict(facecolor='white', edgecolor='lightgray', alpha=params._hist_info_alpha))
+    elif info_loc == "center right":
+        ax.annotate(info_str, xy=(1, 0.5), xytext=(-info_font_size-0.5, 0), xycoords='axes fraction', textcoords='offset points', fontsize=info_font_size, horizontalalignment='right', verticalalignment='center', bbox=dict(facecolor='white', edgecolor='lightgray', alpha=params._hist_info_alpha))
+    return ax
 

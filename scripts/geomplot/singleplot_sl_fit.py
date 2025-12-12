@@ -138,7 +138,7 @@ $\\chi^2/N_{{df}}={np.round(chi2ndf,2):.2f}$"""
         #ax[0].set_yscale("log")
         #ax[0].set_ylim(bottom=0.5, top=np.amax(hist)*np.exp(1.1))
         ax[0].set_ylabel("Timestamp $T_{ly}$ [TU]")
-        ax[0].legend(prop = { "size": 18 })
+        ax[0].legend(prop = { "size": 18 }, fancybox=False, framealpha=params._legend_alpha)
         ax[0].set_title(f"SL {sl} ({params._dt_chamber["sls"][sl]["orient"]}), Pattern {pat_type}, Laterality {[int(l) for l in laterality]}")
         ax[0].yaxis.set_major_formatter(ScalarFormatter(useMathText=True)) 
         
@@ -180,7 +180,7 @@ $\\chi^2/N_{{df}}={np.round(chi2ndf,2):.2f}$"""
         err_track = derived_params.err_f_x_muon(z=z_range, x0=x0, tan_alpha=tan_alpha, err_x0=err_x0, err_tan_alpha=err_tan_alpha, corr_x0_tan_alpha=corr_x0_tan_alpha)
         ax.plot(track, z_range, linewidth=2, color="tab:red", label=fit_label)
         ax.fill_betweenx(x1=track-err_track, x2=track+err_track, y=z_range, color="tab:red", alpha=0.2)
-        ax.legend(prop = { "size": 18 }, loc="center left")
+        ax.legend(prop = { "size": 18 }, loc="center left", fancybox=False, framealpha=params._legend_alpha)
         if sl != 2:
             ax.set_xlabel("$x-x_\\text{wire,ly=3}$ [mm]")
         else:

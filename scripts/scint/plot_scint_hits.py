@@ -395,6 +395,7 @@ def main():
         ax[ly].bar(strips, bottom=strip_hits-err_strip_hits, height=2*err_strip_hits, width=1, align="center", hatch="xxx", fill=False, edgecolor="0.2", linestyle="")
         if ly == 1:
             ax[ly].set_xlabel("Strip")
+        ax[ly].set_ylabel("Counts")
         ax[ly].set_title(f"Layer {ly}", fontsize=20)
         # ax limits
         ax[ly].set_ylim(bottom=0, top=np.amax(strip_hits+err_strip_hits)*1.1)
@@ -402,6 +403,9 @@ def main():
         ax[ly].yaxis.get_major_formatter().set_powerlimits([-3, 3]) # 10^X power limits for prescale
         #ax[2*ly+sipm].set_yscale("log")
         #ax[2*ly+sipm].set_ylim(bottom=5000, top=np.amax(strip_hits+err_strip_hits)*np.exp(1.1))
+        # info box
+        info_str = f"entries = {int(np.sum(strip_hits))}"
+        ax[ly] = hist_utils.add_infobox(ax=ax[ly], info_str=info_str, info_loc="top right")
         fig.tight_layout()
         fig.show()
     ## store plot
@@ -430,6 +434,9 @@ def main():
         ax[ly].yaxis.get_major_formatter().set_powerlimits([-3, 3]) # 10^X power limits for prescale
         #ax[2*ly+sipm].set_yscale("log")
         #ax[2*ly+sipm].set_ylim(bottom=5000, top=np.amax(strip_hits+err_strip_hits)*np.exp(1.1))
+        # info box
+        info_str = f"entries = {int(np.sum(strip_hits))}"
+        ax[ly] = hist_utils.add_infobox(ax=ax[ly], info_str=info_str, info_loc="top right")
         fig.tight_layout()
         fig.show()
     ## store plot
@@ -451,7 +458,7 @@ def main():
     centers = centers*0.78
     # plot
     fig, ax = plt.subplots(1, 1, figsize=(7,6))
-    ax = hist_utils.plot_histogram(ax=ax, hist=hist, centers=centers, err_hist=err_hist, log_scale=False, add_info=True, entries=entries, overflow=overflow, underflow=underflow, bin_unit="ns")
+    ax = hist_utils.plot_histogram(ax=ax, hist=hist, centers=centers, err_hist=err_hist, log_scale=False, add_info=True, entries=entries, overflow=overflow, underflow=underflow, bin_unit="ns", info_loc="bottom center")
     xlabel = "$T$ [ns]"
     ax.set_xlabel(xlabel)
     fig.tight_layout()
@@ -525,6 +532,7 @@ def main():
             ts_diffs[(ly,st)] = np.array(ts_diff_list)
 
     fig, ax = plt.subplots(4, 8, figsize=(17,10), sharex=True, sharey=True)
+    max_hist_val = 0
     for ly in range(0,2):
         for st in range(0,16):
             if ly == 1 and st//8 == 1:
@@ -533,14 +541,22 @@ def main():
             # calculate hist
             ts_diff = ts_diffs[(ly,st)]
             if len(ts_diff) == 0:
+                # info box
+                info_str = f"entries = 0"
+                ax[2*ly+st//8][st%8] = hist_utils.add_infobox(ax=ax[2*ly+st//8][st%8], info_str=info_str, info_loc="top center")
                 continue
-            edges, n_bins, centers = hist_utils.generate_histogram_edges(arg="step1", data_min_val=np.amin(ts_diff), data_max_val=np.amax(ts_diff))
+            edges, n_bins, centers = hist_utils.generate_histogram_edges(arg=f"linear,-0.5,31.5,32")
             hist, _, _, entries, underflow, overflow, hist_err_right, hist_err_left = hist_utils.calculate_histogram_and_shifted_histograms(data=ts_diff, edges=edges)
+            max_hist_val = np.amax([max_hist_val, np.amax(hist)])
             err_hist, err_hist_down, err_hist_up = hist_utils.calculate_hist_uncertainty(hist=hist, hist_err_right=hist_err_right, hist_err_left=hist_err_left, do_stat_err=True)
             # tu to ns
             centers = centers*0.78
             # plot
-            ax[2*ly+st//8][st%8] = hist_utils.plot_histogram(ax=ax[2*ly+st//8][st%8], hist=hist, centers=centers, err_hist=err_hist, log_scale=False, add_info=True, entries=entries, overflow=overflow, underflow=underflow, bin_unit="ns")
+            ax[2*ly+st//8][st%8] = hist_utils.plot_histogram(ax=ax[2*ly+st//8][st%8], hist=hist, centers=centers, err_hist=err_hist, log_scale=False, add_info=False)
+            # info box
+            info_str = f"entries = {entries}"
+            ax[2*ly+st//8][st%8] = hist_utils.add_infobox(ax=ax[2*ly+st//8][st%8], info_str=info_str, info_loc="top center")
+    ax[0][0].set_ylim(0, max_hist_val*1.2)
     fig.tight_layout()
     fig.show()
     ## store plot
@@ -564,6 +580,7 @@ def main():
             ts_diffs[(ly,st)] = np.array(ts_diff_list)
 
     fig, ax = plt.subplots(4, 8, figsize=(17,10), sharex=True, sharey=True) # constrained_layout=True
+    max_hist_val = 0
     for ly in range(0,2):
         for st in range(0,16):
             if ly == 1 and st//8 == 1:
@@ -572,14 +589,22 @@ def main():
             # calculate hist
             ts_diff = ts_diffs[(ly,st)]
             if len(ts_diff) == 0:
+                # info box
+                info_str = f"entries = 0"
+                ax[2*ly+st//8][st%8] = hist_utils.add_infobox(ax=ax[2*ly+st//8][st%8], info_str=info_str, info_loc="top center")
                 continue
-            edges, n_bins, centers = hist_utils.generate_histogram_edges(arg="step1", data_min_val=np.amin(ts_diff), data_max_val=np.amax(ts_diff))
+            edges, n_bins, centers = hist_utils.generate_histogram_edges(arg=f"linear,-31.5,31.5,63")
             hist, _, _, entries, underflow, overflow, hist_err_right, hist_err_left = hist_utils.calculate_histogram_and_shifted_histograms(data=ts_diff, edges=edges)
+            max_hist_val = np.amax([max_hist_val, np.amax(hist)])
             err_hist, err_hist_down, err_hist_up = hist_utils.calculate_hist_uncertainty(hist=hist, hist_err_right=hist_err_right, hist_err_left=hist_err_left, do_stat_err=True)
             # tu to ns
             centers = centers*0.78
             # plot
-            ax[2*ly+st//8][st%8] = hist_utils.plot_histogram(ax=ax[2*ly+st//8][st%8], hist=hist, centers=centers, err_hist=err_hist, log_scale=False, add_info=True, entries=entries, overflow=overflow, underflow=underflow, bin_unit="ns")
+            ax[2*ly+st//8][st%8] = hist_utils.plot_histogram(ax=ax[2*ly+st//8][st%8], hist=hist, centers=centers, err_hist=err_hist, log_scale=False, add_info=False)
+            # info box
+            info_str = f"entries = {entries}"
+            ax[2*ly+st//8][st%8] = hist_utils.add_infobox(ax=ax[2*ly+st//8][st%8], info_str=info_str, info_loc="top center")
+    ax[0][0].set_ylim(0, max_hist_val*1.2)
     #fig.subplots_adjust(wspace=0.01, hspace=0.01)
     fig.tight_layout(pad=0.4, w_pad=0.5, h_pad=1.0)
     fig.show()

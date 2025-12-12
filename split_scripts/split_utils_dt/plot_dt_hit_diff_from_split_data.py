@@ -100,13 +100,16 @@ def main():
     print(f"open specific data from file \"{specific_data_file}\"...")
     specific_data = data_utils.load_pickle(file=specific_data_file, silent=True)
     # read data
-    hist = np.array(specific_data["hist"])[1:]
-    err_hist = np.array(specific_data["err_hist"])[1:]
-    err_hist_down = np.array(specific_data["err_hist_down"])[1:]
-    err_hist_up = np.array(specific_data["err_hist_up"])[1:]
-    edges = np.array(specific_data["edges"])[1:]*0.78 # convert from tu to ns
+    start_idx = 0
+    hist = np.array(specific_data["hist"])[start_idx:]
+    err_hist = np.array(specific_data["err_hist"])[start_idx:]
+    err_hist_down = np.array(specific_data["err_hist_down"])[start_idx:]
+    err_hist_up = np.array(specific_data["err_hist_up"])[start_idx:]
+    edges = np.array(specific_data["edges"])[start_idx:]*0.78 # convert from tu to ns
     centers = hist_utils.centers_from_edges(edges)
     bins = centers
+    overflow = specific_data["overflow"]
+    underflow = specific_data["underflow"]
 
     ######################
     ##### poisson bg subtraction
@@ -114,7 +117,7 @@ def main():
     ### plot dt hit differences
     # plot hist
     fig, ax = plt.subplots(1, 1, figsize=fig_size)
-    ax = hist_utils.plot_histogram(ax, hist=hist, centers=bins, err_hist_down=err_hist_down, err_hist_up=err_hist_up, log_scale=True, power_limits=[-4,4])
+    ax = hist_utils.plot_histogram(ax, hist=hist, centers=bins, err_hist_down=err_hist_down, err_hist_up=err_hist_up, log_scale=True, power_limits=[-4,4], add_info=True, entries=int(np.sum(hist)), overflow=overflow, underflow=underflow, bin_unit="ns")
     ax.set_xlim(0,np.amax(bins))
     ax.set_xlabel("$\\Delta T_\\text{cell}$ [ns]")
     fig.tight_layout()
@@ -136,7 +139,7 @@ def main():
     def err_f_bg_fit(x, a, b, err_a, err_b):
         return np.sqrt( (err_a*np.exp(-x/b))**2 + (-1/b*a*np.exp(-x/b)*err_b)**2 )
     p0 = (1000, 100)
-    popt, pcov, infodict, mesg, _ = curve_fit(f=f_bg_fit, xdata=fit_bins, ydata=fit_hist, p0=p0, sigma=err_fit_hist, absolute_sigma=True, full_output=True, )
+    popt, pcov, infodict, mesg, _ = curve_fit(f=f_bg_fit, xdata=fit_bins, ydata=fit_hist, p0=p0, sigma=err_fit_hist, absolute_sigma=True, full_output=True)
     a_fit, b_fit = popt
     err_a_fit = np.sqrt(pcov[0][0])
     err_b_fit = np.sqrt(pcov[1][1])
@@ -153,7 +156,7 @@ def main():
     rel_spacing = 0
     # main plot
     barwidth = np.mean(np.diff(bins))*(1-rel_spacing) # relative spacing between bins
-    ax[0] = hist_utils.plot_histogram(ax[0], hist=hist, centers=bins, err_hist_down=err_hist_down, err_hist_up=err_hist_up, log_scale=True, power_limits=[-4,4])
+    ax[0] = hist_utils.plot_histogram(ax[0], hist=hist, centers=bins, err_hist_down=err_hist_down, err_hist_up=err_hist_up, log_scale=True, power_limits=[-4,4], add_info=True, entries=int(np.sum(hist)), overflow=overflow, underflow=underflow, bin_unit="ns")
     fit_label = f"""Exponential fit:
 $f(\\Delta T) = a \\cdot e^{{-x/b}}$
 $a=({np.round(a_fit,2):.2f}\\pm{np.round(err_a_fit,2):.2f})$
@@ -164,7 +167,7 @@ $\\chi^2 / N_{{df}} = {chi2:.1f}\\; / \\;{ndf:.0f} ={np.round(chi2ndf,1):.1f}$""
     ax[0].plot(bins[extrapol_index_range], f_bg_fit(bins[extrapol_index_range], a=a_fit, b=b_fit), color="tab:red", linestyle="--", label="Extrapolated fit")
     ax[0].set_yscale("log")
     ax[0].set_ylim(bottom=0.5, top=np.amax(hist)*np.exp(1.1))
-    ax[0].legend(loc="lower right", prop={'size': legend_font_size})
+    ax[0].legend(loc="lower right", prop={'size': legend_font_size}, fancybox=False, framealpha=params._legend_alpha)
     # residual plot
     residuals = fit_hist - f_bg_fit(fit_bins, a=a_fit, b=b_fit)
     err_residuals = err_fit_hist
@@ -196,12 +199,14 @@ $\\chi^2 / N_{{df}} = {chi2:.1f}\\; / \\;{ndf:.0f} ={np.round(chi2ndf,1):.1f}$""
     rel_spacing = 0
     barwidth = np.mean(np.diff(bins_nobg))*(1-rel_spacing) # relative spacing between bins
     ax = hist_utils.plot_histogram(ax, hist=hist_nobg, centers=bins_nobg, err_hist_down=err_hist_nobg_down, err_hist_up=err_hist_nobg_up, log_scale=False, power_limits=[-3,3])
+    info_str = f"entries = {int(np.sum(hist_nobg))}\nbin count = {len(centers)}\nbin width = {np.mean(np.diff(bins_nobg)):.3g} ns"
+    ax = hist_utils.add_infobox(ax=ax, info_str=info_str, info_loc="top right")
     #ax.set_yscale("log")
     #ax.set_ylim(bottom=0.5, top=np.amax(hist_nobg)*np.exp(1.1))
     #ax.set_ylim(bottom=0, top=np.amax(hist_nobg)*1.1)
     ax.set_xlim(0,600)
     ax.set_xlabel("$\\Delta T_\\text{cell}$ [ns]")
-    ax.legend(prop={'size': 14})
+    #ax.legend(prop={'size': 14})
     fig.tight_layout()
     fig.show()
     ## store plot
@@ -215,12 +220,14 @@ $\\chi^2 / N_{{df}} = {chi2:.1f}\\; / \\;{ndf:.0f} ={np.round(chi2ndf,1):.1f}$""
     rel_spacing = 0
     barwidth = np.mean(np.diff(bins_nobg))*(1-rel_spacing) # relative spacing between bins
     ax = hist_utils.plot_histogram(ax, hist=hist_nobg, centers=bins_nobg/0.78, err_hist_down=err_hist_nobg_down, err_hist_up=err_hist_nobg_up, log_scale=False, power_limits=[-3,3])
+    info_str = f"entries = {int(np.sum(hist_nobg))}\nbin count = {len(centers)}\nbin width = {np.mean(np.diff(bins_nobg/0.78)):.3g} TU"
+    ax = hist_utils.add_infobox(ax=ax, info_str=info_str, info_loc="top right")
     #ax.set_yscale("log")
     #ax.set_ylim(bottom=0.5, top=np.amax(hist_nobg)*np.exp(1.1))
     #ax.set_ylim(bottom=0, top=np.amax(hist_nobg)*1.1)
     ax.set_xlim(0,600/0.78)
     ax.set_xlabel("$\\Delta T_\\text{cell}$ [TU]")
-    ax.legend(prop={'size': 14})
+    #ax.legend(prop={'size': 14})
     fig.tight_layout()
     fig.show()
     ## store plot
@@ -246,7 +253,7 @@ $\\chi^2 / N_{{df}} = {chi2:.1f}\\; / \\;{ndf:.0f} ={np.round(chi2ndf,1):.1f}$""
         return a*(x-b)**2+c
     def err_f_peak_fit(x, a, b, c, err_a, err_b, err_c):
         return np.sqrt( ( err_a*(x-b)**2 )**2 + ( -2*a*(x-b)*err_b )**2 + ( err_c )**2 )
-    p0 = (-1, 420, 1000)
+    p0 = (-1, 415, 1000)
     popt, pcov, infodict, mesg, _ = curve_fit(f=f_peak_fit, xdata=fit_bins, ydata=fit_hist, p0=p0, sigma=err_fit_hist, absolute_sigma=True, full_output=True, )
     a_fit, b_fit, c_fit = popt
     err_a_fit = np.sqrt(pcov[0][0])
@@ -266,6 +273,9 @@ $\\chi^2 / N_{{df}} = {chi2:.1f}\\; / \\;{ndf:.0f} ={np.round(chi2ndf,1):.1f}$""
     rel_spacing = 0
     barwidth = np.mean(np.diff(bins_nobg))*(1-rel_spacing) # relative spacing between bins
     ax[0] = hist_utils.plot_histogram(ax[0], hist=hist_nobg, centers=bins_nobg, err_hist_down=err_hist_nobg_down, err_hist_up=err_hist_nobg_up, log_scale=False, power_limits=[-3,3])
+    info_str = f"entries = {int(np.sum(hist_nobg))}\nbin count = {len(centers)}\nbin width = {np.mean(np.diff(bins_nobg)):.3g} ns"
+    ax[0] = hist_utils.add_infobox(ax=ax[0], info_str=info_str, info_loc="top left")
+
     fit_label = f"""Parabolic fit:
 $f(\\Delta T) = a \\cdot (\\Delta T-b)^2+c$
 $a=({np.round(a_fit,2):.2f}\\pm{np.round(err_a_fit,2):.2f})$ 1/ns${{}}^2$
@@ -278,7 +288,7 @@ $\\chi^2 / N_{{df}} = {chi2:.1f}\\; / \\;{ndf:.0f} ={np.round(chi2ndf,1):.1f}$""
     ax[0].axvspan(xmin=b_fit-err_b_fit, xmax=b_fit+err_b_fit, color="tab:red", alpha=0.1)
     #ax.set_yscale("log")
     ax[0].set_ylim(bottom=0, top=np.amax(hist_nobg)*1.1)
-    ax[0].legend(loc="lower left", prop={'size': legend_font_size})
+    ax[0].legend(loc="lower left", prop={'size': legend_font_size}, fancybox=False, framealpha=params._legend_alpha)
     # residual plot
     residuals = fit_hist - f_peak_fit(fit_bins, a=a_fit, b=b_fit, c=c_fit)
     err_residuals = err_fit_hist

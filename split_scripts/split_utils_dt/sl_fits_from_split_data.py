@@ -123,7 +123,7 @@ def main():
         pattern_count[sl]["com"] = 0
     # time box hist
     n_bins = 100
-    edges = np.linspace(0, 500, n_bins) # in tu
+    edges = np.linspace(0, 500, n_bins+1) # in tu
     centers, hist, entries, underflow, overflow, hist_err_right, hist_err_left = hist_utils.create_empty_histogram(edges=edges)
 
     ### calculate histograms for sub datasets, merge hists consecutively
@@ -197,6 +197,8 @@ def main():
         "err_hist_down": err_hist_down,
         "err_hist_up": err_hist_up,
         "edges": edges,
+        "underflow": underflow,
+        "overflow": overflow,
     }
     specific_data_file = base_path+"/"+common_file_prefix+"_"+dataset+"_SPECIFIC.pcl"
     print(f"storing specific data as {specific_data_file}...")

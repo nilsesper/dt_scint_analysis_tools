@@ -115,7 +115,7 @@ def main():
 
     ### fixed bins
     n_bins = 2500
-    edges = np.linspace(0, 5000, n_bins) # in tu
+    edges = np.linspace(0, 5000, n_bins+1) # in tu
 
     ### prepare hists
     centers, hist, entries, underflow, overflow, hist_err_right, hist_err_left = hist_utils.create_empty_histogram(edges=edges)

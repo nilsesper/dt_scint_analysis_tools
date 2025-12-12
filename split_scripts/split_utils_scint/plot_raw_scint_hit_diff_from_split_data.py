@@ -103,13 +103,16 @@ def main():
     print(f"open specific data from file \"{specific_data_file}\"...")
     specific_data = data_utils.load_pickle(file=specific_data_file, silent=True)
     # read data
-    hist = np.array(specific_data["hist"])[1:]
-    err_hist = np.array(specific_data["err_hist"])[1:]
-    err_hist_down = np.array(specific_data["err_hist_down"])[1:]
-    err_hist_up = np.array(specific_data["err_hist_up"])[1:]
-    edges = np.array(specific_data["edges"])[1:]*0.78 # convert from tu to ns
+    hist = np.array(specific_data["hist"])
+    err_hist = np.array(specific_data["err_hist"])
+    err_hist_down = np.array(specific_data["err_hist_down"])
+    err_hist_up = np.array(specific_data["err_hist_up"])
+    edges = np.array(specific_data["edges"])*0.78 # convert from tu to ns
     centers = hist_utils.centers_from_edges(edges)
     bins = centers
+    overflow = np.array(specific_data["overflow"])
+    underflow = np.array(specific_data["underflow"])
+    entries = int(np.sum(hist))
 
 
     ##################
@@ -117,7 +120,7 @@ def main():
     
     # plot hist
     fig, ax = plt.subplots(1, 1, figsize=fig_size)
-    ax = hist_utils.plot_histogram(ax, hist=hist, centers=bins, err_hist_down=err_hist_down, err_hist_up=err_hist_up, log_scale=True, power_limits=[-4,4])
+    ax = hist_utils.plot_histogram(ax, hist=hist, centers=bins, err_hist_down=err_hist_down, err_hist_up=err_hist_up, log_scale=True, power_limits=[-4,4], add_info=True, entries=entries, overflow=overflow, underflow=underflow, bin_unit="ns", info_loc="top right")
     ax.set_xlim(0,np.amax(bins))
     ax.set_xlabel("$\\Delta T_\\text{SiPM}$ [ns]")
     fig.tight_layout()

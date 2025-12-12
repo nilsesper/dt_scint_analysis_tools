@@ -128,11 +128,13 @@ def main():
 
     # generate sipm matrix
     chamber_matrix = np.full((4,16), np.nan) # -1: invalid cell
+    sipm_hits = 0
     # fill chamber matrix
     for ly in range(0,2):
         for st in range(0,16):
             for sipm in range(0,2):
                 chamber_matrix[2*ly+sipm][st] = raw_counts[ly][st][sipm]
+                sipm_hits += raw_counts[ly][st][sipm]
     # plot
     fig, ax = plt.subplots(1, 1, figsize=(16,4))
     #im_obj = ax.imshow(X=chamber_matrix, origin="lower", extent=[0-0.5, 15+0.5, 0-0.5, 3+0.5], vmin=0)
@@ -152,7 +154,13 @@ def main():
     #formatter.set_powerlimits([-3, 3]) # 10^X power limits for prescale
     #cbar = fig.colorbar(im_obj, ax=ax, fraction=0.05, cmap=cmap, format=formatter)
     cbar = fig.colorbar(im_obj, ax=ax, fraction=0.05, cmap=cmap)
-    #cbar.set_label("Rate [Hz]")
+    cbar.set_label("Counts")
+    # info box
+    info_font_size = 10
+    entries = int(sipm_hits)
+    info_str = f"entries = {entries}"
+    ax = hist_utils.add_infobox(ax=ax, info_str=info_str, info_font_size=info_font_size, info_loc="bottom left")
+    # show plot
     fig.tight_layout()
     fig.show()
     ## store plot

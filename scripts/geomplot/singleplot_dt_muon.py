@@ -225,7 +225,7 @@ $\\phi={np.round(phi*params.rad_to_deg,1):.1f}^\\circ$"""
                     track = derived_params.f_x_muon(z=sl_z_range-z_ref_cell, x0=x0, tan_alpha=tan_alpha) + x_ref_cell
                     err_track = derived_params.err_f_x_muon(z=sl_z_range-z_ref_cell, x0=x0, tan_alpha=tan_alpha, err_x0=err_x0, err_tan_alpha=err_tan_alpha, corr_x0_tan_alpha=corr_x0_tan_alpha)
                     # plot
-                    sl_fit_label = "SL pattern local fit"
+                    sl_fit_label = "SL pattern fit"
                     if no_legend:
                         ax.plot(track, sl_z_range, linewidth=1, color="tab:red", label=sl_fit_label)
                         no_legend = False
@@ -241,7 +241,7 @@ $\\phi={np.round(phi*params.rad_to_deg,1):.1f}^\\circ$"""
         # axis limits
         #ax.margins(x=0.05, y=0.05)
         ax.set_ylim(np.amin(z_range), np.amax(z_range))
-        ax.legend(prop={"size":14})
+        ax.legend(prop={"size":14}, fancybox=False, framealpha=params._legend_alpha, loc="center right")
         # text labels
         #ax.set_aspect('equal', adjustable='box')
         axbox = ax.get_position()

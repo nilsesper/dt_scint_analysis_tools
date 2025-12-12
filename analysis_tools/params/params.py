@@ -1525,8 +1525,8 @@ _ro_ch_labels = {
 }
 
 #### plotting
-_legend_alpha = 0.6
-_hist_info_alpha = 0.6
+_legend_alpha = 0.7
+_hist_info_alpha = 0.7
 
 
 
