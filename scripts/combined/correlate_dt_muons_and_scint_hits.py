@@ -100,43 +100,34 @@ def main():
     n_scint_hits = data_utils.length(data=scint_hits)
 
 
-
-    ### temporal correlation
+    ######################
+    ### ALGORITHM:
+    ### SEARCH FOR DT HIT FOR EACH SCINT HIT AND MATCH FIRST DT AND SCINT HIT THAT ARE CLOSE ENOUGH TOGETHER
+    ## temporal correlation
     time_grouping_list = combination_utils.time_grouping_indices(data1=scint_hits, data2=dt_muons, data2_ts_tolerance=ts_tolerance, data1_ts_key="ts", data2_ts_key="ts")
-
     correlation_counter = 0
     delta_ts_corr = []
-
     corr_list = [] # list of (scint_area_idx, dt_muon_idx)
     corr_dt_idcs = []
-
     for scint_idx, dt_idcs in enumerate(time_grouping_list):
-
         if len(dt_idcs) != 1: # <
             continue
-
         dt_idx = dt_idcs[0]
         # prevent double assignment of same muon
         if dt_idx in corr_dt_idcs:
             continue
-
         correlation_counter += 1
-
         scint_ts = scint_hits["ts"][scint_idx]
         scint_ly = scint_hits["ly"][scint_idx]
         scint_st = scint_hits["st"][scint_idx]
         #print(f"scint_idx = {scint_idx} -- scint_ts = {scint_ts} -- pixel = {scint_pixel}")
-
         dt_ts = dt_muons["ts"][dt_idx]
         dt_theta = dt_muons["theta"][dt_idx]
         dt_phi = dt_muons["phi"][dt_idx]
         #print(f"   dt_ts = {dt_ts} -- dt_theta = {dt_theta} -- dt_phi = {dt_phi}")
-
         delta_ts_corr.append(np.float64(scint_ts) - np.float64(dt_ts))
         corr_list.append((scint_idx, dt_idx))
         corr_dt_idcs.append(dt_idx)
-    
-
 
     #### rates
     duration = 0.78e-9 * (np.amax(dt_muons["ts"]) - np.amin(dt_muons["ts"])) # secs

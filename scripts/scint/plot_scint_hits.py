@@ -451,7 +451,7 @@ def main():
     centers = centers*0.78
     # plot
     fig, ax = plt.subplots(1, 1, figsize=(7,6))
-    ax = hist_utils.plot_histogram(ax=ax, hist=hist, centers=centers, err_hist=err_hist, log_scale=False)
+    ax = hist_utils.plot_histogram(ax=ax, hist=hist, centers=centers, err_hist=err_hist, log_scale=False, add_info=True, entries=entries, overflow=overflow, underflow=underflow, bin_unit="ns")
     xlabel = "$T$ [ns]"
     ax.set_xlabel(xlabel)
     fig.tight_layout()
@@ -475,7 +475,7 @@ def main():
     centers = centers*0.78
     # plot
     fig, ax = plt.subplots(1, 1, figsize=(7,6))
-    ax = hist_utils.plot_histogram(ax=ax, hist=hist, centers=centers, err_hist=err_hist, log_scale=False)
+    ax = hist_utils.plot_histogram(ax=ax, hist=hist, centers=centers, err_hist=err_hist, log_scale=False, add_info=True, entries=entries, overflow=overflow, underflow=underflow, bin_unit="ns")
     xlabel = "$\\Delta T_\\text{SiPMs}$ [ns]"
     ax.set_xlabel(xlabel)
     fig.tight_layout()
@@ -499,7 +499,7 @@ def main():
     centers = centers*0.78
     # plot
     fig, ax = plt.subplots(1, 1, figsize=(7,6))
-    ax = hist_utils.plot_histogram(ax=ax, hist=hist, centers=centers, err_hist=err_hist, log_scale=False)
+    ax = hist_utils.plot_histogram(ax=ax, hist=hist, centers=centers, err_hist=err_hist, log_scale=False, add_info=True, entries=entries, overflow=overflow, underflow=underflow, bin_unit="ns")
     xlabel = "$\\Delta T_\\text{SiPMs}$ [ns]"
     ax.set_xlabel(xlabel)
     fig.tight_layout()
@@ -540,7 +540,7 @@ def main():
             # tu to ns
             centers = centers*0.78
             # plot
-            ax[2*ly+st//8][st%8] = hist_utils.plot_histogram(ax=ax[2*ly+st//8][st%8], hist=hist, centers=centers, err_hist=err_hist, log_scale=False)
+            ax[2*ly+st//8][st%8] = hist_utils.plot_histogram(ax=ax[2*ly+st//8][st%8], hist=hist, centers=centers, err_hist=err_hist, log_scale=False, add_info=True, entries=entries, overflow=overflow, underflow=underflow, bin_unit="ns")
     fig.tight_layout()
     fig.show()
     ## store plot
@@ -579,7 +579,7 @@ def main():
             # tu to ns
             centers = centers*0.78
             # plot
-            ax[2*ly+st//8][st%8] = hist_utils.plot_histogram(ax=ax[2*ly+st//8][st%8], hist=hist, centers=centers, err_hist=err_hist, log_scale=False)
+            ax[2*ly+st//8][st%8] = hist_utils.plot_histogram(ax=ax[2*ly+st//8][st%8], hist=hist, centers=centers, err_hist=err_hist, log_scale=False, add_info=True, entries=entries, overflow=overflow, underflow=underflow, bin_unit="ns")
     #fig.subplots_adjust(wspace=0.01, hspace=0.01)
     fig.tight_layout(pad=0.4, w_pad=0.5, h_pad=1.0)
     fig.show()
@@ -614,7 +614,7 @@ def main():
         centers = centers*0.78
         # plot
         fig, ax = plt.subplots(1, 1, figsize=(7,6))
-        ax = hist_utils.plot_histogram(ax=ax, hist=hist, centers=centers, err_hist=err_hist, log_scale=True)
+        ax = hist_utils.plot_histogram(ax=ax, hist=hist, centers=centers, err_hist=err_hist, log_scale=True, add_info=True, entries=entries, overflow=overflow, underflow=underflow, bin_unit="ns")
         xlabel = "$\\Delta T$(all hits) [ns]"
         ax.set_xlabel(xlabel)
         fig.tight_layout()
@@ -652,7 +652,7 @@ def main():
         centers = centers*0.78
         # plot
         fig, ax = plt.subplots(1, 1, figsize=(7,6))
-        ax = hist_utils.plot_histogram(ax=ax, hist=hist, centers=centers, err_hist=err_hist, log_scale=True)
+        ax = hist_utils.plot_histogram(ax=ax, hist=hist, centers=centers, err_hist=err_hist, log_scale=True, add_info=True, entries=entries, overflow=overflow, underflow=underflow, bin_unit="ns")
         xlabel = "$\\Delta T$(same layer) [ns]"
         ax.set_xlabel(xlabel)
         fig.tight_layout()
@@ -691,7 +691,7 @@ def main():
         centers = centers*0.78
         # plot
         fig, ax = plt.subplots(1, 1, figsize=(7,6))
-        ax = hist_utils.plot_histogram(ax=ax, hist=hist, centers=centers, err_hist=err_hist, log_scale=True)
+        ax = hist_utils.plot_histogram(ax=ax, hist=hist, centers=centers, err_hist=err_hist, log_scale=True, add_info=True, entries=entries, overflow=overflow, underflow=underflow, bin_unit="ns")
         xlabel = "$\\Delta T$(same strip) [ns]"
         ax.set_xlabel(xlabel)
         fig.tight_layout()

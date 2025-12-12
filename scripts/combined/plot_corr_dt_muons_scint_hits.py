@@ -132,12 +132,15 @@ def main():
     #### rates
     duration = 0.78e-9 * (np.amax(dt_muons["ts"]) - np.amin(dt_muons["ts"])) # secs
     print(f"duration = {duration} s")
-    scint_rate = data_utils.length(scint_hits) / duration
-    print(f"scintillator rate = {scint_rate} Hz")
-    dt_rate = data_utils.length(dt_muons) / duration
-    print(f"dt total rate = {dt_rate} Hz")
-    correlation_rate = correlation_counter / duration
-    print(f"correlation rate = {correlation_rate} Hz")
+    n_scint_hits = data_utils.length(scint_hits)
+    print(f"scintillator hits = {n_scint_hits}")
+    print(f"scintillator rate = {n_scint_hits/duration} +- {np.sqrt(n_scint_hits)/duration} Hz")
+    n_dt_hits = data_utils.length(dt_muons)
+    print(f"dt hits = {n_dt_hits}")
+    print(f"dt total rate = {n_dt_hits/duration} +- {np.sqrt(n_dt_hits)/duration} Hz")
+    n_corr_hits = correlation_counter
+    print(f"correlated hits = {n_corr_hits}")
+    print(f"correlation rate = {n_corr_hits/duration} +- {np.sqrt(n_corr_hits)/duration} Hz")
 
 
     ######################
@@ -152,7 +155,7 @@ def main():
     centers = centers*0.78
     # plot
     fig, ax = plt.subplots(1, 1, figsize=(7,6))
-    ax = hist_utils.plot_histogram(ax=ax, hist=hist, centers=centers, err_hist=err_hist, log_scale=False)
+    ax = hist_utils.plot_histogram(ax=ax, hist=hist, centers=centers, err_hist=err_hist, log_scale=False, add_info=True, entries=entries, overflow=overflow, underflow=underflow, bin_unit="ns", info_loc="bottom center")
     xlabel = "$T_\\text{DT} \\text{(matched)}$ [ns]"
     ax.set_xlabel(xlabel)
     fig.tight_layout()
@@ -186,7 +189,7 @@ def main():
         centers = centers*0.78
         # plot
         fig, ax = plt.subplots(1, 1, figsize=(7,6))
-        ax = hist_utils.plot_histogram(ax=ax, hist=hist, centers=centers, err_hist=err_hist, log_scale=True)
+        ax = hist_utils.plot_histogram(ax=ax, hist=hist, centers=centers, err_hist=err_hist, log_scale=True, add_info=True, entries=entries, overflow=overflow, underflow=underflow, bin_unit="ns", info_loc="top right")
         xlabel = "$\\Delta T_\\text{DT} \\text{(matched)}$ [ns]"
         ax.set_xlabel(xlabel)
         fig.tight_layout()
@@ -216,8 +219,8 @@ def main():
         centers = centers*0.78
         # plot
         fig, ax = plt.subplots(1, 1, figsize=(7,6))
-        ax = hist_utils.plot_histogram(ax=ax, hist=hist, centers=centers, err_hist=err_hist, log_scale=binning_log, power_limits=[-3,3])
-        xlabel = "$T_\\text{scint} \\text{(matched)} - T_\\text{DT} \\text{(matched)}$ [ns]"
+        ax = hist_utils.plot_histogram(ax=ax, hist=hist, centers=centers, err_hist=err_hist, log_scale=binning_log, power_limits=[-3,3], add_info=True, entries=entries, overflow=overflow, underflow=underflow, bin_unit="ns", info_loc="top right")
+        xlabel = "$\\Delta T_\\text{matching}$ [ns]"
         ax.set_xlabel(xlabel)
         fig.tight_layout()
         fig.show()
@@ -267,10 +270,10 @@ def main():
     fig, ax = plt.subplots(2, 1, figsize=(7,6), sharex=True, height_ratios=(5,1))
     rel_spacing = 0
     barwidth = np.mean(np.diff(bins_ts_diff_fit))*(1-rel_spacing) # relative spacing between bins
-    ax[0] = hist_utils.plot_histogram(ax[0], hist=ts_diff_fit, centers=bins_ts_diff_fit, err_hist=err_ts_diff_fit, log_scale=False, power_limits=[-3,3])
+    ax[0] = hist_utils.plot_histogram(ax[0], hist=ts_diff_fit, centers=bins_ts_diff_fit, err_hist=err_ts_diff_fit, log_scale=False, power_limits=[-3,3], add_info=True, entries=entries, overflow=overflow, underflow=underflow, bin_unit="ns", info_loc="bottom right")
     fit_label = f"""Gaussian fit:
 $f(t) = a \\cdot \\exp\\left( {{\\frac{{-(t-b)^2}}{{2 \\cdot c^2}}}}\\right)$
-$a=({np.round(a_fit,0):.0f}\\pm{np.round(err_a_fit,0):.0f})$ ns
+$a=({np.round(a_fit,0):.0f}\\pm{np.round(err_a_fit,0):.0f})$
 $b=({np.round(b_fit,2):.2f}\\pm{np.round(err_b_fit,2):.2f})$ ns
 $c=({np.round(c_fit,2):.2f}\\pm{np.round(err_c_fit,2):.2f})$ ns
 $\\chi^2 / N_{{df}} = {chi2:.1f}\\; / \\;{ndf:.0f} ={np.round(chi2ndf,1):.1f}$"""
@@ -280,7 +283,7 @@ $\\chi^2 / N_{{df}} = {chi2:.1f}\\; / \\;{ndf:.0f} ={np.round(chi2ndf,1):.1f}$""
     ax[0].axvspan(xmin=b_fit-err_b_fit, xmax=b_fit+err_b_fit, color="tab:red", alpha=0.1)
     #ax.set_yscale("log")
     ax[0].set_ylim(bottom=0, top=np.amax(ts_diff_fit)*1.1)
-    ax[0].legend(loc="best", prop={'size': 12}) # upper right
+    ax[0].legend(loc="upper right", prop={'size': 12}, fancybox=False) # upper right
     # residual plot
     residuals = fit_hist - f_peak_fit(fit_bins, a=a_fit, b=b_fit, c=c_fit)
     err_residuals = err_fit_hist
@@ -290,7 +293,7 @@ $\\chi^2 / N_{{df}} = {chi2:.1f}\\; / \\;{ndf:.0f} ={np.round(chi2ndf,1):.1f}$""
     #ax[1].set_xlim(0,600)
     ax[1].set_ylim(-np.amax(residuals+err_residuals)*1.1, np.amax(residuals+err_residuals)*1.1)
     ax[1].set_ylabel("Residuals")
-    xlabel = "$T_\\text{scint} \\text{(matched)} - T_\\text{DT} \\text{(matched)}$ [ns]"
+    xlabel = "$\\Delta T_\\text{matching}$ [ns]"
     ax[1].set_xlabel(xlabel)
     fig.tight_layout()
     fig.subplots_adjust(wspace=0, hspace=0.1)
@@ -304,7 +307,7 @@ $\\chi^2 / N_{{df}} = {chi2:.1f}\\; / \\;{ndf:.0f} ={np.round(chi2ndf,1):.1f}$""
     print(f"peak position = b = {b_fit} +- {err_b_fit}")
     print(f"peak width = c = {c_fit} +- {err_c_fit}")
     fwhm_factor = 2*np.sqrt(2*np.log(2))
-    print(f"peak fwhm = fwhm_factor * c = {fwhm_factor*c_fit}+- {fwhm_factor*err_c_fit}")
+    print(f"peak fwhm = fwhm_factor * c = {fwhm_factor*c_fit} +- {fwhm_factor*err_c_fit}")
 
 
     ####### geomplot corr muons
@@ -420,7 +423,7 @@ $\\chi^2 / N_{{df}} = {chi2:.1f}\\; / \\;{ndf:.0f} ={np.round(chi2ndf,1):.1f}$""
         ax.set_title(f"Correlated DT tracks ($z={np.round(derived_params.scint_z_center,0):.0f}$mm)", fontsize=20)
         ax.set_ylabel("$y$ [mm]")
         ax.set_xlabel("$x$ [mm]")
-        ax.legend()
+        ax.legend(fancybox=False, alpha=params._legend_alpha)
         cmap = plt.get_cmap('viridis')
         formatter = ScalarFormatter(useMathText=True)
         formatter.set_powerlimits([-3, 3]) # 10^X power limits for prescale
@@ -515,12 +518,11 @@ $\\chi^2 / N_{{df}} = {chi2:.1f}\\; / \\;{ndf:.0f} ={np.round(chi2ndf,1):.1f}$""
             formatter.set_powerlimits([-3, 3]) # 10^X power limits for prescale
             cbar = fig.colorbar(im_obj, ax=ax, fraction=0.05, cmap=cmap, format=formatter)
             # plot legend
-            #ax.legend(prop={"size":14}, loc="upper center")
             legend_entries = {
                 "Detector geometry": mpatches.Patch(edgecolor="white", facecolor="none"),
                 "Low occupancy channels": mpatches.Patch(edgecolor="tab:red", facecolor="none")
             }
-            ax.legend(legend_entries.values(), legend_entries.keys(), prop={'size': 14}, loc="center left")
+            ax.legend(legend_entries.values(), legend_entries.keys(), prop={'size': 14}, loc="center left", fancybox=False, alpha=params._legend_alpha)
             # show plot
             fig.tight_layout()
             fig.show()
@@ -579,7 +581,7 @@ $\\chi^2 / N_{{df}} = {chi2:.1f}\\; / \\;{ndf:.0f} ={np.round(chi2ndf,1):.1f}$""
         ax.set_title(f"All DT tracks ($z={np.round(derived_params.scint_z_center,0):.0f}$mm)", fontsize=20)
         ax.set_ylabel("$y$ [mm]")
         ax.set_xlabel("$x$ [mm]")
-        ax.legend()
+        ax.legend(fancybox=False, alpha=params._legend_alpha)
         cmap = plt.get_cmap('viridis')
         formatter = ScalarFormatter(useMathText=True)
         formatter.set_powerlimits([-3, 3]) # 10^X power limits for prescale
@@ -679,7 +681,7 @@ $\\chi^2 / N_{{df}} = {chi2:.1f}\\; / \\;{ndf:.0f} ={np.round(chi2ndf,1):.1f}$""
                 "Detector geometry": mpatches.Patch(edgecolor="white", facecolor="none"),
                 "Low occupancy channels": mpatches.Patch(edgecolor="tab:red", facecolor="none")
             }
-            ax.legend(legend_entries.values(), legend_entries.keys(), prop={'size': 14}, loc="center left")
+            ax.legend(legend_entries.values(), legend_entries.keys(), prop={'size': 14}, loc="center left", fancybox=False, alpha=params._legend_alpha)
             # show plot
             fig.tight_layout()
             fig.show()

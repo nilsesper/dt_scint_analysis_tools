@@ -148,9 +148,9 @@ def main():
     ## plot
     fig, ax = plt.subplots(1, 1, figsize=fig_size)
     if not use_asym_err: # symm err
-        ax = hist_utils.plot_histogram(ax=ax, hist=hist, centers=centers, err_hist=err_hist, log_scale=log_y_scale)
+        ax = hist_utils.plot_histogram(ax=ax, hist=hist, centers=centers, err_hist=err_hist, log_scale=log_y_scale, add_info=True, entries=entries, overflow=overflow, underflow=underflow, bin_unit=params._key_units[hist_key])
     else: # asymm err
-        ax = hist_utils.plot_histogram(ax=ax, hist=hist, centers=centers, err_hist_down=err_hist_down, err_hist_up=err_hist_up, log_scale=log_y_scale)
+        ax = hist_utils.plot_histogram(ax=ax, hist=hist, centers=centers, err_hist_down=err_hist_down, err_hist_up=err_hist_up, log_scale=log_y_scale, add_info=True, entries=entries, overflow=overflow, underflow=underflow, bin_unit=params._key_units[hist_key])
     xlabel = (params._key_symbols[hist_key]) if (params._key_units[hist_key] == "") else (params._key_symbols[hist_key]+" ["+ params._key_units[hist_key]+"]")
     ax.set_xlabel(xlabel)
     fig.tight_layout()

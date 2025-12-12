@@ -254,7 +254,7 @@ def main():
         ax.set_title(f"DT tracks in SL {sl} ($z={np.round(derived_params.sl_z_center[sl],0):.0f}$mm)", fontsize=20)
         ax.set_ylabel("$y$ [mm]")
         ax.set_xlabel("$x$ [mm]")
-        ax.legend(prop={"size":14}, loc="center left")
+        ax.legend(prop={"size":14}, loc="center left", fancybox=False)
         cmap = plt.get_cmap('viridis')
         formatter = ScalarFormatter(useMathText=True)
         formatter.set_powerlimits([-3, 3]) # 10^X power limits for prescale
@@ -345,7 +345,7 @@ def main():
             "Chamber geometry": mpatches.Patch(edgecolor="white", facecolor="none"),
             "Low occupancy cells": mpatches.Patch(edgecolor="tab:red", facecolor="none")
         }
-        ax.legend(legend_entries.values(), legend_entries.keys(), prop={'size': 12}, loc="lower center")
+        ax.legend(legend_entries.values(), legend_entries.keys(), prop={'size': 12}, loc="lower center", fancybox=False)
         # show plot
         fig.tight_layout()
         fig.show()
@@ -368,7 +368,7 @@ def main():
     centers = centers*0.78
     # plot
     fig, ax = plt.subplots(1, 1, figsize=(7,6))
-    ax = hist_utils.plot_histogram(ax=ax, hist=hist, centers=centers, err_hist=err_hist, log_scale=False)
+    ax = hist_utils.plot_histogram(ax=ax, hist=hist, centers=centers, err_hist=err_hist, log_scale=False, add_info=True, entries=entries, overflow=overflow, underflow=underflow, bin_unit="ns", info_loc="bottom center")
     xlabel = "$T$ [ns]"
     ax.set_xlabel(xlabel)
     fig.tight_layout()
@@ -398,7 +398,7 @@ def main():
     centers = centers*0.78
     # plot
     fig, ax = plt.subplots(1, 1, figsize=(7,6))
-    ax = hist_utils.plot_histogram(ax=ax, hist=hist, centers=centers, err_hist=err_hist, log_scale=True)
+    ax = hist_utils.plot_histogram(ax=ax, hist=hist, centers=centers, err_hist=err_hist, log_scale=True, add_info=True, entries=entries, overflow=overflow, underflow=underflow, bin_unit="ns", info_loc="top right")
     xlabel = "$\\Delta T$ [ns]"
     ax.set_xlabel(xlabel)
     fig.tight_layout()

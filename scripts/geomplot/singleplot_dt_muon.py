@@ -37,6 +37,11 @@ def main():
         type     = str,
         help     = "input file path: dt reco muons (pcl file)",
     )
+    parser.add_argument(
+        "--cosmic_muons_file",
+        type     = str,
+        help     = "input file path: simulated cosmic muons, only required if --simulation flag is given (pcl file)",
+    )
     # plotting / store plot
     parser.add_argument(
         "--show_plots",
@@ -76,6 +81,8 @@ def main():
     if args.dt_muon_idcs:
         dt_muon_idcs = args.dt_muon_idcs.split(",")
         dt_muon_idcs = np.array(dt_muon_idcs, dtype=int)
+    if simulation:
+        cosmic_muons_file = args.cosmic_muons_file
 
     #################
 
@@ -85,6 +92,8 @@ def main():
     sl_fits = data_utils.load_pickle(file=sl_fits_file)
     sl_fit_groups = data_utils.load_pickle(file=sl_fit_groups_file)
     dt_muons = data_utils.load_pickle(file=dt_muons_file)
+    if simulation:
+        cosmic_muons = data_utils.load_pickle(file=cosmic_muons_file)
 
     # ### select indices
     # if len(sl_fit_group_idcs) > 0:
@@ -164,7 +173,28 @@ $\\phi=({np.round(phi*params.rad_to_deg,1):.1f}\\pm{np.round(err_phi*params.rad_
             #ax = geoplot_utils.muon_ax(ax=ax, orient=orient, muons=dt_muons, muon_idx=i, color="black", label=f"muon={int(i)} ts={int(dt_muons['ts'][i])} theta={dt_muons['theta'][i]:.3f}={dt_muons['theta'][i]*180/np.pi:.1f}° phi={dt_muons['phi'][i]:.3f}={dt_muons['phi'][i]*180/np.pi:.1f}°")
             ax.plot(track, z_range, linewidth=1, color="tab:green", label=muon_label)
             ax.fill_betweenx(x1=track-err_track, x2=track+err_track, y=z_range, color="tab:green", alpha=0.2)
-            ax.legend(prop = { "size": 18 })
+
+        # if --simulation flag given: plot simulated muon track
+        if simulation:
+            for i in range(n_dt_muons):
+                if len(dt_muon_idcs) > 0:
+                    if i not in dt_muon_idcs:
+                        continue
+                # get params
+                muon_id = dt_muons["muon_id"][i]
+                #cosmic_muon_idx = np.where(cosmic_muons["muon_id"] == muon_id)[0][0]
+                ts = dt_muons["muon_ts"][i]
+                theta, phi = dt_muons["muon_theta"][i], dt_muons["muon_phi"][i]
+                x0, y0, z0 = dt_muons["muon_x0"][i], dt_muons["muon_y0"][i], dt_muons["muon_z0"][i]
+                # calculate proj track
+                muon_label = f"""Simulated track:
+$T_0={np.round(ts,1):.1f}$ {params._key_units['t0']}
+$\\theta={np.round(theta*params.rad_to_deg,1):.1f}^\\circ$
+$\\phi={np.round(phi*params.rad_to_deg,1):.1f}^\\circ$"""
+                track = derived_params.proj_glob_muon(orient=orient, z=z_range, x0=x0, y0=y0, z0=z0, theta=theta, phi=phi)
+                # plot track
+                #ax = geoplot_utils.muon_ax(ax=ax, orient=orient, muons=dt_muons, muon_idx=i, color="black", label=f"muon={int(i)} ts={int(dt_muons['ts'][i])} theta={dt_muons['theta'][i]:.3f}={dt_muons['theta'][i]*180/np.pi:.1f}° phi={dt_muons['phi'][i]:.3f}={dt_muons['phi'][i]*180/np.pi:.1f}°")
+                ax.plot(track, z_range, linewidth=1, color="black", label=muon_label, linestyle="--", zorder=3)
 
         # plot individual simulated muon dt sl fits
         no_legend = True

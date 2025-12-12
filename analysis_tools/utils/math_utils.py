@@ -32,3 +32,11 @@ def calculate_mean_std(data, err_data):
     err_mean = std / np.sqrt(n_data)
     return mean, std, err_mean
 
+### return latex scientific notation for float
+def latex_float(f, afterpoint_digits=2):
+    float_str = f"{f:.{afterpoint_digits+1}g}"
+    if "e" in float_str:
+        base, exponent = float_str.split("e")
+        return r"${0} \times 10^{{{1}}}$".format(base, int(exponent))
+    else:
+        return float_str

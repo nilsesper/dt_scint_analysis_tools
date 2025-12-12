@@ -115,17 +115,17 @@ def hits_from_muons(muons, *, silent=False):
         if not silent: print(f"  Progress: LY {ly}...")
         for st in tqdm(range(params._scintillator["lys"][ly]["n_sts"]), disable=silent):
             # scint coordinates
-            scint_x_min = np.amin([derived_params._scintillator_strip_coordinates[ly][st][0][0], derived_params._scintillator_strip_coordinates[ly][st][0][1]])
-            scint_x_max = np.amax([derived_params._scintillator_strip_coordinates[ly][st][0][0], derived_params._scintillator_strip_coordinates[ly][st][0][1]])
-            scint_y_min = np.amin([derived_params._scintillator_strip_coordinates[ly][st][1][0], derived_params._scintillator_strip_coordinates[ly][st][1][1]])
-            scint_y_max = np.amax([derived_params._scintillator_strip_coordinates[ly][st][1][0], derived_params._scintillator_strip_coordinates[ly][st][1][1]])
+            scint_x_min = derived_params._scintillator_strip_coordinates[ly][st][0][0]
+            scint_x_max = derived_params._scintillator_strip_coordinates[ly][st][0][1]
+            scint_y_min = derived_params._scintillator_strip_coordinates[ly][st][1][0]
+            scint_y_max = derived_params._scintillator_strip_coordinates[ly][st][1][1]
             # check for all muons separately
             for i in range(n_muons):
                 # check if muon propagated inside of x and y range of cell, use >= but < to suppress double hits
                 if (x[i] >= scint_x_min and x[i] < scint_x_max) and (y[i] >= scint_y_min and y[i] < scint_y_max):
                     # calculate drift distance
                     hit_coord = x[i] if (params._scintillator["lys"][ly]["orient"] == "phi") else y[i]
-                    xleft_strip_coord = derived_params._scintillator_strip_coordinates[ly][st][0][0] if (params._scintillator["lys"][ly]["orient"] == "phi") else derived_params._scintillator_strip_coordinates[ly][st][1][0]
+                    xleft_strip_coord = scint_x_min if (params._scintillator["lys"][ly]["orient"] == "phi") else scint_y_min
                     xhit = np.float64(np.clip(np.abs(hit_coord-xleft_strip_coord), a_min=0, a_max=params._strip_width)) # in mm
                     # drift distance does not make much sense in this context, but want to store coordinate of hit. with dd one can calculate it: x_hit = x_left(smaller x coord) + xhit
                     muon_ts = muons["ts"][i]

@@ -465,6 +465,9 @@ _scintillator_ts_individual_dead_time = 0 #500 # in ts units
 #_scint_area_clear_interval_down = 20 #200 # in ts units, isolation wrt last hit (extendable dead time)
 #_scint_area_clear_interval_up = 0 #200 # in ts units, isolation wrt next hit
 
+### --- dt and scint combination / correlation
+_corr_ts_group_window = 1000 # in tu, timestamp window of scint and dt hit grouping
+
 ## --------- when simulating muon hits
 # global time delay for scintillator hits by muons (scint ts = muon ts + _scintillator_delay)
 _scintillator_hit_delay = 0 # timestamp units
@@ -961,7 +964,7 @@ _cell_wire_width = 0.5 # only for illustration (real width much smaller)
 # ( X: phi cell granularity , Y: theta cell granularity , Z: chamber height )
 
 # chosen so that sl 1 (phi) wi 0 bottom corner is at coord frame origin (x=0, y=0, z=0)  [ on the corner where sl 2 (theta) has wi 0 ]
-global_shift = (-388.4 , -65 , -4175.5) #(-391.2 , -8.5, -4311.75)
+global_shift = (-388.4 -21, -65 , -4175.5) #(-391.2 , -8.5, -4311.75)
 cmssw_layershift = (0, 0, 1.5 * 13)
 cmssw_wireshift_sl1 = (26.4/2, 113.1/2, 1.4/2)
 cmssw_wireshift_sl2 = (113.1/2, 26.4/2, 1.4/2)
@@ -1325,15 +1328,15 @@ _strip_w_spacer = 20/15
 _strip_h_spacer = 0.
 # scint position
 scint_size = (-520., -520., 40.) 
-# MEASUREMENT: sl1 bottom left edge to scint top left edge (smallest x,y coordinates)
+# MEASUREMENT: sl1 bottom left edge to scint top left edge (smallest x,y coordinates, largest z coordinate)
 scint_edge_to_sl1_edge = ( 760, None, -990 )
-# MEASUREMENT: sl2 bottom left edge to scint top left edge (smallest x,y coordinates)
+# MEASUREMENT: sl2 bottom left edge to scint top left edge (smallest x,y coordinates, largest z coordinate)
 scint_edge_to_sl2_edge = ( None, 1170, None )
 # translate to used global coord frame
 scint_pos = (
     scint_edge_to_sl1_edge[0]-scint_size[0]+(cmssw_sl1_pos[0]-cmssw_sl1_ly1_pos[0]),
     scint_edge_to_sl2_edge[1]-scint_size[1]+(cmssw_sl2_pos[1]-cmssw_sl2_ly1_pos[1]),
-    scint_edge_to_sl1_edge[2]+(cmssw_sl1_pos[2]-cmssw_sl1_ly1_pos[2])
+    scint_edge_to_sl1_edge[2]-scint_size[2]+(cmssw_sl1_pos[2]-cmssw_sl1_ly1_pos[2])
 ) # shift from sl1 casing edge to wi0 ly0 cell edge - which is the coordinate origin
 # full scintillator
 _scintillator = {
@@ -1341,9 +1344,9 @@ _scintillator = {
     "lys": {
         1: {
             "type": "strips",
-            "orient": "phi",
+            "orient": "phi", # strip segmentation (width) along x axis
             "size": (0., 0., 0.),
-            "pos": (-10., -10., 20+(10-_strip_height/2)), # corner with smallest coordinates of this layer, *RELATIVE TO* base point of chamber point with smallest coordinates
+            "pos": (-10., -10., 20+(10-_strip_height/2)),  # corner with smallest coordinates of this layer, *RELATIVE TO* base point of chamber point with smallest coordinates
             "n_sts": 16, # no of strips
             "ch_pos": (0., 0., 0.), # corner with smallest coordinates of first strip (st=0), *RELATIVE TO* ly point with smallest coordinates
             "ch_spacer": (-_strip_w_spacer, -_strip_w_spacer, _strip_h_spacer), # size of spacer between strips
@@ -1351,9 +1354,9 @@ _scintillator = {
         },
         0: {
             "type": "strips",
-            "orient": "theta",
+            "orient": "theta", # strip segmentation (width) along y axis
             "size": (0., 0., 0.),
-            "pos": (-10., -10., 0+(10-_strip_height/2)), 
+            "pos": (-10., -10., 0+(10-_strip_height/2)),
             "n_sts": 16,
             "ch_pos": (0., 0., 0.),
             "ch_spacer": (-_strip_w_spacer, -_strip_w_spacer, _strip_h_spacer),
@@ -1485,6 +1488,13 @@ mezzanine_input_mapping = { # ch id = idx of sipm_p/n signal in fw = input ch id
 	30: {'silkscreen': 'D7', 'quad_id': 6, 'thres_dac_ch': 'A', 'fpga_bank': 66, 'pin_inverted': False, 'mctt_instance': 0, 'mctt_input_ch': 22},
 	31: {'silkscreen': 'D8', 'quad_id': 7, 'thres_dac_ch': 'A', 'fpga_bank': 66, 'pin_inverted': False, 'mctt_instance': 0, 'mctt_input_ch': 23},
 }
+# ref pos (lowest x,y,z point of scint)
+scint_ref_pos = (
+    scint_edge_to_sl1_edge[0]+(cmssw_sl1_pos[0]-cmssw_sl1_ly1_pos[0]),
+    scint_edge_to_sl2_edge[1]+(cmssw_sl2_pos[1]-cmssw_sl2_ly1_pos[1]),
+    scint_edge_to_sl1_edge[2]-scint_size[2]+(cmssw_sl1_pos[2]-cmssw_sl1_ly1_pos[2])
+)
+print(f"scint_ref_pos = {scint_ref_pos}")
 
 ### hardware setup
 ## dt mapping: {ro_ch: obdt_mapping}
@@ -1514,6 +1524,9 @@ _ro_ch_labels = {
     25: "mez2",
 }
 
+#### plotting
+_legend_alpha = 0.6
+_hist_info_alpha = 0.6
 
 
 

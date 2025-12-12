@@ -14,6 +14,7 @@ from matplotlib.ticker import ScalarFormatter
 import analysis_tools.params.params as params
 import analysis_tools.params.derived_params as derived_params
 import analysis_tools.utils.muon_utils as muon_utils
+import analysis_tools.utils.math_utils as math_utils
 
 # -----------------------------------------
 
@@ -210,7 +211,9 @@ def generate_histogram_edges(arg, *, data_min_val=None, data_max_val=None):
     if arg_split[0] == "linear":
         if len(arg_split) != 3+1:
             raise Exception(f"arg: Need linear,start,stop,n_bins+1.")
-        edges = np.linspace(float(arg_split[1]), float(arg_split[2]), int(arg_split[3]))
+        fraction_larger = 0.01
+        min_val, max_val = float(arg_split[1]), float(arg_split[2])
+        edges = np.linspace(min_val-fraction_larger*(max_val-min_val), max_val+fraction_larger*(max_val-min_val), int(arg_split[3])+1)
     # "range" = integer range bin edges
     elif arg_split[0] == "range":
         if len(arg_split) != 2+1:
@@ -225,7 +228,7 @@ def generate_histogram_edges(arg, *, data_min_val=None, data_max_val=None):
         if data_min_val == data_max_val:
             data_min_val -= 0.01*data_min_val
             data_max_val += 0.01*data_min_val
-        centers = np.linspace(data_min_val, data_max_val, n_auto_bins+1)
+        centers = np.linspace(data_min_val, data_max_val, n_auto_bins)
         edges = edges_from_centers(centers)
     # "step1" =  automatic bin edges for bin width = 1
     elif arg_split[0] == "step1":
@@ -314,7 +317,7 @@ def calculate_hist_uncertainty(hist, *, hist_err_right=None, hist_err_left=None,
 # give hist to plot
 # optionally give err_hist (symm errors)
 # or err_hist_down and err_hist_up (asymm errors)
-def plot_histogram(ax, hist, centers, *, err_hist=None, err_hist_down=None, err_hist_up=None, log_scale=False, power_limits=[-2, 2]):
+def plot_histogram(ax, hist, centers, *, err_hist=None, err_hist_down=None, err_hist_up=None, log_scale=False, power_limits=[-2, 2], add_info=True, overflow=None, underflow=None, entries=None, bin_unit=None, bin_width_digits=2, set_y_label=True, info_font_size=10, info_loc="top right"):
     barwidth = np.mean(np.diff(centers))
     ax.bar(centers, hist, width=barwidth, align="center", facecolor="tab:blue")
     # if up down errors given
@@ -334,8 +337,34 @@ def plot_histogram(ax, hist, centers, *, err_hist=None, err_hist_down=None, err_
         ax.set_ylim(bottom=0.5, top=max_hist_val*np.exp(1.1))
     ax.xaxis.set_major_formatter(ScalarFormatter(useMathText=True)) 
     ax.xaxis.get_major_formatter().set_powerlimits(power_limits) # 10^X power limits for prescale
+    # add text in histogram with hist info / stats
+    if add_info:
+        #barwidth_str = math_utils.latex_float(barwidth)
+        barwidth_str = f"{barwidth:.{bin_width_digits}g}"
+        if bin_unit != None:
+            barwidth_str += f" {bin_unit}"
+        info_str = f"entries = {entries}\nunderflow = {underflow}\noverflow = {overflow}\ntotal = {entries+overflow+underflow}\nbin count = {len(centers)}\nbin width = {barwidth_str}"
+        #ax.text(0.99, 0.99, info_str, horizontalalignment='right', verticalalignment='top', transform=ax.transAxes, fontsize=8, bbox=dict(facecolor='white', edgecolor='lightgray', alpha=0.7))
+        if info_loc == "top right":
+            ax.annotate(info_str, xy=(1, 1), xytext=(-info_font_size-0.5, -info_font_size-0.5), xycoords='axes fraction', textcoords='offset points', fontsize=info_font_size, horizontalalignment='right', verticalalignment='top', bbox=dict(facecolor='white', edgecolor='lightgray', alpha=params._hist_info_alpha))
+        elif info_loc == "bottom right":
+            ax.annotate(info_str, xy=(1, 0), xytext=(-info_font_size-0.5, info_font_size+0.5), xycoords='axes fraction', textcoords='offset points', fontsize=info_font_size, horizontalalignment='right', verticalalignment='bottom', bbox=dict(facecolor='white', edgecolor='lightgray', alpha=params._hist_info_alpha))
+        elif info_loc == "bottom left":
+            ax.annotate(info_str, xy=(0, 0), xytext=(info_font_size+0.5, info_font_size+0.5), xycoords='axes fraction', textcoords='offset points', fontsize=info_font_size, horizontalalignment='left', verticalalignment='bottom', bbox=dict(facecolor='white', edgecolor='lightgray', alpha=params._hist_info_alpha))
+        elif info_loc == "top left":
+            ax.annotate(info_str, xy=(0, 1), xytext=(info_font_size+0.5, -info_font_size-0.5), xycoords='axes fraction', textcoords='offset points', fontsize=info_font_size, horizontalalignment='left', verticalalignment='top', bbox=dict(facecolor='white', edgecolor='lightgray', alpha=params._hist_info_alpha))
+        elif info_loc == "top center":
+            ax.annotate(info_str, xy=(0.5, 1), xytext=(0, -info_font_size-0.5), xycoords='axes fraction', textcoords='offset points', fontsize=info_font_size, horizontalalignment='center', verticalalignment='top', bbox=dict(facecolor='white', edgecolor='lightgray', alpha=params._hist_info_alpha))
+        elif info_loc == "bottom center":
+            ax.annotate(info_str, xy=(0.5, 0), xytext=(0, info_font_size+0.5), xycoords='axes fraction', textcoords='offset points', fontsize=info_font_size, horizontalalignment='center', verticalalignment='bottom', bbox=dict(facecolor='white', edgecolor='lightgray', alpha=params._hist_info_alpha))
+        elif info_loc == "center left":
+            ax.annotate(info_str, xy=(0, 0.5), xytext=(info_font_size+0.5, 0), xycoords='axes fraction', textcoords='offset points', fontsize=info_font_size, horizontalalignment='left', verticalalignment='center', bbox=dict(facecolor='white', edgecolor='lightgray', alpha=params._hist_info_alpha))
+        elif info_loc == "center right":
+            ax.annotate(info_str, xy=(1, 0.5), xytext=(-info_font_size-0.5, 0), xycoords='axes fraction', textcoords='offset points', fontsize=info_font_size, horizontalalignment='right', verticalalignment='center', bbox=dict(facecolor='white', edgecolor='lightgray', alpha=params._hist_info_alpha))
+    # set y label
+    if set_y_label:
+        ax.set_ylabel(f"Counts")
     return ax
-
 
 
 

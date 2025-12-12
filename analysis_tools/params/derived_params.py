@@ -216,17 +216,17 @@ for sl in params._dt_chamber["sls"].keys():
                 coord_axis = 0
                 pos_x = params._dt_chamber["pos"][coord_axis] + params._dt_chamber["sls"][sl]["pos"][coord_axis] + params._dt_chamber["sls"][sl]["lys"][ly]["pos"][coord_axis] + params._dt_chamber["sls"][sl]["lys"][ly]["ch_pos"][coord_axis] + params._dt_chamber["sls"][sl]["lys"][ly]["ch_spacer"][coord_axis] + wi * ( params._dt_chamber["sls"][sl]["lys"][ly]["ch_size"][coord_axis] + params._dt_chamber["sls"][sl]["lys"][ly]["ch_spacer"][coord_axis] )
                 size_x = params._dt_chamber["sls"][sl]["lys"][ly]["ch_size"][coord_axis]
-                _dt_cell_coordinates[sl][ly][wi].append([pos_x, pos_x+size_x])
+                _dt_cell_coordinates[sl][ly][wi].append(np.sort([pos_x, pos_x+size_x]))
                 # idx = 1: y axis (axis = 1) ==> ALL CELLS LOOK THE SAME FOR PHI SL ALONG Y
                 coord_axis = 1
                 pos_y = params._dt_chamber["pos"][coord_axis] + params._dt_chamber["sls"][sl]["pos"][coord_axis] + params._dt_chamber["sls"][sl]["lys"][ly]["pos"][coord_axis] + params._dt_chamber["sls"][sl]["lys"][ly]["ch_pos"][coord_axis] + params._dt_chamber["sls"][sl]["lys"][ly]["ch_spacer"][coord_axis]
                 size_y = params._dt_chamber["sls"][sl]["lys"][ly]["ch_size"][coord_axis]
-                _dt_cell_coordinates[sl][ly][wi].append([pos_y, pos_y+size_y])
+                _dt_cell_coordinates[sl][ly][wi].append(np.sort([pos_y, pos_y+size_y]))
                 # idx = 2: z axis (axis = 2)
                 coord_axis = 2
                 pos_z = params._dt_chamber["pos"][coord_axis] + params._dt_chamber["sls"][sl]["pos"][coord_axis] + params._dt_chamber["sls"][sl]["lys"][ly]["pos"][coord_axis] + params._dt_chamber["sls"][sl]["lys"][ly]["ch_pos"][coord_axis] + params._dt_chamber["sls"][sl]["lys"][ly]["ch_spacer"][coord_axis] #+ ly * ( params._dt_chamber["sls"][sl]["lys"][ly]["ch_size"][coord_axis] + params._dt_chamber["sls"][sl]["lys"][ly]["ch_spacer"][coord_axis] )
                 size_z = params._dt_chamber["sls"][sl]["lys"][ly]["ch_size"][coord_axis]
-                _dt_cell_coordinates[sl][ly][wi].append([pos_z, pos_z+size_z])
+                _dt_cell_coordinates[sl][ly][wi].append(np.sort([pos_z, pos_z+size_z]))
                 # idx = 3: x center pos
                 _dt_cell_coordinates[sl][ly][wi].append(pos_x+size_x/2)
                 # idx = 4: y center pos
@@ -238,17 +238,17 @@ for sl in params._dt_chamber["sls"].keys():
                 coord_axis = 0
                 pos_x = params._dt_chamber["pos"][coord_axis] + params._dt_chamber["sls"][sl]["pos"][coord_axis] + params._dt_chamber["sls"][sl]["lys"][ly]["pos"][coord_axis] + params._dt_chamber["sls"][sl]["lys"][ly]["ch_pos"][coord_axis] + params._dt_chamber["sls"][sl]["lys"][ly]["ch_spacer"][coord_axis]
                 size_x = params._dt_chamber["sls"][sl]["lys"][ly]["ch_size"][coord_axis]
-                _dt_cell_coordinates[sl][ly][wi].append([pos_x, pos_x+size_x])
+                _dt_cell_coordinates[sl][ly][wi].append(np.sort([pos_x, pos_x+size_x]))
                 # idx = 1: y axis (axis = 1)
                 coord_axis = 1
                 pos_y = params._dt_chamber["pos"][coord_axis] + params._dt_chamber["sls"][sl]["pos"][coord_axis] + params._dt_chamber["sls"][sl]["lys"][ly]["pos"][coord_axis] + params._dt_chamber["sls"][sl]["lys"][ly]["ch_pos"][coord_axis] + params._dt_chamber["sls"][sl]["lys"][ly]["ch_spacer"][coord_axis] + wi * ( params._dt_chamber["sls"][sl]["lys"][ly]["ch_size"][coord_axis] + params._dt_chamber["sls"][sl]["lys"][ly]["ch_spacer"][coord_axis] )
                 size_y = params._dt_chamber["sls"][sl]["lys"][ly]["ch_size"][coord_axis]
-                _dt_cell_coordinates[sl][ly][wi].append([pos_y, pos_y+size_y])
+                _dt_cell_coordinates[sl][ly][wi].append(np.sort([pos_y, pos_y+size_y]))
                 # idx = 2: z axis (axis = 2)
                 coord_axis = 2
                 pos_z = params._dt_chamber["pos"][coord_axis] + params._dt_chamber["sls"][sl]["pos"][coord_axis] + params._dt_chamber["sls"][sl]["lys"][ly]["pos"][coord_axis] + params._dt_chamber["sls"][sl]["lys"][ly]["ch_pos"][coord_axis] + params._dt_chamber["sls"][sl]["lys"][ly]["ch_spacer"][coord_axis] #+ ly * ( params._dt_chamber["sls"][sl]["lys"][ly]["ch_size"][coord_axis] + params._dt_chamber["sls"][sl]["lys"][ly]["ch_spacer"][coord_axis] )
                 size_z = params._dt_chamber["sls"][sl]["lys"][ly]["ch_size"][coord_axis]
-                _dt_cell_coordinates[sl][ly][wi].append([pos_z, pos_z+size_z])
+                _dt_cell_coordinates[sl][ly][wi].append(np.sort([pos_z, pos_z+size_z]))
                 # idx = 3: x center pos
                 _dt_cell_coordinates[sl][ly][wi].append(pos_x+size_x/2)
                 # idx = 4: y center pos
@@ -284,8 +284,8 @@ for ly in range(params._dt_chamber["sls"][sl]["n_lys"]):
         pos_z = _dt_cell_coordinates[sl][ly][sl_pattern_ref_wi+rel_wi][coord_axis][0] - _dt_cell_coordinates[sl][sl_pattern_ref_ly][sl_pattern_ref_wi][coord_axis][0]
         size_z = params._dt_chamber["sls"][sl]["lys"][ly]["ch_size"][coord_axis]
         # fill data into coord map
-        _sl_pattern_coordinates[ly][rel_wi].append([pos_x, pos_x+size_x]) # idx = 0: [xmin, xmax]
-        _sl_pattern_coordinates[ly][rel_wi].append([pos_z, pos_z+size_z]) # idx = 0: [zmin, zmax]
+        _sl_pattern_coordinates[ly][rel_wi].append(np.sort([pos_x, pos_x+size_x])) # idx = 0: [xmin, xmax]
+        _sl_pattern_coordinates[ly][rel_wi].append(np.sort([pos_z, pos_z+size_z])) # idx = 0: [zmin, zmax]
         _sl_pattern_coordinates[ly][rel_wi].append(pos_x+size_x/2) # idx = 2: x center pos
         _sl_pattern_coordinates[ly][rel_wi].append(pos_z+size_z/2) # idx = 3: z center pos
 # transform coordinate system from (0,0) at bottom of cell ly=3, rel_wi=0 to (0,0) at center of cell ly=3, rel_wi=0
@@ -407,17 +407,17 @@ for ly in range(params._scintillator["n_lys"]):
             coord_axis = 0
             pos_x = params._scintillator["pos"][coord_axis]+params._scintillator["lys"][ly]["pos"][coord_axis]+params._scintillator["lys"][ly]["ch_pos"][coord_axis]+params._scintillator["lys"][ly]["ch_spacer"][coord_axis]+st*(params._scintillator["lys"][ly]["ch_size"][coord_axis]+params._scintillator["lys"][ly]["ch_spacer"][coord_axis])
             size_x = params._scintillator["lys"][ly]["ch_size"][coord_axis]
-            _scintillator_strip_coordinates[ly][st].append([pos_x, pos_x+size_x])
+            _scintillator_strip_coordinates[ly][st].append(np.sort([pos_x, pos_x+size_x]))
             # idx = 1: y axis (axis = 1) ==> ALL CELLS LOOK THE SAME FOR PHI SL ALONG Y
             coord_axis = 1
             pos_y = params._scintillator["pos"][coord_axis]+params._scintillator["lys"][ly]["pos"][coord_axis]+params._scintillator["lys"][ly]["ch_pos"][coord_axis]+params._scintillator["lys"][ly]["ch_spacer"][coord_axis]
             size_y = params._scintillator["lys"][ly]["ch_size"][coord_axis]
-            _scintillator_strip_coordinates[ly][st].append([pos_y, pos_y+size_y])
+            _scintillator_strip_coordinates[ly][st].append(np.sort([pos_y, pos_y+size_y]))
             # idx = 2: z axis (axis = 2)
             coord_axis = 2
             pos_z = params._scintillator["pos"][coord_axis]+params._scintillator["lys"][ly]["pos"][coord_axis]+params._scintillator["lys"][ly]["ch_pos"][coord_axis]+params._scintillator["lys"][ly]["ch_spacer"][coord_axis]+ly*(params._scintillator["lys"][ly]["ch_size"][coord_axis]+params._scintillator["lys"][ly]["ch_spacer"][coord_axis])
             size_z = params._scintillator["lys"][ly]["ch_size"][coord_axis]
-            _scintillator_strip_coordinates[ly][st].append([pos_z, pos_z+size_z])
+            _scintillator_strip_coordinates[ly][st].append(np.sort([pos_z, pos_z+size_z]))
             # idx = 3: x center pos
             _scintillator_strip_coordinates[ly][st].append(pos_x+size_x/2)
             # idx = 4: y center pos
@@ -429,17 +429,17 @@ for ly in range(params._scintillator["n_lys"]):
             coord_axis = 0
             pos_x = params._scintillator["pos"][coord_axis]+params._scintillator["lys"][ly]["pos"][coord_axis]+params._scintillator["lys"][ly]["ch_pos"][coord_axis]+params._scintillator["lys"][ly]["ch_spacer"][coord_axis]
             size_x = params._scintillator["lys"][ly]["ch_size"][coord_axis]
-            _scintillator_strip_coordinates[ly][st].append([pos_x, pos_x+size_x])
+            _scintillator_strip_coordinates[ly][st].append(np.sort([pos_x, pos_x+size_x]))
             # idx = 1: y axis (axis = 1)
             coord_axis = 1
             pos_y = params._scintillator["pos"][coord_axis]+params._scintillator["lys"][ly]["pos"][coord_axis]+params._scintillator["lys"][ly]["ch_pos"][coord_axis]+params._scintillator["lys"][ly]["ch_spacer"][coord_axis]+st*(params._scintillator["lys"][ly]["ch_size"][coord_axis]+params._scintillator["lys"][ly]["ch_spacer"][coord_axis])
             size_y = params._scintillator["lys"][ly]["ch_size"][coord_axis]
-            _scintillator_strip_coordinates[ly][st].append([pos_y, pos_y+size_y])
+            _scintillator_strip_coordinates[ly][st].append(np.sort([pos_y, pos_y+size_y]))
             # idx = 2: z axis (axis = 2)
             coord_axis = 2
             pos_z = params._scintillator["pos"][coord_axis]+params._scintillator["lys"][ly]["pos"][coord_axis]+params._scintillator["lys"][ly]["ch_pos"][coord_axis]+params._scintillator["lys"][ly]["ch_spacer"][coord_axis]+ly*(params._scintillator["lys"][ly]["ch_size"][coord_axis]+params._scintillator["lys"][ly]["ch_spacer"][coord_axis])
             size_z = params._scintillator["lys"][ly]["ch_size"][coord_axis]
-            _scintillator_strip_coordinates[ly][st].append([pos_z, pos_z+size_z])
+            _scintillator_strip_coordinates[ly][st].append(np.sort([pos_z, pos_z+size_z]))
             # idx = 3: x center pos
             _scintillator_strip_coordinates[ly][st].append(pos_x+size_x/2)
             # idx = 4: y center pos

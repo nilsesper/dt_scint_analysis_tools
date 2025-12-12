@@ -183,7 +183,7 @@ def hits_from_muons(muons, *, silent=False, noise_ampl=0, sys_miscalib_ampl=0):
                     muon_tan_alpha_y = np.tan(muon_theta)*np.sin(muon_phi)
                     muon_tan_alpha = muon_tan_alpha_x if (params._dt_chamber["sls"][sl]["orient"] == "phi") else muon_tan_alpha_y
                     # store this hit
-                    dt_hit_list.append({"muon_ts": muon_ts, "sl": sl, "ly": ly, "wi": wi, "muon_dd": drift_distance, "muon_dt": drift_time, "hit_ts": hit_ts, "muon_id": i, "muon_lat": laterality, "muon_tan_alpha": muon_tan_alpha, "muon_vd": derived_params._drift_velocity_mm_per_timestamp , "muon_x0": muons["x0"][i], "muon_y0": muons["y0"][i], "muon_z0": muons["z0"][i], "muon_theta": muon_theta, "muon_phi": muon_phi})
+                    dt_hit_list.append({"muon_ts": muon_ts, "sl": sl, "ly": ly, "wi": wi, "muon_dd": drift_distance, "muon_dt": drift_time, "hit_ts": hit_ts, "muon_id": muons["muon_id"][i], "muon_lat": laterality, "muon_tan_alpha": muon_tan_alpha, "muon_vd": derived_params._drift_velocity_mm_per_timestamp , "muon_x0": muons["x0"][i], "muon_y0": muons["y0"][i], "muon_z0": muons["z0"][i], "muon_theta": muon_theta, "muon_phi": muon_phi})
     # convert dt_hit_list to proper format object dt_hits
     n_hits = len(dt_hit_list)
     # map sl,ly,wi to all other keys of dt -> map back to obdt channels & oc,bx,tdc timestamp
@@ -325,7 +325,7 @@ def find_sl_patterns(hits, *, dt_sl_patterns=params._dt_sl_patterns, silent=Fals
                             #print("non-equal muon_id, reject pattern: muon_id =",ly_muon_id)
                             continue
                     # now can use common attributes of this hit since ensured same muon id above
-                    muon_id = 0
+                    muon_id = ly_muon_id[0]
                     if simulation_only_muon_patterns:
                         muon_id = ly_muon_id[0]
                     tan_alpha = last_hit[sl][ly][ pat_wi[ly] ]["muon_tan_alpha"]
@@ -846,6 +846,8 @@ def reco_muons_from_sl_fit_groups(fits, fit_groups, *, silent=False, verbose=Fal
                 skip_this_combination = True
                 continue
             z_wire = derived_params._sl_pattern_coordinates[3][0][3] # z_cell (wire position) of ly=3
+            # old: _coord_transform = [ derived_params._dt_cell_coordinates[sl][3][base_wi][x_axis+3], derived_params._dt_cell_coordinates[sl][3][base_wi][y_axis+3] ]
+            # new: note that x0 is in cell center, but dt cell coordinate is left cell edge
             _coord_transform = [ derived_params._dt_cell_coordinates[sl][3][base_wi][x_axis+3], derived_params._dt_cell_coordinates[sl][3][base_wi][y_axis+3] ]
             # calculate muon track in coord frame
             x0_reco_sl[sl] = derived_params.f_x_muon(z=-_coord_transform[1]+z0_reco, x0=x0_fit, tan_alpha=tan_alpha_fit) + _coord_transform[0]

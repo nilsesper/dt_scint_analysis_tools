@@ -80,14 +80,16 @@ allowed_tasks = {
         "cp [DT_HITS] [DT_CORR_HITS]",
     # scint sim
     "scint_hits_sim":
-        "python scripts/sim/cosmic_tracks_to_scint_hits.py --cosmic_muons_file [SIM_MUONS] --scint_hits_file [SCINT_HITS] --ts_range_file [TS_RANGE]",
+        "python scripts/sim/cosmic_tracks_to_scint_hits.py --cosmic_muons_file [SIM_MUONS] --scint_hits_file [SCINT_HITS_SIM] --ts_range_file [TS_RANGE]",
+    "scint_cut_dead_strips": # cut away simulated strip hits which are dead in the real detector
+        "python scripts/sim/sim_scint_hits_apply_cuts.py --input_data_file [SCINT_HITS_SIM] --cut_data_file [SCINT_HITS]",
 }
 ### filepath wildcards:
 prefix_wildcard_list = [
     "DT_HITS", "DT_HITS_NODEADTIME", "DT_CORR_HITS", "SL_PATTERNS", "SL_FAKE_PATTERNS", "SL_FITS", "SL_FITS_AFTERCUTS", "SL_FIT_GROUPS", "SL_FIT_GROUPS_AFTERCUTS", "DT_MUONS",
     "RAW_SCINT_HITS", "RAW_SCINT_HITS_DEADTIME", "RAW_SCINT_GROUPS", "SCINT_HITS", "SCINT_AREAS",
     "DT_HIT_DIFFERENCES",
-    "SIM_MUONS", "DT_HITS_SIM",
+    "SIM_MUONS", "DT_HITS_SIM", "SCINT_HITS_SIM",
 ]
 def replace_wildcards(command, base_path, dump_file, file_prefix, n_proc):
     wildcard_dict = {
