@@ -216,7 +216,7 @@ $\\chi^2 / N_{{df}} = {chi2:.1f}\\; / \\;{ndf:.0f} ={np.round(chi2ndf,1):.1f}$""
         fig.savefig(hist_plot_file)
 
     # plot wo bg -- IN TDC UNITS
-    fig, ax = plt.subplots(1, 1, figsize=fig_size)
+    fig, ax = plt.subplots(1, 1, figsize=(7,6.5))
     rel_spacing = 0
     barwidth = np.mean(np.diff(bins_nobg))*(1-rel_spacing) # relative spacing between bins
     ax = hist_utils.plot_histogram(ax, hist=hist_nobg, centers=bins_nobg/0.78, err_hist_down=err_hist_nobg_down, err_hist_up=err_hist_nobg_up, log_scale=False, power_limits=[-3,3])
@@ -226,7 +226,7 @@ $\\chi^2 / N_{{df}} = {chi2:.1f}\\; / \\;{ndf:.0f} ={np.round(chi2ndf,1):.1f}$""
     #ax.set_ylim(bottom=0.5, top=np.amax(hist_nobg)*np.exp(1.1))
     #ax.set_ylim(bottom=0, top=np.amax(hist_nobg)*1.1)
     ax.set_xlim(0,600/0.78)
-    ax.set_xlabel("$\\Delta T_\\text{cell}$ [TU]")
+    ax.set_xlabel("$\\Delta T_\\text{cell}$ [TDC counts]")
     #ax.legend(prop={'size': 14})
     fig.tight_layout()
     fig.show()

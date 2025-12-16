@@ -384,7 +384,7 @@ def main():
     # plot
     fig, ax = plt.subplots(1, 1, figsize=(7,6))
     ax = hist_utils.plot_histogram(ax=ax, hist=hist, centers=centers, err_hist=err_hist, log_scale=False, add_info=True, entries=entries, overflow=overflow, underflow=underflow, bin_unit="ns", info_loc="bottom center")
-    xlabel = "$T$ [ns]"
+    xlabel = "$T_0$ [ns]"
     ax.set_xlabel(xlabel)
     fig.tight_layout()
     fig.show()
@@ -414,7 +414,7 @@ def main():
     # plot
     fig, ax = plt.subplots(1, 1, figsize=(7,6))
     ax = hist_utils.plot_histogram(ax=ax, hist=hist, centers=centers, err_hist=err_hist, log_scale=True, add_info=True, entries=entries, overflow=overflow, underflow=underflow, bin_unit="ns", info_loc="top right")
-    xlabel = "$\\Delta T$ [ns]"
+    xlabel = "$\\Delta T_0$ [ns]"
     ax.set_xlabel(xlabel)
     fig.tight_layout()
     fig.show()

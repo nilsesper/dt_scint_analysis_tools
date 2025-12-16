@@ -195,6 +195,9 @@
 ### dt track geometry plotting & other analysis
     python scripts/dt/plot_dt_muons.py --show_plots --dt_muons_file thesis_data_files/large_combined_data_run/53_comb__MERGED_DT_MUONS.pcl --fig_size "7,6" --store_path ~/masterarbeit/thesis/resources/images/large_combined_data_plots/
 
+### angular distribution with 1/sin(theta) reweighting
+    python scripts/analysis/dt_muon_angles.py --dt_muons_file thesis_data_files/large_combined_data_run/53_comb__MERGED_DT_MUONS.pcl --sim_dt_muons_file thesis_data_files/sim/53_sim__MERGED_DT_MUONS.pcl --fig_size "7,6" --store_path ~/masterarbeit/thesis/resources/images/large_combined_data_plots/
+
 
 ########################################################
 ############## SCINTILLATOR
@@ -388,6 +391,30 @@ python split_scripts/split_utils_scint/raw_scint_hit_diff_from_split_data.py --b
 # propagate through scint analysis chain
     python split_scripts/split_utils/analysis_run_control.py --base_path thesis_data_files/sim/ --data_config_file thesis_data_files/sim/data_config_file_finished.txt --task_list "scint_hits_sim,scint_cut_dead_strips" --task_for_each_set --n_proc 12
 
+######## simulated cosmic tracks:
+
+### general histograms
+## hist: "ts" +- "err_ts"
+# calculate & plot
+    python split_scripts/split_utils/hist_from_split_data.py --base_path thesis_data_files/sim/ --data_config_file thesis_data_files/sim/data_config_file_finished.txt --dataset SIM_MUONS --key "ts" --err_key "err_ts" --edges "auto,50" &&
+    python split_scripts/split_utils/plot_hist_from_split_data.py --base_path thesis_data_files/sim/ --data_config_file thesis_data_files/sim/data_config_file_finished.txt --store_path ~/masterarbeit/thesis/resources/images/sim_data_plots/ --dataset SIM_MUONS --key "ts" --fig_size "7,6" --use_asymm_err
+## hist: "theta" +- "err_theta"
+# calculate & plot
+    python split_scripts/split_utils/hist_from_split_data.py --base_path thesis_data_files/sim/ --data_config_file thesis_data_files/sim/data_config_file_finished.txt --dataset SIM_MUONS --key "theta" --err_key "err_theta" --edges "auto,50" &&
+    python split_scripts/split_utils/plot_hist_from_split_data.py --base_path thesis_data_files/sim/ --data_config_file thesis_data_files/sim/data_config_file_finished.txt --store_path ~/masterarbeit/thesis/resources/images/sim_data_plots/ --dataset SIM_MUONS --key "theta" --fig_size "7,6" --use_asymm_err
+## hist: "phi" +- "err_phi"
+# calculate & plot
+    python split_scripts/split_utils/hist_from_split_data.py --base_path thesis_data_files/sim/ --data_config_file thesis_data_files/sim/data_config_file_finished.txt --dataset SIM_MUONS --key "phi" --err_key "err_phi" --edges "auto,50" &&
+    python split_scripts/split_utils/plot_hist_from_split_data.py --base_path thesis_data_files/sim/ --data_config_file thesis_data_files/sim/data_config_file_finished.txt --store_path ~/masterarbeit/thesis/resources/images/sim_data_plots/ --dataset SIM_MUONS --key "phi" --fig_size "7,6" --use_asymm_err
+## hist: "x0" +- "err_x0"
+# calculate & plot
+    python split_scripts/split_utils/hist_from_split_data.py --base_path thesis_data_files/sim/ --data_config_file thesis_data_files/sim/data_config_file_finished.txt --dataset SIM_MUONS --key "x0" --err_key "err_x0" --edges "auto,50" &&
+    python split_scripts/split_utils/plot_hist_from_split_data.py --base_path thesis_data_files/sim/ --data_config_file thesis_data_files/sim/data_config_file_finished.txt --store_path ~/masterarbeit/thesis/resources/images/sim_data_plots/ --dataset SIM_MUONS --key "x0" --fig_size "7,6" --use_asymm_err
+## hist: "y0" +- "err_y0"
+# calculate & plot
+    python split_scripts/split_utils/hist_from_split_data.py --base_path thesis_data_files/sim/ --data_config_file thesis_data_files/sim/data_config_file_finished.txt --dataset SIM_MUONS --key "y0" --err_key "err_y0" --edges "auto,50" &&
+    python split_scripts/split_utils/plot_hist_from_split_data.py --base_path thesis_data_files/sim/ --data_config_file thesis_data_files/sim/data_config_file_finished.txt --store_path ~/masterarbeit/thesis/resources/images/sim_data_plots/ --dataset SIM_MUONS --key "y0" --fig_size "7,6" --use_asymm_err
+
 ########################################################
 ############## DRIFT TUBES
 
@@ -434,6 +461,12 @@ python split_scripts/split_utils_scint/raw_scint_hit_diff_from_split_data.py --b
     python split_scripts/split_utils/plot_hist_from_split_data.py --base_path thesis_data_files/sim/ --data_config_file thesis_data_files/sim/data_config_file_finished.txt --store_path ~/masterarbeit/thesis/resources/images/sim_data_plots/ --dataset SL_FAKE_PATTERNS --key "pat_type" --fig_size "7,6" --use_asymm_err
 
 ######## sl fits:
+
+##### pattern occupancy after sl fit cuts & time box histogram
+# calculate
+    python split_scripts/split_utils_dt/sl_fits_from_split_data.py --base_path thesis_data_files/sim/ --data_config_file thesis_data_files/sim/data_config_file_finished.txt --dataset SL_FITS_AFTERCUTS
+# plot
+    python split_scripts/split_utils_dt/plot_sl_fits_from_split_data.py --base_path thesis_data_files/sim/ --data_config_file thesis_data_files/sim/data_config_file_finished.txt --store_path ~/masterarbeit/thesis/resources/images/sim_data_plots/ --dataset SL_FITS_AFTERCUTS --fig_size "7,6"
 
 ### general histograms
 ## hist: "chi2/ndf"
@@ -495,6 +528,9 @@ python split_scripts/split_utils_scint/raw_scint_hit_diff_from_split_data.py --b
 
 ### dt track geometry plotting & other analysis
     python scripts/dt/plot_dt_muons.py --show_plots --dt_muons_file thesis_data_files/sim/53_sim__MERGED_DT_MUONS.pcl --fig_size "7,6" --store_path ~/masterarbeit/thesis/resources/images/sim_data_plots/
+
+### angular distribution with 1/sin(theta) reweighting
+    python scripts/analysis/dt_muon_angles.py --dt_muons_file thesis_data_files/sim/53_sim__MERGED_DT_MUONS.pcl --sim_dt_muons_file thesis_data_files/sim/53_sim__MERGED_DT_MUONS.pcl --fig_size "7,6" --store_path ~/masterarbeit/thesis/resources/images/sim_data_plots/
 
 ########################################################
 ############## SCINTILLATOR

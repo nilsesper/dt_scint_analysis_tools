@@ -104,7 +104,7 @@ def main():
     err_hist = np.sqrt(hist) / np.sin(centers)
     # plot
     fig, ax = plt.subplots(1, 1, figsize=(7,6))
-    ax = hist_utils.plot_histogram(ax=ax, hist=hist, centers=centers, err_hist_down=err_hist, err_hist_up=err_hist, log_scale=False)
+    ax = hist_utils.plot_histogram(ax=ax, hist=hist, centers=centers, err_hist_down=err_hist, err_hist_up=err_hist, log_scale=False, add_info=True, entries=entries, overflow=overflow, underflow=underflow, bin_unit="rad", info_loc="top right")
     xlabel = "$\\theta$ [rad]"
     ax.set_xlabel(xlabel)
     ax.set_ylabel("Count / $\\sin\\theta$")
@@ -126,7 +126,7 @@ def main():
     sim_err_hist = np.sqrt(sim_hist) / np.sin(sim_centers)
     # plot
     fig, ax = plt.subplots(1, 1, figsize=(7,6))
-    ax = hist_utils.plot_histogram(ax=ax, hist=sim_hist, centers=sim_centers, err_hist_down=sim_err_hist, err_hist_up=sim_err_hist, log_scale=False)
+    ax = hist_utils.plot_histogram(ax=ax, hist=sim_hist, centers=sim_centers, err_hist_down=sim_err_hist, err_hist_up=sim_err_hist, log_scale=False, add_info=True, entries=sim_entries, overflow=sim_overflow, underflow=sim_underflow, bin_unit="rad", info_loc="top right")
     xlabel = "$\\theta$ [rad]"
     ax.set_xlabel(xlabel)
     ax.set_ylabel("Count / $\\sin\\theta$")

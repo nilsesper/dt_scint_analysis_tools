@@ -185,6 +185,10 @@ def main():
         print(f"store histogram plot as {hist_plot_file}.")
         fig.savefig(hist_plot_file)
 
+    ## calculate weighted mean of plotted histogram (ignoring the overflow & underflow bins)
+    mean, err_mean = hist_utils.weighted_mean_peak_position(hist=hist, centers=centers, err_hist=err_hist, err_centers=np.zeros(len(centers)))
+    print(f"histogram weighted mean = ( {mean} +- {err_mean} ) {params._key_units[hist_key]}")
+
 
 if __name__ == "__main__":
     main()

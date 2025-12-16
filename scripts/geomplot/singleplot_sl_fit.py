@@ -119,7 +119,7 @@ def main():
         ###### plot fit
 
         ## plot fit, with residual plot
-        fig, ax = plt.subplots(2, 1, figsize=(10, 8), sharex=True, height_ratios=(5,1))
+        fig, ax = plt.subplots(2, 1, figsize=(10, 7), sharex=True, height_ratios=(5,1))
         # main plot
         ts_label = "Hit timestamps"
         ax[0].errorbar(x=lys-0.02, y=ts, yerr=err_ts, color="tab:blue", marker="o", markersize=7, linestyle="", label=ts_label)
@@ -148,7 +148,7 @@ $\\chi^2/N_{{df}}={np.round(chi2ndf,2):.2f}$"""
         ax[1].axhline(y=0, color="gray", linewidth=1)
         ax[1].errorbar(x=lys, y=residuals, yerr=err_residuals , color="black", marker="o", markersize=7, linestyle="")
         ax[1].set_ylim(-np.amax(residuals+err_residuals)*1.1, np.amax(residuals+err_residuals)*1.1)
-        ax[1].set_ylabel("Residuals")
+        ax[1].set_ylabel("Residuals [TU]")
         ax[1].set_xlabel("Layer $ly$")
         ax[1].set_xticks([i for i in range(4)])
         ax[1].set_xticklabels([f"{i}" for i in range(4)])
