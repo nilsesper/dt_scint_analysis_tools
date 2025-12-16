@@ -476,7 +476,7 @@ python split_scripts/split_utils_scint/raw_scint_hit_diff_from_split_data.py --b
 ## hist: "t0" +- "err_t0"
 # calculate & plot
     python split_scripts/split_utils/hist_from_split_data.py --base_path thesis_data_files/sim/ --data_config_file thesis_data_files/sim/data_config_file_finished.txt --dataset SL_FITS_AFTERCUTS --key "t0" --err_key "err_t0" --edges "auto,50" &&
-    python split_scripts/split_utils/plot_hist_from_split_data.py --base_path thesis_data_files/sim/ --data_config_file thesis_data_files/sim/data_config_file_finished.txt --store_path ~/masterarbeit/thesis/resources/images/sim_data_plots/ --dataset SL_FITS_AFTERCUTS --key "t0" --fig_size "7,6" --use_asymm_err
+    python split_scripts/split_utils/plot_hist_from_split_data.py --base_path thesis_data_files/sim/ --data_config_file thesis_data_files/sim/data_config_file_finished.txt --store_path ~/masterarbeit/thesis/resources/images/sim_data_plots/ --dataset SL_FITS_AFTERCUTS --key "t0" --fig_size "7,6" --use_asymm_err --info_box_loc "bottom center"
 ## hist: "x0" +- "err_x0"
 # calculate & plot
     python split_scripts/split_utils/hist_from_split_data.py --base_path thesis_data_files/sim/ --data_config_file thesis_data_files/sim/data_config_file_finished.txt --dataset SL_FITS_AFTERCUTS --key "x0" --err_key "err_x0" --edges "linear,-21,21,101" &&
@@ -500,7 +500,7 @@ python split_scripts/split_utils_scint/raw_scint_hit_diff_from_split_data.py --b
 ## hist: "ts" +- "err_ts"
 # calculate & plot
     python split_scripts/split_utils/hist_from_split_data.py --base_path thesis_data_files/sim/ --data_config_file thesis_data_files/sim/data_config_file_finished.txt --dataset DT_MUONS --key "ts" --err_key "err_ts" --edges "auto,50" &&
-    python split_scripts/split_utils/plot_hist_from_split_data.py --base_path thesis_data_files/sim/ --data_config_file thesis_data_files/sim/data_config_file_finished.txt --store_path ~/masterarbeit/thesis/resources/images/sim_data_plots/ --dataset DT_MUONS --key "ts" --fig_size "7,6" --use_asymm_err
+    python split_scripts/split_utils/plot_hist_from_split_data.py --base_path thesis_data_files/sim/ --data_config_file thesis_data_files/sim/data_config_file_finished.txt --store_path ~/masterarbeit/thesis/resources/images/sim_data_plots/ --dataset DT_MUONS --key "ts" --fig_size "7,6" --use_asymm_err --info_box_loc "bottom center"
 ## hist: "theta" +- "err_theta"
 # calculate & plot
     python split_scripts/split_utils/hist_from_split_data.py --base_path thesis_data_files/sim/ --data_config_file thesis_data_files/sim/data_config_file_finished.txt --dataset DT_MUONS --key "theta" --err_key "err_theta" --edges "linear,0,1.58,100" &&
@@ -508,7 +508,7 @@ python split_scripts/split_utils_scint/raw_scint_hit_diff_from_split_data.py --b
 ## hist: "phi" +- "err_phi"
 # calculate & plot
     python split_scripts/split_utils/hist_from_split_data.py --base_path thesis_data_files/sim/ --data_config_file thesis_data_files/sim/data_config_file_finished.txt --dataset DT_MUONS --key "phi" --err_key "err_phi" --edges "linear,0,6.29,200" &&
-    python split_scripts/split_utils/plot_hist_from_split_data.py --base_path thesis_data_files/sim/ --data_config_file thesis_data_files/sim/data_config_file_finished.txt --store_path ~/masterarbeit/thesis/resources/images/sim_data_plots/ --dataset DT_MUONS --key "phi" --fig_size "7,6" --use_asymm_err
+    python split_scripts/split_utils/plot_hist_from_split_data.py --base_path thesis_data_files/sim/ --data_config_file thesis_data_files/sim/data_config_file_finished.txt --store_path ~/masterarbeit/thesis/resources/images/sim_data_plots/ --dataset DT_MUONS --key "phi" --fig_size "7,6" --use_asymm_err --info_box_loc "bottom center"
 ## hist: "x0" +- "err_x0"
 # calculate & plot
     python split_scripts/split_utils/hist_from_split_data.py --base_path thesis_data_files/sim/ --data_config_file thesis_data_files/sim/data_config_file_finished.txt --dataset DT_MUONS --key "x0" --err_key "err_x0" --edges "auto,200" &&
