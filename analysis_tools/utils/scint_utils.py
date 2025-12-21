@@ -7,6 +7,7 @@ import copy
 import os.path
 from tqdm import tqdm
 from itertools import combinations
+import matplotlib.pyplot as plt
 
 import analysis_tools.utils.data_utils as data_utils
 import analysis_tools.utils.timestamp_utils as timestamp_utils
@@ -897,17 +898,28 @@ def analyze_testpulses(hits, *, rel_thres=0.2, plot_hists=False, silent=False):
                     ch_hits = data_utils.cut_data(data=hits, conditions=[("ly","==",ly),("st","==",st),("sipm","==",sipm)], silent=True)
                     if data_utils.length(ch_hits) > 0:
                         # calculate histogram of hit timing (bin width = 1 ts unit)
-                        hists, edges, centers, underflow, overflow = hist_utils.calculate_hist(data=ch_hits, key="ts_orbit", bin_centers="step1", silent=True)
+                        #hists, edges, centers, underflow, overflow = hist_utils.calculate_hist(data=ch_hits, key="ts_orbit", bin_centers="step1", silent=True)
+                        timing_data = ch_hits["ts_orbit"][ (ch_hits["ts_orbit"] < 2930) ] # remove ringing hits
+                        #edges, n_bins, centers = hist_utils.generate_histogram_edges(arg="step1", data_min_val=np.amin(timing_data), data_max_val=np.amax(timing_data))
+                        edges, n_bins, centers = hist_utils.generate_histogram_edges(arg="step1", data_min_val=2900, data_max_val=2929)
+                        hist, _, _, entries, underflow, overflow, hist_err_right, hist_err_left = hist_utils.calculate_histogram_and_shifted_histograms(data=timing_data, edges=edges)
+                        err_hist, err_hist_down, err_hist_up = hist_utils.calculate_hist_uncertainty(hist=hist, hist_err_right=hist_err_right, hist_err_left=hist_err_left, do_stat_err=True)
                         # plot hist if desired
                         if plot_hists:
                             xlabel = params._key_symbols["ts_orbit"]
                             xlabel += " ["+params._key_units["ts_orbit"]+"]" if (params._key_units["ts_orbit"] != "") else ""
-                            hist_utils.plot_1hist(hist=hists, centers=centers, xlabel=xlabel, round_digits=0, bin_labels=False, silent=True, show=True, title=f"Testpulse timing histogram", figsize=(12,5)) #  (Ly {ly}, St {st}, SiPM {sipm})
+                            #hist_utils.plot_1hist(hist=hists, centers=centers, xlabel=xlabel, round_digits=0, bin_labels=False, silent=True, show=True, title=f"Testpulse timing histogram", figsize=(12,5)) #  (Ly {ly}, St {st}, SiPM {sipm})
+                            fig, ax = plt.subplots(1, 1, figsize=(12,5))
+                            ax = hist_utils.plot_histogram(ax=ax, hist=hist, centers=centers, err_hist=err_hist, log_scale=False, add_info=True, entries=entries, overflow=overflow, underflow=underflow, bin_unit="TU", power_limits=[-4, 4])
+                            ax.set_title("Testpulse timing histogram")
+                            ax.set_xlabel("$T_\\text{orbit}$ [TU]")
+                            fig.tight_layout()
+                            fig.show()
                         # select first peak of histogram (with lowest ts), the higher ts hits are due to ringing of the testpulse circuit
-                        peak_indices = hist_utils.find_peak_indices(hist=hists, rel_thres=rel_thres) # 20% of max amplitude for peak
+                        peak_indices = hist_utils.find_peak_indices(hist=hist, rel_thres=rel_thres) # 20% of max amplitude for peak
                         if len(peak_indices) > 0:
                             sel_peak_indices = peak_indices[0] # first peak
-                            hists_peak, centers_peak = hists[sel_peak_indices], centers[sel_peak_indices]
+                            hists_peak, centers_peak = hist[sel_peak_indices], centers[sel_peak_indices]
                             err_hists_peak = np.sqrt(hists_peak)
                             err_centers_peak = np.full( len(centers_peak), 8/np.sqrt(12) )
                             # calculate peak position (weighted mean)

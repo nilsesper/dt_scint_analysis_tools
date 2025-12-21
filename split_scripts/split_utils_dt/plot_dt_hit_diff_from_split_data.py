@@ -226,7 +226,7 @@ $\\chi^2 / N_{{df}} = {chi2:.1f}\\; / \\;{ndf:.0f} ={np.round(chi2ndf,1):.1f}$""
     #ax.set_ylim(bottom=0.5, top=np.amax(hist_nobg)*np.exp(1.1))
     #ax.set_ylim(bottom=0, top=np.amax(hist_nobg)*1.1)
     ax.set_xlim(0,600/0.78)
-    ax.set_xlabel("$\\Delta T_\\text{cell}$ [TDC counts]")
+    ax.set_xlabel("$\\Delta T_\\text{cell}$ [TU]")
     #ax.legend(prop={'size': 14})
     fig.tight_layout()
     fig.show()

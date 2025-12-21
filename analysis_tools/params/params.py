@@ -1207,6 +1207,7 @@ _dt_chamber = {
     "pos": (cmssw_chamber_pos[0]+global_shift[0], cmssw_chamber_pos[1]+global_shift[1], cmssw_chamber_pos[2]+global_shift[2]), # point with smallest coordinates of dt chamber
     "size": (cmssw_chamber_size[0], cmssw_chamber_size[1], cmssw_chamber_size[2]), 
 }
+print(f"chamber_pos = {_dt_chamber["pos"]}")
 
 ### obdt mappings: {fe_conn_name: {chs: (ch list), fe: fec name, sl: superlayer}}, fe conns sorted in order
 _obdt_phi_1_fe_mapping = { # need to mask connectors J26, J27

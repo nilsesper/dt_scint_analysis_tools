@@ -36,7 +36,7 @@ def main():
 
     ### constants
     dump = True
-    plot_hists = False
+    plot_hists = True
 
     ### argparse
     parser = argparse.ArgumentParser()

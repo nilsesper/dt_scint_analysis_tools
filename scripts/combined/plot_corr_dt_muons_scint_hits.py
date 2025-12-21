@@ -143,171 +143,172 @@ def main():
     print(f"correlation rate = {n_corr_hits/duration} +- {np.sqrt(n_corr_hits)/duration} Hz")
 
 
-    ######################
-    ### MATCHED MUONS: ARRIVAL TIMES
+    with mpl.rc_context({'font.family': 'sans-serif', 'font.size': 20}):
+        ######################
+        ### MATCHED MUONS: ARRIVAL TIMES
 
-    ts = dt_corr_muons["ts"]
-    # calculate hist
-    edges, n_bins, centers = hist_utils.generate_histogram_edges(arg=f"auto,50", data_min_val=np.amin(ts), data_max_val=np.amax(ts))
-    hist, _, _, entries, underflow, overflow, hist_err_right, hist_err_left = hist_utils.calculate_histogram_and_shifted_histograms(data=ts, edges=edges)
-    err_hist, err_hist_down, err_hist_up = hist_utils.calculate_hist_uncertainty(hist=hist, hist_err_right=hist_err_right, hist_err_left=hist_err_left, do_stat_err=True)
-    # tu to ns
-    centers = centers*0.78
-    # plot
-    fig, ax = plt.subplots(1, 1, figsize=(7,6))
-    ax = hist_utils.plot_histogram(ax=ax, hist=hist, centers=centers, err_hist=err_hist, log_scale=False, add_info=True, entries=entries, overflow=overflow, underflow=underflow, bin_unit="ns", info_loc="bottom center")
-    xlabel = "$T_\\text{DT} \\text{(matched)}$ [ns]"
-    ax.set_xlabel(xlabel)
-    fig.tight_layout()
-    fig.show()
-    ## store plot
-    if args.store_path:
-        hist_plot_file = args.store_path+"/"+f"CORRELATED_HITS_SPECIFIC_MUON_TS.pdf"
-        print(f"store histogram plot as {hist_plot_file}.")
-        fig.savefig(hist_plot_file)
-
-    ######################
-    ### MATCHED MUONS: TIME DIFFERENCE OF ARRIVAL TIMES
-
-    # calculate ts difference of consecutive muons
-    dt_corr_muons = timestamp_utils.sort_by_timestamp(hits=dt_corr_muons, silent=True)
-    n_dt_corr_muons = data_utils.length(dt_corr_muons)
-    ts_diff_list = []
-    for i in range(1,n_dt_corr_muons):
-        ts_diff_list.append(dt_corr_muons["ts"][i] - dt_corr_muons["ts"][i-1])
-    ts_diff = np.array(ts_diff_list)
-    # calculate hist
-    binnings = [ # (binning name, binning arg)
-        ( "fullrange", f"linear,0,{np.amax(ts_diff)},100" ),
-        ( "closeup", f"linear,0,10000,100" ),
-    ]
-    for binning_name, binning_arg in binnings:
-        edges, n_bins, centers = hist_utils.generate_histogram_edges(arg=binning_arg)
-        hist, _, _, entries, underflow, overflow, hist_err_right, hist_err_left = hist_utils.calculate_histogram_and_shifted_histograms(data=ts_diff, edges=edges)
+        ts = dt_corr_muons["ts"]
+        # calculate hist
+        edges, n_bins, centers = hist_utils.generate_histogram_edges(arg=f"auto,50", data_min_val=np.amin(ts), data_max_val=np.amax(ts))
+        hist, _, _, entries, underflow, overflow, hist_err_right, hist_err_left = hist_utils.calculate_histogram_and_shifted_histograms(data=ts, edges=edges)
         err_hist, err_hist_down, err_hist_up = hist_utils.calculate_hist_uncertainty(hist=hist, hist_err_right=hist_err_right, hist_err_left=hist_err_left, do_stat_err=True)
         # tu to ns
         centers = centers*0.78
         # plot
         fig, ax = plt.subplots(1, 1, figsize=(7,6))
-        ax = hist_utils.plot_histogram(ax=ax, hist=hist, centers=centers, err_hist=err_hist, log_scale=True, add_info=True, entries=entries, overflow=overflow, underflow=underflow, bin_unit="ns", info_loc="top right")
-        xlabel = "$\\Delta T_\\text{DT} \\text{(matched)}$ [ns]"
+        ax = hist_utils.plot_histogram(ax=ax, hist=hist, centers=centers, err_hist=err_hist, log_scale=False, add_info=True, entries=entries, overflow=overflow, underflow=underflow, bin_unit="ns", info_loc="bottom center")
+        xlabel = "$T_\\text{DT} \\text{(matched)}$ [ns]"
         ax.set_xlabel(xlabel)
         fig.tight_layout()
         fig.show()
         ## store plot
         if args.store_path:
-            hist_plot_file = args.store_path+"/"+f"CORRELATED_HITS_SPECIFIC_MUON_DELTA-TS_{binning_name}.pdf"
+            hist_plot_file = args.store_path+"/"+f"CORRELATED_HITS_SPECIFIC_MUON_TS.pdf"
             print(f"store histogram plot as {hist_plot_file}.")
             fig.savefig(hist_plot_file)
 
-    ######################
-    ### MATCHED MUONS AND SCINT HITS: TIME DIFFERENCE
-    # delta_ts_corr = ts_scint - ts_dt
+        ######################
+        ### MATCHED MUONS: TIME DIFFERENCE OF ARRIVAL TIMES
 
-    bins_ts_diff_fit, ts_diff_fit, err_ts_diff_fit = None, None, None
+        # calculate ts difference of consecutive muons
+        dt_corr_muons = timestamp_utils.sort_by_timestamp(hits=dt_corr_muons, silent=True)
+        n_dt_corr_muons = data_utils.length(dt_corr_muons)
+        ts_diff_list = []
+        for i in range(1,n_dt_corr_muons):
+            ts_diff_list.append(dt_corr_muons["ts"][i] - dt_corr_muons["ts"][i-1])
+        ts_diff = np.array(ts_diff_list)
+        # calculate hist
+        binnings = [ # (binning name, binning arg)
+            ( "fullrange", f"linear,0,{np.amax(ts_diff)},100" ),
+            ( "closeup", f"linear,0,10000,100" ),
+        ]
+        for binning_name, binning_arg in binnings:
+            edges, n_bins, centers = hist_utils.generate_histogram_edges(arg=binning_arg)
+            hist, _, _, entries, underflow, overflow, hist_err_right, hist_err_left = hist_utils.calculate_histogram_and_shifted_histograms(data=ts_diff, edges=edges)
+            err_hist, err_hist_down, err_hist_up = hist_utils.calculate_hist_uncertainty(hist=hist, hist_err_right=hist_err_right, hist_err_left=hist_err_left, do_stat_err=True)
+            # tu to ns
+            centers = centers*0.78
+            # plot
+            fig, ax = plt.subplots(1, 1, figsize=(7,6))
+            ax = hist_utils.plot_histogram(ax=ax, hist=hist, centers=centers, err_hist=err_hist, log_scale=True, add_info=True, entries=entries, overflow=overflow, underflow=underflow, bin_unit="ns", info_loc="top right")
+            xlabel = "$\\Delta T_\\text{DT} \\text{(matched)}$ [ns]"
+            ax.set_xlabel(xlabel)
+            fig.tight_layout()
+            fig.show()
+            ## store plot
+            if args.store_path:
+                hist_plot_file = args.store_path+"/"+f"CORRELATED_HITS_SPECIFIC_MUON_DELTA-TS_{binning_name}.pdf"
+                print(f"store histogram plot as {hist_plot_file}.")
+                fig.savefig(hist_plot_file)
 
-    # calculate hist
-    binnings = [ # (binning name, binning arg)
-        ( "fullrange", f"linear,{np.amin(delta_ts_corr)},{np.amax(delta_ts_corr)},200", True ),
-        ( "closeup", f"linear,-128,-13,115", False ),
-    ]
-    for binning_name, binning_arg, binning_log in binnings:
-        edges, n_bins, centers = hist_utils.generate_histogram_edges(arg=binning_arg)
-        hist, _, _, entries, underflow, overflow, hist_err_right, hist_err_left = hist_utils.calculate_histogram_and_shifted_histograms(data=delta_ts_corr, edges=edges)
-        err_hist, err_hist_down, err_hist_up = hist_utils.calculate_hist_uncertainty(hist=hist, hist_err_right=hist_err_right, hist_err_left=hist_err_left, do_stat_err=True)
-        # tu to ns
-        centers = centers*0.78
-        # plot
-        fig, ax = plt.subplots(1, 1, figsize=(7,6))
-        ax = hist_utils.plot_histogram(ax=ax, hist=hist, centers=centers, err_hist=err_hist, log_scale=binning_log, power_limits=[-3,3], add_info=True, entries=entries, overflow=overflow, underflow=underflow, bin_unit="ns", info_loc="top right")
+        ######################
+        ### MATCHED MUONS AND SCINT HITS: TIME DIFFERENCE
+        # delta_ts_corr = ts_scint - ts_dt
+
+        bins_ts_diff_fit, ts_diff_fit, err_ts_diff_fit = None, None, None
+
+        # calculate hist
+        binnings = [ # (binning name, binning arg)
+            ( "fullrange", f"linear,{np.amin(delta_ts_corr)},{np.amax(delta_ts_corr)},200", True ),
+            ( "closeup", f"linear,-128,-13,115", False ),
+        ]
+        for binning_name, binning_arg, binning_log in binnings:
+            edges, n_bins, centers = hist_utils.generate_histogram_edges(arg=binning_arg)
+            hist, _, _, entries, underflow, overflow, hist_err_right, hist_err_left = hist_utils.calculate_histogram_and_shifted_histograms(data=delta_ts_corr, edges=edges)
+            err_hist, err_hist_down, err_hist_up = hist_utils.calculate_hist_uncertainty(hist=hist, hist_err_right=hist_err_right, hist_err_left=hist_err_left, do_stat_err=True)
+            # tu to ns
+            centers = centers*0.78
+            # plot
+            fig, ax = plt.subplots(1, 1, figsize=(7,6))
+            ax = hist_utils.plot_histogram(ax=ax, hist=hist, centers=centers, err_hist=err_hist, log_scale=binning_log, power_limits=[-3,3], add_info=True, entries=entries, overflow=overflow, underflow=underflow, bin_unit="ns", info_loc="top right")
+            xlabel = "$\\Delta T_\\text{matching}$ [ns]"
+            ax.set_xlabel(xlabel)
+            fig.tight_layout()
+            fig.show()
+            if binning_name == "closeup":
+                bins_ts_diff_fit, ts_diff_fit, err_ts_diff_fit = centers, hist, err_hist
+            ## store plot
+            if args.store_path:
+                hist_plot_file = args.store_path+"/"+f"CORRELATED_HITS_SPECIFIC_CORR_DELTA-TS_{binning_name}.pdf"
+                print(f"store histogram plot as {hist_plot_file}.")
+                fig.savefig(hist_plot_file)
+
+        ########################
+        ### FIT GAUSSIAN TO TIME DIFFERENCE
+
+        ######################
+        ##### fit peak position
+
+        ### fit parabola photopeak to determine position
+        fit_index_range = (bins_ts_diff_fit >= -70) & (bins_ts_diff_fit <= -49) # fit range in ns
+        fit_bins = bins_ts_diff_fit[fit_index_range]
+        fit_hist = ts_diff_fit[fit_index_range]
+        err_fit_hist = err_ts_diff_fit[fit_index_range]
+        def f_peak_fit(x, a, b, c):
+            return a*np.exp(-(x-b)**2/(2*c**2))
+        def err_f_peak_fit(x, a, b, c, err_a, err_b, err_c):
+            return np.sqrt( 
+                (1*np.exp(-(x-b)**2/(2*c**2)))**2 * err_a**2
+                + (a*(x-b)/c**2*np.exp(-(x-b)**2/(2*c**2)))**2 * err_b**2
+                + (a*(x-b)**2/c**3*np.exp(-(x-b)**2/(2*c**2)))**2 * err_c**2
+            )
+        p0 = (1000, -55, 1)
+        popt, pcov, infodict, mesg, _ = curve_fit(f=f_peak_fit, xdata=fit_bins, ydata=fit_hist, p0=p0, sigma=err_fit_hist, absolute_sigma=True, full_output=True, )
+        a_fit, b_fit, c_fit = popt
+        err_a_fit = np.sqrt(pcov[0][0])
+        err_b_fit = np.sqrt(pcov[1][1])
+        err_c_fit = np.sqrt(pcov[2][2])
+        chi2 = np.sum((fit_hist - f_peak_fit(x=fit_bins, a=a_fit, b=b_fit, c=c_fit))**2/err_fit_hist**2)
+        ndf = len(fit_hist)-2
+        chi2ndf = chi2/ndf
+        print(f"gaussian fit to interval delta_t = ({np.amin(fit_bins)}, {np.amax(fit_bins)}) ns")
+        print(f"  a = {a_fit} +- {err_a_fit}")
+        print(f"  b = {b_fit} +- {err_b_fit}")
+        print(f"  c = {c_fit} +- {err_c_fit}")
+        print(f"  chi2/ndf = {chi2} / {ndf} = {chi2ndf}")
+
+        # plot fit
+        fig, ax = plt.subplots(2, 1, figsize=(7,6), sharex=True, height_ratios=(5,1))
+        rel_spacing = 0
+        barwidth = np.mean(np.diff(bins_ts_diff_fit))*(1-rel_spacing) # relative spacing between bins
+        ax[0] = hist_utils.plot_histogram(ax[0], hist=ts_diff_fit, centers=bins_ts_diff_fit, err_hist=err_ts_diff_fit, log_scale=False, power_limits=[-3,3], add_info=True, entries=entries, overflow=overflow, underflow=underflow, bin_unit="ns", info_loc="bottom right")
+        fit_label = f"""Gaussian fit:
+    $f(t) = a \\cdot \\exp\\left( {{\\frac{{-(t-b)^2}}{{2 \\cdot c^2}}}}\\right)$
+    $a=({np.round(a_fit,0):.0f}\\pm{np.round(err_a_fit,0):.0f})$
+    $b=({np.round(b_fit,2):.2f}\\pm{np.round(err_b_fit,2):.2f})$ ns
+    $c=({np.round(c_fit,2):.2f}\\pm{np.round(err_c_fit,2):.2f})$ ns
+    $\\chi^2 / N_{{df}} = {chi2:.1f}\\; / \\;{ndf:.0f} ={np.round(chi2ndf,1):.1f}$"""
+        ax[0].plot(fit_bins, f_peak_fit(fit_bins, a=a_fit, b=b_fit, c=c_fit), color="tab:red", label=fit_label)
+        ax[0].fill_between(fit_bins, y1=f_peak_fit(x=fit_bins, a=a_fit, b=b_fit, c=c_fit)-err_f_peak_fit(x=fit_bins, a=a_fit, b=b_fit, c=c_fit, err_a=err_a_fit, err_b=err_b_fit, err_c=err_c_fit), y2=f_peak_fit(x=fit_bins, a=a_fit, b=b_fit, c=c_fit)+err_f_peak_fit(x=fit_bins, a=a_fit, b=b_fit, c=c_fit, err_a=err_a_fit, err_b=err_b_fit, err_c=err_c_fit), color="tab:red", alpha=0.1)
+        ax[0].axvline(x=b_fit, color="tab:red", linestyle="--", label="Peak position $b$")
+        ax[0].axvspan(xmin=b_fit-err_b_fit, xmax=b_fit+err_b_fit, color="tab:red", alpha=0.1)
+        #ax.set_yscale("log")
+        ax[0].set_ylim(bottom=0, top=np.amax(ts_diff_fit)*1.1)
+        ax[0].legend(loc="upper right", prop={'size': 12}, fancybox=False) # upper right
+        # residual plot
+        residuals = fit_hist - f_peak_fit(fit_bins, a=a_fit, b=b_fit, c=c_fit)
+        err_residuals = err_fit_hist
+        ax[1].axhline(y=0, color="gray", linewidth=1)
+        ax[1].errorbar(x=fit_bins, y=residuals, yerr=err_residuals , color="black", marker="o", markersize=2, linewidth=1, linestyle="")
+        # show plot
+        #ax[1].set_xlim(0,600)
+        ax[1].set_ylim(-np.amax(residuals+err_residuals)*1.1, np.amax(residuals+err_residuals)*1.1)
+        ax[1].set_ylabel("Residuals")
         xlabel = "$\\Delta T_\\text{matching}$ [ns]"
-        ax.set_xlabel(xlabel)
+        ax[1].set_xlabel(xlabel)
         fig.tight_layout()
+        fig.subplots_adjust(wspace=0, hspace=0.1)
         fig.show()
-        if binning_name == "closeup":
-            bins_ts_diff_fit, ts_diff_fit, err_ts_diff_fit = centers, hist, err_hist
         ## store plot
         if args.store_path:
-            hist_plot_file = args.store_path+"/"+f"CORRELATED_HITS_SPECIFIC_CORR_DELTA-TS_{binning_name}.pdf"
+            hist_plot_file = args.store_path+"/"+f"CORRELATED_HITS_SPECIFIC_CORR_DELTA-TS_FIT.pdf"
             print(f"store histogram plot as {hist_plot_file}.")
             fig.savefig(hist_plot_file)
 
-    ########################
-    ### FIT GAUSSIAN TO TIME DIFFERENCE
-
-    ######################
-    ##### fit peak position
-
-    ### fit parabola photopeak to determine position
-    fit_index_range = (bins_ts_diff_fit >= -70) & (bins_ts_diff_fit <= -49) # fit range in ns
-    fit_bins = bins_ts_diff_fit[fit_index_range]
-    fit_hist = ts_diff_fit[fit_index_range]
-    err_fit_hist = err_ts_diff_fit[fit_index_range]
-    def f_peak_fit(x, a, b, c):
-        return a*np.exp(-(x-b)**2/(2*c**2))
-    def err_f_peak_fit(x, a, b, c, err_a, err_b, err_c):
-        return np.sqrt( 
-              (1*np.exp(-(x-b)**2/(2*c**2)))**2 * err_a**2
-            + (a*(x-b)/c**2*np.exp(-(x-b)**2/(2*c**2)))**2 * err_b**2
-            + (a*(x-b)**2/c**3*np.exp(-(x-b)**2/(2*c**2)))**2 * err_c**2
-        )
-    p0 = (1000, -55, 1)
-    popt, pcov, infodict, mesg, _ = curve_fit(f=f_peak_fit, xdata=fit_bins, ydata=fit_hist, p0=p0, sigma=err_fit_hist, absolute_sigma=True, full_output=True, )
-    a_fit, b_fit, c_fit = popt
-    err_a_fit = np.sqrt(pcov[0][0])
-    err_b_fit = np.sqrt(pcov[1][1])
-    err_c_fit = np.sqrt(pcov[2][2])
-    chi2 = np.sum((fit_hist - f_peak_fit(x=fit_bins, a=a_fit, b=b_fit, c=c_fit))**2/err_fit_hist**2)
-    ndf = len(fit_hist)-2
-    chi2ndf = chi2/ndf
-    print(f"gaussian fit to interval delta_t = ({np.amin(fit_bins)}, {np.amax(fit_bins)}) ns")
-    print(f"  a = {a_fit} +- {err_a_fit}")
-    print(f"  b = {b_fit} +- {err_b_fit}")
-    print(f"  c = {c_fit} +- {err_c_fit}")
-    print(f"  chi2/ndf = {chi2} / {ndf} = {chi2ndf}")
-
-    # plot fit
-    fig, ax = plt.subplots(2, 1, figsize=(7,6), sharex=True, height_ratios=(5,1))
-    rel_spacing = 0
-    barwidth = np.mean(np.diff(bins_ts_diff_fit))*(1-rel_spacing) # relative spacing between bins
-    ax[0] = hist_utils.plot_histogram(ax[0], hist=ts_diff_fit, centers=bins_ts_diff_fit, err_hist=err_ts_diff_fit, log_scale=False, power_limits=[-3,3], add_info=True, entries=entries, overflow=overflow, underflow=underflow, bin_unit="ns", info_loc="bottom right")
-    fit_label = f"""Gaussian fit:
-$f(t) = a \\cdot \\exp\\left( {{\\frac{{-(t-b)^2}}{{2 \\cdot c^2}}}}\\right)$
-$a=({np.round(a_fit,0):.0f}\\pm{np.round(err_a_fit,0):.0f})$
-$b=({np.round(b_fit,2):.2f}\\pm{np.round(err_b_fit,2):.2f})$ ns
-$c=({np.round(c_fit,2):.2f}\\pm{np.round(err_c_fit,2):.2f})$ ns
-$\\chi^2 / N_{{df}} = {chi2:.1f}\\; / \\;{ndf:.0f} ={np.round(chi2ndf,1):.1f}$"""
-    ax[0].plot(fit_bins, f_peak_fit(fit_bins, a=a_fit, b=b_fit, c=c_fit), color="tab:red", label=fit_label)
-    ax[0].fill_between(fit_bins, y1=f_peak_fit(x=fit_bins, a=a_fit, b=b_fit, c=c_fit)-err_f_peak_fit(x=fit_bins, a=a_fit, b=b_fit, c=c_fit, err_a=err_a_fit, err_b=err_b_fit, err_c=err_c_fit), y2=f_peak_fit(x=fit_bins, a=a_fit, b=b_fit, c=c_fit)+err_f_peak_fit(x=fit_bins, a=a_fit, b=b_fit, c=c_fit, err_a=err_a_fit, err_b=err_b_fit, err_c=err_c_fit), color="tab:red", alpha=0.1)
-    ax[0].axvline(x=b_fit, color="tab:red", linestyle="--", label="Peak position $b$")
-    ax[0].axvspan(xmin=b_fit-err_b_fit, xmax=b_fit+err_b_fit, color="tab:red", alpha=0.1)
-    #ax.set_yscale("log")
-    ax[0].set_ylim(bottom=0, top=np.amax(ts_diff_fit)*1.1)
-    ax[0].legend(loc="upper right", prop={'size': 12}, fancybox=False) # upper right
-    # residual plot
-    residuals = fit_hist - f_peak_fit(fit_bins, a=a_fit, b=b_fit, c=c_fit)
-    err_residuals = err_fit_hist
-    ax[1].axhline(y=0, color="gray", linewidth=1)
-    ax[1].errorbar(x=fit_bins, y=residuals, yerr=err_residuals , color="black", marker="o", markersize=2, linewidth=1, linestyle="")
-    # show plot
-    #ax[1].set_xlim(0,600)
-    ax[1].set_ylim(-np.amax(residuals+err_residuals)*1.1, np.amax(residuals+err_residuals)*1.1)
-    ax[1].set_ylabel("Residuals")
-    xlabel = "$\\Delta T_\\text{matching}$ [ns]"
-    ax[1].set_xlabel(xlabel)
-    fig.tight_layout()
-    fig.subplots_adjust(wspace=0, hspace=0.1)
-    fig.show()
-    ## store plot
-    if args.store_path:
-        hist_plot_file = args.store_path+"/"+f"CORRELATED_HITS_SPECIFIC_CORR_DELTA-TS_FIT.pdf"
-        print(f"store histogram plot as {hist_plot_file}.")
-        fig.savefig(hist_plot_file)
-
-    print(f"peak position = b = {b_fit} +- {err_b_fit}")
-    print(f"peak width = c = {c_fit} +- {err_c_fit}")
-    fwhm_factor = 2*np.sqrt(2*np.log(2))
-    print(f"peak fwhm = fwhm_factor * c = {fwhm_factor*c_fit} +- {fwhm_factor*err_c_fit}")
+        print(f"peak position = b = {b_fit} +- {err_b_fit}")
+        print(f"peak width = c = {c_fit} +- {err_c_fit}")
+        fwhm_factor = 2*np.sqrt(2*np.log(2))
+        print(f"peak fwhm = fwhm_factor * c = {fwhm_factor*c_fit} +- {fwhm_factor*err_c_fit}")
 
 
     ####### geomplot corr muons

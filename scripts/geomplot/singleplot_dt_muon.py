@@ -84,6 +84,9 @@ def main():
     if simulation:
         cosmic_muons_file = args.cosmic_muons_file
 
+    sl_fit_line_width = 3
+    muon_line_width = 2
+
     #################
 
     ### data import
@@ -171,7 +174,7 @@ $\\phi=({np.round(phi*params.rad_to_deg,1):.1f}\\pm{np.round(err_phi*params.rad_
             err_track = derived_params.err_proj_glob_muon(orient=orient, z=z_range, x0=x0, y0=y0, z0=z0, theta=theta, phi=phi, err_x0=err_x0, err_y0=err_y0, err_z0=err_z0, err_phi=err_phi, err_theta=err_theta)
             # plot track
             #ax = geoplot_utils.muon_ax(ax=ax, orient=orient, muons=dt_muons, muon_idx=i, color="black", label=f"muon={int(i)} ts={int(dt_muons['ts'][i])} theta={dt_muons['theta'][i]:.3f}={dt_muons['theta'][i]*180/np.pi:.1f}° phi={dt_muons['phi'][i]:.3f}={dt_muons['phi'][i]*180/np.pi:.1f}°")
-            ax.plot(track, z_range, linewidth=1, color="tab:green", label=muon_label)
+            ax.plot(track, z_range, linewidth=muon_line_width, color="tab:green", label=muon_label)
             ax.fill_betweenx(x1=track-err_track, x2=track+err_track, y=z_range, color="tab:green", alpha=0.2)
 
         # if --simulation flag given: plot simulated muon track
@@ -227,10 +230,10 @@ $\\phi={np.round(phi*params.rad_to_deg,1):.1f}^\\circ$"""
                     # plot
                     sl_fit_label = "SL pattern fit"
                     if no_legend:
-                        ax.plot(track, sl_z_range, linewidth=1, color="tab:red", label=sl_fit_label)
+                        ax.plot(track, sl_z_range, color="tab:red", label=sl_fit_label, linewidth=sl_fit_line_width)
                         no_legend = False
                     else:
-                        ax.plot(track, sl_z_range, linewidth=1, color="tab:red")
+                        ax.plot(track, sl_z_range, color="tab:red", linewidth=sl_fit_line_width)
                     ax.fill_betweenx(x1=track-err_track, x2=track+err_track, y=sl_z_range, color="tab:red", alpha=0.2)
 
         # # plot reconstructed muon scint hits

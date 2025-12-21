@@ -516,6 +516,39 @@ def main():
         hist_plot_file = args.store_path+"/"+f"SCINT_HITS_SPECIFIC_SIPM-TS-DIFF_SIGNED.pdf"
         print(f"store histogram plot as {hist_plot_file}.")
         fig.savefig(hist_plot_file)
+    
+    ######################
+    ### COINCIDENCE: TIME DIFFERENCE OF SIPMS OF THIS STRIP HIT
+    ### FOR SINGLE STRIP
+
+    strip = 8
+    layer = 1
+
+    # calculate ts difference of consecutive scint hits
+    cut_scint_hits = data_utils.cut_data(data=scint_hits, conditions=[("ly","==",layer),("st","==",strip)], silent=True)
+    cut_scint_hits = timestamp_utils.sort_by_timestamp(hits=cut_scint_hits, silent=True)
+    n_cut_scint_hits = data_utils.length(cut_scint_hits)
+    ts_diff_list = np.array(cut_scint_hits["sipm_delta_ts_signed"])
+
+    # calculate hist
+    edges, n_bins, centers = hist_utils.generate_histogram_edges(arg="step1", data_min_val=np.amin(ts_diff_list), data_max_val=np.amax(ts_diff_list))
+    hist, _, _, entries, underflow, overflow, hist_err_right, hist_err_left = hist_utils.calculate_histogram_and_shifted_histograms(data=ts_diff_list, edges=edges)
+    err_hist, err_hist_down, err_hist_up = hist_utils.calculate_hist_uncertainty(hist=hist, hist_err_right=hist_err_right, hist_err_left=hist_err_left, do_stat_err=True)
+    # tu to ns
+    centers = centers*0.78
+    # plot
+    fig, ax = plt.subplots(1, 1, figsize=(7,6))
+    ax = hist_utils.plot_histogram(ax=ax, hist=hist, centers=centers, err_hist=err_hist, log_scale=False, add_info=True, entries=entries, overflow=overflow, underflow=underflow, bin_unit="ns")
+    xlabel = "$\\Delta T_\\text{SiPMs}$ [ns]"
+    ax.set_xlabel(xlabel)
+    ax.set_title(f"Ly {layer}, St {strip}")
+    fig.tight_layout()
+    fig.show()
+    ## store plot
+    if args.store_path:
+        hist_plot_file = args.store_path+"/"+f"SCINT_HITS_SPECIFIC_SIPM-TS-DIFF_SIGNED_SINGLE_ly{layer}_st{strip}.pdf"
+        print(f"store histogram plot as {hist_plot_file}.")
+        fig.savefig(hist_plot_file)
 
     ######################
     ### COINCIDENCE: TIME DIFFERENCE OF SIPMS OF THIS STRIP HIT
@@ -705,7 +738,7 @@ def main():
 
     binnings = [ # (binning name, binning arg)
         ( "fullrange", f"linear,0,{np.amax(ts_diff)},100" ),
-        ( "closeup", f"linear,0,200,200" ),
+        ( "closeup", f"linear,0,1300,100" ),
     ]
     for binning_name, binning_arg in binnings:
         # calculate hist
