@@ -70,6 +70,32 @@ def main():
         default="",
         help     = "add suffix to output file",
     )
+    ###
+    parser.add_argument(
+        "--new_unit_name",
+        type     = str,
+        help     = "name of new unit to be used for hist plotting (if desired)",
+    )
+    parser.add_argument(
+        "--new_unit_conversion",
+        type     = str,
+        help     = "conversion factor to multiply with x-axis in order to convert to new unit (if desired)",
+    )
+    parser.add_argument(
+        "--n_x_ticks",
+        type     = str,
+        help     = "specify count of x ticks to be plotted (if desired)",
+    )
+    parser.add_argument(
+        "--x_tick_minmax",
+        type     = str,
+        help     = "specify min,max x ticks to be plotted (if desired)",
+    )
+    parser.add_argument(
+        "--new_x_label",
+        type     = str,
+        help     = "overwrite x label (if desired)",
+    )
     # ---
     args = parser.parse_args()
     # base file path
@@ -93,6 +119,22 @@ def main():
     # other args
     arg_fig_size = args.fig_size.split(",")
     fig_size = (float(arg_fig_size[0]), float(arg_fig_size[1]))
+    # new unit
+    new_unit = False
+    if args.new_unit_name and args.new_unit_conversion:
+        new_unit = True
+        new_unit_name = args.new_unit_name
+        new_unit_conversion = float(args.new_unit_conversion)
+    custom_x_ticks = False
+    x_tick_minmax = (None, None)
+    if args.n_x_ticks:
+        custom_x_ticks = True
+        n_x_ticks = int(args.n_x_ticks)
+        if args.x_tick_minmax:
+            x_tick_minmax = [float(s) for s in args.x_tick_minmax.split(",")]
+    new_x_label = None
+    if args.new_x_label:
+        new_x_label = args.new_x_label
 
     ####################
 
@@ -107,22 +149,38 @@ def main():
     err_hist = np.array(specific_data["err_hist"])
     err_hist_down = np.array(specific_data["err_hist_down"])
     err_hist_up = np.array(specific_data["err_hist_up"])
-    edges = np.array(specific_data["edges"])*0.78 # convert from tu to ns
+    edges = np.array(specific_data["edges"]) # convert from tu to ns
     centers = hist_utils.centers_from_edges(edges)
-    bins = centers
     overflow = np.array(specific_data["overflow"])
     underflow = np.array(specific_data["underflow"])
     entries = int(np.sum(hist))
 
+    ## unit conversion if necessary
+    unit_name = "TU"
+    label_name = "$\\Delta T_\\text{SiPM}$"
+    if new_unit:
+        edges = edges*new_unit_conversion
+        centers = centers*new_unit_conversion
+        unit_name = new_unit_name
+    if new_x_label != None:
+        label_name = new_x_label
+
 
     ##################
     ##### plot raw scint hit differences
+    bins = centers
     
     # plot hist
     fig, ax = plt.subplots(1, 1, figsize=fig_size)
     ax = hist_utils.plot_histogram(ax, hist=hist, centers=bins, err_hist_down=err_hist_down, err_hist_up=err_hist_up, log_scale=True, power_limits=[-4,4], add_info=True, entries=entries, overflow=overflow, underflow=underflow, bin_unit="ns", info_loc="top right")
     ax.set_xlim(0,np.amax(bins))
-    ax.set_xlabel("$\\Delta T_\\text{SiPM}$ [ns]")
+    xlabel = (label_name) if (unit_name == "") else (label_name+" ["+ unit_name+"]")
+    ax.set_xlabel(xlabel)
+    if custom_x_ticks:
+        if x_tick_minmax  == (None, None):
+            ax.set_xticks(np.linspace(np.amin(edges), np.amax(edges), n_x_ticks))
+        else:
+            ax.set_xticks(np.linspace(x_tick_minmax[0], x_tick_minmax[1], n_x_ticks))
     fig.tight_layout()
     fig.show()
     ## store plot

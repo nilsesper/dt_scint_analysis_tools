@@ -317,7 +317,7 @@ def calculate_hist_uncertainty(hist, *, hist_err_right=None, hist_err_left=None,
 # give hist to plot
 # optionally give err_hist (symm errors)
 # or err_hist_down and err_hist_up (asymm errors)
-def plot_histogram(ax, hist, centers, *, err_hist=None, err_hist_down=None, err_hist_up=None, log_scale=False, power_limits=[-2, 2], add_info=False, overflow=None, underflow=None, entries=None, bin_unit=None, bin_width_digits=3, set_y_label=True, info_font_size=10, info_loc="top right"):
+def plot_histogram(ax, hist, centers, *, err_hist=None, err_hist_down=None, err_hist_up=None, log_scale=False, power_limits=[-2, 2], add_info=False, overflow=None, underflow=None, entries=None, bin_unit=None, bin_width_digits=3, set_y_label=True, info_font_size=params._info_font_size, info_loc="top right"):
     barwidth = np.mean(np.diff(centers))
     ax.bar(centers, hist, width=barwidth, align="center", facecolor="tab:blue")
     # if up down errors given
@@ -352,7 +352,7 @@ def plot_histogram(ax, hist, centers, *, err_hist=None, err_hist_down=None, err_
     return ax
 
 ### add infobox to ax subplot
-def add_infobox(ax, info_str, info_font_size=10, info_loc="top right"):
+def add_infobox(ax, info_str, info_font_size=params._info_font_size, info_loc="top right"):
     if info_loc == "top right":
         ax.annotate(info_str, xy=(1, 1), xytext=(-info_font_size-0.5, -info_font_size-0.5), xycoords='axes fraction', textcoords='offset points', fontsize=info_font_size, horizontalalignment='right', verticalalignment='top', bbox=dict(facecolor='white', edgecolor='lightgray', alpha=params._hist_info_alpha))
     elif info_loc == "bottom right":

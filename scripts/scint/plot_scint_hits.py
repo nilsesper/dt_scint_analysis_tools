@@ -448,26 +448,55 @@ def main():
     ######################
     ### HIT TIMESTAMPS
 
+    ## import data
+    #ts_list = scint_hits["ts"]
+    ## calculate hist
+    #edges, n_bins, centers = hist_utils.generate_histogram_edges(arg=f"linear,0,{np.amax(ts_list)},100")
+    #hist, _, _, entries, underflow, overflow, hist_err_right, hist_err_left = hist_utils.calculate_histogram_and_shifted_histograms(data=ts_list, edges=edges)
+    #err_hist, err_hist_down, err_hist_up = hist_utils.calculate_hist_uncertainty(hist=hist, hist_err_right=hist_err_right, hist_err_left=hist_err_left, do_stat_err=True)
+    ## tu to ns
+    #centers = centers*0.78
+    ## plot
+    #fig, ax = plt.subplots(1, 1, figsize=(7,6))
+    #ax = hist_utils.plot_histogram(ax=ax, hist=hist, centers=centers, err_hist=err_hist, log_scale=False, add_info=True, entries=entries, overflow=overflow, underflow=underflow, bin_unit="ns", info_loc="bottom center")
+    #xlabel = "$T$ [ns]"
+    #ax.set_xlabel(xlabel)
+    #fig.tight_layout()
+    #fig.show()
+    ### store plot
+    #if args.store_path:
+    #    hist_plot_file = args.store_path+"/"+f"SCINT_HITS_SPECIFIC_TS.pdf"
+    #    print(f"store histogram plot as {hist_plot_file}.")
+    #    fig.savefig(hist_plot_file)
+
     # import data
     ts_list = scint_hits["ts"]
-    # calculate hist
-    edges, n_bins, centers = hist_utils.generate_histogram_edges(arg=f"linear,0,{np.amax(ts_list)},100")
-    hist, _, _, entries, underflow, overflow, hist_err_right, hist_err_left = hist_utils.calculate_histogram_and_shifted_histograms(data=ts_list, edges=edges)
-    err_hist, err_hist_down, err_hist_up = hist_utils.calculate_hist_uncertainty(hist=hist, hist_err_right=hist_err_right, hist_err_left=hist_err_left, do_stat_err=True)
-    # tu to ns
-    centers = centers*0.78
-    # plot
-    fig, ax = plt.subplots(1, 1, figsize=(7,6))
-    ax = hist_utils.plot_histogram(ax=ax, hist=hist, centers=centers, err_hist=err_hist, log_scale=False, add_info=True, entries=entries, overflow=overflow, underflow=underflow, bin_unit="ns", info_loc="bottom center")
-    xlabel = "$T$ [ns]"
-    ax.set_xlabel(xlabel)
-    fig.tight_layout()
-    fig.show()
-    ## store plot
-    if args.store_path:
-        hist_plot_file = args.store_path+"/"+f"SCINT_HITS_SPECIFIC_TS.pdf"
-        print(f"store histogram plot as {hist_plot_file}.")
-        fig.savefig(hist_plot_file)
+
+    binnings = [ # (binning name, binning arg, new unit name, new unit conversion)
+        ( "fullrange", f"linear,0,{np.amax(ts_list)},100", "s", 0.78e-9 ),
+    ]
+    for binning_name, binning_arg, new_unit_name, new_unit_conversion in binnings:
+        # calculate hist
+        edges, n_bins, centers = hist_utils.generate_histogram_edges(arg=binning_arg)
+        hist, _, _, entries, underflow, overflow, hist_err_right, hist_err_left = hist_utils.calculate_histogram_and_shifted_histograms(data=ts_list, edges=edges)
+        err_hist, err_hist_down, err_hist_up = hist_utils.calculate_hist_uncertainty(hist=hist, hist_err_right=hist_err_right, hist_err_left=hist_err_left, do_stat_err=True)
+        # unit conversion
+        unit_name = "TU"
+        if new_unit_conversion != None:
+            centers = centers*new_unit_conversion
+            unit_name = new_unit_name
+        # plot
+        fig, ax = plt.subplots(1, 1, figsize=(7,6))
+        ax = hist_utils.plot_histogram(ax=ax, hist=hist, centers=centers, err_hist=err_hist, log_scale=True, add_info=True, entries=entries, overflow=overflow, underflow=underflow, bin_unit=new_unit_name, power_limits=[-3, 3], info_loc="bottom center")
+        xlabel = "$T$(same layer) ["+unit_name+"]"
+        ax.set_xlabel(xlabel)
+        fig.tight_layout()
+        fig.show()
+        ## store plot
+        if args.store_path:
+            hist_plot_file = args.store_path+"/"+f"SCINT_HITS_SPECIFIC_TS.pdf"
+            print(f"store histogram plot as {hist_plot_file}.")
+            fig.savefig(hist_plot_file)
 
     ######################
     ### COINCIDENCE: TIME DIFFERENCE OF SIPMS OF THIS STRIP HIT
@@ -659,21 +688,24 @@ def main():
         ts_diff_list.append(scint_hits["ts"][i] - scint_hits["ts"][i-1])
     ts_diff = np.array(ts_diff_list)
 
-    binnings = [ # (binning name, binning arg)
-        ( "fullrange", f"linear,0,{np.amax(ts_diff)},100" ),
-        ( "closeup", f"linear,0,200,200" ),
+    binnings = [ # (binning name, binning arg, new unit name, new unit conversion)
+        ( "fullrange", f"linear,0,{np.amax(ts_diff)},100", "ms", 0.78e-6 ),
+        ( "closeup", f"linear,0,200,200", "ns", 0.78 ),
     ]
-    for binning_name, binning_arg in binnings:
+    for binning_name, binning_arg, new_unit_name, new_unit_conversion in binnings:
         # calculate hist
         edges, n_bins, centers = hist_utils.generate_histogram_edges(arg=binning_arg)
         hist, _, _, entries, underflow, overflow, hist_err_right, hist_err_left = hist_utils.calculate_histogram_and_shifted_histograms(data=ts_diff, edges=edges)
         err_hist, err_hist_down, err_hist_up = hist_utils.calculate_hist_uncertainty(hist=hist, hist_err_right=hist_err_right, hist_err_left=hist_err_left, do_stat_err=True)
-        # tu to ns
-        centers = centers*0.78
+        # unit conversion
+        unit_name = "TU"
+        if new_unit_conversion != None:
+            centers = centers*new_unit_conversion
+            unit_name = new_unit_name
         # plot
         fig, ax = plt.subplots(1, 1, figsize=(7,6))
-        ax = hist_utils.plot_histogram(ax=ax, hist=hist, centers=centers, err_hist=err_hist, log_scale=True, add_info=True, entries=entries, overflow=overflow, underflow=underflow, bin_unit="ns")
-        xlabel = "$\\Delta T$(all hits) [ns]"
+        ax = hist_utils.plot_histogram(ax=ax, hist=hist, centers=centers, err_hist=err_hist, log_scale=True, add_info=True, entries=entries, overflow=overflow, underflow=underflow, bin_unit=new_unit_name, power_limits=[-3, 3])
+        xlabel = "$\\Delta T$(all hits) ["+unit_name+"]"
         ax.set_xlabel(xlabel)
         fig.tight_layout()
         fig.show()
@@ -697,21 +729,24 @@ def main():
             ts_diff_list.append(cut_scint_hits["ts"][i] - cut_scint_hits["ts"][i-1])
     ts_diff = np.array(ts_diff_list)
 
-    binnings = [ # (binning name, binning arg)
-        ( "fullrange", f"linear,0,{np.amax(ts_diff)},100" ),
-        ( "closeup", f"linear,0,200,200" ),
+    binnings = [ # (binning name, binning arg, new unit name, new unit conversion)
+        ( "fullrange", f"linear,0,{np.amax(ts_diff)},100", "ms", 0.78e-6 ),
+        ( "closeup", f"linear,0,200,200", "ns", 0.78 ),
     ]
-    for binning_name, binning_arg in binnings:
+    for binning_name, binning_arg, new_unit_name, new_unit_conversion in binnings:
         # calculate hist
         edges, n_bins, centers = hist_utils.generate_histogram_edges(arg=binning_arg)
         hist, _, _, entries, underflow, overflow, hist_err_right, hist_err_left = hist_utils.calculate_histogram_and_shifted_histograms(data=ts_diff, edges=edges)
         err_hist, err_hist_down, err_hist_up = hist_utils.calculate_hist_uncertainty(hist=hist, hist_err_right=hist_err_right, hist_err_left=hist_err_left, do_stat_err=True)
-        # tu to ns
-        centers = centers*0.78
+        # unit conversion
+        unit_name = "TU"
+        if new_unit_conversion != None:
+            centers = centers*new_unit_conversion
+            unit_name = new_unit_name
         # plot
         fig, ax = plt.subplots(1, 1, figsize=(7,6))
-        ax = hist_utils.plot_histogram(ax=ax, hist=hist, centers=centers, err_hist=err_hist, log_scale=True, add_info=True, entries=entries, overflow=overflow, underflow=underflow, bin_unit="ns")
-        xlabel = "$\\Delta T$(same layer) [ns]"
+        ax = hist_utils.plot_histogram(ax=ax, hist=hist, centers=centers, err_hist=err_hist, log_scale=True, add_info=True, entries=entries, overflow=overflow, underflow=underflow, bin_unit=new_unit_name, power_limits=[-3, 3])
+        xlabel = "$\\Delta T$(same layer) ["+unit_name+"]"
         ax.set_xlabel(xlabel)
         fig.tight_layout()
         fig.show()
@@ -736,21 +771,24 @@ def main():
                 ts_diff_list.append(cut_scint_hits["ts"][i] - cut_scint_hits["ts"][i-1])
     ts_diff = np.array(ts_diff_list)
 
-    binnings = [ # (binning name, binning arg)
-        ( "fullrange", f"linear,0,{np.amax(ts_diff)},100" ),
-        ( "closeup", f"linear,0,1300,100" ),
+    binnings = [ # (binning name, binning arg, new unit name, new unit conversion)
+        ( "fullrange", f"linear,0,{np.amax(ts_diff)},100", "ms", 0.78e-6 ),
+        ( "closeup", f"linear,0,1300,100", "ns", 0.78 ),
     ]
-    for binning_name, binning_arg in binnings:
+    for binning_name, binning_arg, new_unit_name, new_unit_conversion in binnings:
         # calculate hist
         edges, n_bins, centers = hist_utils.generate_histogram_edges(arg=binning_arg)
         hist, _, _, entries, underflow, overflow, hist_err_right, hist_err_left = hist_utils.calculate_histogram_and_shifted_histograms(data=ts_diff, edges=edges)
         err_hist, err_hist_down, err_hist_up = hist_utils.calculate_hist_uncertainty(hist=hist, hist_err_right=hist_err_right, hist_err_left=hist_err_left, do_stat_err=True)
-        # tu to ns
-        centers = centers*0.78
+        # unit conversion
+        unit_name = "TU"
+        if new_unit_conversion != None:
+            centers = centers*new_unit_conversion
+            unit_name = new_unit_name
         # plot
         fig, ax = plt.subplots(1, 1, figsize=(7,6))
-        ax = hist_utils.plot_histogram(ax=ax, hist=hist, centers=centers, err_hist=err_hist, log_scale=True, add_info=True, entries=entries, overflow=overflow, underflow=underflow, bin_unit="ns")
-        xlabel = "$\\Delta T$(same strip) [ns]"
+        ax = hist_utils.plot_histogram(ax=ax, hist=hist, centers=centers, err_hist=err_hist, log_scale=True, add_info=True, entries=entries, overflow=overflow, underflow=underflow, bin_unit=new_unit_name, power_limits=[-3, 3])
+        xlabel = "$\\Delta T$(same strip) ["+unit_name+"]"
         ax.set_xlabel(xlabel)
         fig.tight_layout()
         fig.show()

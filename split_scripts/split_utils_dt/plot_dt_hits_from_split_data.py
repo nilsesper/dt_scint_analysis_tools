@@ -131,10 +131,9 @@ def main():
     cbar = fig.colorbar(im_obj, ax=ax, fraction=0.05, cmap=cmap, format=formatter)
     cbar.set_label("Count")
     # info box
-    info_font_size = 10
     entries = int(cell_hits)
     info_str = f"entries = {entries}"
-    ax = hist_utils.add_infobox(ax=ax, info_str=info_str, info_font_size=info_font_size, info_loc="bottom left")
+    ax = hist_utils.add_infobox(ax=ax, info_str=info_str, info_loc="bottom left")
     # show plot
     fig.tight_layout()
     fig.show()
@@ -181,10 +180,9 @@ def main():
     cbar = fig.colorbar(im_obj, ax=ax, fraction=0.05, cmap=cmap)
     cbar.set_label("Rate [Hz]")
     # info box
-    info_font_size = 10
     entries = int(cell_hits)
     info_str = f"entries = {entries}"
-    ax = hist_utils.add_infobox(ax=ax, info_str=info_str, info_font_size=info_font_size, info_loc="bottom left")
+    ax = hist_utils.add_infobox(ax=ax, info_str=info_str, info_loc="bottom left")
     # show plot
     fig.tight_layout()
     fig.show()

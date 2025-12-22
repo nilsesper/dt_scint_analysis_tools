@@ -1528,6 +1528,7 @@ _ro_ch_labels = {
 #### plotting
 _legend_alpha = 0.7
 _hist_info_alpha = 0.7
+_info_font_size = 12
 
 
 

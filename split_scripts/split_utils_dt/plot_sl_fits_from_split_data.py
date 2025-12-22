@@ -149,7 +149,7 @@ def main():
 
     ## plot in tu
     fig, ax = plt.subplots(1, 1, figsize=fig_size)
-    ax = hist_utils.plot_histogram(ax=ax, hist=hist, centers=centers, err_hist_down=err_hist_down, err_hist_up=err_hist_up, log_scale=log_y_scale, power_limits=[-3, 3], add_info=True, entries=entries, overflow=overflow, underflow=underflow, bin_unit="TU")
+    ax = hist_utils.plot_histogram(ax=ax, hist=hist, centers=centers, err_hist_down=err_hist_down, err_hist_up=err_hist_up, log_scale=log_y_scale, power_limits=[-3, 3], add_info=True, entries=entries, overflow=overflow, underflow=underflow, bin_unit="TU", info_loc="bottom center")
     hist_key = "dt"
     xlabel = (params._key_symbols[hist_key]) if (params._key_units[hist_key] == "") else (params._key_symbols[hist_key]+" ["+ params._key_units[hist_key]+"]")
     ax.set_xlabel(xlabel)
@@ -164,7 +164,7 @@ def main():
     ## plot in ns
     centers_ns = centers*0.78
     fig, ax = plt.subplots(1, 1, figsize=fig_size)
-    ax = hist_utils.plot_histogram(ax=ax, hist=hist, centers=centers_ns, err_hist_down=err_hist_down, err_hist_up=err_hist_up, log_scale=log_y_scale, power_limits=[-3, 3], add_info=True, entries=entries,  overflow=overflow, underflow=underflow, bin_unit="ns")
+    ax = hist_utils.plot_histogram(ax=ax, hist=hist, centers=centers_ns, err_hist_down=err_hist_down, err_hist_up=err_hist_up, log_scale=log_y_scale, power_limits=[-3, 3], add_info=True, entries=entries,  overflow=overflow, underflow=underflow, bin_unit="ns", info_loc="bottom center")
     hist_key = "dt"
     xlabel = params._key_symbols[hist_key] + " [ns]"
     ax.set_xlabel(xlabel)

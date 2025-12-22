@@ -90,6 +90,31 @@ def main():
         action = "store_true",
     )
     parser.add_argument(
+        "--new_unit_name",
+        type     = str,
+        help     = "name of new unit to be used for hist plotting (if desired)",
+    )
+    parser.add_argument(
+        "--new_unit_conversion",
+        type     = str,
+        help     = "conversion factor to multiply with x-axis in order to convert to new unit (if desired)",
+    )
+    parser.add_argument(
+        "--n_x_ticks",
+        type     = str,
+        help     = "specify count of x ticks to be plotted (if desired)",
+    )
+    parser.add_argument(
+        "--x_tick_minmax",
+        type     = str,
+        help     = "specify min,max x ticks to be plotted (if desired)",
+    )
+    parser.add_argument(
+        "--new_x_label",
+        type     = str,
+        help     = "overwrite x label (if desired)",
+    )
+    parser.add_argument(
         "--store_path",
         type     = str,
         help     = "path to store pdf plot (if desired)",
@@ -125,6 +150,22 @@ def main():
     use_asym_err = False
     if args.use_asymm_err:
         use_asym_err = True
+    # new unit
+    new_unit = False
+    if args.new_unit_name and args.new_unit_conversion:
+        new_unit = True
+        new_unit_name = args.new_unit_name
+        new_unit_conversion = float(args.new_unit_conversion)
+    custom_x_ticks = False
+    x_tick_minmax = (None, None)
+    if args.n_x_ticks:
+        custom_x_ticks = True
+        n_x_ticks = int(args.n_x_ticks)
+        if args.x_tick_minmax:
+            x_tick_minmax = [float(s) for s in args.x_tick_minmax.split(",")]
+    new_x_label = None
+    if args.new_x_label:
+        new_x_label = args.new_x_label
 
     ####################
 
@@ -155,11 +196,21 @@ def main():
         print(f"  err_hist_down  =  {err_hist_down}")
         print(f"  err_hist_up    =  {err_hist_up}")
 
+    ## unit conversion if necessary
+    unit_name = params._key_units[hist_key]
+    label_name = params._key_symbols[hist_key]
+    if new_unit:
+        edges = edges*new_unit_conversion
+        centers = centers*new_unit_conversion
+        unit_name = new_unit_name
+    if new_x_label != None:
+        label_name = new_x_label
+
     ## plot
     fig, ax = plt.subplots(1, 1, figsize=fig_size)
     if not use_asym_err: # symm err
         if not args.info_box_only_entries:
-            ax = hist_utils.plot_histogram(ax=ax, hist=hist, centers=centers, err_hist=err_hist, log_scale=log_y_scale, add_info=True, entries=entries, overflow=overflow, underflow=underflow, bin_unit=params._key_units[hist_key], info_loc=args.info_box_loc)
+            ax = hist_utils.plot_histogram(ax=ax, hist=hist, centers=centers, err_hist=err_hist, log_scale=log_y_scale, add_info=True, entries=entries, overflow=overflow, underflow=underflow, bin_unit=unit_name, info_loc=args.info_box_loc)
         else:
             ax = hist_utils.plot_histogram(ax=ax, hist=hist, centers=centers, err_hist=err_hist, log_scale=log_y_scale, add_info=False)
             # info box
@@ -167,14 +218,19 @@ def main():
             ax = hist_utils.add_infobox(ax=ax, info_str=info_str, info_loc=args.info_box_loc)
     else: # asymm err
         if not args.info_box_only_entries:
-            ax = hist_utils.plot_histogram(ax=ax, hist=hist, centers=centers, err_hist_down=err_hist_down, err_hist_up=err_hist_up, log_scale=log_y_scale, add_info=True, entries=entries, overflow=overflow, underflow=underflow, bin_unit=params._key_units[hist_key], info_loc=args.info_box_loc)
+            ax = hist_utils.plot_histogram(ax=ax, hist=hist, centers=centers, err_hist_down=err_hist_down, err_hist_up=err_hist_up, log_scale=log_y_scale, add_info=True, entries=entries, overflow=overflow, underflow=underflow, bin_unit=unit_name, info_loc=args.info_box_loc)
         else:
             ax = hist_utils.plot_histogram(ax=ax, hist=hist, centers=centers, err_hist_down=err_hist_down, err_hist_up=err_hist_up, log_scale=log_y_scale)
             # info box
             info_str = f"entries = {entries}"
             ax = hist_utils.add_infobox(ax=ax, info_str=info_str, info_loc=args.info_box_loc)
-    xlabel = (params._key_symbols[hist_key]) if (params._key_units[hist_key] == "") else (params._key_symbols[hist_key]+" ["+ params._key_units[hist_key]+"]")
+    xlabel = (label_name) if (unit_name == "") else (label_name+" ["+ unit_name+"]")
     ax.set_xlabel(xlabel)
+    if custom_x_ticks:
+        if x_tick_minmax  == (None, None):
+            ax.set_xticks(np.linspace(np.amin(edges), np.amax(edges), n_x_ticks))
+        else:
+            ax.set_xticks(np.linspace(x_tick_minmax[0], x_tick_minmax[1], n_x_ticks))
     fig.tight_layout()
     fig.show()
 

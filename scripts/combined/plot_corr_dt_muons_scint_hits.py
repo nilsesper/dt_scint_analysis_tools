@@ -146,26 +146,52 @@ def main():
     with mpl.rc_context({'font.family': 'sans-serif', 'font.size': 20}):
         ######################
         ### MATCHED MUONS: ARRIVAL TIMES
-
         ts = dt_corr_muons["ts"]
+        
+        ## calculate hist
+        #edges, n_bins, centers = hist_utils.generate_histogram_edges(arg=f"auto,50", data_min_val=np.amin(ts), data_max_val=np.amax(ts))
+        #hist, _, _, entries, underflow, overflow, hist_err_right, hist_err_left = hist_utils.calculate_histogram_and_shifted_histograms(data=ts, edges=edges)
+        #err_hist, err_hist_down, err_hist_up = hist_utils.calculate_hist_uncertainty(hist=hist, hist_err_right=hist_err_right, hist_err_left=hist_err_left, do_stat_err=True)
+        ## tu to ns
+        #centers = centers*0.78
+        ## plot
+        #fig, ax = plt.subplots(1, 1, figsize=(7,6))
+        #ax = hist_utils.plot_histogram(ax=ax, hist=hist, centers=centers, err_hist=err_hist, log_scale=False, add_info=True, entries=entries, overflow=overflow, underflow=underflow, bin_unit="ns", info_loc="bottom center")
+        #xlabel = "$T_\\text{DT} \\text{(matched)}$ [ns]"
+        #ax.set_xlabel(xlabel)
+        #fig.tight_layout()
+        #fig.show()
+        ### store plot
+        #if args.store_path:
+        #    hist_plot_file = args.store_path+"/"+f"CORRELATED_HITS_SPECIFIC_MUON_TS.pdf"
+        #    print(f"store histogram plot as {hist_plot_file}.")
+        #    fig.savefig(hist_plot_file)
+
         # calculate hist
-        edges, n_bins, centers = hist_utils.generate_histogram_edges(arg=f"auto,50", data_min_val=np.amin(ts), data_max_val=np.amax(ts))
-        hist, _, _, entries, underflow, overflow, hist_err_right, hist_err_left = hist_utils.calculate_histogram_and_shifted_histograms(data=ts, edges=edges)
-        err_hist, err_hist_down, err_hist_up = hist_utils.calculate_hist_uncertainty(hist=hist, hist_err_right=hist_err_right, hist_err_left=hist_err_left, do_stat_err=True)
-        # tu to ns
-        centers = centers*0.78
-        # plot
-        fig, ax = plt.subplots(1, 1, figsize=(7,6))
-        ax = hist_utils.plot_histogram(ax=ax, hist=hist, centers=centers, err_hist=err_hist, log_scale=False, add_info=True, entries=entries, overflow=overflow, underflow=underflow, bin_unit="ns", info_loc="bottom center")
-        xlabel = "$T_\\text{DT} \\text{(matched)}$ [ns]"
-        ax.set_xlabel(xlabel)
-        fig.tight_layout()
-        fig.show()
-        ## store plot
-        if args.store_path:
-            hist_plot_file = args.store_path+"/"+f"CORRELATED_HITS_SPECIFIC_MUON_TS.pdf"
-            print(f"store histogram plot as {hist_plot_file}.")
-            fig.savefig(hist_plot_file)
+        binnings = [ # (binning name, binning arg, new unit name, new unit conversion)
+            ( "fullrange", f"linear,0,{np.amax(ts)},100", "s", 0.78e-9 ),
+        ]
+        for binning_name, binning_arg, new_unit_name, new_unit_conversion in binnings:
+            edges, n_bins, centers = hist_utils.generate_histogram_edges(arg=binning_arg)
+            hist, _, _, entries, underflow, overflow, hist_err_right, hist_err_left = hist_utils.calculate_histogram_and_shifted_histograms(data=ts, edges=edges)
+            err_hist, err_hist_down, err_hist_up = hist_utils.calculate_hist_uncertainty(hist=hist, hist_err_right=hist_err_right, hist_err_left=hist_err_left, do_stat_err=True)
+            # unit conversion
+            unit_name = "TU"
+            if new_unit_conversion != None:
+                centers = centers*new_unit_conversion
+                unit_name = new_unit_name
+            # plot
+            fig, ax = plt.subplots(1, 1, figsize=(7,6))
+            ax = hist_utils.plot_histogram(ax=ax, hist=hist, centers=centers, err_hist=err_hist, log_scale=True, add_info=True, entries=entries, overflow=overflow, underflow=underflow, bin_unit=new_unit_name, info_loc="bottom center")
+            xlabel = "$T_\\text{DT} \\text{(matched)}$ ["+unit_name+"]"
+            ax.set_xlabel(xlabel)
+            fig.tight_layout()
+            fig.show()
+            ## store plot
+            if args.store_path:
+                hist_plot_file = args.store_path+"/"+f"CORRELATED_HITS_SPECIFIC_MUON_TS.pdf"
+                print(f"store histogram plot as {hist_plot_file}.")
+                fig.savefig(hist_plot_file)
 
         ######################
         ### MATCHED MUONS: TIME DIFFERENCE OF ARRIVAL TIMES
@@ -178,20 +204,23 @@ def main():
             ts_diff_list.append(dt_corr_muons["ts"][i] - dt_corr_muons["ts"][i-1])
         ts_diff = np.array(ts_diff_list)
         # calculate hist
-        binnings = [ # (binning name, binning arg)
-            ( "fullrange", f"linear,0,{np.amax(ts_diff)},100" ),
-            ( "closeup", f"linear,0,10000,100" ),
+        binnings = [ # (binning name, binning arg, new unit name, new unit conversion)
+            ( "fullrange", f"linear,0,{np.amax(ts_diff)},100", "s", 0.78e-9 ),
+            ( "closeup", f"linear,0,10000,100", "ns", 0.78 ),
         ]
-        for binning_name, binning_arg in binnings:
+        for binning_name, binning_arg, new_unit_name, new_unit_conversion in binnings:
             edges, n_bins, centers = hist_utils.generate_histogram_edges(arg=binning_arg)
             hist, _, _, entries, underflow, overflow, hist_err_right, hist_err_left = hist_utils.calculate_histogram_and_shifted_histograms(data=ts_diff, edges=edges)
             err_hist, err_hist_down, err_hist_up = hist_utils.calculate_hist_uncertainty(hist=hist, hist_err_right=hist_err_right, hist_err_left=hist_err_left, do_stat_err=True)
-            # tu to ns
-            centers = centers*0.78
+            # unit conversion
+            unit_name = "TU"
+            if new_unit_conversion != None:
+                centers = centers*new_unit_conversion
+                unit_name = new_unit_name
             # plot
             fig, ax = plt.subplots(1, 1, figsize=(7,6))
             ax = hist_utils.plot_histogram(ax=ax, hist=hist, centers=centers, err_hist=err_hist, log_scale=True, add_info=True, entries=entries, overflow=overflow, underflow=underflow, bin_unit="ns", info_loc="top right")
-            xlabel = "$\\Delta T_\\text{DT} \\text{(matched)}$ [ns]"
+            xlabel = "$\\Delta T_\\text{DT} \\text{(matched)}$ ["+unit_name+"]"
             ax.set_xlabel(xlabel)
             fig.tight_layout()
             fig.show()
@@ -209,19 +238,22 @@ def main():
 
         # calculate hist
         binnings = [ # (binning name, binning arg)
-            ( "fullrange", f"linear,{np.amin(delta_ts_corr)},{np.amax(delta_ts_corr)},200", True ),
-            ( "closeup", f"linear,-128,-13,115", False ),
+            ( "fullrange", f"linear,{np.amin(delta_ts_corr)},{np.amax(delta_ts_corr)},200", True, "ns", 0.78 ),
+            ( "closeup", f"linear,-128,-13,115", False, "ns", 0.78 ),
         ]
-        for binning_name, binning_arg, binning_log in binnings:
+        for binning_name, binning_arg, binning_log, new_unit_name, new_unit_conversion in binnings:
             edges, n_bins, centers = hist_utils.generate_histogram_edges(arg=binning_arg)
             hist, _, _, entries, underflow, overflow, hist_err_right, hist_err_left = hist_utils.calculate_histogram_and_shifted_histograms(data=delta_ts_corr, edges=edges)
             err_hist, err_hist_down, err_hist_up = hist_utils.calculate_hist_uncertainty(hist=hist, hist_err_right=hist_err_right, hist_err_left=hist_err_left, do_stat_err=True)
-            # tu to ns
-            centers = centers*0.78
+            # unit conversion
+            unit_name = "TU"
+            if new_unit_conversion != None:
+                centers = centers*new_unit_conversion
+                unit_name = new_unit_name
             # plot
             fig, ax = plt.subplots(1, 1, figsize=(7,6))
-            ax = hist_utils.plot_histogram(ax=ax, hist=hist, centers=centers, err_hist=err_hist, log_scale=binning_log, power_limits=[-3,3], add_info=True, entries=entries, overflow=overflow, underflow=underflow, bin_unit="ns", info_loc="top right")
-            xlabel = "$\\Delta T_\\text{matching}$ [ns]"
+            ax = hist_utils.plot_histogram(ax=ax, hist=hist, centers=centers, err_hist=err_hist, log_scale=binning_log, power_limits=[-3,3], add_info=True, entries=entries, overflow=overflow, underflow=underflow, bin_unit=new_unit_name, info_loc="top right")
+            xlabel = "$\\Delta T_\\text{matching}$ ["+unit_name+"]"
             ax.set_xlabel(xlabel)
             fig.tight_layout()
             fig.show()
@@ -268,7 +300,7 @@ def main():
         print(f"  chi2/ndf = {chi2} / {ndf} = {chi2ndf}")
 
         # plot fit
-        fig, ax = plt.subplots(2, 1, figsize=(7,6), sharex=True, height_ratios=(5,1))
+        fig, ax = plt.subplots(2, 1, figsize=(8,6.5), sharex=True, height_ratios=(5,1))
         rel_spacing = 0
         barwidth = np.mean(np.diff(bins_ts_diff_fit))*(1-rel_spacing) # relative spacing between bins
         ax[0] = hist_utils.plot_histogram(ax[0], hist=ts_diff_fit, centers=bins_ts_diff_fit, err_hist=err_ts_diff_fit, log_scale=False, power_limits=[-3,3], add_info=True, entries=entries, overflow=overflow, underflow=underflow, bin_unit="ns", info_loc="bottom right")
@@ -431,11 +463,10 @@ def main():
         cbar = fig.colorbar(im_obj, ax=ax, fraction=0.05, cmap=cmap, format=formatter)
         cbar.set_label("Counts")
         # info box
-        info_font_size = 10
         entries = int(np.sum(pos_corr_muons_hist2d))
         not_shown = int(data_utils.length(dt_corr_muons_scint)-entries)
         info_str = f"entries = {entries}\nnot shown = {not_shown}\ntotal = {entries+not_shown}\nbin count = {len(x_edges)*len(y_edges)}\nbin width = {x_bin_width} mm $\\times$ {y_bin_width} mm"
-        ax = hist_utils.add_infobox(ax=ax, info_str=info_str, info_font_size=10, info_loc="bottom right")
+        ax = hist_utils.add_infobox(ax=ax, info_str=info_str, info_loc="bottom right")
         # show plot
         fig.tight_layout()
         fig.show()
@@ -603,11 +634,10 @@ def main():
         cbar = fig.colorbar(im_obj, ax=ax, fraction=0.05, cmap=cmap, format=formatter)
         cbar.set_label("Counts")
         # info box
-        info_font_size = 10
         entries = int(np.sum(pos_corr_muons_hist2d))
         not_shown = int(data_utils.length(dt_muons_scint)-entries)
         info_str = f"entries = {entries}\nnot shown = {not_shown}\ntotal = {entries+not_shown}\nbin count = {len(x_edges)*len(y_edges)}\nbin width = {x_bin_width} mm $\\times$ {y_bin_width} mm"
-        ax = hist_utils.add_infobox(ax=ax, info_str=info_str, info_font_size=10, info_loc="bottom right")
+        ax = hist_utils.add_infobox(ax=ax, info_str=info_str, info_loc="bottom right")
         # show plot
         fig.tight_layout()
         fig.show()
