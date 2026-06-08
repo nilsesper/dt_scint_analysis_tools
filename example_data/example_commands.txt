@@ -1,0 +1,35 @@
+
+### record data
+
+### split dumpfile in digestable parts and prepare config file where these parts are specified
+
+### import hit data
+
+python split_scripts/split_utils/analysis_run_control.py --base_path example_data/ --data_config_file example_data/config_dt_cosmics.txt --task_list "dump_import" --task_for_each_set --n_proc 12
+
+python split_scripts/split_utils/analysis_run_control.py --base_path example_data/ --data_config_file example_data/config_dt_cosmics.txt --task_list "dump_dt_nodeadtime" --task_for_each_set --n_proc 12
+
+python split_scripts/split_utils/analysis_run_control.py --base_path example_data/ --data_config_file example_data/config_dt_cosmics.txt --task_list "dt_corr" --task_for_each_set --n_proc 12
+
+### cell occupancy & rate
+# calculate
+python split_scripts/split_utils_dt/dt_hits_from_split_data.py --base_path example_data/ --data_config_file example_data/config_dt_cosmics.txt --dataset DT_HITS_NODEADTIME
+# plot
+python split_scripts/split_utils_dt/plot_dt_hits_from_split_data.py --base_path example_data/ --store_path example_data/plots/ --data_config_file example_data/config_dt_cosmics.txt --dataset DT_HITS_NODEADTIME
+
+### general histograms
+## hist: "ts" +- "err_ts"
+# calculate & plot
+python split_scripts/split_utils/hist_from_split_data.py --base_path example_data/ --data_config_file example_data/config_dt_cosmics.txt --dataset DT_HITS_NODEADTIME --key "ts" --err_key "err_ts" --edges "auto,50" && python split_scripts/split_utils/plot_hist_from_split_data.py --base_path example_data/ --store_path example_data/plots/ --data_config_file example_data/config_dt_cosmics.txt --dataset DT_HITS_NODEADTIME --key "ts" --fig_size "7,6" --use_asymm_err --info_box_loc "bottom center" --new_unit_name "s" --new_unit_conversion "0.78e-9" --new_unit_name "s" --new_unit_conversion "0.78e-9"
+
+### photo peak hits
+# calculate
+    python split_scripts/split_utils_dt/dt_hit_diff_from_split_data.py --base_path example_data/ --data_config_file example_data/config_dt_cosmics.txt --dataset DT_HITS_NODEADTIME
+# plot
+    python split_scripts/split_utils_dt/plot_dt_hit_diff_from_split_data.py --base_path example_data/ --store_path example_data/plots/ --data_config_file example_data/config_dt_cosmics.txt --dataset DT_HITS_NODEADTIME --fig_size "7,6"
+
+### cell occupancy & rate with applied dead time
+# calculate
+    python split_scripts/split_utils_dt/dt_hits_from_split_data.py --base_path example_data/ --data_config_file example_data/config_dt_cosmics.txt --dataset DT_HITS
+# plot
+    python split_scripts/split_utils_dt/plot_dt_hits_from_split_data.py --base_path example_data/ --store_path example_data/plots/ --data_config_file example_data/config_dt_cosmics.txt --dataset DT_HITS
