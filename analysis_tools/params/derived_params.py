@@ -285,7 +285,7 @@ for ly in range(params._dt_chamber["sls"][sl]["n_lys"]):
         size_z = params._dt_chamber["sls"][sl]["lys"][ly]["ch_size"][coord_axis]
         # fill data into coord map
         _sl_pattern_coordinates[ly][rel_wi].append(np.sort([pos_x, pos_x+size_x])) # idx = 0: [xmin, xmax]
-        _sl_pattern_coordinates[ly][rel_wi].append(np.sort([pos_z, pos_z+size_z])) # idx = 0: [zmin, zmax]
+        _sl_pattern_coordinates[ly][rel_wi].append(np.sort([pos_z, pos_z+size_z])) # idx = 1: [zmin, zmax]
         _sl_pattern_coordinates[ly][rel_wi].append(pos_x+size_x/2) # idx = 2: x center pos
         _sl_pattern_coordinates[ly][rel_wi].append(pos_z+size_z/2) # idx = 3: z center pos
 # transform coordinate system from (0,0) at bottom of cell ly=3, rel_wi=0 to (0,0) at center of cell ly=3, rel_wi=0
