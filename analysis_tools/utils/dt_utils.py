@@ -67,9 +67,13 @@ def extract_dt_hits(hits, *, silent=False, has_timestamp=False, ignore_deadtime=
     keep_ly = []
     for sl in params._dt_chamber["sls"].keys():
         for ly in params._dt_chamber["sls"][sl]["lys"].keys():
-            keep_ly.append( data_utils.cut_data(data=tmp_hits, conditions=[("sl","==",sl), ("ly","==",ly), ("wi",">=",params._dt_chamber["sls"][sl]["lys"][ly]["min_wi"]), ("wi","<=",params._dt_chamber["sls"][sl]["lys"][ly]["max_wi"])]) )
+            temp_data_with_masked_wires = data_utils.cut_data(data=tmp_hits, conditions=[("sl","==",sl), ("ly","==",ly), ("wi",">=",params._dt_chamber["sls"][sl]["lys"][ly]["min_wi"]), ("wi","<=",params._dt_chamber["sls"][sl]["lys"][ly]["max_wi"])])
             #print(f"wi < min_wi:", data_utils.cut_data(data=tmp_hits, conditions=[("sl","==",sl), ("ly","==",ly), ("wi","<",params._dt_chamber["sls"][sl]["lys"][ly]["min_wi"])]) )
             #print(f"wi > max_wi:", data_utils.cut_data(data=tmp_hits, conditions=[("sl","==",sl), ("ly","==",ly), ("wi",">",params._dt_chamber["sls"][sl]["lys"][ly]["max_wi"])]) )
+            for wi_to_mask in params._dt_wire_mask[sl][ly]:
+                temp_data_with_masked_wires = data_utils.cut_data(data=temp_data_with_masked_wires, conditions=[("sl","==",sl), ("ly","==",ly), ("wi","!=",wi_to_mask)])
+            keep_ly.append( temp_data_with_masked_wires )
+
     tmp_hits = data_utils.merge_dataset(split_data=keep_ly)
     tmp_hits = timestamp_utils.sort_by_timestamp(hits=tmp_hits)
     ### -----------------------
@@ -391,7 +395,7 @@ def _chamber_data(default={"color": params._color_info["cell"][None], "text": ""
 ### fit sl patterns
 # fit muons to sl patterns, try all lateralities, select best fit
 # return list of fit results/parameters
-def fit_sl_patterns(patterns, *, silent=False, verbose=False, fit_vd=False):
+def fit_sl_patterns(patterns, *, silent=False, verbose=False, fit_vd=False, suffix=""):
     sl_fits = copy.deepcopy(patterns) # keep all pattern keys as well
     n_patterns = len(patterns["sl"])
     if not silent: print(f"Performing SL pattern fits for {n_patterns} patterns...")
@@ -567,20 +571,38 @@ def fit_sl_patterns(patterns, *, silent=False, verbose=False, fit_vd=False):
             best_fit_idx = np.argmin(lat_goodness)
             # store results of best fit
             for k in params._sl_fit_keys.keys():
-                sl_fits[k][i] = lat_fits[best_fit_idx][k]
+                sl_fits[k+suffix][i] = lat_fits[best_fit_idx][k]
             # store results of all laterality fits
             for lat_id in range(len(lats)):
                 for k1,k2 in [(f"lat{lat_id}_impossible", "impossible"), (f"lat{lat_id}_t0", "t0"), (f"lat{lat_id}_x0", "x0"), (f"lat{lat_id}_tan_alpha", "tan_alpha"), (f"lat{lat_id}_chi2/ndf", "chi2/ndf"), (f"lat{lat_id}_dt0", "dt0"), (f"lat{lat_id}_dt1", "dt1"), (f"lat{lat_id}_dt2", "dt2"), (f"lat{lat_id}_dt3", "dt3"), (f"lat{lat_id}_vd", "vd"), 
                     (f"lat{lat_id}_err_t0", "err_t0"), (f"lat{lat_id}_err_x0", "err_x0"), (f"lat{lat_id}_err_tan_alpha", "err_tan_alpha"), (f"lat{lat_id}_err_vd", "err_vd"), (f"lat{lat_id}_corr_t0_x0", "corr_t0_x0"), (f"lat{lat_id}_corr_t0_tan_alpha", "corr_t0_tan_alpha"), (f"lat{lat_id}_corr_t0_vd", "corr_t0_vd"), (f"lat{lat_id}_corr_x0_tan_alpha", "corr_x0_tan_alpha"), (f"lat{lat_id}_corr_x0_vd", "corr_x0_vd"), (f"lat{lat_id}_corr_tan_alpha_vd", "corr_tan_alpha_vd")]:
-                    sl_fits[k1][i] = lat_fits[lat_id][k2]
+                    sl_fits[k1+suffix][i] = lat_fits[lat_id][k2]
         else: # if fit impossible
             print(f" **** Impossible to fit timestamps.")
-            sl_fits["impossible"][i] = 1
+            sl_fits["impossible"+suffix][i] = 1
         # NOTE:
         # if one wants to use also the +-d patterns, one might need to keep several fit results since there are possibilities of ambiguities between rrll and llrr
         # but if not using the +-d pattern, do not care :)
     return sl_fits
 
+
+###########################################################################
+###########################################################################
+def refit_sl_patterns(sl_fits, *, silent=False, verbose=False, fit_vd=True, suffix="refit"):
+    # refit patterns with new parameters (e.g. new drift velocity)
+    # basically just call fit_sl_patterns again
+    # restrict the fitted results to those with impossible=0 (i.e. only refit patterns which were fitted successfully before)
+    # restrict angle of impact to the range of the pattern (e.g. +- 10  deg for +-a pattern)
+    # restrict to chi2/ndf < 10 for refit (otherwise the fit is probably not good enough to be used for refit)
+    max_alpha = np.deg2rad(10)
+    max_chi2ndf = 10
+    if verbose: print(f"Refitting SL patterns with new parameters (e.g. new drift velocity) and restricting to chi2/ndf < {max_chi2ndf} and |alpha| < {max_alpha:.3f} rad...")
+    sl_fits = data_utils.cut_data(data=sl_fits, conditions=[("impossible","==",0), ("chi2/ndf","<",max_chi2ndf), ("alpha","in", (-max_alpha, max_alpha))], silent=silent)
+    sl_fit_refits = fit_sl_patterns(patterns=sl_fits, silent=silent, verbose=verbose, fit_vd=fit_vd, suffix=suffix)
+
+    return sl_fit_refits
+###########################################################################
+###########################################################################
 """
 ### fit sl patterns WITH MEANTIMER METHOD
 def fit_sl_patterns_meantimer(patterns, *, silent=False, verbose=False):

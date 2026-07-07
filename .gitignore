@@ -2,6 +2,7 @@ calibration_files/
 data_files/
 old_data_files/
 thesis_data_files/
+justus_data/
 __pycache__/
 *.py[cod]
 .vscode/

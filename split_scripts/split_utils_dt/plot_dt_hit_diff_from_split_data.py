@@ -129,8 +129,9 @@ def main():
         fig.savefig(hist_plot_file)
 
     ### remove exponential "poisson" background
-    fit_index_range = (bins > 1000) # > 1000 ns
-    extrapol_index_range = (bins <= 1000)
+    boarder = 2000 # ns
+    fit_index_range = (bins > boarder) # > 1000 ns
+    extrapol_index_range = (bins <= boarder)
     fit_bins = bins[fit_index_range]
     fit_hist = hist[fit_index_range]
     err_fit_hist = err_hist[fit_index_range]
