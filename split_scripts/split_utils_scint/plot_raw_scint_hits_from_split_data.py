@@ -119,7 +119,7 @@ def main():
             fig.show()
     ## store plot
     if args.store_path:
-        hist_plot_file = args.store_path+"/"+common_file_prefix+"_"+dataset+"_SPECIFIC_OCCUPANCY_LAYERS.pdf"
+        hist_plot_file = args.store_path+"/"+common_file_prefix+"_"+dataset+"_SPECIFIC_OCCUPANCY_LAYERS.png"
         print(f"store plot as {hist_plot_file}.")
         fig.savefig(hist_plot_file)
 
@@ -164,7 +164,7 @@ def main():
     fig.show()
     ## store plot
     if args.store_path:
-        hist_plot_file = args.store_path+"/"+common_file_prefix+"_"+dataset+"_SPECIFIC_"+"OCCUPANCY"+".pdf"
+        hist_plot_file = args.store_path+"/"+common_file_prefix+"_"+dataset+"_SPECIFIC_"+"OCCUPANCY"+".png"
         print(f"store plot as {hist_plot_file}.")
         fig.savefig(hist_plot_file)
 

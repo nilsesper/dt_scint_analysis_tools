@@ -157,7 +157,7 @@ def main():
     fig.show()
     ## store plot
     if args.store_path:
-        hist_plot_file = args.store_path+"/"+common_file_prefix+"_"+dataset+"_HIST_TIMEBOX.pdf"
+        hist_plot_file = args.store_path+"/"+common_file_prefix+"_"+dataset+"_HIST_TIMEBOX.png"
         print(f"store histogram plot as {hist_plot_file}.")
         fig.savefig(hist_plot_file)
 
@@ -172,7 +172,7 @@ def main():
     fig.show()
     ## store plot
     if args.store_path:
-        hist_plot_file = args.store_path+"/"+common_file_prefix+"_"+dataset+"_HIST_TIMEBOX_ns.pdf"
+        hist_plot_file = args.store_path+"/"+common_file_prefix+"_"+dataset+"_HIST_TIMEBOX_ns.png"
         print(f"store histogram plot as {hist_plot_file}.")
         fig.savefig(hist_plot_file)
 

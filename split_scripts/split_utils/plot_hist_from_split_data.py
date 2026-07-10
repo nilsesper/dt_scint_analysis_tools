@@ -237,7 +237,7 @@ def main():
     ## store plot
     if args.store_path:
         hist_key_str = hist_key.replace("/","-")
-        hist_plot_file = args.store_path+"/"+common_file_prefix+"_"+dataset+"_HIST_"+hist_key_str+".pdf"
+        hist_plot_file = args.store_path+"/"+common_file_prefix+"_"+dataset+"_HIST_"+hist_key_str+".png"
         print(f"store histogram plot as {hist_plot_file}.")
         fig.savefig(hist_plot_file)
 

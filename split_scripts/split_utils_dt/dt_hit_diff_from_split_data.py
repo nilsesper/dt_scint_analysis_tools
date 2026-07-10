@@ -56,6 +56,11 @@ def main():
         help     = "data set to create histogram from",
         required=True,
     )
+    parser.add_argument(
+        "--cuts",
+        type     = str,
+        help     = "cuts to apply to data in format \"key1,operator1,value1+key2,operator2,value;...\"",
+    )
     # ---
     args = parser.parse_args()
     # base file path
@@ -76,6 +81,16 @@ def main():
             dump_files.append(dump_file.replace("\n","").replace("\r","").replace("\t",""))
     n_data = len(dump_files)
     common_file_prefix = os.path.commonprefix(file_prefixes)
+    # cuts
+    cuts_list = []
+    if args.cuts:
+        for cuts_str in args.cuts.split("+"):
+            key, operator, value = cuts_str.split(",")
+            if "params." in value:
+                value = getattr(params, value.split("params.")[1])
+            else:
+                value = float(value)
+            cuts_list.append((key, operator, value))
 
     ####################
 
@@ -128,12 +143,18 @@ def main():
     data_to_merge = []
     for data_idx in tqdm(range(n_data)):
         sub_data_file = base_path+"/"+file_prefixes[data_idx]+"_"+dataset+".pcl"
+        
         # pcl file import
         sub_data = data_utils.load_pickle(file=sub_data_file, silent=True)
         ## apply ts shift
         #for ts_key in ts_keys:
         #    if ts_key in sub_data.keys():
         #        sub_data[ts_key] = sub_data[ts_key] + ts_offset[data_idx]
+
+        ### cut data
+        for i in range(len(cuts_list)):
+            sub_data = data_utils.cut_data(data=sub_data, conditions=[cuts_list[i]])
+
         ### do something with data
         ## calculate time difference between hits
         ch_list = []

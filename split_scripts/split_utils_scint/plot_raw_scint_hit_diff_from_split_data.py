@@ -185,7 +185,7 @@ def main():
     fig.show()
     ## store plot
     if args.store_path:
-        hist_plot_file = args.store_path+"/"+common_file_prefix+"_"+dataset+"_DIFF_SPECIFIC_SAMESIPM_"+args.suffix+".pdf"
+        hist_plot_file = args.store_path+"/"+common_file_prefix+"_"+dataset+"_DIFF_SPECIFIC_SAMESIPM_"+args.suffix+".png"
         print(f"store histogram plot as {hist_plot_file}.")
         fig.savefig(hist_plot_file)
 

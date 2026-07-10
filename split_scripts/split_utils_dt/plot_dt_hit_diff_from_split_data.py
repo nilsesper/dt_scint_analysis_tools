@@ -124,7 +124,7 @@ def main():
     fig.show()
     ## store plot
     if args.store_path:
-        hist_plot_file = args.store_path+"/"+common_file_prefix+"_"+dataset+"_DIFF_SPECIFIC_ALL.pdf"
+        hist_plot_file = args.store_path+"/"+common_file_prefix+"_"+dataset+"_DIFF_SPECIFIC_ALL.png"
         print(f"store histogram plot as {hist_plot_file}.")
         fig.savefig(hist_plot_file)
 
@@ -183,7 +183,7 @@ $\\chi^2 / N_{{df}} = {chi2:.1f}\\; / \\;{ndf:.0f} ={np.round(chi2ndf,1):.1f}$""
     fig.show()
     ## store plot
     if args.store_path:
-        hist_plot_file = args.store_path+"/"+common_file_prefix+"_"+dataset+"_DIFF_SPECIFIC_BGFIT.pdf"
+        hist_plot_file = args.store_path+"/"+common_file_prefix+"_"+dataset+"_DIFF_SPECIFIC_BGFIT.png"
         print(f"store histogram plot as {hist_plot_file}.")
         fig.savefig(hist_plot_file)
 
@@ -211,7 +211,7 @@ $\\chi^2 / N_{{df}} = {chi2:.1f}\\; / \\;{ndf:.0f} ={np.round(chi2ndf,1):.1f}$""
     fig.show()
     ## store plot
     if args.store_path:
-        hist_plot_file = args.store_path+"/"+common_file_prefix+"_"+dataset+"_DIFF_SPECIFIC_NOBG.pdf"
+        hist_plot_file = args.store_path+"/"+common_file_prefix+"_"+dataset+"_DIFF_SPECIFIC_NOBG.png"
         print(f"store histogram plot as {hist_plot_file}.")
         fig.savefig(hist_plot_file)
 
@@ -232,7 +232,7 @@ $\\chi^2 / N_{{df}} = {chi2:.1f}\\; / \\;{ndf:.0f} ={np.round(chi2ndf,1):.1f}$""
     fig.show()
     ## store plot
     if args.store_path:
-        hist_plot_file = args.store_path+"/"+common_file_prefix+"_"+dataset+"_DIFF_SPECIFIC_NOBG_tdc.pdf"
+        hist_plot_file = args.store_path+"/"+common_file_prefix+"_"+dataset+"_DIFF_SPECIFIC_NOBG_tdc.png"
         print(f"store histogram plot as {hist_plot_file}.")
         fig.savefig(hist_plot_file)
 
@@ -304,7 +304,7 @@ $\\chi^2 / N_{{df}} = {chi2:.1f}\\; / \\;{ndf:.0f} ={np.round(chi2ndf,1):.1f}$""
     fig.show()
     ## store plot
     if args.store_path:
-        hist_plot_file = args.store_path+"/"+common_file_prefix+"_"+dataset+"_DIFF_SPECIFIC_PEAKFIT.pdf"
+        hist_plot_file = args.store_path+"/"+common_file_prefix+"_"+dataset+"_DIFF_SPECIFIC_PEAKFIT.png"
         print(f"store histogram plot as {hist_plot_file}.")
         fig.savefig(hist_plot_file)
 
