@@ -2,9 +2,9 @@
 
 echo "*** DT_SCINT_ANALYSIS_TOOLS environment ***"
 
-# # source python env (specific to each computer)
-# echo "Sourcing base python environment."
-# source ~/utils/python_env.sh
+# source python env (specific to each computer)
+echo "Sourcing base python environment."
+source ~/utils/python_env.sh
 
 echo "Locating the directory."
 # find script abs path when not executing but sourcing the script
