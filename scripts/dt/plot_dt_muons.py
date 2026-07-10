@@ -270,7 +270,7 @@ def main():
         fig.show()
         ## store plot
         if args.store_path:
-            hist_plot_file = args.store_path+"/"+f"DT_MUON_SPECIFIC_xy_SL{sl}.pdf"
+            hist_plot_file = args.store_path+"/"+f"DT_MUON_SPECIFIC_xy_SL{sl}.png"
             print(f"store histogram plot as {hist_plot_file}.")
             fig.savefig(hist_plot_file)
     #"""
@@ -365,7 +365,7 @@ def main():
         fig.show()
         ## store plot
         if args.store_path:
-            hist_plot_file = args.store_path+"/"+f"DT_MUON_SPECIFIC_"+slice_name+"_CHAMBER.pdf"
+            hist_plot_file = args.store_path+"/"+f"DT_MUON_SPECIFIC_"+slice_name+"_CHAMBER.png"
             print(f"store histogram plot as {hist_plot_file}.")
             fig.savefig(hist_plot_file)
     #"""
@@ -391,7 +391,7 @@ def main():
         #fig.show()
         ### store plot
         #if args.store_path:
-        #    hist_plot_file = args.store_path+"/"+f"DT_MUON_SPECIFIC_TS.pdf"
+        #    hist_plot_file = args.store_path+"/"+f"DT_MUON_SPECIFIC_TS.png"
         #    print(f"store histogram plot as {hist_plot_file}.")
         #    fig.savefig(hist_plot_file)
         
@@ -420,7 +420,7 @@ def main():
             fig.show()
             ## store plot
             if args.store_path:
-                hist_plot_file = args.store_path+"/"+f"DT_MUON_SPECIFIC_TS.pdf"
+                hist_plot_file = args.store_path+"/"+f"DT_MUON_SPECIFIC_TS.png"
                 print(f"store histogram plot as {hist_plot_file}.")
                 fig.savefig(hist_plot_file)
 
@@ -451,7 +451,7 @@ def main():
         #fig.show()
         ### store plot
         #if args.store_path:
-        #    hist_plot_file = args.store_path+"/"+f"DT_MUON_SPECIFIC_DELTA-TS.pdf"
+        #    hist_plot_file = args.store_path+"/"+f"DT_MUON_SPECIFIC_DELTA-TS.png"
         #    print(f"store histogram plot as {hist_plot_file}.")
         #    fig.savefig(hist_plot_file)
 
@@ -477,7 +477,7 @@ def main():
             fig.show()
             ## store plot
             if args.store_path:
-                hist_plot_file = args.store_path+"/"+f"DT_MUON_SPECIFIC_DELTA-TS.pdf"
+                hist_plot_file = args.store_path+"/"+f"DT_MUON_SPECIFIC_DELTA-TS.png"
                 print(f"store histogram plot as {hist_plot_file}.")
                 fig.savefig(hist_plot_file)
 

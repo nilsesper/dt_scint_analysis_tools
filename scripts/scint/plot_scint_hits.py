@@ -410,7 +410,7 @@ def main():
         fig.show()
     ## store plot
     if args.store_path:
-            hist_plot_file = args.store_path+"/"+f"SCINT_HITS_SPECIFIC_OCCUPANCY.pdf"
+            hist_plot_file = args.store_path+"/"+f"SCINT_HITS_SPECIFIC_OCCUPANCY.png"
             print(f"store histogram plot as {hist_plot_file}.")
             fig.savefig(hist_plot_file)
     ############# rate
@@ -441,7 +441,7 @@ def main():
         fig.show()
     ## store plot
     if args.store_path:
-            hist_plot_file = args.store_path+"/"+f"SCINT_HITS_SPECIFIC_RATE.pdf"
+            hist_plot_file = args.store_path+"/"+f"SCINT_HITS_SPECIFIC_RATE.png"
             print(f"store histogram plot as {hist_plot_file}.")
             fig.savefig(hist_plot_file)
 
@@ -465,7 +465,7 @@ def main():
     #fig.show()
     ### store plot
     #if args.store_path:
-    #    hist_plot_file = args.store_path+"/"+f"SCINT_HITS_SPECIFIC_TS.pdf"
+    #    hist_plot_file = args.store_path+"/"+f"SCINT_HITS_SPECIFIC_TS.png"
     #    print(f"store histogram plot as {hist_plot_file}.")
     #    fig.savefig(hist_plot_file)
 
@@ -494,7 +494,7 @@ def main():
         fig.show()
         ## store plot
         if args.store_path:
-            hist_plot_file = args.store_path+"/"+f"SCINT_HITS_SPECIFIC_TS.pdf"
+            hist_plot_file = args.store_path+"/"+f"SCINT_HITS_SPECIFIC_TS.png"
             print(f"store histogram plot as {hist_plot_file}.")
             fig.savefig(hist_plot_file)
 
@@ -518,7 +518,7 @@ def main():
     fig.show()
     ## store plot
     if args.store_path:
-        hist_plot_file = args.store_path+"/"+f"SCINT_HITS_SPECIFIC_SIPM-TS-DIFF.pdf"
+        hist_plot_file = args.store_path+"/"+f"SCINT_HITS_SPECIFIC_SIPM-TS-DIFF.png"
         print(f"store histogram plot as {hist_plot_file}.")
         fig.savefig(hist_plot_file)
 
@@ -542,7 +542,7 @@ def main():
     fig.show()
     ## store plot
     if args.store_path:
-        hist_plot_file = args.store_path+"/"+f"SCINT_HITS_SPECIFIC_SIPM-TS-DIFF_SIGNED.pdf"
+        hist_plot_file = args.store_path+"/"+f"SCINT_HITS_SPECIFIC_SIPM-TS-DIFF_SIGNED.png"
         print(f"store histogram plot as {hist_plot_file}.")
         fig.savefig(hist_plot_file)
     
@@ -575,7 +575,7 @@ def main():
     fig.show()
     ## store plot
     if args.store_path:
-        hist_plot_file = args.store_path+"/"+f"SCINT_HITS_SPECIFIC_SIPM-TS-DIFF_SIGNED_SINGLE_ly{layer}_st{strip}.pdf"
+        hist_plot_file = args.store_path+"/"+f"SCINT_HITS_SPECIFIC_SIPM-TS-DIFF_SIGNED_SINGLE_ly{layer}_st{strip}.png"
         print(f"store histogram plot as {hist_plot_file}.")
         fig.savefig(hist_plot_file)
 
@@ -623,7 +623,7 @@ def main():
     fig.show()
     ## store plot
     if args.store_path:
-        hist_plot_file = args.store_path+"/"+f"SCINT_HITS_SPECIFIC_DELTA-TS_SEPARATE.pdf"
+        hist_plot_file = args.store_path+"/"+f"SCINT_HITS_SPECIFIC_DELTA-TS_SEPARATE.png"
         print(f"store histogram plot as {hist_plot_file}.")
         fig.savefig(hist_plot_file)
 
@@ -672,7 +672,7 @@ def main():
     fig.show()
     ## store plot
     if args.store_path:
-        hist_plot_file = args.store_path+"/"+f"SCINT_HITS_SPECIFIC_DELTA-TS_SIGNED_SEPARATE.pdf"
+        hist_plot_file = args.store_path+"/"+f"SCINT_HITS_SPECIFIC_DELTA-TS_SIGNED_SEPARATE.png"
         print(f"store histogram plot as {hist_plot_file}.")
         fig.savefig(hist_plot_file)
 
@@ -711,7 +711,7 @@ def main():
         fig.show()
         ## store plot
         if args.store_path:
-            hist_plot_file = args.store_path+"/"+f"SCINT_HITS_SPECIFIC_DELTA-TS_ALL_{binning_name}.pdf"
+            hist_plot_file = args.store_path+"/"+f"SCINT_HITS_SPECIFIC_DELTA-TS_ALL_{binning_name}.png"
             print(f"store histogram plot as {hist_plot_file}.")
             fig.savefig(hist_plot_file)
 
@@ -752,7 +752,7 @@ def main():
         fig.show()
         ## store plot
         if args.store_path:
-            hist_plot_file = args.store_path+"/"+f"SCINT_HITS_SPECIFIC_DELTA-TS_SAME-LY_{binning_name}.pdf"
+            hist_plot_file = args.store_path+"/"+f"SCINT_HITS_SPECIFIC_DELTA-TS_SAME-LY_{binning_name}.png"
             print(f"store histogram plot as {hist_plot_file}.")
             fig.savefig(hist_plot_file)
 
@@ -794,7 +794,7 @@ def main():
         fig.show()
         ## store plot
         if args.store_path:
-            hist_plot_file = args.store_path+"/"+f"SCINT_HITS_SPECIFIC_DELTA-TS_SAME-ST_{binning_name}.pdf"
+            hist_plot_file = args.store_path+"/"+f"SCINT_HITS_SPECIFIC_DELTA-TS_SAME-ST_{binning_name}.png"
             print(f"store histogram plot as {hist_plot_file}.")
             fig.savefig(hist_plot_file)
 

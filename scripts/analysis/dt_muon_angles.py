@@ -112,7 +112,7 @@ def main():
     fig.show()
     ## store plot
     if args.store_path:
-        hist_plot_file = args.store_path+"/"+f"DT_MUON_SPECIFIC_THETA_REWEIGHT.pdf"
+        hist_plot_file = args.store_path+"/"+f"DT_MUON_SPECIFIC_THETA_REWEIGHT.png"
         print(f"store histogram plot as {hist_plot_file}.")
         fig.savefig(hist_plot_file)
 
@@ -134,7 +134,7 @@ def main():
     fig.show()
     ## store plot
     if args.store_path:
-        hist_plot_file = args.store_path+"/"+f"DT_MUON_SPECIFIC_SIM_THETA_REWEIGHT.pdf"
+        hist_plot_file = args.store_path+"/"+f"DT_MUON_SPECIFIC_SIM_THETA_REWEIGHT.png"
         print(f"store histogram plot as {hist_plot_file}.")
         fig.savefig(hist_plot_file)
 

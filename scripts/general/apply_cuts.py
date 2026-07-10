@@ -35,14 +35,14 @@ def main():
     parser.add_argument(
         "--cuts",
         type     = str,
-        help     = "cuts to apply to data in format \"key1,operator1,value1;key2,operator2,value;...\"",
+        help     = "cuts to apply to data in format \"key1,operator1,value1+key2,operator2,value;...\"",
     )
     # ---
     args = parser.parse_args()
     input_data_file = args.input_data_file
     cut_data_file = args.cut_data_file
     cuts_list = []
-    for cuts_str in args.cuts.split(";"):
+    for cuts_str in args.cuts.split("+"):
         key, operator, value = cuts_str.split(",")
         if "params." in value:
             value = getattr(params, value.split("params.")[1])

@@ -235,7 +235,7 @@ def main():
     fig.show()
     ## store plot
     if args.store_path:
-        hist_plot_file = args.store_path+"/"+f"CORRELATED_AREAS_SPECIFIC_xy.pdf"
+        hist_plot_file = args.store_path+"/"+f"CORRELATED_AREAS_SPECIFIC_xy.png"
         print(f"store histogram plot as {hist_plot_file}.")
         fig.savefig(hist_plot_file)
 
@@ -363,7 +363,7 @@ def main():
         fig.show()
         ## store plot
         if args.store_path:
-            hist_plot_file = args.store_path+"/"+f"CORRELATED_AREAS_SPECIFIC_{slice_name}.pdf"
+            hist_plot_file = args.store_path+"/"+f"CORRELATED_AREAS_SPECIFIC_{slice_name}.png"
             print(f"store histogram plot as {hist_plot_file}.")
             fig.savefig(hist_plot_file)
     #"""
@@ -387,7 +387,7 @@ def main():
     fig.show()
     ## store plot
     if args.store_path:
-        hist_plot_file = args.store_path+"/"+f"CORRELATED_AREAS_SPECIFIC_MUON_TS.pdf"
+        hist_plot_file = args.store_path+"/"+f"CORRELATED_AREAS_SPECIFIC_MUON_TS.png"
         print(f"store histogram plot as {hist_plot_file}.")
         fig.savefig(hist_plot_file)
 
@@ -421,7 +421,7 @@ def main():
         fig.show()
         ## store plot
         if args.store_path:
-            hist_plot_file = args.store_path+"/"+f"CORRELATED_AREAS_SPECIFIC_MUON_DELTA-TS_{binning_name}.pdf"
+            hist_plot_file = args.store_path+"/"+f"CORRELATED_AREAS_SPECIFIC_MUON_DELTA-TS_{binning_name}.png"
             print(f"store histogram plot as {hist_plot_file}.")
             fig.savefig(hist_plot_file)
 
@@ -444,7 +444,7 @@ def main():
     fig.show()
     ## store plot
     if args.store_path:
-        hist_plot_file = args.store_path+"/"+f"CORRELATED_AREAS_SPECIFIC_CORR_DELTA-TS.pdf"
+        hist_plot_file = args.store_path+"/"+f"CORRELATED_AREAS_SPECIFIC_CORR_DELTA-TS.png"
         print(f"store histogram plot as {hist_plot_file}.")
         fig.savefig(hist_plot_file)
 
@@ -547,7 +547,7 @@ def main():
             fig.show()
             ## store plot
             if args.store_path:
-                hist_plot_file = args.store_path+"/"+f"CORRELATED_AREAS_SPECIFIC_{slice_name}_BEFOREMATCHING.pdf"
+                hist_plot_file = args.store_path+"/"+f"CORRELATED_AREAS_SPECIFIC_{slice_name}_BEFOREMATCHING.png"
                 print(f"store histogram plot as {hist_plot_file}.")
                 fig.savefig(hist_plot_file)
     #"""

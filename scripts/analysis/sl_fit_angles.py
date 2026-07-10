@@ -105,7 +105,7 @@ def main():
     fig.show()
     ## store plot
     if args.store_path:
-        hist_plot_file = args.store_path+"/"+f"SL_FIT_SPECIFIC_ALPHA.pdf"
+        hist_plot_file = args.store_path+"/"+f"SL_FIT_SPECIFIC_ALPHA.png"
         print(f"store histogram plot as {hist_plot_file}.")
         fig.savefig(hist_plot_file)
 
@@ -120,7 +120,7 @@ def main():
     fig.show()
     ## store plot
     if args.store_path:
-        hist_plot_file = args.store_path+"/"+f"SL_FIT_SPECIFIC_SIM_ALPHA.pdf"
+        hist_plot_file = args.store_path+"/"+f"SL_FIT_SPECIFIC_SIM_ALPHA.png"
         print(f"store histogram plot as {hist_plot_file}.")
         fig.savefig(hist_plot_file)
 
