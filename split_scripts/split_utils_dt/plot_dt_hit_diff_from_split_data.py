@@ -246,7 +246,7 @@ $\\chi^2 / N_{{df}} = {chi2:.1f}\\; / \\;{ndf:.0f} ={np.round(chi2ndf,1):.1f}$""
     ##### fit peak position
 
     ### fit parabola photopeak to determine position
-    fit_index_range = (bins_nobg >= 405) & (bins_nobg <= 425) # fit range in ns
+    fit_index_range = (bins_nobg >= 400) & (bins_nobg <= 440) # fit range in ns
     fit_bins = bins_nobg[fit_index_range]
     fit_hist = hist_nobg[fit_index_range]
     err_fit_hist = err_hist_nobg[fit_index_range]

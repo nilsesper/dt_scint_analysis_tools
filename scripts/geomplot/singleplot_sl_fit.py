@@ -34,9 +34,23 @@ def main():
         "--indices",
         help     = "indices to plot, separated by \",\"",
     )
+    # plotting / store plot
+    parser.add_argument(
+        "--suffix",
+        type     = str,
+        help     = "decide which fit should be plotted",
+    )
+    parser.add_argument(
+        "--plot_path",
+        type     = str,
+        help     = "path to the storing location for plots",
+        default  = "example_data/plots",
+    )
     # ---
     args = parser.parse_args()
     sl_fits_file = args.sl_fits_file
+    suffix = str(args.suffix)
+    save_path = args.plot_path
     plot_idcs = []
     if args.indices:
         for s in args.indices.split(","):
@@ -65,21 +79,22 @@ def main():
         lat_idx = fit["laterality"]
         laterality = np.array(lats[lat_idx])
         # fit results
-        t0 = fit["t0"]
-        x0 = fit["x0"]
-        tan_alpha = fit["tan_alpha"]
-        vd = fit["vd"]
-        err_t0 = fit["err_t0"]
-        err_x0 = fit["err_x0"]
-        err_tan_alpha = fit["err_tan_alpha"]
-        err_vd = fit["err_vd"]
-        corr_t0_x0 = fit["corr_t0_x0"]
-        corr_t0_tan_alpha = fit["corr_t0_tan_alpha"]
-        corr_t0_vd = fit["corr_t0_vd"]
-        corr_x0_tan_alpha = fit["corr_x0_tan_alpha"]
-        corr_x0_vd = fit["corr_x0_vd"]
-        corr_tan_alpha_vd = fit["corr_tan_alpha_vd"]
-        chi2ndf = fit["chi2/ndf"]
+        t0 = fit["t0" + suffix]
+        x0 = fit["x0" + suffix]
+        tan_alpha = fit["tan_alpha" + suffix]
+        vd = fit["vd" + suffix] / derived_params._drift_velocity_conversion
+        err_vd = fit["err_vd" + suffix] / derived_params._drift_velocity_conversion
+        err_t0 = fit["err_t0" + suffix]
+        err_x0 = fit["err_x0" + suffix]
+        err_tan_alpha = fit["err_tan_alpha" + suffix]
+        err_vd = fit["err_vd" + suffix]
+        corr_t0_x0 = fit["corr_t0_x0" + suffix]
+        corr_t0_tan_alpha = fit["corr_t0_tan_alpha" + suffix]
+        corr_t0_vd = fit["corr_t0_vd" + suffix]
+        corr_x0_tan_alpha = fit["corr_x0_tan_alpha" + suffix]
+        corr_x0_vd = fit["corr_x0_vd" + suffix]
+        corr_tan_alpha_vd = fit["corr_tan_alpha_vd" + suffix]
+        chi2ndf = fit["chi2/ndf" + suffix]
         # other params
         z_arr, x_cell = np.full(4, 0, dtype=np.float64), np.full(4, 0, dtype=np.float64)
         lys = np.arange(0, 4)
@@ -127,6 +142,7 @@ def main():
 $T_0=({np.round(t0,0):.0f}\\pm{np.round(err_t0,0):.0f})$ {params._key_units['t0']}
 $x_0=({np.round(x0,1):.1f}\\pm{np.round(err_x0,1):.1f})$ {params._key_units['x0']}
 $\\tan\\alpha=({np.round(tan_alpha,2):.2f}\\pm{np.round(err_tan_alpha,2):.2f})$ {params._key_units['tan_alpha']}
+$V_d=({np.round(vd,0):.0f}\\pm{np.round(err_vd,0):.0f})$ {"um/ns"}
 $\\chi^2/N_{{df}}={np.round(chi2ndf,2):.2f}$"""
         ax[0].errorbar(x=lys+0.02, y=fit_ts, yerr=err_fit_ts, color="tab:red", marker="v", markersize=7, linestyle="", label=fit_label)
         #ax[0].axhline(y=t0, color="tab:green", linestyle="--", linewidth=2, label="Arrival time $T_0$")
@@ -154,7 +170,7 @@ $\\chi^2/N_{{df}}={np.round(chi2ndf,2):.2f}$"""
         ax[1].set_xticklabels([f"{i}" for i in range(4)])
         fig.tight_layout()
         fig.subplots_adjust(wspace=0, hspace=0.1)
-        fig.show()
+        fig.savefig(fname = (f"{save_path}muon_fit{suffix}_{idx}.png"))
 
         ################################
         ###### plot projected local sl track

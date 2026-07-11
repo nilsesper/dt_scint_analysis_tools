@@ -190,11 +190,12 @@ _ts_unit = 0.78 # ns
 
 ### drift velocity conversion
 # conversion from um / ns = 10^3 m/s to mm / ts_unit
+_drift_velocity_conversion = (_ts_unit) * (1e-3)
 # ts_unit = _ts_unit = 0.78 ns
-_drift_velocity_mm_per_timestamp = np.float64( params._drift_velocity * (_ts_unit) * (1e-3) ) # unit calc: mm/tsu = um/ns * 0.78*ns/tsu * 1e-3*mm/um
+_drift_velocity_mm_per_timestamp = np.float64( params._drift_velocity * _drift_velocity_conversion ) # unit calc: mm/tsu = um/ns * 0.78*ns/tsu * 1e-3*mm/um
 # final unit: [_drift_velocity_mm_per_timestamp] = mm / ts_unit
-_drift_velocity_mm_per_timestamp_min = np.float64( params._drift_velocity_min * (_ts_unit) * (1e-3) )
-_drift_velocity_mm_per_timestamp_max = np.float64( params._drift_velocity_max * (_ts_unit) * (1e-3) )
+_drift_velocity_mm_per_timestamp_min = np.float64( params._drift_velocity_min * _drift_velocity_conversion )
+_drift_velocity_mm_per_timestamp_max = np.float64( params._drift_velocity_max * _drift_velocity_conversion )
 
 ### dt sl patterns
 # idx of pattern name is key pat_type

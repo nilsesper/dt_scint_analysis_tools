@@ -55,13 +55,12 @@ _dumpfile_hits_to_skip = 50000 #50000
 ### timestamp conversion
 _lhc_tdc_count = 32 # max value of TDC + 1  (i.e. conversion factor: _lhc_tdc_count TDC = 1 BX)
 _lhc_bunch_count = 3564 # max value of BX + 1 (i.e. conversion factor: _lhc_bunch_count BX = 1 ORBIT)
-_lhc_orbit_count = 65536 # 2^16, max value of ORBIT + 1
-#_lhc_orbit_count = 2**26 # = 67108864 = 2^26, max value of ORBIT + 1
+#_lhc_orbit_count = 65536 # 2^16, max value of ORBIT + 1
+_lhc_orbit_count = 2**26 # = 67108864 = 2^26, max value of ORBIT + 1
 _ts_type = np.float64 # data type of timestamp field in hits
 _ts_float_type = np.float64 # for fitting, ts type as float
 
-#_oc_difference_for_overflow = 50000 # difference between oc and last oc for oc overflow to be triggered
-_oc_difference_for_overflow = 10000 # difference between oc and last oc for oc overflow to be triggered
+_oc_difference_for_overflow = 50000 # difference between oc and last oc for oc overflow to be triggered
 
 ### general
 rad_to_deg = 180/np.pi
@@ -386,8 +385,8 @@ _sl_fit_group_keys = {
 _drift_velocity = 54.5 #53 #54.5 #53 #54.5 #53 #50.8 #54.5 # initial value: 54.5 # unit: um / ns = 10^-6 / 10 ^-9 m/s = 10^3 m/s
 _dt_cell_width = 42 # mm, width of dt cell = 2x max drift distance
 # when allowing changes of vd in fit, give vd param bounds:
-_drift_velocity_min = 10 # um/ns
-_drift_velocity_max = 100 # um/ns
+_drift_velocity_min = 30 # um/ns
+_drift_velocity_max = 70 # um/ns
 
 ### --- dt
 
@@ -1321,53 +1320,6 @@ _tp_time_offset = { # in ts units
     }
 }
 
-### dt wires to mask manually
-"""
-_dt_wire_mask = { # sl: ly: [wire_ids]
-    1: {
-        0: [7, 35],
-        1: [10, 24],
-        2: [0, 12, 19, 23, 33, 38],
-        3: [5],
-    },
-    2: {
-        0: [1, 11, 17, 18, 49],
-        1: [0, 8, 33, 36],
-        2: [15],
-        3: [1, 19],
-    },
-    3: {
-        0: [32, 40],
-        1: [24, 48],
-        2: [],
-        3: [31],
-    }
-
-}
-"""
-_dt_wire_mask = { # sl: ly: [wire_ids]
-    1: {
-        0: [1, 2, 16, 38],
-        1: [10],
-        2: [37, 48],
-        3: [1, 30, 32],
-    },
-    2: {
-        0: [18, 19, 40, 44],
-        1: [6, 14, 20],
-        2: [56],
-        3: [],
-    },
-    3: {
-        0: [20, 38],
-        1: [44, 36],
-        2: [],
-        3: [37],
-    }
-
-}
-
-
 ### scintillator properties: {type: type of scintillator (hodoscope), lys: {ly_id: {type: layer type (strips), orient: orientation of strips (parallel to phi/theta sl)}}}
 # single strip properties (mm)
 _strip_width = 30.
@@ -1548,29 +1500,29 @@ print(f"scint_ref_pos = {scint_ref_pos}")
 ### hardware setup
 ## dt mapping: {ro_ch: obdt_mapping}
 _dt_mapping = {
-    14: _obdt_phi_1_fe_mapping, # obdt1_phi: dt sl1 (phi)
-    28: _obdt_phi_2_fe_mapping, # obdt2_phi: dt sl3 (phi)
-    26: _obdt_theta_1_fe_mapping, # obdt3_theta: dt sl2 (theta)
+     8: _obdt_phi_1_fe_mapping, # obdt1_phi: dt sl1 (phi)
+    10: _obdt_phi_2_fe_mapping, # obdt2_phi: dt sl3 (phi)
+    14: _obdt_theta_1_fe_mapping, # obdt3_theta: dt sl2 (theta)
 }
 ## scintillator mapping: {ro_ch: mezzanine_mapping}
 # coincidence strips = 2 sipm coincidence hits
 _scint_mapping = {
-    #27: _mezzanine_1_fe_mapping_strip_coinc, # mez1: scint ly0-1, st0-7
-    #25: _mezzanine_2_fe_mapping_strip_coinc, # mez2: scint ly0-1, st8-15
+    27: _mezzanine_1_fe_mapping_strip_coinc, # mez1: scint ly0-1, st0-7
+    25: _mezzanine_2_fe_mapping_strip_coinc, # mez2: scint ly0-1, st8-15
 }
 # no coincidence = raw sipm hits
 _raw_scint_mapping = {
-    #27: _mezzanine_1_fe_mapping_no_coinc, # mez1: ly0-1, st0-7
-    #25: _mezzanine_2_fe_mapping_no_coinc, # mez2: ly0-1, st8-15
+    27: _mezzanine_1_fe_mapping_no_coinc, # mez1: ly0-1, st0-7
+    25: _mezzanine_2_fe_mapping_no_coinc, # mez2: ly0-1, st8-15
 }
 
 # ro_ch labels
 _ro_ch_labels = {
-    26: "ob1",
-    28: "ob2",
+    8: "ob1",
+    10: "ob2",
     14: "ob3",
-    #27: "mez1",
-    #25: "mez2",
+    27: "mez1",
+    25: "mez2",
 }
 
 #### plotting

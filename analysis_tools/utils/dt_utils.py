@@ -400,7 +400,9 @@ def fit_sl_patterns(patterns, *, silent=False, verbose=False, fit_vd=False, suff
     n_patterns = len(patterns["sl"])
     if not silent: print(f"Performing SL pattern fits for {n_patterns} patterns...")
     # add other keys
-    sl_fits |= {k: np.full(n_patterns, 0, dtype=v) for k,v in params._sl_fit_keys.items()} | {k: np.full(n_patterns, 0, dtype=v) for k,v in params._sl_fit_other_keys.items()}
+    sl_fits |= {k + suffix: np.full(n_patterns, 0, dtype=v)for k, v in params._sl_fit_keys.items()} | {k + suffix: np.full(n_patterns, 0, dtype=v)
+    for k, v in params._sl_fit_other_keys.items()
+}
     # fit all patterns
     for i in tqdm(range(n_patterns), disable=silent):
         pat_type = patterns["pat_type"][i] # idx of key in _dt_sl_patterns
@@ -585,7 +587,7 @@ def fit_sl_patterns(patterns, *, silent=False, verbose=False, fit_vd=False, suff
         # but if not using the +-d pattern, do not care :)
     return sl_fits
 
-
+"""
 ###########################################################################
 ###########################################################################
 def refit_sl_patterns(sl_fits, *, silent=False, verbose=False, fit_vd=True, suffix="refit"):
@@ -603,6 +605,9 @@ def refit_sl_patterns(sl_fits, *, silent=False, verbose=False, fit_vd=True, suff
     return sl_fit_refits
 ###########################################################################
 ###########################################################################
+"""
+
+
 """
 ### fit sl patterns WITH MEANTIMER METHOD
 def fit_sl_patterns_meantimer(patterns, *, silent=False, verbose=False):

@@ -245,9 +245,9 @@ def main():
                         theta_total_count += cell_counts[sl][ly][wi]
                         n_theta += 1
     print(f"* = dead or noisy cells not considered")
-    print(f"average sl 1 phi cell rate *    : {phi1_total_count/n_phi1/duration_seconds} +- {np.sqrt(phi1_total_count)/n_phi1/duration_seconds} Hz")
-    print(f"average sl 2 theta cell rate *  : {theta_total_count/n_theta/duration_seconds} +- {np.sqrt(theta_total_count)/n_theta/duration_seconds} Hz")
-    print(f"average sl 3 phi cell rate *    : {phi3_total_count/n_phi3/duration_seconds} +- {np.sqrt(phi3_total_count)/n_phi3/duration_seconds} Hz")
+    print(f"average sl 1 phi cell rate *    : {phi1_total_count/n_phi1/duration_seconds if n_phi1 != 0 else 0} +- {np.sqrt(phi1_total_count)/n_phi1/duration_seconds if n_phi1 != 0 else 0} Hz")
+    print(f"average sl 2 theta cell rate *  : {theta_total_count/n_theta/duration_seconds if n_theta != 0 else 0} +- {np.sqrt(theta_total_count)/n_theta/duration_seconds if n_theta != 0 else 0} Hz")
+    print(f"average sl 3 phi cell rate *    : {phi3_total_count/n_phi3/duration_seconds if n_phi3 != 0 else 0} +- {np.sqrt(phi3_total_count)/n_phi3/duration_seconds if n_phi3 != 0 else 0} Hz")
     print(f"average sl 1 & 3 phi cell rate *: {(phi1_total_count+phi3_total_count)/(n_phi1+n_phi3)/duration_seconds} +- {np.sqrt(phi1_total_count+phi3_total_count)/(n_phi1+n_phi3)/duration_seconds} Hz")
     print(f"average chamber cell rate *     : {(phi1_total_count+phi3_total_count+theta_total_count)/(n_phi1+n_phi3+n_theta)/duration_seconds} +- {np.sqrt(phi1_total_count+phi3_total_count+theta_total_count)/(n_phi1+n_phi3+n_theta)/duration_seconds} Hz")
 
