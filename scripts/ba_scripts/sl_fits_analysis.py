@@ -19,7 +19,7 @@ from scipy.optimize import curve_fit
 @mpl.rc_context({'font.family': 'sans-serif', 'font.size': 12}) #'font.sans-serif': 'Arial',
 def main():
     base_path = "data_ba/"
-    dataset_name = "cosmic_85-15_3550-1800-1200_test1"
+    dataset_name = "cosmic_85_15_3300-1650-1100_test1"
     sl_patterns_file = base_path + "pcls/" + dataset_name + "_sl_patterns.pcl"  
     sl_fits_file = base_path + "pcls/" + dataset_name + "_sl_fits.pcl"
     sl_refits_file = base_path + "pcls/" + dataset_name + "_sl_refits.pcl"
@@ -29,7 +29,7 @@ def main():
     verbose = False
    
     ### multiprocessing setup
-    n_processes = 16  # no of processes running in parallel
+    n_processes = 11  # no of processes running in parallel
     n_batches_sl_fitting = 1000  # batch size for sl fitting of hit clusters
 
 
