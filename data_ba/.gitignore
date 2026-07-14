@@ -1,0 +1,11 @@
+# Ignore everything in this directory
+*
+# Except this file
+!.gitignore
+
+# Except some other files:
+!config_dt_cosmics.txt
+!DT_CORRECTIONS.pcl
+!dt_cosmics.txt
+!example_commands.txt
+!pcls/
