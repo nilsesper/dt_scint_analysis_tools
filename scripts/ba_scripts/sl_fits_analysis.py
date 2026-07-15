@@ -18,14 +18,20 @@ from scipy.optimize import curve_fit
 # main function
 @mpl.rc_context({'font.family': 'sans-serif', 'font.size': 12}) #'font.sans-serif': 'Arial',
 def main():
+    list_of_fits = ["cosmic_85-15_3600-1800-1200_run2_th20_cut", "cosmic_85-15_3550-1800-1200_test1", "cosmic_85-15_3000-1500-1000_test3", "cosmic_85-15_3550-1800-1200_test1", "cosmic_82-18_3600-1800-1200_test1_th20"]
     base_path = "data_ba/"
-    dataset_name = "cosmic_85_15_3300-1650-1100_test1"
-    sl_patterns_file = base_path + "pcls/" + dataset_name + "_sl_patterns.pcl"  
+    dataset_name = list_of_fits[5]
+
+    sl_patterns_file = base_path + "pcls/" + dataset_name + "_sl_patterns.pcl"
     sl_fits_file = base_path + "pcls/" + dataset_name + "_sl_fits.pcl"
     sl_refits_file = base_path + "pcls/" + dataset_name + "_sl_refits.pcl"
-    plot_save_path = base_path + "plots/sl_fits/" 
+
+    plot_save_path = base_path + "plots/sl_fits/" + dataset_name + "/"
+    os.makedirs(plot_save_path, exist_ok=True)
     plot_type = ".png"
 
+
+    
     verbose = False
    
     ### multiprocessing setup
@@ -42,7 +48,7 @@ def main():
     print(f"###### Importing refits...")
     sl_refits = data_utils.load_pickle(file = sl_refits_file)
     print("### imported refits data from file: " + sl_refits_file)
-    refit_keylist = ["chi2/ndf", "chi2/ndf_refit","vd", "vd_refit", "tan_alpha", "tan_alpha_refit", "x0", "x0_refit", "t0", "dt0", "dt0_refit", "dt1", "dt1_refit", "dt2", "dt2_refit", "dt2", "dt2_refit"]
+    refit_keylist = [ "chi2/ndf_refit", "vd_refit", "tan_alpha_refit",  "x0_refit", "t0_refit", "dt0_refit",  "dt1_refit", "dt2_refit", "dt2_refit"]
     fit_keylist = ["chi2/ndf", "vd", "tan_alpha",  "x0", "dt1",  "dt2", "dt2"]
 
     ###################
@@ -89,45 +95,74 @@ def main():
             plt.ylabel("counts")
             plt.title("distribution of " + key + title)
             safe_key = key.replace("/", "_")
-            path = f"{plot_save_path}{title}{safe_key}{dataset_name}{plot_type}"
+            path = f"{plot_save_path}{dataset_name}{safe_key}{title}{plot_type}"
             plt.savefig(path, bbox_inches="tight")
             print(f"### saved plot to {path}")
             plt.close()
 
             if key =="vd_refit":
-                def gauss(x, A, mu, sigma, b, c):
-                    return A * np.exp(-(x - mu)**2 / (2 * sigma**2)) + b*x + c
+                try:
+                    def gauss_lin(x, A, mu, sigma, b, c):
+                        return A * np.exp(-(x - mu)**2 / (2 * sigma**2)) + b*x + c
 
-                data = fits[key] * factor
-                v_max = 58
-                n_bins = 80
-                # Histogramm
-                counts, edges = np.histogram(data, bins=n_bins, range=(50, v_max))
-                centers = (edges[:-1] + edges[1:]) / 2
+                    # --- 1. build histogram from data + err_data, same as your dt_hit pipeline ---
 
-                # Gauß-Fit
-                p0 = [counts.max(), centers[np.argmax(counts)], 1.0, 10, 10]
-                params, _ = curve_fit(gauss, centers, counts, p0=p0)
+                    x_min, x_max = 50, 62
+                    n_bins = 80
+                    edges = np.linspace(x_min, x_max, n_bins + 1)
 
-                # Plot
-                plt.figure()
-                plt.hist(data, bins=n_bins, range=(50, v_max), histtype="step", color="black", label="Histogram")
+                    centers, hist, entries, underflow, overflow, hist_err_right, hist_err_left = \
+                        hist_utils.create_empty_histogram(edges=edges)
 
-                x = np.linspace(50, v_max, 1000)
-                plt.plot(x, gauss(x, *params), "r-", lw=2,
-                        label=f"$\\mu={params[1]:.3f}$\n$\\sigma={params[2]:.3f}$")
+                    hist_, _, _, entries_, underflow_, overflow_, hist_err_right_, hist_err_left_ = \
+                        hist_utils.calculate_histogram_and_shifted_histograms(data=fits[key]*factor, edges=edges, err_data=fits["err_" + key]*factor)
 
-                plt.xlabel(key + " value")
-                plt.ylabel("counts")
-                plt.xlim(50, v_max)
-                plt.title("distribution of " + key + title)
-                plt.legend()
+                    hist += hist_
+                    entries += entries_
+                    underflow += underflow_
+                    overflow += overflow_
+                    hist_err_right += hist_err_right_
+                    hist_err_left += hist_err_left_
 
-                safe_key = key.replace("/", "_")
-                path = f"{plot_save_path}{title}{safe_key}_zoom_{dataset_name}{plot_type}"
-                plt.savefig(path, bbox_inches="tight")
-                print(f"### saved plot to {path}")
-                plt.close()
+                    err_hist, err_hist_down, err_hist_up = hist_utils.calculate_hist_uncertainty(
+                        hist=hist, hist_err_right=hist_err_right, hist_err_left=hist_err_left, do_stat_err=True
+                    )
+                    err_hist_stat = np.sqrt(hist)
+
+                    print(f"created histogram:")
+                    print(f"  entries = {entries}, underflow = {underflow}, overflow = {overflow}")
+
+                    # --- 2. fit gauss + lin background ---
+
+                    yerr_fit = np.where(err_hist == 0, 1, err_hist)   # avoid zero-weight bins breaking curve_fit
+                    p0 = [hist.max(), centers[np.argmax(hist)], 1.0, 10, 10]
+
+                    popt, pcov = curve_fit(gauss_lin, centers, hist, p0=p0, sigma=yerr_fit, absolute_sigma=True)
+                    perr = np.sqrt(np.diag(pcov))
+
+                    # --- 3. plot ---
+
+                    plt.figure()
+                    plt.step(centers, hist, where="mid", color="black", label="Histogram")
+                    plt.errorbar(centers, hist, yerr=err_hist, fmt="none", ecolor="black", elinewidth=1, capsize=0)
+
+                    x = np.linspace(x_min, x_max, 1000)
+                    plt.plot(x, gauss_lin(x, *popt), "r-", lw=2,
+                            label=f"$\\mu={popt[1]:.3f}\\pm{perr[1]:.3f}$\n$\\sigma={popt[2]:.3f}\\pm{perr[2]:.3f}$")
+
+                    plt.xlabel(key + " value")
+                    plt.ylabel("counts")
+                    plt.xlim(x_min, x_max)
+                    plt.title("distribution of " + key + title)
+                    plt.legend()
+
+                    safe_key = key.replace("/", "_")
+                    path = f"{plot_save_path}{dataset_name}{safe_key}{title}_zoom_{plot_type}"
+                    plt.savefig(path, bbox_inches="tight")
+                    print(f"### saved plot to {path}")
+                    plt.close()
+                except:
+                    print("Fit failed...\nContinuing with other hists")
 
         return 
 

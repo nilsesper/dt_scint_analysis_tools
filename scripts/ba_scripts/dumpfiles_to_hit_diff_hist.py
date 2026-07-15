@@ -26,29 +26,26 @@ def main():
     ###################################################
     # IMPORTANT
     # When not using example data (dt_cosmics.txt) use params_justus
-    main_path = "data_ba/"
+    base_path = "data_ba/"
     pcls_path = "pcls/"
-    dumpfile_name = "cosmic_85-15_3550-1800-1200_test1.txt"
     dataset_name =  "cosmic_85-15_3550-1800-1200_test1"
     dt_hits_name = dataset_name + "_hits.pcl"
     raw_scint_hits_name = dataset_name + "_raw_scint_hits.pcl"
     ts_range_name = dataset_name + "_ts_range.txt"
-    ### --- manuell gesetzte Parameter (ersetzt argparse) ---
-    input_dumpfile      = main_path + dumpfile_name
+    input_dumpfile      = base_path + dataset_name + ".txt"
     dt_hit_diff_name = dataset_name + "_hit_diff.pcl"
     
     nodeadtime          = True  # True setzen, um dead time zu ignorieren
     deadtime_preffix = "nodeadtime" if nodeadtime else "deadtime"
-    dt_hits_file        = main_path + pcls_path + dt_hits_name
-    dt_hit_diff_hist_file = main_path + pcls_path +dt_hit_diff_name
+    dt_hits_file        = base_path + pcls_path + dt_hits_name
+    dt_hit_diff_hist_file = base_path + pcls_path +dt_hit_diff_name
     # optionale Schritte:
     use_timestamp_sync   = True   # add_timestamp + sort_by_timestamp anwenden
     extract_scint_hits    = True   # raw scint hits extrahieren und speichern
-    raw_scint_hits_file   = main_path + pcls_path + raw_scint_hits_name  # nur relevant falls extract_scint_hits=True
+    raw_scint_hits_file   = base_path + pcls_path + raw_scint_hits_name  # nur relevant falls extract_scint_hits=True
 
     create_ts_file        = True   # ts_range Datei erzeugen
-    plot_save_path         = main_path + "plots/photo_peak/"
-    plot_type = ".png"
+    
     # ---------------------------------------------------------
 
     #################
