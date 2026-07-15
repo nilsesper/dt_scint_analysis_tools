@@ -18,9 +18,12 @@ from scipy.optimize import curve_fit
 # main function
 @mpl.rc_context({'font.family': 'sans-serif', 'font.size': 12}) #'font.sans-serif': 'Arial',
 def main():
-    list_of_fits = ["cosmic_85-15_3600-1800-1200_run2_th20_cut", "cosmic_85-15_3550-1800-1200_test1", "cosmic_85-15_3000-1500-1000_test3", "cosmic_85-15_3550-1800-1200_test1", "cosmic_82-18_3600-1800-1200_test1_th20"]
+    list_of_fits = ["cosmic_85-15_3600-1800-1200_run2_th20_cut", "cosmic_85-15_3550-1800-1200_test1", 
+                    "cosmic_85-15_3000-1500-1000_test3", "cosmic_85-15_3550-1800-1200_test1", 
+                    "cosmic_82-18_3600-1800-1200_test1_th20"]
+    
     base_path = "data_ba/"
-    dataset_name = list_of_fits[5]
+    dataset_name = "cosmic_82-18_3600-1800-1200_test1_th20"
 
     sl_patterns_file = base_path + "pcls/" + dataset_name + "_sl_patterns.pcl"
     sl_fits_file = base_path + "pcls/" + dataset_name + "_sl_fits.pcl"
@@ -49,7 +52,7 @@ def main():
     sl_refits = data_utils.load_pickle(file = sl_refits_file)
     print("### imported refits data from file: " + sl_refits_file)
     refit_keylist = [ "chi2/ndf_refit", "vd_refit", "tan_alpha_refit",  "x0_refit", "t0_refit", "dt0_refit",  "dt1_refit", "dt2_refit", "dt2_refit"]
-    fit_keylist = ["chi2/ndf", "vd", "tan_alpha",  "x0", "dt1",  "dt2", "dt2"]
+    fit_keylist = ["chi2/ndf", "vd", "tan_alpha",  "x0", "dt1",  "dt2", "dt2", "pat_type"]
 
     ###################
     # cut fits data according to nils master thesis chi2/ndf <10
@@ -67,12 +70,15 @@ def main():
             silent=True,
         )
     max_td = 450/derived_params._ts_unit # ns/0.78
-    min_td = 5/derived_params._ts_unit # ns/0.78
+    min_td = 20/derived_params._ts_unit # ns/0.78
+    min_x0 = 1 #mm
     refits_cuts = data_utils.cut_data(
             data=sl_refits,
             conditions=[
                 ("impossible_refit", "==", 0),
-                ("chi2/ndf_refit", "<", 0.005)
+                ("chi2/ndf_refit", "<", 0.005),
+                #("dt0_refit", ">", min_td),
+                #("dt0_refit", "<", max_td),
 
             ],
             silent=True,
@@ -166,25 +172,12 @@ def main():
 
         return 
 
-    # plot_statistics(keylist= fit_keylist, fits = sl_cut_fits, title= "fit_hists")
+    #plot_statistics(keylist= fit_keylist, fits = sl_cut_fits, title= "fit_hists")
     plot_statistics(keylist= refit_keylist, fits = refits_cuts, title="refits_cuts")
+    #plot_statistics(keylist= fit_keylist, fits = refits_cuts, title="refits_org_fits")
     #print(refits_cuts.keys())
 
-    """
-        # comparison of laterality of fit and refit
-        lat_fit = sl_fits["laterality"]
-        lat_refit = sl_refits["laterality_refit"]
-        change_of_lat = []
-        n_lats = len(lat_refit)
-        for idx in range(n_lats):
-            if lat_fit[idx] != lat_refit[idx]:
-                change_of_lat.append(1)
-        
-    n_changes = len(change_of_lat)
-
-    print(f"{n_changes} changes of laterality in {n_lats} refits: {round(n_changes/n_lats*100, 2)}%")
-"""
-    return()
+    return
 
 
 if __name__ == "__main__":

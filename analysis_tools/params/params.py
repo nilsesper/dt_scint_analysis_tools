@@ -391,7 +391,9 @@ _drift_velocity_max = 100 # um/ns
 
 ### --- dt
 
-_dt_max_drift_time = (_dt_cell_width*1e-3/2) / (_drift_velocity*1e3) / 0.78e-9 # max drift time measured from time of muon arrival t0 in the sl pattern fit, in ts units
+#_dt_max_drift_time = (_dt_cell_width*1e-3/2) / (_drift_velocity*1e3) / 0.78e-9 # max drift time measured from time of muon arrival t0 in the sl pattern fit, in ts units
+# use larger max drift time for floating parameter refit
+_dt_max_drift_time = 600 / 0.78e-9
 _dt_max_drift_time_vd_min = (_dt_cell_width*1e-3/2) / (_drift_velocity_min*1e3) / 0.78e-9 # max drift time for vdmin
 
 ## --- dumpfile -> dt hits
@@ -405,6 +407,7 @@ dt_hit_add_ts_unc = 6 # in tu
 ## --- dt hits -> sl patterns
 # timestamp window in which hits of sl must lie in order to be counted as pattern
 _t0_tolerance = 0 # tolerance of t0 beyond max drift time bound
+# 
 # if vd as fit parameter: use max drift time possible with lower vdmin bound
 _dt_sl_patterns_ts_window_fit_vd = _dt_max_drift_time_vd_min + _t0_tolerance # in same unit as timestamp (0.78 ns)
 # if vd fixed: use reference drift time

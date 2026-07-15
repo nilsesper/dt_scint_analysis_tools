@@ -16,7 +16,7 @@ import matplotlib.pyplot as plt
 # main function
 def main():
     base_path = "data_ba/"
-    dataset_name = "cosmic_85_15_3300-1650-1100_test1"
+    dataset_name = "cosmic_82-18_3600-1800-1200_test1_th20"
     sl_patterns_file = base_path + "pcls/" + dataset_name + "_sl_patterns.pcl"  
     sl_fits_file = base_path + "pcls/" + dataset_name + "_sl_fits.pcl"
     sl_refits_file = base_path + "pcls/" + dataset_name + "_sl_refits.pcl"
@@ -38,14 +38,12 @@ def main():
 
 
 
-
-
+    
 
     ### dt reco
     # fit sl patterns
     print(f"### Fitting of separate SL clusters...")
-    max_alpha = np.deg2rad(10)
-    tan_alpha = np.tan(max_alpha)
+    
     if do_multiprocessing:  # with multiprocessing
         sl_fits = process_utils.multiprocess_data(
             n_processes=n_processes,
@@ -57,8 +55,11 @@ def main():
             mute=True,
         )
         print("Done fitting...\nStarting cut of fits")
+
         
-        max_chi2 = 20
+        max_alpha = np.deg2rad(5)
+        tan_alpha = np.tan(max_alpha)
+        max_chi2 = 5
         sl_cut_fits = data_utils.cut_data(
             data=sl_fits,
             conditions=[
@@ -69,6 +70,11 @@ def main():
             ],
             silent=True,
         )
+
+
+
+
+
         print("Done cutting fit data...\nStarting refit...")
         sl_refits = process_utils.multiprocess_data(
             n_processes=n_processes,
@@ -124,10 +130,10 @@ def main():
     print(f"###### Storing SL-level refits to file \"{sl_refits_file}\"...")
     data_utils.store_pickle(data=sl_refits, file=sl_refits_file)
 
-    do_refit_second_superlayer = False
-    # refitting using second phi superlayer
-
-
+    print("Data saved\nbeginning with search for super patterns in both phi SLs")
+    super_patterns = dt_utils.build_phi_super_patterns(sl_fits)
+    print(super_patterns.keys())
+    
 if __name__ == "__main__":
     main()
     print(f"###### Done.")

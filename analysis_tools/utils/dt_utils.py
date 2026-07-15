@@ -587,26 +587,6 @@ def fit_sl_patterns(patterns, *, silent=False, verbose=False, fit_vd=False, suff
         # but if not using the +-d pattern, do not care :)
     return sl_fits
 
-"""
-###########################################################################
-###########################################################################
-def refit_sl_patterns(sl_fits, *, silent=False, verbose=False, fit_vd=True, suffix="refit"):
-    # refit patterns with new parameters (e.g. new drift velocity)
-    # basically just call fit_sl_patterns again
-    # restrict the fitted results to those with impossible=0 (i.e. only refit patterns which were fitted successfully before)
-    # restrict angle of impact to the range of the pattern (e.g. +- 10  deg for +-a pattern)
-    # restrict to chi2/ndf < 10 for refit (otherwise the fit is probably not good enough to be used for refit)
-    max_alpha = np.deg2rad(10)
-    max_chi2ndf = 10
-    if verbose: print(f"Refitting SL patterns with new parameters (e.g. new drift velocity) and restricting to chi2/ndf < {max_chi2ndf} and |alpha| < {max_alpha:.3f} rad...")
-    sl_fits = data_utils.cut_data(data=sl_fits, conditions=[("impossible","==",0), ("chi2/ndf","<",max_chi2ndf), ("alpha","in", (-max_alpha, max_alpha))], silent=silent)
-    sl_fit_refits = fit_sl_patterns(patterns=sl_fits, silent=silent, verbose=verbose, fit_vd=fit_vd, suffix=suffix)
-
-    return sl_fit_refits
-###########################################################################
-###########################################################################
-"""
-
 
 """
 ### fit sl patterns WITH MEANTIMER METHOD
@@ -719,7 +699,187 @@ def fit_sl_patterns_meantimer(patterns, *, silent=False, verbose=False):
     sl_fits = data_utils.cut_data(data=sl_fits, conditions=[("laterality","!=",99)], silent=silent)
     return sl_fits
 #"""
+### build "super patterns" by combining matching sl fits of the two phi superlayers
+### input: sl_fits = output of fit_sl_patterns(patterns, fit_vd=False, ...)  (fixed vd fits)
+### output: dict of 8-timestamp patterns (ts0..ts7, err_ts0..err_ts7 + bookkeeping),
+###         ready to be handed to a future fit_super_sl_patterns(super_patterns, ...)
+###
+### ADAPT markers below point at spots where I had to guess a key/param name that
+### isn't visible in the code you sent me (e.g. params._muon_slphi_xproj_tolerance,
+### derived_params._dt_cell_coordinates, params._orientation). Rename if needed.
 
+def build_phi_super_patterns(sl_fits, *, silent=False, verbose=False,
+                              max_chi2ndf=10, max_alpha=np.deg2rad(10),
+                              tgroup_tolerance=None, tan_alpha_tolerance=None,
+                              xproj_tolerance=None, use_xproj_cut=True):
+    """
+    Combine fixed-vd sl fits of the two phi superlayers into 8-hit "super patterns".
+
+    Pipeline:
+      1) cut noise / bad fits from sl_fits (chi2/ndf, |alpha| cuts -- same idea as
+         refit_sl_patterns)
+      2) split the surviving fits into the two phi superlayers
+      3) greedily match sl1 <-> sl2 fits that are close in t0, tan_alpha (and,
+         optionally, x-projection to a common z) -- same tolerances used to combine
+         phi info in reco_muons_from_sl_fit_groups
+      4) for every matched pair, build one combined pattern that carries the raw hit
+         info (ts, err_ts, wire idx) of BOTH sl patterns as ts0..ts7 / err_ts0..err_ts7,
+         plus the original single-sl fit results (suffixed _sl1 / _sl2) so a super-fit
+         can use them as a good starting guess.
+
+    Returns
+    -------
+    super_patterns : dict of np.ndarray, one row per matched (sl1_fit, sl2_fit) pair.
+    """
+    # ---- 0) tolerances: default to the same ones already used to combine the two
+    #         phi superlayers in reco_muons_from_sl_fit_groups
+    if tgroup_tolerance is None:
+        tgroup_tolerance = params._muon_tgroup_tolerance
+    if tan_alpha_tolerance is None:
+        tan_alpha_tolerance = params._muon_slphi_tan_alpha_tolerance
+    if xproj_tolerance is None:
+        xproj_tolerance = params._muon_slphi_xproj_tolerance  # ADAPT if named differently
+
+    # ---- 1) cut noise / large-angle fits
+    if not silent:
+        print(f"Selecting good SL fits (chi2/ndf < {max_chi2ndf}, |alpha| < {max_alpha:.3f} rad) "
+              f"before building phi super patterns...")
+    max_tan_alpha = np.tan(max_alpha)
+    sl_fits_cut = data_utils.cut_data(
+        data=sl_fits,
+        conditions=[
+            ("impossible", "==", 0),
+            ("chi2/ndf", "<", max_chi2ndf),
+            ("tan_alpha", ">", -max_tan_alpha),
+            ("tan_alpha", "<", max_tan_alpha), 
+        ],
+        silent=silent,
+    )
+
+    # ---- 2) split into the two phi superlayers
+    phi_sls = [sl for sl in params._dt_chamber["sls"].keys() if params._dt_chamber["sls"][sl]["orient"] == "phi"]
+    phi_sl1, phi_sl2 = phi_sls[0], phi_sls[1]
+
+    fits_sl1 = data_utils.cut_data(data=sl_fits_cut, conditions=[("sl", "==", phi_sl1)], silent=True)
+    fits_sl2 = data_utils.cut_data(data=sl_fits_cut, conditions=[("sl", "==", phi_sl2)], silent=True)
+    n1 = data_utils.length(fits_sl1)
+    n2 = data_utils.length(fits_sl2)
+    if not silent:
+        print(f"good fits: sl{phi_sl1} = {n1}, sl{phi_sl2} = {n2}")
+
+    # helper: project a single-sl fit's x0/tan_alpha to a common z (same maths as
+    # reco_muons_from_sl_fit_groups, just for one sl at a time)
+    x_axis, y_axis = params._orientation["phi"][0], params._orientation["phi"][1]  # ADAPT if _orientation layout differs
+    z0_reco = params._muon_reco_z0
+
+    def _x_proj(fits, idx, sl):
+        base_wi = fits["wi3"][idx]  # ADAPT: key name for the ly=3 wire index of the pattern
+        if base_wi not in derived_params._dt_cell_coordinates[sl][3].keys():
+            return None
+        coord = derived_params._dt_cell_coordinates[sl][3][base_wi]
+        coord_transform = [coord[x_axis + 3], coord[y_axis + 3]]
+        return derived_params.f_x_muon(z=-coord_transform[1] + z0_reco,
+                                        x0=fits["x0"][idx], tan_alpha=fits["tan_alpha"][idx]) + coord_transform[0]
+
+    # ---- 3) greedy nearest-in-time matching between sl1 and sl2 fits
+    order1 = np.argsort(fits_sl1["t0"]) if n1 > 0 else np.array([], dtype=int)
+    order2 = np.argsort(fits_sl2["t0"]) if n2 > 0 else np.array([], dtype=int)
+    t0_2_sorted = fits_sl2["t0"][order2] if n2 > 0 else np.array([])
+    used2 = np.zeros(n2, dtype=bool)
+
+    matches = []  # list of (idx_in_fits_sl1, idx_in_fits_sl2)
+    counter_tgroup = 0
+    counter_tan_alpha = 0
+    counter_xproj = 0
+
+    j_start = 0
+    for i in order1:
+        t0_i = fits_sl1["t0"][i]
+        tan_alpha_i = fits_sl1["tan_alpha"][i]
+        while j_start < n2 and t0_2_sorted[j_start] < t0_i - tgroup_tolerance:
+            j_start += 1
+        best_j, best_score = None, None
+        j = j_start
+        while j < n2 and t0_2_sorted[j] <= t0_i + tgroup_tolerance:
+            j_glob = order2[j]
+            j += 1
+            if used2[j_glob]:
+                continue
+            counter_tgroup += 1
+            if np.abs(fits_sl2["tan_alpha"][j_glob] - tan_alpha_i) > tan_alpha_tolerance:
+                continue
+            counter_tan_alpha += 1
+            score = np.abs(fits_sl2["t0"][j_glob] - t0_i)
+            if best_score is None or score < best_score:
+                best_score, best_j = score, j_glob
+        if best_j is None:
+            continue
+        if use_xproj_cut:
+            x1, x2 = _x_proj(fits_sl1, i, phi_sl1), _x_proj(fits_sl2, best_j, phi_sl2)
+            if x1 is None or x2 is None or np.abs(x1 - x2) > xproj_tolerance:
+                continue
+            counter_xproj += 1
+        used2[best_j] = True
+        matches.append((i, best_j))
+
+    n_super = len(matches)
+    if not silent:
+        print(f"matching cut flow: within tgroup_tolerance = {counter_tgroup}, "
+              f"within tan_alpha_tolerance = {counter_tan_alpha}, within xproj_tolerance = {counter_xproj}")
+        print(f"built {n_super} phi super patterns (out of {min(n1, n2)} possible pairs)")
+
+    # ---- 4) assemble output dict
+    fit_result_keys = list(params._sl_fit_keys.keys())  # t0, x0, tan_alpha, chi2/ndf, dt0..dt3, vd, err_*, corr_*
+
+    super_patterns = {
+        f"sl{phi_sl1}": np.full(n_super, phi_sl1, dtype=np.int64),
+        f"sl{phi_sl2}": np.full(n_super, phi_sl2, dtype=np.int64),
+        f"pat_type_sl{phi_sl1}": np.full(n_super, 0, dtype=np.int64),
+        f"pat_type_sl{phi_sl2}": np.full(n_super, 0, dtype=np.int64),
+        f"idx_sl{phi_sl1}": np.full(n_super, 0, dtype=np.int64),   # row idx in fits_sl1 (== sl_fits_cut subset)
+        f"idx_sl{phi_sl2}": np.full(n_super, 0, dtype=np.int64),
+        "muon_id_mismatch": np.full(n_super, 0, dtype=np.int64),
+    }
+    for ly in range(4):
+        super_patterns[f"ts{ly}"] = np.full(n_super, 0, dtype=params._ts_float_type)
+        super_patterns[f"err_ts{ly}"] = np.full(n_super, 0, dtype=params._ts_float_type)
+        super_patterns[f"ts{ly+4}"] = np.full(n_super, 0, dtype=params._ts_float_type)
+        super_patterns[f"err_ts{ly+4}"] = np.full(n_super, 0, dtype=params._ts_float_type)
+        super_patterns[f"wi{ly}_sl{phi_sl1}"] = np.full(n_super, 0, dtype=np.int64)  # ADAPT: dtype if wi keys aren't int
+        super_patterns[f"wi{ly}_sl{phi_sl2}"] = np.full(n_super, 0, dtype=np.int64)
+    for k in fit_result_keys:
+        super_patterns[f"{k}_sl{phi_sl1}"] = np.full(n_super, 0, dtype=np.float64)
+        super_patterns[f"{k}_sl{phi_sl2}"] = np.full(n_super, 0, dtype=np.float64)
+    # carry truth info (from sim) if present, taken from sl1, flagged if sl2 disagrees
+    for k in ["muon_id", "muon_ts", "muon_phi", "muon_theta", "muon_x0", "muon_y0", "muon_z0"]:
+        if k in fits_sl1:
+            super_patterns[k] = np.full(n_super, 0, dtype=np.float64)
+
+    for row, (i, j) in enumerate(tqdm(matches, disable=silent)):
+        super_patterns[f"pat_type_sl{phi_sl1}"][row] = fits_sl1["pat_type"][i]
+        super_patterns[f"pat_type_sl{phi_sl2}"][row] = fits_sl2["pat_type"][j]
+        super_patterns[f"idx_sl{phi_sl1}"][row] = i
+        super_patterns[f"idx_sl{phi_sl2}"][row] = j
+        for ly in range(4):
+            super_patterns[f"ts{ly}"][row] = fits_sl1[f"ts{ly}"][i]
+            super_patterns[f"err_ts{ly}"][row] = fits_sl1[f"err_ts{ly}"][i]
+            super_patterns[f"ts{ly+4}"][row] = fits_sl2[f"ts{ly}"][j]
+            super_patterns[f"err_ts{ly+4}"][row] = fits_sl2[f"err_ts{ly}"][j]
+            super_patterns[f"wi{ly}_sl{phi_sl1}"][row] = fits_sl1[f"wi{ly}"][i]  # ADAPT if raw wire-idx key differs
+            super_patterns[f"wi{ly}_sl{phi_sl2}"][row] = fits_sl2[f"wi{ly}"][j]
+        for k in fit_result_keys:
+            super_patterns[f"{k}_sl{phi_sl1}"][row] = fits_sl1[k][i]
+            super_patterns[f"{k}_sl{phi_sl2}"][row] = fits_sl2[k][j]
+        if "muon_id" in fits_sl1:
+            for k in ["muon_id", "muon_ts", "muon_phi", "muon_theta", "muon_x0", "muon_y0", "muon_z0"]:
+                super_patterns[k][row] = fits_sl1[k][i]
+            if fits_sl1["muon_id"][i] != fits_sl2["muon_id"][j]:
+                super_patterns["muon_id_mismatch"][row] = 1
+                if verbose:
+                    print(f"WARNING: muon_id mismatch for super pattern {row}: "
+                          f"sl1={fits_sl1['muon_id'][i]} sl2={fits_sl2['muon_id'][j]}")
+
+    return super_patterns
 
 ### group sl fits of one sl together in time
 def group_sl_fits_of_one_sl(sl_fits, idx_offset=0, *, silent=False):
