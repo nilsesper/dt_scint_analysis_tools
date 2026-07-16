@@ -143,45 +143,9 @@ def main():
 
         return 
    
-   
-   
-   
-    ###################
-    # cut fits data according to nils master thesis chi2/ndf <10
-    #t_ly <= 2ns
-    # Drift time tly <=t_drift_max - 2ns approx 383 ns
 
     # cut data to restrict to chi2/ndf < 10 and |alpha| < 10 deg
     max_chi2_ndf = 10
-    sl_cut_fits = data_utils.cut_data(
-            data=sl_fits,
-            conditions=[
-                ("impossible", "==", 0),
-                ("chi2/ndf", "<", max_chi2_ndf),  
-            ],
-            silent=True,
-        )
-    max_td = 450/derived_params._ts_unit # ns/0.78
-    min_td = 20/derived_params._ts_unit # ns/0.78
-    min_x0 = 1 #mm
-    refits_cuts = data_utils.cut_data(
-            data=sl_refits,
-            conditions=[
-                ("impossible_refit", "==", 0),
-                ("chi2/ndf_refit", "<", 0.005),
-                #("dt0_refit", ">", min_td),
-                #("dt0_refit", "<", max_td),
-
-            ],
-            silent=True,
-        )
-    print(f"data cut succsessfull:\n max chi2/ndf in cut data = {max(sl_cut_fits["chi2/ndf"])}")
-
-    super_fits
-    # cut data to restrict to chi2/ndf < 10 and |alpha| < 10 deg
-    max_chi2_ndf = 10
-    max_td = 450/derived_params._ts_unit # ns/0.78
-    min_td = 20/derived_params._ts_unit # ns/0.78
     min_x0 = 1 #mm
     super_fits_cuts = data_utils.cut_data(
             data=super_fits,
@@ -196,14 +160,11 @@ def main():
             ],
             silent=True,
         )
+    
     print(f"data cut succsessfull:\n max chi2/ndf in cut data = {max(sl_cut_fits["chi2/ndf"])}")
 
     plot_statistics(keylist= good_super_fit_keys, fits = super_fits_cuts, title="SUPER_FITS")
-    print(f"mean vd = {np.mean(super_fits_cuts["vd_free_vd_super_fit"]* 1 / derived_params._drift_velocity_conversion)}")
-    print(f"vd_std = {np.std(super_fits_cuts["vd_free_vd_super_fit"] * 1 / derived_params._drift_velocity_conversion)}")
-    print(np.mean(super_fits_cuts["tan_alpha_free_vd_super_fit"]))
-    print(np.std(super_fits_cuts["tan_alpha_free_vd_super_fit"]))
-    print(np.mean(super_fits_cuts["chi2/ndf_free_vd_super_fit"]))
+
     return
 
 

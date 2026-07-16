@@ -446,8 +446,8 @@ def fit_sl_patterns(patterns, *, silent=False, verbose=False, fit_vd=False, suff
             # tan alpha bound
             alpha_min_bound = params._dt_pattern_alpha_range[pat_type][0]
             alpha_max_bound = params._dt_pattern_alpha_range[pat_type][1]
-            #tan_alpha_min_bound = np.tan(alpha_min_bound)
-            #tan_alpha_max_bound = np.tan(alpha_max_bound)
+            tan_alpha_min_bound = np.tan(alpha_min_bound)
+            tan_alpha_max_bound = np.tan(alpha_max_bound)
             # --- fitting
             lat_fits = []
             lat_chi2 = []
