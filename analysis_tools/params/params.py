@@ -380,6 +380,45 @@ _sl_fit_group_keys = {
     "idcs": [], # list of sl_fits indices of sl fits belonging to this group
 }
 
+
+# super pattern fit keys (fit list also also keeps super_pattern keys)
+_super_pattern_fit_keys = { # {key: dtype}
+    # best fit
+    "impossible": np.float64, # impossible True = 1, False = 0
+    "laterality_sl1": np.uint8, # idx of selected laterality [] in _dt_sl_patterns 
+    "laterality_sl3": np.uint8, # idx of selected laterality [] in _dt_sl_patterns 
+    "t0": np.float64, # t0 fit param
+    "err_t0": np.float64, # error from fit
+    "x0": np.float64, # x0 fit param
+    "err_x0": np.float64, # error from fit
+    "tan_alpha": np.float64, # tan(alpha) fit param
+    "err_tan_alpha": np.float64, # error from fit
+    "vd": np.float64, # drift velocity (in mm/ts unit) fit param
+    "err_vd": np.float64, # error from fit
+    "x_pos": np.float64, # x position of relative wire
+    "z_pos": np.float64, # z position of relative wire
+
+    # correlations
+    "corr_t0_x0": np.float64,
+    "corr_t0_tan_alpha": np.float64,
+    "corr_t0_vd": np.float64,
+    "corr_x0_tan_alpha": np.float64,
+    "corr_x0_vd": np.float64,
+    "corr_tan_alpha_vd": np.float64,
+
+    "chi2/ndf": np.float64, # reduced chi2 value
+
+    "dt0": np.float64, # estimated drift time t0-ts for ly0
+    "dt1": np.float64, # estimated drift time t0-ts for ly1
+    "dt2": np.float64, # estimated drift time t0-ts for ly2
+    "dt3": np.float64, # estimated drift time t0-ts for ly3
+    "dt4": np.float64, # estimated drift time t0-ts for ly4 here the new SL begins
+    "dt5": np.float64, # estimated drift time t0-ts for ly5
+    "dt6": np.float64, # estimated drift time t0-ts for ly6
+    "dt7": np.float64, # estimated drift time t0-ts for ly7
+} # sl fits also have pattern keys already i.e. "muon_XXX" keys
+
+_other_super_pattern_keys = _sl_fit_other_keys
 ## --------- when reconstructing hits
 
 # dt drift velocity
@@ -1211,7 +1250,8 @@ _dt_chamber = {
     "pos": (cmssw_chamber_pos[0]+global_shift[0], cmssw_chamber_pos[1]+global_shift[1], cmssw_chamber_pos[2]+global_shift[2]), # point with smallest coordinates of dt chamber
     "size": (cmssw_chamber_size[0], cmssw_chamber_size[1], cmssw_chamber_size[2]), 
 }
-print(f"chamber_pos = {_dt_chamber["pos"]}")
+
+#print(f"chamber_pos = {_dt_chamber["pos"]}")
 
 ### obdt mappings: {fe_conn_name: {chs: (ch list), fe: fec name, sl: superlayer}}, fe conns sorted in order
 _obdt_phi_1_fe_mapping = { # need to mask connectors J26, J27

@@ -16,11 +16,11 @@ import matplotlib.pyplot as plt
 # main function
 def main():
     base_path = "data_ba/"
-    dataset_name = "cosmic_82-18_3600-1800-1200_test1_th20"
+    dataset_name = "cosmic_85-15_3600-1800-1200_run2_th20_cut"
     sl_patterns_file = base_path + "pcls/" + dataset_name + "_sl_patterns.pcl"  
     sl_fits_file = base_path + "pcls/" + dataset_name + "_sl_fits.pcl"
     sl_refits_file = base_path + "pcls/" + dataset_name + "_sl_refits.pcl"
-
+    super_fits_path = base_path + "pcls/" + dataset_name + "_super_fits.pcl"
 
     verbose = False
    
@@ -34,11 +34,6 @@ def main():
     ### data import
     print(f"###### Importing dt hits...")
     sl_patterns = data_utils.load_pickle(file=sl_patterns_file)
-
-
-
-
-    
 
     ### dt reco
     # fit sl patterns
@@ -115,13 +110,6 @@ def main():
     # sort by t0 (muon arrival time)
     sl_fits = data_utils.sort_by_key(data=sl_fits, sort_key="t0")
     sl_refits = data_utils.sort_by_key(data=sl_refits, sort_key="t0")
-    print(sl_refits.keys())
-    # FIX (#4): sortierte Ergebnisse wieder in sl_fits/sl_refits geschrieben,
-    # statt in ungenutzte Variablen sl_patterns/sl_patterns_refit,
-    # damit die Sortierung beim Speichern auch tatsächlich wirkt.
-
-    #if verbose:
-        #print("sl_fits =", sl_fits)  # FIX (#7): Debug-Print jetzt an verbose gekoppelt
 
     ### store to pcl file
     print(f"###### Storing SL-level fits to file \"{sl_fits_file}\"...")
@@ -130,9 +118,18 @@ def main():
     print(f"###### Storing SL-level refits to file \"{sl_refits_file}\"...")
     data_utils.store_pickle(data=sl_refits, file=sl_refits_file)
 
-    print("Data saved\nbeginning with search for super patterns in both phi SLs")
+    print("Data saved\nBeginning with search for super patterns in both phi SLs")
+    
+
+
     super_patterns = dt_utils.build_phi_super_patterns(sl_fits)
     print(super_patterns.keys())
+
+    super_fits = dt_utils.fit_super_sl_patterns(super_patterns, fit_vd=True, suffix = "_free_vd_super_fit")
+    super_fits =data_utils.sort_by_key(data=super_fits, sort_key="t0")
+    print(f"Saving Superfits to {super_fits_path}...")
+    data_utils.store_pickle(data = super_fits, file = super_fits_path)
+    print(f"\nDone saving data under {super_fits_path}")
     
 if __name__ == "__main__":
     main()

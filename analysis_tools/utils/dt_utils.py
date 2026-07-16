@@ -446,8 +446,8 @@ def fit_sl_patterns(patterns, *, silent=False, verbose=False, fit_vd=False, suff
             # tan alpha bound
             alpha_min_bound = params._dt_pattern_alpha_range[pat_type][0]
             alpha_max_bound = params._dt_pattern_alpha_range[pat_type][1]
-            tan_alpha_min_bound = np.tan(alpha_min_bound)
-            tan_alpha_max_bound = np.tan(alpha_max_bound)
+            #tan_alpha_min_bound = np.tan(alpha_min_bound)
+            #tan_alpha_max_bound = np.tan(alpha_max_bound)
             # --- fitting
             lat_fits = []
             lat_chi2 = []
@@ -586,6 +586,264 @@ def fit_sl_patterns(patterns, *, silent=False, verbose=False, fit_vd=False, suff
         # if one wants to use also the +-d patterns, one might need to keep several fit results since there are possibilities of ambiguities between rrll and llrr
         # but if not using the +-d pattern, do not care :)
     return sl_fits
+"""
+def fit_super_patterns(super_patterns, *, silent = False, verbose = False, fit_vd = False, suffix = ""):
+    super_fits = copy.deepcopy(super_patterns) # keep all keys for further output
+    n_super_patterns = len(super_patterns["sl1"]) # number of super patterns
+    if not silent: print(f"Performing fit for {n_super_patterns} super patterns...")
+    super_fits |= {k + suffix: np.full(n_super_patterns, 0, dtype = v) for k, v in params._super_pattern_fit_keys} | {k + suffix: np.full(n_super_patterns, 0, dtype=v)
+    for k, v in params._other_super_pattern_keys.items() # extend keys in dict for 
+    }
+    sl1 = "sl1"
+    sl3 = "sl3"
+    for i in tqdm(range(n_super_patterns), disable=silent):
+        pat_type_sl1 = super_patterns[f"pat_type_{sl1}"][i]
+        pat_type_sl3 = super_patterns[f"pat_type_{sl3}"][i]
+        pat_name_sl1 = list(params._dt_sl_patterns.keys())[pat_type_sl1]
+        pat_name_sl3 = list(params._dt_sl_patterns.keys())[pat_type_sl3]
+        pat_combs = np.meshgrid(pat_name_sl1, pat_name_sl3)
+    return
+"""
+
+
+### --- fit combined phi super patterns --- ###
+### same structure as fit_sl_patterns, but: 8 layers, geometry taken from the GLOBAL
+### detector frame (derived_params.super_pattern_geometry, shifted by the topmost
+### detector wire), and the laterality loop covers the full cartesian product of both
+### sl's laterality options (8-layer laterality = concat(lat_sl1, lat_sl2)).
+def fit_super_sl_patterns(super_patterns, *, silent=False, verbose=False, fit_vd=True, suffix=""):
+    n_patterns = len(super_patterns["ts0"])
+    if not silent:
+        print(f"Performing super SL pattern fits for {n_patterns} patterns ...")
+ 
+    # self-contained output keys: dt0..dt7 (8 layers) + lat_id1/lat_id2 instead of the
+    # single-sl "laterality" index, plus ref_x/ref_z bookkeeping (constant across rows,
+    # but stored so you always know what was subtracted to get x0/z into this frame)
+    # x0 is stored in local frame relative to top wire; use ref_x for global conversion
+    result_dtypes = {
+        "impossible": np.int64, "lat_id1": np.int64, "lat_id2": np.int64,
+        "t0": np.float64, "x0": np.float64, "tan_alpha": np.float64, "vd": np.float64, "chi2/ndf": np.float64,
+        **{f"dt{ly}": np.float64 for ly in range(8)},
+        "err_t0": np.float64, "err_x0": np.float64, "err_tan_alpha": np.float64, "err_vd": np.float64,
+        "corr_t0_x0": np.float64, "corr_t0_tan_alpha": np.float64, "corr_t0_vd": np.float64,
+        "corr_x0_tan_alpha": np.float64, "corr_x0_vd": np.float64, "corr_tan_alpha_vd": np.float64,
+        "ref_x": np.float64, "ref_z": np.float64,
+    }
+    fits = copy.deepcopy(super_patterns)
+    fits |= {k + suffix: np.full(n_patterns, 0, dtype=dt) for k, dt in result_dtypes.items()}
+ 
+    lys = np.arange(0, 8)
+ 
+    for i in tqdm(range(n_patterns), disable=silent):
+        sl1 = int(super_patterns["sl1"][i])
+        sl2 = int(super_patterns["sl3"][i])
+        pat_type_sl1 = int(super_patterns["pat_type_sl1"][i])
+        pat_type_sl2 = int(super_patterns["pat_type_sl3"][i])
+        pat_name_sl1 = list(params._dt_sl_patterns.keys())[pat_type_sl1]
+        pat_name_sl2 = list(params._dt_sl_patterns.keys())[pat_type_sl2]
+        lats1 = params._dt_sl_patterns[pat_name_sl1]["laterality"]
+        lats2 = params._dt_sl_patterns[pat_name_sl2]["laterality"]
+ 
+        wi_sl1 = [int(super_patterns[f"wi{ly}_sl1"][i]) for ly in range(4)]
+        wi_sl2 = [int(super_patterns[f"wi{ly}_sl3"][i]) for ly in range(4)]
+ 
+        # geometry for all 8 layers in GLOBAL frame
+        z_arr = np.full(8, 0, dtype=np.float64)
+        x_cell = np.full(8, 0, dtype=np.float64)
+
+        for ly in range(4):
+            x_cell[ly], z_arr[ly] = derived_params.super_pattern_geometry(sl1, ly, wi_sl1[ly])
+            x_cell[ly + 4], z_arr[ly + 4] = derived_params.super_pattern_geometry(sl2, ly, wi_sl2[ly])
+
+            # ------------------------------------------------------------
+            # shift to local coordinate frame:
+            # topmost wire = (x,z) = (0,0)
+            # ------------------------------------------------------------
+
+            top_wire_idx = np.argmax(z_arr)
+
+            ref_x = x_cell[top_wire_idx]
+            ref_z = z_arr[top_wire_idx]
+
+            x_cell = x_cell - ref_x
+            z_arr = z_arr - ref_z
+            dz = 235 #mm
+            c = 299.792458  # mm/ns
+            tof_ns = dz / c
+            tof_ts = tof_ns / derived_params._ts_unit
+        ts = np.array([
+    np.float64(super_patterns[f"ts{ly}"][i]) + (tof_ts if ly >= 4 else 0.0)for ly in range(8)], dtype=params._ts_float_type)
+        err_ts = np.array([np.float64(super_patterns[f"err_ts{ly}"][i]) for ly in range(8)], dtype=params._ts_float_type)
+        ts_min, ts_max = np.amin(ts), np.amax(ts)
+        ts_offset = ts_min
+        ts_for_fit = ts - ts_offset
+        ts_min_for_fit, ts_max_for_fit = ts_min - ts_offset, ts_max - ts_offset
+ 
+        if not fit_vd:
+            t0_min_bound = ts_max_for_fit - params._dt_max_drift_time - params._t0_tolerance
+        else:
+            t0_min_bound = ts_max_for_fit - params._dt_max_drift_time_vd_min - params._t0_tolerance
+        t0_max_bound = ts_min_for_fit + params._t0_tolerance
+        impossible_pattern = t0_min_bound >= t0_max_bound
+ 
+        if verbose:
+            print(f"\n ********** Fitting super pattern {i} ({pat_name_sl1}[sl{sl1}] + {pat_name_sl2}[sl{sl2}]):")
+ 
+        if impossible_pattern:
+            if verbose: print(" **** Impossible to fit timestamps.")
+            fits["impossible" + suffix][i] = 1
+            continue
+ 
+        vd_min_bound = derived_params._drift_velocity_mm_per_timestamp_min
+        vd_max_bound = derived_params._drift_velocity_mm_per_timestamp_max
+        # union of both halves' pattern-angle ranges (safe: only widens the search space)
+        alpha_min_bound = min(params._dt_pattern_alpha_range[pat_type_sl1][0], params._dt_pattern_alpha_range[pat_type_sl2][0])
+        alpha_max_bound = max(params._dt_pattern_alpha_range[pat_type_sl1][1], params._dt_pattern_alpha_range[pat_type_sl2][1])
+
+        if alpha_min_bound >= alpha_max_bound:
+            fits["impossible" + suffix][i] = 1
+            continue
+        else:
+
+            tan_alpha_min_bound, tan_alpha_max_bound = np.tan(alpha_min_bound), np.tan(alpha_max_bound)
+
+
+        #print(np.degrees(alpha_min_bound), np.degrees(alpha_max_bound))
+        lat_fits, lat_chi2 = [], []
+        # full cartesian product: every (lat1, lat2) combination is a distinct 8-layer hypothesis
+        for lat_id1, lat1 in enumerate(lats1):
+            for lat_id2, lat2 in enumerate(lats2):
+                laterality = np.array(list(lat1) + list(lat2))  # length 8: [sl1 ly0..3, sl2 ly0..3]
+ 
+                # x0 bound at z=0, i.e. ly=3 of whichever sl is the topmost detector sl
+                if sl1 == derived_params._super_pattern_top_sl:
+                    lat_top, wi_top = lat1[3], wi_sl1[3]
+                else:
+                    lat_top, wi_top = lat2[3], wi_sl2[3]
+                x0_min_bound, x0_max_bound = derived_params.super_pattern_x0_bounds(wi_top, lat_top)
+                # convert global x0 bounds into local frame
+                x0_min_bound -= ref_x
+                x0_max_bound -= ref_x
+                if not fit_vd:
+                    p_bounds = np.float64([
+                        (t0_min_bound, x0_min_bound, tan_alpha_min_bound),
+                        (t0_max_bound, x0_max_bound, tan_alpha_max_bound),
+                    ])
+                else:
+                    p_bounds = np.float64([
+                        (t0_min_bound, x0_min_bound, tan_alpha_min_bound, vd_min_bound),
+                        (t0_max_bound, x0_max_bound, tan_alpha_max_bound, vd_max_bound),
+                    ])
+                t0_start = np.mean([p_bounds[0][0], p_bounds[1][0]])
+                x0_start = np.mean([p_bounds[0][1], p_bounds[1][1]])
+                tan_alpha_min_bound = np.tan(alpha_min_bound)
+                tan_alpha_max_bound = np.tan(alpha_max_bound)
+
+                tan_alpha_start = np.mean([tan_alpha_min_bound, tan_alpha_max_bound])
+                vd_start = derived_params._drift_velocity_mm_per_timestamp
+                p0 = np.float64([t0_start, x0_start, tan_alpha_start] + ([vd_start] if fit_vd else []))
+                #print("x_cell:", x_cell)
+                #print("z_arr:", z_arr)
+                #print("x0 bounds:", x0_min_bound, x0_max_bound)
+                if not fit_vd:
+                    def f_ts_fit_wparams(ly, t0, x0, tan_alpha, _x_cell=x_cell, _z_arr=z_arr, _lat=laterality):
+                        ly = np.uint64(ly)
+                        return derived_params.f_ts_fit(x_cell=_x_cell[ly], t0=t0, x0=x0, tan_alpha=tan_alpha, z=_z_arr[ly], laterality=_lat[ly], vd=derived_params._drift_velocity_mm_per_timestamp)
+                else:
+                    def f_ts_fit_wparams(ly, t0, x0, tan_alpha, vd, _x_cell=x_cell, _z_arr=z_arr, _lat=laterality):
+                        ly = np.uint64(ly)
+                        return derived_params.f_ts_fit(x_cell=_x_cell[ly], t0=t0, x0=x0, tan_alpha=tan_alpha, z=_z_arr[ly], laterality=_lat[ly], vd=vd)
+ 
+                try:
+                    popt, pcov, infodict, mesg, _ = curve_fit(
+                        f=f_ts_fit_wparams, xdata=lys, ydata=ts_for_fit, p0=p0,
+                        sigma=err_ts, absolute_sigma=True, bounds=p_bounds, full_output=True,
+                    )
+                except Exception as e:
+                    if verbose: print(f"    fit failed for lat1={lat_id1}, lat2={lat_id2}: {e}")
+                    continue
+                
+                """
+                print(
+                    "x0:",
+                    popt[1],
+                    "bounds:",
+                    p_bounds[0][1],
+                    p_bounds[1][1]
+                )
+
+                print(
+                    "tan_alpha:",
+                    popt[2],
+                    "bounds:",
+                    p_bounds[0][2],
+                    p_bounds[1][2]
+                )
+                """
+                if not fit_vd:
+                    t0_from_fit, x0_from_fit, tan_alpha_from_fit = popt
+                    vd_from_fit = derived_params._drift_velocity_mm_per_timestamp
+                    err_vd_fit = 0
+                    corr_t0_vd_fit = corr_x0_vd_fit = corr_tan_alpha_vd_fit = 0
+                else:
+                    t0_from_fit, x0_from_fit, tan_alpha_from_fit, vd_from_fit = popt
+                    err_vd_fit = np.sqrt(pcov[3][3])
+                    corr_t0_vd_fit, corr_x0_vd_fit, corr_tan_alpha_vd_fit = pcov[0][3], pcov[1][3], pcov[2][3]
+                err_t0_fit = np.sqrt(pcov[0][0])
+                err_x0_fit = np.sqrt(pcov[1][1])
+                err_tan_alpha_fit = np.sqrt(pcov[2][2])
+                corr_t0_x0_fit = pcov[0][1]
+                corr_t0_tan_alpha_fit = pcov[0][2]
+                corr_x0_tan_alpha_fit = pcov[1][2]
+ 
+                ndf = 8 - (4 if fit_vd else 3)  # 8 timestamps, 3 or 4 free params
+                ts_from_fit = f_ts_fit_wparams(lys, *popt)
+                ts_fit = ts_from_fit + ts_offset
+                ts_residuals = ts_from_fit - np.float64(ts_for_fit)
+                chi2ndf = np.sum(ts_residuals**2 / err_ts**2) / ndf
+ 
+                t0_fit = t0_from_fit + ts_offset
+                x0_fit = x0_from_fit
+                tan_alpha_fit = tan_alpha_from_fit
+                vd_fit = vd_from_fit
+                td = [ts_fit[ly] - t0_fit for ly in range(8)]
+
+                result = {
+                    "impossible": 0, "lat_id1": lat_id1, "lat_id2": lat_id2,
+                    "t0": t0_fit, "x0": x0_fit, "tan_alpha": tan_alpha_fit, "vd": vd_fit, "chi2/ndf": chi2ndf,
+                    **{f"dt{ly}": td[ly] for ly in range(8)},
+                    "err_t0": err_t0_fit, "err_x0": err_x0_fit, "err_tan_alpha": err_tan_alpha_fit, "err_vd": err_vd_fit,
+                    "corr_t0_x0": corr_t0_x0_fit, "corr_t0_tan_alpha": corr_t0_tan_alpha_fit, "corr_t0_vd": corr_t0_vd_fit,
+                    "corr_x0_tan_alpha": corr_x0_tan_alpha_fit, "corr_x0_vd": corr_x0_vd_fit, "corr_tan_alpha_vd": corr_tan_alpha_vd_fit,
+                    "ref_x": ref_x, "ref_z": ref_z,
+                }
+                lat_fits.append(result)
+                lat_chi2.append(999999999 if chi2ndf == np.inf else chi2ndf)
+ 
+                if verbose:
+                    print(f"    lat1={lat_id1}, lat2={lat_id2}: chi2/ndf={chi2ndf:.3f}, "
+                          f"t0={t0_fit:.2f}, x0={x0_fit:.2f}, tan_alpha={tan_alpha_fit:.4f}, vd={vd_fit:.5f}")
+ 
+        if len(lat_fits) == 0:
+            if verbose: print(" **** All laterality fits failed.")
+            fits["impossible" + suffix][i] = 1
+            continue
+ 
+        lat_chi2 = np.array([float('{:0.3e}'.format(c)) for c in lat_chi2])
+        if (lat_chi2 == lat_chi2.min()).sum() > 1:
+            lat_t0 = np.array([f["t0"] for f in lat_fits])
+            lat_goodness = lat_chi2 + np.log10(np.abs(lat_t0))
+        else:
+            lat_goodness = lat_chi2
+        best_fit_idx = np.argmin(lat_goodness)
+ 
+        for k in result_dtypes.keys():
+            fits[k + suffix][i] = lat_fits[best_fit_idx][k]
+    
+           
+ 
+    return fits
+
 
 
 """

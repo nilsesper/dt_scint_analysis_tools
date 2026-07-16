@@ -394,6 +394,72 @@ def err_proj_glob_muon(orient, z, x0, y0, z0, theta, phi, err_x0, err_y0, err_z0
     )
     return err_x_track
 
+
+
+### --- super pattern (combined phi sl1 + sl2) reference geometry --- ###
+### add this block to derived_params.py, AFTER _dt_cell_coordinates has been built.
+###
+### idea: pick the topmost wire in the whole detector (ly=3 of whichever phi SL sits
+### higher in global z) and use ITS global (x,z) position as a fixed coordinate origin.
+### every cell used in a super-pattern fit gets this reference subtracted, so that
+### x0/t0/tan_alpha results of DIFFERENT super-pattern fits all live in the same frame
+### and can be directly compared (unlike the old _sl_pattern_coordinates table, which
+### re-zeroes to each pattern's own ly=3/rel_wi=0 cell).
+
+_phi_sls = [sl for sl in params._dt_chamber["sls"].keys() if params._dt_chamber["sls"][sl]["orient"] == "phi"]
+if len(_phi_sls) != 2:
+    raise Exception(f"expected exactly 2 phi superlayers, found {_phi_sls}")
+
+_super_pattern_ref_wi = 10  # arbitrary but valid wi at ly=3 for both phi sls -- ADAPT if 10 is out of range for your chamber
+
+# z_center only depends on (sl, ly), not wi (see _dt_cell_coordinates construction), so
+# any valid wi works here to compare the two SLs' ly=3 height
+_z_phi0 = _dt_cell_coordinates[_phi_sls[0]][3][_super_pattern_ref_wi][5]
+_z_phi1 = _dt_cell_coordinates[_phi_sls[1]][3][_super_pattern_ref_wi][5]
+_super_pattern_top_sl = _phi_sls[0] if (_z_phi0 >= _z_phi1) else _phi_sls[1]
+_super_pattern_bottom_sl = _phi_sls[1] if (_super_pattern_top_sl == _phi_sls[0]) else _phi_sls[0]
+
+# fixed reference position: (x, z) of the topmost wire in the detector
+_super_pattern_x_ref = _dt_cell_coordinates[_super_pattern_top_sl][3][_super_pattern_ref_wi][3]  # x center
+_super_pattern_z_ref = _dt_cell_coordinates[_super_pattern_top_sl][3][_super_pattern_ref_wi][5]  # z center
+
+
+def super_pattern_geometry(sl, ly, wi):
+    """
+    Global (x_cell, z_cell) of dt cell (sl, ly, wi), shifted so that the topmost wire
+    in the detector (_super_pattern_top_sl, ly=3, _super_pattern_ref_wi) sits at (0, 0).
+    Use this instead of _sl_pattern_coordinates when building super patterns.
+    """
+    coord = _dt_cell_coordinates[sl][ly][wi]
+    x_cell = coord[3] - _super_pattern_x_ref
+    z_cell = coord[5] - _super_pattern_z_ref
+    return x_cell, z_cell
+
+
+def super_pattern_x0_bounds(wi_at_top_sl_ly3, laterality_top):
+    """
+    x0 bounds at the z=0 reference plane (ly=3 of the topmost phi sl), for the actual
+    wire index this specific pattern uses on its top-sl half, and that half's
+    laterality at ly=3. Same left/right-of-wire logic as the single-SL fit's x0 bound,
+    just evaluated on real global coordinates instead of the local pattern table.
+    """
+    coord = _dt_cell_coordinates[_super_pattern_top_sl][3][wi_at_top_sl_ly3]
+    xmin = coord[0][0] - _super_pattern_x_ref
+    xmax = coord[0][1] - _super_pattern_x_ref
+    x_center = coord[3] - _super_pattern_x_ref
+    x0_min_bound = xmin if (laterality_top == -1) else x_center
+    x0_max_bound = xmax if (laterality_top == 1) else x_center
+    return x0_min_bound, x0_max_bound
+
+
+
+
+
+
+
+
+
+
 ### scintillator geometry --> in global coord frame
 # calculate positions of center axis for all strips
 # allows to easily check if muon has hit scintillator
