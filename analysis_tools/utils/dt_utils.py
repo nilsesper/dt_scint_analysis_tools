@@ -816,6 +816,7 @@ def fit_super_sl_patterns(super_patterns, *, silent=False, verbose=False, fit_vd
                     "corr_t0_x0": corr_t0_x0_fit, "corr_t0_tan_alpha": corr_t0_tan_alpha_fit, "corr_t0_vd": corr_t0_vd_fit,
                     "corr_x0_tan_alpha": corr_x0_tan_alpha_fit, "corr_x0_vd": corr_x0_vd_fit, "corr_tan_alpha_vd": corr_tan_alpha_vd_fit,
                     "ref_x": ref_x, "ref_z": ref_z,
+                    "ts_residual": ts_residuals,
                 }
                 lat_fits.append(result)
                 lat_chi2.append(999999999 if chi2ndf == np.inf else chi2ndf)

@@ -28,11 +28,11 @@ def main():
     # When not using example data (dt_cosmics.txt) use params_justus
     base_path = "data_ba/"
     pcls_path = "pcls/"
-    dataset_name =  "cosmic_85-15_3550-1800-1200_test1"
+    dataset_name =  "cosmic_82-18_3625-1800-1200_run1_th20_cut100"
     dt_hits_name = dataset_name + "_hits.pcl"
     raw_scint_hits_name = dataset_name + "_raw_scint_hits.pcl"
     ts_range_name = dataset_name + "_ts_range.txt"
-    input_dumpfile      = base_path + dataset_name + ".txt"
+    input_dumpfile      = base_path +"data_tests_cuts/"+  dataset_name + ".txt"
     dt_hit_diff_name = dataset_name + "_hit_diff.pcl"
     
     nodeadtime          = True  # True setzen, um dead time zu ignorieren

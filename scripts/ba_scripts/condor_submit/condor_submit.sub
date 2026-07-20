@@ -1,0 +1,20 @@
+
+universe = vanilla
+
+executable = /home/home1/institut_3a/tacke/Bachelor_thesis/dt_scint_analysis_tools/scripts/ba_scripts/condor_submit/condor_exec.sh
+
+arguments = $(ExecutableFile) $(dataset_name)
+
+stdout = stdout/stdout-ClusterId$(ClusterId)-ProcId$(ProcId).ansi
+stderr = stderr/stderr-ClusterId$(ClusterId)-ProcId$(ProcId).err
+log = condorlog/condorlog-ClusterId$(ClusterId).log
+
+request_cpus = 6
+request_memory = 8G
+request_disk = 500M
+
+should_transfer_files = yes
+when_to_transfer_output = on_exit
+
+queue ExecutableFile, dataset_name from condor_joblist.csv
+

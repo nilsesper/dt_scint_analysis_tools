@@ -56,7 +56,7 @@ print (f"Flushing-Time with Safety in days: {flush_time_safe/htoday:.2f} d")
 
 #####################################
 max_gas_flow = 10 # l/h
-ar_concentration = 0.82 # fraction of argon in the gas mixture
+ar_concentration = 0.83 # fraction of argon in the gas mixture
 co2_concentration = 1 - ar_concentration # fraction of CO2 in the gas
 ar_flow = max_gas_flow * ar_concentration # l/h
 co2_flow = max_gas_flow * co2_concentration # l/h

@@ -34,7 +34,7 @@ def main():
     runs = ["cosmic_82-18_3600-1800-1200_run1_th20", "cosmic_85-15_3550-1800-1200_run1_th20", "cosmic_85-15_3575-1800-1200_run1_th20", "cosmic_85-15_3600-1800-1200_run2_th20"]
 
 
-    dataset_name = "cosmic_82-18_3600-1800-1200_run1_th20"
+    dataset_name = "cosmic_85-15_3600-1800-1200_run2_th20"
 
     # Ordner für dieses Dataset erstellen
     dataset_folder_pcls = base_path + pcls_path + dataset_name + "/"
@@ -46,7 +46,8 @@ def main():
     use_timestamp_sync = True
 
     dt_hits_file = dataset_folder_pcls + dataset_name + "_hits_nodeadtime.pcl"
-    dt_hit_diff_hist_file = dataset_folder_pcls + dataset_name + "_hit_diff.pcl"
+    #dt_hit_diff_hist_file = dataset_folder_pcls + dataset_name + "_hit_diff.pcl"
+    dt_hit_diff_hist_file = f"data_ba/pcls/{dataset_name}_hit_diff.pcl"
     dt_hits_file_deadtime = dataset_folder_pcls + dataset_name + "_hits_wdeadtime.pcl"
 
     plot_save_path = base_path + f"plots/photo_peak/{dataset_name}/"
@@ -200,7 +201,7 @@ def main():
     ##### fit peak position
 
 
-    fit_index_range = (bins_nobg >= 390) & (bins_nobg <= 420)
+    fit_index_range = (bins_nobg >= 370) & (bins_nobg <= 430)
     fit_bins = bins_nobg[fit_index_range]
     fit_hist = hist_nobg[fit_index_range]
     err_fit_hist = err_hist_nobg[fit_index_range]
@@ -215,8 +216,7 @@ def main():
         p0 = (-1, 415, 1000)
     
     """
-    p0 = (500, 410, 10)
-    #       A     mu   sigma
+    
 
     def f_peak_fit(x, A, mu, sigma):
         peak = A*np.exp(-0.5*((x-mu)/sigma)**2)
@@ -302,6 +302,13 @@ def main():
     )
     print(f"v_drift = {v_drift} +- {err_v_drift} um/ns")
     """
+    
+    max_idx = np.argmax(fit_hist) 
+    max_count = fit_hist[max_idx]      # maximum count
+    max_bin = fit_bins[max_idx]        # corresponding bin (if bins are centers)
+    print(max_idx, max_count, max_bin)
+    p0 = (max_count, max_bin + 10, 20)
+    #       A                mu                     sigma
     popt, pcov, infodict, mesg, _ = curve_fit(
         f=f_peak_fit,
         xdata=fit_bins,

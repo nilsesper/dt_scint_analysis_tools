@@ -1,0 +1,39 @@
+000 (33213.000.000) 2026-07-20 12:50:56 Job submitted from host: <134.61.13.60:9618?addrs=134.61.13.60-9618&alias=lx3a60.physik.rwth-aachen.de&noUDP&sock=schedd_3959_1f88>
+...
+040 (33213.000.000) 2026-07-20 12:50:57 Started transferring input files
+	Transferring to host: <134.61.5.12:9618?addrs=134.61.5.12-9618&alias=lx1bgpu02.physik.rwth-aachen.de&noUDP&sock=slot1_4_4753_ab1a_27148>
+...
+040 (33213.000.000) 2026-07-20 12:50:57 Finished transferring input files
+...
+001 (33213.000.000) 2026-07-20 12:50:58 Job executing on host: <134.61.5.12:9618?addrs=134.61.5.12-9618&alias=lx1bgpu02.physik.rwth-aachen.de&noUDP&sock=startd_4371_b88d>
+	SlotName: slot1_4@lx1bgpu02.physik.rwth-aachen.de
+	CondorScratchDir = "/user/condor/execute/dir_2720495"
+	Cpus = 1
+	Disk = 513024
+	Memory = 8192
+...
+006 (33213.000.000) 2026-07-20 12:50:58 Image size of job updated: 276
+	0  -  MemoryUsage of job (MB)
+	0  -  ResidentSetSize of job (KB)
+...
+040 (33213.000.000) 2026-07-20 12:50:58 Started transferring output files
+...
+040 (33213.000.000) 2026-07-20 12:50:58 Finished transferring output files
+...
+005 (33213.000.000) 2026-07-20 12:50:58 Job terminated.
+	(1) Normal termination (return value 0)
+		Usr 0 00:00:00, Sys 0 00:00:00  -  Run Remote Usage
+		Usr 0 00:00:00, Sys 0 00:00:00  -  Run Local Usage
+		Usr 0 00:00:00, Sys 0 00:00:00  -  Total Remote Usage
+		Usr 0 00:00:00, Sys 0 00:00:00  -  Total Local Usage
+	2966  -  Run Bytes Sent By Job
+	1736  -  Run Bytes Received By Job
+	2966  -  Total Bytes Sent By Job
+	1736  -  Total Bytes Received By Job
+	Partitionable Resources :    Usage  Request Allocated 
+	   Cpus                 :        0        1         1 
+	   Disk (KB)            :       25   512000    513024 
+	   Memory (MB)          :        0     8192      8192 
+	   TimeExecute (s)      :        0                    
+	   TimeSlotBusy (s)     :        1                    
+...

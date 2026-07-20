@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 import matplotlib as mpl
 
 base_path = "data_ba/"
-dataset_name = "cosmic_85-15_3600-1800-1200_run2_th20_cut"
+dataset_name = "cosmic_85-15_3575-1800-1200_run1_th20_cut100"
 sl_patterns_file = base_path + "pcls/" + dataset_name + "_sl_patterns.pcl"  
 sl_fits_file = base_path + "pcls/" + dataset_name + "_sl_fits.pcl"
 sl_refits_file = base_path + "pcls/" + dataset_name + "_sl_refits.pcl"

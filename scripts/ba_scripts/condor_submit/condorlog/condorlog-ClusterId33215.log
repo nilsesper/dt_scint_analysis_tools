@@ -1,0 +1,39 @@
+000 (33215.000.000) 2026-07-20 12:54:25 Job submitted from host: <134.61.13.60:9618?addrs=134.61.13.60-9618&alias=lx3a60.physik.rwth-aachen.de&noUDP&sock=schedd_3959_1f88>
+...
+040 (33215.000.000) 2026-07-20 12:55:26 Started transferring input files
+	Transferring to host: <134.61.13.63:9618?addrs=134.61.13.63-9618&alias=lx3a63.physik.rwth-aachen.de&noUDP&sock=slot1_1_4051_0bbe_21829>
+...
+040 (33215.000.000) 2026-07-20 12:55:26 Finished transferring input files
+...
+001 (33215.000.000) 2026-07-20 12:55:27 Job executing on host: <134.61.13.63:9618?addrs=134.61.13.63-9618&alias=lx3a63.physik.rwth-aachen.de&noUDP&sock=startd_3892_2ab0>
+	SlotName: slot1_1@lx3a63.physik.rwth-aachen.de
+	CondorScratchDir = "/user/condor/execute/dir_2482134"
+	Cpus = 1
+	Disk = 513025
+	Memory = 8192
+...
+006 (33215.000.000) 2026-07-20 12:55:36 Image size of job updated: 28888
+	29  -  MemoryUsage of job (MB)
+	28888  -  ResidentSetSize of job (KB)
+...
+006 (33215.000.000) 2026-07-20 12:59:45 Image size of job updated: 3872324
+	3782  -  MemoryUsage of job (MB)
+	3872324  -  ResidentSetSize of job (KB)
+...
+004 (33215.000.000) 2026-07-20 12:59:45 Job was evicted. Code 1009 Subcode 0
+	(0) CPU times
+		Usr 0 00:02:59, Sys 0 00:00:25  -  Run Remote Usage
+		Usr 0 00:00:00, Sys 0 00:00:00  -  Run Local Usage
+	0  -  Run Bytes Sent By Job
+	1736  -  Run Bytes Received By Job
+	Reason: Claim deactivated
+	Partitionable Resources :    Usage  Request Allocated 
+	   Cpus                 :        0        1         1 
+	   Disk (KB)            :      108   512000    513025 
+	   Memory (MB)          :     3782     8192      8192 
+	   TimeExecute (s)      :      258                    
+	   TimeSlotBusy (s)     :      259                    
+...
+009 (33215.000.000) 2026-07-20 12:59:45 Job was aborted.
+	via condor_rm (by user tacke)
+...
