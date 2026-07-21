@@ -1,0 +1,9 @@
+# Ignore everything in this directory
+*
+# Except this file
+!.gitignore
+
+# Except some other files:
+!condor_exec.sh
+!condor_joblist.csv
+!condor_submit.sub

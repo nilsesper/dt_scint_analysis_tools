@@ -31,7 +31,6 @@ def main():
         type     = str,
         help     = "name of dataset or dumpfile to create pcls from for data analysis",
     )
-    # ---
 
 
 
@@ -46,9 +45,10 @@ def main():
     #runs =  ["cosmic_82-18_3625-1800-1200_run1_th20_cut100", "cosmic_82-18_3600-1800-1200_run1_th20_cut100", "cosmic_82-18_3575-1800-1200_run1_th20_cut100", "cosmic_82-18_3550-1800-1200_run1_th20_cut100", "cosmic_85-15_3550-1800-1200_run1_th20_cut100", "cosmic_85-15_3575-1800-1200_run1_th20_cut100", "cosmic_85-15_3600-1800-1200_run2_th20_cut100"] # a cut of 100 MB for quick analysis of data
     #runs =  ["cosmic_85-15_3575-1800-1200_run1_th20_cut100"] # still to do, not complete but for first batch
     max_alpha_in_deg = 15 #max value for muon angle higher values are cut away after track fit with vd = const
+    max_chi2 = 5
 
-
-    
+    n_processes = 6 # no of processes running in parallel
+    n_batches_clustering = 50000 # batch size for hit clustering
 
     # Ordner für dieses Dataset erstellen
     dataset_folder_pcls = base_path + pcls_path + dataset_name + "/"
@@ -180,7 +180,7 @@ def main():
 
 
 #################################################################
-### import dumpfile and extract dt hits
+### import dumpfile and extract dt hits with dead time applied
 # store dt hits and patterns
 #################################################################
 
@@ -188,8 +188,7 @@ def main():
     nodeadtime     = False   # True = do not apply dead time
 
     ### multiprocessing setup
-    n_processes = 11 # no of processes running in parallel
-    n_batches_clustering = 50000 # batch size for hit clustering
+
     do_multiprocessing = True
     # ---------------------------------------------------------
 
@@ -280,7 +279,7 @@ def main():
     verbose = False
 
     ### multiprocessing setup
-    n_processes = 11  # no of processes running in parallel
+    #n_processes = 11  # no of processes running in parallel
     n_batches_sl_fitting = 1000  # batch size for sl fitting of hit clusters
 
 
@@ -290,7 +289,7 @@ def main():
     # fit sl patterns
     max_alpha = np.deg2rad(max_alpha_in_deg)
     tan_alpha = np.tan(max_alpha)
-    max_chi2 = 5
+    
     print(f"### Fitting of separate SL clusters...")
     
     if do_multiprocessing:  # with multiprocessing
