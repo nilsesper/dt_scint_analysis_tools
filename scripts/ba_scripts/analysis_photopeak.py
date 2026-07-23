@@ -321,9 +321,11 @@ def main():
     base_path = "data_ba/"
     pcls_path = "pcls/" 
     results_dict = {}
+
+
     runs = ["cosmic_82-18_3600-1800-1200_run1_th20", "cosmic_85-15_3550-1800-1200_run1_th20", "cosmic_85-15_3575-1800-1200_run1_th20", "cosmic_85-15_3600-1800-1200_run2_th20"]
 
-
+    #beginn for loop over all datasets here
     dataset_name = "cosmic_85-15_3600-1800-1200_run2_th20"
 
     # Ordner für dieses Dataset erstellen

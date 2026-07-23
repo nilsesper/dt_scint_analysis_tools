@@ -425,7 +425,9 @@ _other_super_pattern_keys = _sl_fit_other_keys
 _drift_velocity = 54.5 #53 #54.5 #53 #54.5 #53 #50.8 #54.5 # initial value: 54.5 # unit: um / ns = 10^-6 / 10 ^-9 m/s = 10^3 m/s
 _dt_cell_width = 42 # mm, width of dt cell = 2x max drift distance
 # when allowing changes of vd in fit, give vd param bounds:
-_drift_velocity_min = 10 # um/ns
+#_drift_velocity_min = 10 # um/ns old value
+
+_drift_velocity_min = 40    # for checking bad fits cause
 _drift_velocity_max = 100 # um/ns
 
 ### --- dt
@@ -441,7 +443,7 @@ _dt_ts_individual_dead_time = 600 #1000 #600 #1250 #800 #0 # in ts units
 
 # additional uncertainty assiged to dt ts because of geometry (different path lengths for charges if not on height of wire)
 # assumed 5 ns = 6 tu uncertainty
-dt_hit_add_ts_unc = 6 # in tu
+dt_hit_add_ts_unc = 3 # in tu was set to 6
 
 ## --- dt hits -> sl patterns
 # timestamp window in which hits of sl must lie in order to be counted as pattern
@@ -484,7 +486,7 @@ _sl_fit_group_ts_tolerance = _dt_max_drift_time
 ## --- sl fit groups -> dt muons
 _muon_tgroup_tolerance = 20/0.78 # time interval in which sl fit groups of different sls are combined to "muon"
 _muon_n_fits_max = 1 # max n_fits in sl fit groups selected for "muon"
-_muon_slphi_tan_alpha_tolerance = 0.1 # max deviation of tan_alpha for both sl fits in phi sl
+_muon_slphi_tan_alpha_tolerance = 0.05 # max deviation of tan_alpha for both sl fits in phi sl was set to 0.1
 _muon_slphi_xproj_tolerance = 30 # max deviation of x_proj (projected sl fit track position at z=_muon_reco_z0) for both sl fits in phi sl
 _muon_chi2_ndf_max = 10 #10 # max chi2 of muon sl fits
 # reco muon z0 value (select base z value for reco muon)

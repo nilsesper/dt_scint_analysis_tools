@@ -953,7 +953,7 @@ def fit_super_sl_patterns(super_patterns, *, silent=False, verbose=False, fit_vd
                     lat_top, wi_top = lat2[3], wi_sl2[3]
                 x0_min_bound, x0_max_bound = derived_params.super_pattern_x0_bounds(wi_top, lat_top)
                 # convert global x0 bounds into local frame
-                x0_min_bound -= ref_x
+                x0_min_bound -= ref_x # +0.1 #
                 x0_max_bound -= ref_x
                 if not fit_vd:
                     p_bounds = np.float64([

@@ -113,6 +113,8 @@ def main():
    
 
 
+
+
     def build_hist_general(
         *,
         data_list,
@@ -493,6 +495,8 @@ def main():
                     "cosmic_82-18_3600-1800-1200_test1_th20"]
     
     base_path = "data_ba/"
+
+    plot_type = ".png"
     dataset_name = "cosmic_82-18_3550-1800-1200_run1_th20_cut_50"
 
     sl_patterns_file = base_path + f"pcls/{dataset_name}/" + dataset_name + "_sl_patterns.pcl"
@@ -501,7 +505,7 @@ def main():
     super_fits_path = base_path + f"pcls/{dataset_name}/" + dataset_name + "_super_fits.pcl"
     plot_save_path = base_path + f"plots/sl_fits/{dataset_name}/" 
     os.makedirs(plot_save_path, exist_ok=True)
-    plot_type = ".png"
+ 
 
     ### data import
     #print(f"###### Importing fits...")
@@ -564,7 +568,9 @@ def main():
     
 
 
+    
 
+    print(super_fits.keys())
 
 
 
@@ -596,7 +602,7 @@ def main():
     )
 
 
-    #hist of all interesting plot metrics
+    #hist of all interesting hist metrics
     for i in range(len(good_super_fit_keys)):
         key = good_super_fit_keys[i][0]
         title =good_super_fit_keys[i][1] + f" {pct_ar}/{pct_co2} Ar/CO2 U_wire = {u_wire} {no_cut}"
@@ -624,6 +630,7 @@ def main():
             title = title,
             xlabel = x_label,
             ylabel = y_label,
+            plot_type = plot_type,
 
         )
 
@@ -634,13 +641,16 @@ def main():
 
     # beginning hist2d plots with all possible flagged hists
 
+
+    
+
     data_to_hist_2d(
         data_x=super_fits_cuts["x0_free_vd_super_fit"],
         data_y=super_fits_cuts['vd_free_vd_super_fit'] * vd_factor,
         x_label="x0",
         y_label="v_d",
         title=f"Hist of x_0 and v_d {no_cut}",
-        save_path=plot_save_path + f"vd_vs_x0_{no_cut}.png",
+        save_path=plot_save_path + f"vd_vs_x0_{no_cut}{plot_type}",
     )
 
     data_to_hist_2d(
@@ -649,7 +659,7 @@ def main():
         x_label="alpha",
         y_label="v_d",
         title=f"Hist of alpha vs vd {no_cut}",
-        save_path=plot_save_path + f"vd_vs_alpha_{no_cut}.png",
+        save_path=plot_save_path + f"vd_vs_alpha_{no_cut}{plot_type}",
     )
 
     data_to_hist_2d(
@@ -658,7 +668,7 @@ def main():
         x_label="alpha",
         y_label="x_0",
         title=f"Hist of alpha vs x_0 {no_cut}",
-        save_path=plot_save_path + f"x0_vs_tanalpha_{no_cut}.png",
+        save_path=plot_save_path + f"x0_vs_tanalpha_{no_cut}{plot_type}",
     )
 
     data_to_hist_2d(
@@ -667,7 +677,7 @@ def main():
         x_label="x_0[mm]",
         y_label="dt_0 [ns]",
         title=f"Hist of x_0 vs dt_0 {no_cut}",
-        save_path=plot_save_path + f"dt_0_vs_x0_{no_cut}.png",
+        save_path=plot_save_path + f"dt_0_vs_x0_{no_cut}{plot_type}",
     )
 
     for i in range(8):
@@ -677,12 +687,12 @@ def main():
             x_label="alpha",
             y_label=f"dt_{i} [ns]",
             title=f"Hist of dt_{i} vs alpha {no_cut}",
-            save_path=plot_save_path + f"dt{i}_vs_alpha_{no_cut}.png",
+            save_path=plot_save_path + f"dt{i}_vs_alpha_{no_cut}{plot_type}",
         )
 
+
+    
     # The analysis of only possible cuts ends here
-
-
 
 
 
@@ -699,9 +709,12 @@ def main():
         data=super_fits,
         conditions=[
             ("impossible_free_vd_super_fit", "==", 0),
-            #("chi2/ndf_free_vd_super_fit", "<", 10),
-            #("vd_free_vd_super_fit", "<", 70 * derived_params._drift_velocity_conversion),
-            ("vd_free_vd_super_fit", ">", 40 * derived_params._drift_velocity_conversion),
+            ("chi2/ndf_free_vd_super_fit", "<", 10),
+            #("chi2/ndf_free_vd_super_fit", ">", 0.5),
+            #("vd_free_vd_super_fit", "<", 50 * derived_params._drift_velocity_conversion),
+            ("err_t0_free_vd_super_fit", "<", 10),
+            #("err_t0_free_vd_super_fit", ">", 0.1),
+            #("vd_free_vd_super_fit", ">", 40 * derived_params._drift_velocity_conversion),
 
             #("dt0_refit", ">", min_td),
             #("dt0_refit", "<", max_td),
@@ -711,10 +724,15 @@ def main():
     )
 
 
+
+    #super_fits_cuts = data_utils.merge_dataset([super_fits_cuts1, super_fits_cuts2])
+
+    additional_cut_suffix = ""
+
         #hist of all interesting plot metrics
     for i in range(len(good_super_fit_keys)):
         key = good_super_fit_keys[i][0]
-        title =good_super_fit_keys[i][1] + f" {pct_ar}/{pct_co2} Ar/CO2 U_wire = {u_wire} {w_cut}"
+        title =good_super_fit_keys[i][1] + f" {pct_ar}/{pct_co2} Ar/CO2 U_wire = {u_wire} {w_cut} {additional_cut_suffix}"
         factor = good_super_fit_keys[i][2]
         unit = good_super_fit_keys[i][3]
         x_label = good_super_fit_keys[i][4]
@@ -734,11 +752,12 @@ def main():
             specific_data=specific_data,
             dataset_name=dataset_name,
             plot_save_path=plot_save_path,
-            filename_suffix=safe_key + "_" + w_cut,
+            filename_suffix=safe_key + "_" + w_cut + "_" + additional_cut_suffix,
             scale_factor = factor,
             title = title,
             xlabel = x_label,
             ylabel = y_label,
+            plot_type = plot_type,
 
         )
 
@@ -746,6 +765,15 @@ def main():
 
     # done with all hists with further cuts
 
+    data_to_hist_2d(
+        data_x=super_fits_cuts["chi2/ndf_free_vd_super_fit"],
+        data_y=super_fits_cuts['vd_free_vd_super_fit'] * vd_factor,
+        x_label="chi2/ndf",
+        y_label="v_d",
+        title=f"Hist of chi2/ndf and v_d {no_cut}",
+        save_path=plot_save_path + f"vd_vs_chi2_ndf_{w_cut}{plot_type}",
+        n_bins=100,
+    )
 
     # beginning hist2d plots with all possible flagged hists with further cuts
 
@@ -754,8 +782,8 @@ def main():
         data_y=super_fits_cuts['vd_free_vd_super_fit'] * vd_factor,
         x_label="x0",
         y_label="v_d",
-        title=f"Hist of x_0 and v_d {w_cut}",
-        save_path=plot_save_path + f"vd_vs_x0_{w_cut}.png",
+        title=f"Hist of x_0 and v_d {w_cut} {additional_cut_suffix}",
+        save_path=plot_save_path + f"vd_vs_x0_{w_cut}_{additional_cut_suffix}{plot_type}",
     )
 
     data_to_hist_2d(
@@ -763,8 +791,8 @@ def main():
         data_y=super_fits_cuts['vd_free_vd_super_fit'] * vd_factor,
         x_label="alpha",
         y_label="v_d",
-        title=f"Hist of alpha vs vd {w_cut}",
-        save_path=plot_save_path + f"vd_vs_alpha_{w_cut}.png",
+        title=f"Hist of alpha vs vd {w_cut} {additional_cut_suffix}",
+        save_path=plot_save_path + f"vd_vs_alpha_{w_cut}_{additional_cut_suffix}{plot_type}",
     )
 
     data_to_hist_2d(
@@ -772,8 +800,8 @@ def main():
         data_y=super_fits_cuts["x0_free_vd_super_fit"],
         x_label="alpha",
         y_label="x_0",
-        title=f"Hist of alpha vs x_0 {w_cut}",
-        save_path=plot_save_path + f"x0_vs_tanalpha_{w_cut}.png",
+        title=f"Hist of alpha vs x_0 {w_cut} {additional_cut_suffix}",
+        save_path=plot_save_path + f"x0_vs_tanalpha_{w_cut}_{additional_cut_suffix}{plot_type}",
     )
 
     data_to_hist_2d(
@@ -781,37 +809,19 @@ def main():
         data_y=super_fits_cuts["dt0_free_vd_super_fit"] * derived_params._ts_unit,
         x_label="x_0[mm]",
         y_label="dt_0 [ns]",
-        title=f"Hist of x_0 vs dt_0 {w_cut}",
-        save_path=plot_save_path + f"dt_0_vs_x0_{w_cut}.png",
+        title=f"Hist of x_0 vs dt_0 {w_cut} {additional_cut_suffix}",
+        save_path=plot_save_path + f"dt_0_vs_x0_{w_cut}_{additional_cut_suffix}{plot_type}",
     )
 
     for i in range(8):
         data_to_hist_2d(
-            data_x=np.rad2deg(np.arctan(super_fits_cuts["tan_alpha_free_vd_super_fit"])),
-            data_y=super_fits_cuts[f"dt{i}_free_vd_super_fit"] * derived_params._ts_unit,
-            x_label="alpha",
-            y_label=f"dt_{i} [ns]",
-            title=f"Hist of dt_{i} vs alpha {w_cut}",
-            save_path=plot_save_path + f"dt{i}_vs_alpha_{w_cut}.png",
+            data_x=super_fits_cuts[f"dt{i}_free_vd_super_fit"]* derived_params._ts_unit,
+            data_y=super_fits_cuts[f"x0_free_vd_super_fit"] ,
+            x_label=f"dt{i}",
+            y_label=f"x0 [mm]",
+            title=f"Hist of x0 vs dt{i} {w_cut} {additional_cut_suffix}",
+            save_path=plot_save_path + f"dt{i}_vs_x0_{w_cut}_{additional_cut_suffix}{plot_type}",
         )
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
@@ -826,30 +836,23 @@ def main():
 
 
     # The analysis of refits beginns here
-    # Cuts for four cell fits only possible hists
+    # cuts for four cell fits only possible hists
     sl_refits_cuts = data_utils.cut_data(
         data=sl_refits,
         conditions=[
-            ("impossible_free_vd_super_fit", "==", 0),
-            #("chi2/ndf_free_vd_super_fit", "<", 10),
-            #("vd_free_vd_super_fit", "<", 70 * derived_params._drift_velocity_conversion),
-            #("vd_free_vd_super_fit", ">", 40 * derived_params._drift_velocity_conversion),
-
-            #("dt0_refit", ">", min_td),
-            #("dt0_refit", "<", max_td),
-
+            ("impossible_refit", "==", 0),
         ],
         silent=True,
     )
 
-
+    # analysis of refits 
     data_to_hist_2d(
         data_x=sl_refits_cuts["x0_refit"],
         data_y=sl_refits_cuts['vd_refit'] * vd_factor,
         x_label="x0",
         y_label="v_d",
-        title="Hist of x_0 and v_d refit",
-        save_path=plot_save_path + "refit_vd_vs_x0.png",
+        title=f"Hist of x_0 and v_d refit {no_cut}",
+        save_path=plot_save_path + f"refit_vd_vs_x0_{no_cut}{plot_type}",
     )
 
     data_to_hist_2d(
@@ -857,8 +860,8 @@ def main():
         data_y=sl_refits_cuts['vd_refit'] * vd_factor,
         x_label="alpha",
         y_label="v_d",
-        title="Hist of alpha vs vd refit",
-        save_path=plot_save_path + "refit_vd_vs_alpha.png",
+        title=f"Hist of alpha vs vd refit {no_cut}",
+        save_path=plot_save_path + f"refit_vd_vs_alpha_{no_cut}{plot_type}",
     )
 
     data_to_hist_2d(
@@ -866,8 +869,8 @@ def main():
         data_y=sl_refits_cuts["x0_refit"],
         x_label="alpha",
         y_label="x_0",
-        title="Hist of alpha vs x_0 refit",
-        save_path=plot_save_path + "refit_x0_vs_tanalpha.png",
+        title=f"Hist of alpha vs x_0 refit {no_cut}",
+        save_path=plot_save_path + f"refit_x0_vs_tanalpha_{no_cut}{plot_type}",
     )
 
     data_to_hist_2d(
@@ -875,8 +878,8 @@ def main():
         data_y=sl_refits_cuts["dt0_refit"] * derived_params._ts_unit,
         x_label="x_0[mm]",
         y_label="dt_0 [ns]",
-        title="Hist of x_0 vs dt_0 refit",
-        save_path=plot_save_path + "refit_dt_0_vs_x0.png",
+        title=f"Hist of x_0 vs dt_0 refit",
+        save_path=plot_save_path + f"refit_dt_0_vs_x0_{no_cut}{plot_type}",
     )
 
     for i in range(4):
@@ -885,8 +888,8 @@ def main():
             data_y=sl_refits_cuts[f"dt{i}_refit"] * derived_params._ts_unit,
             x_label="alpha",
             y_label=f"dt_{i} [ns]",
-            title=f"Hist of dt_{i} vs alpha refit",
-            save_path=plot_save_path + f"refit_dt{i}_vs_alpha.png",
+            title=f"Hist of dt_{i} vs alpha refit {no_cut}",
+            save_path=plot_save_path + f"refit_dt{i}_vs_alpha_{no_cut}{plot_type}",
         )
 
 

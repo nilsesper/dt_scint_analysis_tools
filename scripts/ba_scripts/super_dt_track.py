@@ -39,7 +39,7 @@ def main():
     plot_type = ".png"
 
     suffix = "_free_vd_super_fit"            # decide which fit should be plotted, e.g. "" or "_refit"
-    plot_idcs = [100, 200, 300, 400, 500, 600, 700, 800, 900, 1000]         # indices to plot
+    plot_idcs = [50, 60, 70,100, 200, 300, 400, 500, 600, 700, 800, 900, 1000]         # indices to plot
 
     super_fits_file = super_fits_path
     save_path = plot_save_path
@@ -52,6 +52,25 @@ def main():
     n_super_fits = data_utils.length(super_fits)
     print("### imported super fits data from file: " + super_fits_file)
 
+    super_fits = data_utils.cut_data(
+        data=super_fits,
+        conditions=[
+            ("impossible_free_vd_super_fit", "==", 0),
+            ("chi2/ndf_free_vd_super_fit", "<", 10),
+            ("chi2/ndf_free_vd_super_fit", ">", 0.5),
+            ("dt0_free_vd_super_fit", "<", 10),
+            #("vd_free_vd_super_fit", "<", 50 * derived_params._drift_velocity_conversion),
+            #("err_t0_free_vd_super_fit", "<", 10),
+            #("err_t0_free_vd_super_fit", ">", 0.1),
+            #("vd_free_vd_super_fit", ">", 40 * derived_params._drift_velocity_conversion),
+
+            #("dt0_refit", ">", min_td),
+            #("dt0_refit", "<", max_td),
+
+        ],
+        silent=True,
+    )
+    print(f"Mean v_d = {np.mean(super_fits["vd_free_vd_super_fit"]/ derived_params._drift_velocity_conversion)}")
 
     for idx in plot_idcs:
 
