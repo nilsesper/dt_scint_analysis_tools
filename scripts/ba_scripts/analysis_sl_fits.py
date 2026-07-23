@@ -16,6 +16,7 @@ import matplotlib as mpl
 from scipy.optimize import curve_fit
 import re
 from matplotlib.ticker import ScalarFormatter
+from matplotlib.lines import Line2D 
 # ---------------------------------------------------------------
 # main function
 @mpl.rc_context({'font.family': 'sans-serif', 'font.size': 12}) #'font.sans-serif': 'Arial',
@@ -929,6 +930,7 @@ def main():
             pcov = None
 
         amp1, mean1, sigma1, amp2, mean2, sigma2 = popt
+        sigma2, sigma2 = np.abs(sigma1), np.abs(sigma2)
         amp1_err, mean1_err, sigma1_err, amp2_err, mean2_err, sigma2_err = perr
 
         # --- NEW: chi2 / ndf from the fitted (masked) points ---
@@ -962,15 +964,29 @@ def main():
             print(f"  component 2: amp = {amp2:.4g} +/- {amp2_err:.4g}, "
                 f"mean = {mean2:.4g} +/- {mean2_err:.4g}, sigma = {sigma2:.4g} +/- {sigma2_err:.4g}")
 
-        # --- plot: main panel (+ optional residual panel) ---
         if show_residuals:
-            fig, (ax, ax_res) = plt.subplots(
-                2, 1, figsize=fig_size, sharex=True,
-                gridspec_kw={"height_ratios": [3, residual_height_ratio], "hspace": 0.05},
-            )
+                fig, (ax, ax_res) = plt.subplots(
+                    2, 1, figsize=fig_size, sharex=True,
+                    gridspec_kw={"height_ratios": [3, residual_height_ratio], "hspace": 0.05},
+                )
         else:
             fig, ax = plt.subplots(1, 1, figsize=fig_size)
             ax_res = None
+
+        # --- NEW: build the hist-info string ourselves (plot_histogram won't draw it) ---
+        barwidth = np.mean(np.diff(centers))
+        barwidth_str = f"{barwidth:.3g}"
+        if bin_unit:
+            barwidth_str += f" {bin_unit}"
+        entries_total = int(np.sum(hist))
+        info_str = (
+            f"entries = {entries_total}\n"
+            f"underflow = {underflow}\n"
+            f"overflow = {overflow}\n"
+            f"total = {entries_total + overflow + underflow}\n"
+            f"bin count = {len(centers)}\n"
+            f"bin width = {barwidth_str}"
+        )
 
         ax = hist_utils.plot_histogram(
             ax,
@@ -980,34 +996,48 @@ def main():
             err_hist_up=err_hist_up,
             log_scale=log_scale,
             power_limits=power_limits,
-            add_info=add_info,
-            entries=int(np.sum(hist)),
+            add_info=False,          # <-- CHANGED: was `add_info` (or True); suppress the separate box
+            entries=entries_total,
             overflow=overflow,
             underflow=underflow,
             bin_unit=bin_unit,
         )
 
+        # --- NEW: collect everything into one legend ---
+        handles, labels = [], []
+
+        if add_info:  # only add the info entry if the caller still wants it shown
+            info_handle = Line2D([], [], linestyle="none")
+            handles.append(info_handle)
+            labels.append(info_str)
+
         if not np.isnan(mean1):
             x_fit = np.linspace(np.amin(centers), np.amax(centers), 500)
             y_fit = double_gaussian(x_fit, *popt)
             fit_label = (
-                f"Double Gaussian fit ($\\chi^2$/ndf = {chi2_ndf:.3g})\n"
-                f"$\\mu_1$ = ({mean1:.4g} $\\pm$ {mean1_err:.4g})$\\mu$m/ns\n"
-                f"$\\sigma_1$ = ({sigma1:.4g} $\\pm$ {sigma1_err:.4g})$\\mu$m/ns\n"
-                f"$\\mu_2$ = ({mean2:.4g} $\\pm$ {mean2_err:.4g})$\\mu$m/ns\n"
-                f"$\\sigma_2$ = ({sigma2:.4g} $\\pm$ {sigma2_err:.4g})$\\mu$m/ns\n"
+                f"Double Gaussian fit\n"
+                f"($\\chi^2$/ndf = {chi2_ndf:.3f})\n"
+                f"$\\mu_1$ = ({mean1:.2f} $\\pm$ {mean1_err:.2f}) $\\mu$m/ns\n"
+                f"$\\sigma_1$ = ({sigma1:.2f} $\\pm$ {sigma1_err:.2f}) $\\mu$m/ns\n"
+                f"$\\mu_2$ = ({mean2:.2f} $\\pm$ {mean2_err:.2f}) $\\mu$m/ns\n"
+                f"$\\sigma_2$ = ({sigma2:.2f} $\\pm$ {sigma2_err:.2f}) $\\mu$m/ns"
             )
-            ax.plot(x_fit, y_fit, color=fit_color, linewidth=2, label=fit_label)
+            (fit_line,) = ax.plot(x_fit, y_fit, color=fit_color, linewidth=2, label=fit_label)
+            handles.append(fit_line)
+            labels.append(fit_label)
 
             if show_components:
                 y1 = gaussian(x_fit, amp1, mean1, sigma1)
                 y2 = gaussian(x_fit, amp2, mean2, sigma2)
-                ax.plot(x_fit, y1, color=component_colors[0], linewidth=1.5,
-                        linestyle="--", label="component 1")
-                ax.plot(x_fit, y2, color=component_colors[1], linewidth=1.5,
-                        linestyle="--", label="component 2")
+                (comp1_line,) = ax.plot(x_fit, y1, color=component_colors[0], linewidth=1.5,
+                                        linestyle="--", label="component 1")
+                (comp2_line,) = ax.plot(x_fit, y2, color=component_colors[1], linewidth=1.5,
+                                        linestyle="--", label="component 2")
+                handles += [comp1_line, comp2_line]
+                labels += ["component 1", "component 2"]
 
-            ax.legend(fontsize=legend_font_size)
+        if handles:
+            ax.legend(handles, labels, fontsize=legend_font_size, loc="center right")
 
         if xlim is None:
             ax.set_xlim(np.amin(centers), np.amax(centers))
@@ -1017,7 +1047,7 @@ def main():
         ax.set_ylabel(ylabel)
         ax.set_title(title)
         if show_residuals:
-            ax.tick_params(labelbottom=False)  # x labels live on the residual panel instead
+            ax.tick_params(labelbottom=False)  
         else:
             ax.set_xlabel(xlabel)
 
@@ -1025,12 +1055,12 @@ def main():
         if show_residuals and ax_res is not None:
             if pull is not None:
                 ax_res.errorbar(
-                    centers[::10], pull[::10], yerr=1.0, fmt="o", markersize=3,
+                    centers[::10], residuals[::10], yerr=err_hist_safe[::10], fmt="o", markersize=3,
                     color="black", ecolor="gray", elinewidth=1, capsize=2,
                 )
             ax_res.axhline(0, color=fit_color, linewidth=1, linestyle="--")
             ax_res.set_xlabel(xlabel)
-            ax_res.set_ylabel(r"$\frac{\mathrm{data-fit}}{\sigma}$")
+            ax_res.set_ylabel(f"data-fit")
             if xlim is None:
                 ax_res.set_xlim(np.amin(centers), np.amax(centers))
             elif xlim is not False:
@@ -1063,8 +1093,8 @@ def main():
             "sigma_2": sigma2, "sigma_2_err": sigma2_err,
             "mean": dom_mean, "mean_err": dom_mean_err,
             "sigma": dom_sigma, "sigma_err": dom_sigma_err,
-            "chi2": chi2, "ndf": ndf, "chi2_ndf": chi2_ndf,   # NEW
-            "residuals": residuals, "pull": pull,             # NEW
+            "chi2": chi2, "ndf": ndf, "chi2_ndf": chi2_ndf,   
+            "residuals": residuals, "pull": pull,             
             "popt": popt,
             "pcov": pcov,
         }
@@ -1103,14 +1133,16 @@ def main():
 
 
 
-    list_of_fits = ["cosmic_85-15_3600-1800-1200_run2_th20_cut", "cosmic_85-15_3550-1800-1200_test1", 
-                    "cosmic_85-15_3000-1500-1000_test3", "cosmic_85-15_3550-1800-1200_test1", 
-                    "cosmic_82-18_3600-1800-1200_test1_th20"]
+    list_of_fits = ["cosmic_82-18_3550-1800-1200_run1_th20_cut_50", "cosmic_82-18_3550-1800-1200_run1_th20_cut100", 
+                    "cosmic_82-18_3575-1800-1200_run1_th20_cut100", "cosmic_82-18_3600-1800-1200_run1_th20_cut100", 
+                    "cosmic_82-18_3625-1800-1200_run1_th20_cut100", 
+                    "cosmic_85-15_3550-1800-1200_run1_th20_cut100", "cosmic_85-15_3575-1800-1200_run1_th20_cut100", 
+                    "cosmic_85-15_3600-1800-1200_run2_th20_cut100"]
     
     base_path = "data_ba/"
 
     plot_type = ".png"
-    dataset_name = "cosmic_82-18_3550-1800-1200_run1_th20_cut100"
+    dataset_name = "cosmic_82-18_3550-1800-1200_run1_th20_cut_50"
 
     sl_patterns_file = base_path + f"pcls/{dataset_name}/" + dataset_name + "_sl_patterns.pcl"
     sl_fits_file = base_path + f"pcls/{dataset_name}/" + dataset_name + "_sl_fits.pcl"
@@ -1187,7 +1219,7 @@ def main():
 
 
     for i in range(2):
-        if i == 0:
+        if i == 1:
             # beginning with analysis of all fits that are flagged as "possible" (impossible == 0)
             super_fits_cuts = data_utils.cut_data(
                 data=super_fits,
@@ -1205,7 +1237,7 @@ def main():
             )
             suffix = no_cut
 
-        elif i == 1:
+        elif i == 0:
             # The analyisis of more restrictive cuts beginns here
             super_fits_cuts = data_utils.cut_data(
                 data=super_fits,
@@ -1215,8 +1247,9 @@ def main():
                     #("chi2/ndf_free_vd_super_fit", ">", 0.5),
                     #("vd_free_vd_super_fit", "<", 59 * derived_params._drift_velocity_conversion),
                     #("vd_free_vd_super_fit", ">", 51 * derived_params._drift_velocity_conversion),
-                    #("err_t0_free_vd_super_fit", "<", 10),
-                    ("err_vd_free_vd_super_fit", "<", 10),
+                    ("err_t0_free_vd_super_fit", "<", 10),
+                    #("err_vd_free_vd_super_fit", "<", 10),
+                    #("err_tan_alpha_free_vd_super_fit", ">", 0.25*1e6),
                     #("vd_free_vd_super_fit", ">", 40 * derived_params._drift_velocity_conversion),
         
                     #("dt0_refit", ">", min_td),
@@ -1327,6 +1360,23 @@ def main():
             y_label="dt_0 [ns]",
             title=f"Hist of x_0 vs dt_0 {suffix}",
             save_path=plot_save_path + f"dt_0_vs_x0_{suffix}{plot_type}",
+        )
+        data_to_hist_2d(
+            data_x=super_fits_cuts["err_vd_free_vd_super_fit"] * vd_factor,
+            data_y=super_fits_cuts["vd_free_vd_super_fit"] * vd_factor,
+            x_label=f"err_vd [$\\mu$m/ns]",
+            y_label=f"vd [\\mu$m/ns]",
+            title=f"Hist of vd vs err vd {suffix}",
+            save_path=plot_save_path + f"vd_vs_err_vd_{suffix}{plot_type}",
+        )
+
+        data_to_hist_2d(
+            data_x=super_fits_cuts["err_vd_free_vd_super_fit"] * vd_factor,
+            data_y=super_fits_cuts["err_tan_alpha_free_vd_super_fit"],
+            x_label=f"err_vd [$\\mu$m/ns]",
+            y_label=f"err tan ($\\alpha$)",
+            title=f"Hist of err_tan_alpha vs err_vd {suffix}",
+            save_path=plot_save_path + f"err_tan_alpha_vs_err_vd_{suffix}{plot_type}",
         )
 
         for i in range(8):

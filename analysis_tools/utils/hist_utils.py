@@ -317,7 +317,7 @@ def calculate_hist_uncertainty(hist, *, hist_err_right=None, hist_err_left=None,
 # give hist to plot
 # optionally give err_hist (symm errors)
 # or err_hist_down and err_hist_up (asymm errors)
-def plot_histogram(ax, hist, centers, *, err_hist=None, err_hist_down=None, err_hist_up=None, log_scale=False, power_limits=[-2, 2], add_info=False, overflow=None, underflow=None, entries=None, bin_unit=None, bin_width_digits=3, set_y_label=True, info_font_size=params._info_font_size, info_loc="top right"):
+def plot_histogram(ax, hist, centers, *, err_hist=None, err_hist_down=None, err_hist_up=None, log_scale=False, power_limits=[-2, 2], add_info=False, overflow=None, underflow=None, entries=None, bin_unit=None, bin_width_digits=3, set_y_label=True, info_font_size=params._info_font_size, info_loc="top right", bool_plus_label = False, pluslabel = ""):
     barwidth = np.mean(np.diff(centers))
     ax.bar(centers, hist, width=barwidth, align="center", facecolor="tab:blue")
     # if up down errors given
@@ -343,7 +343,10 @@ def plot_histogram(ax, hist, centers, *, err_hist=None, err_hist_down=None, err_
         barwidth_str = f"{barwidth:.{bin_width_digits}g}"
         if bin_unit != None:
             barwidth_str += f" {bin_unit}"
-        info_str = f"entries = {entries}\nunderflow = {underflow}\noverflow = {overflow}\ntotal = {entries+overflow+underflow}\nbin count = {len(centers)}\nbin width = {barwidth_str}"
+        if bool_plus_label == False:
+            info_str = f"entries = {entries}\nunderflow = {underflow}\noverflow = {overflow}\ntotal = {entries+overflow+underflow}\nbin count = {len(centers)}\nbin width = {barwidth_str}"
+        elif bool_plus_label == True:
+            info_str = f"entries = {entries}\nunderflow = {underflow}\noverflow = {overflow}\ntotal = {entries+overflow+underflow}\nbin count = {len(centers)}\nbin width = {barwidth_str}\n{pluslabel}"
         #ax.text(0.99, 0.99, info_str, horizontalalignment='right', verticalalignment='top', transform=ax.transAxes, fontsize=8, bbox=dict(facecolor='white', edgecolor='lightgray', alpha=0.7))
         ax = add_infobox(ax, info_str=info_str, info_font_size=info_font_size, info_loc=info_loc)
     # set y label

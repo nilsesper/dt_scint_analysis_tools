@@ -429,8 +429,8 @@ _dt_cell_width = 42 # mm, width of dt cell = 2x max drift distance
 
 #_drift_velocity_min = 40    # for checking bad fits cause
 #_drift_velocity_max = 100 # um/ns
-_drift_velocity_min = 45    # for checking bad fits cause
-_drift_velocity_max = 80 # um/ns
+_drift_velocity_min = 20    # for checking bad fits cause
+_drift_velocity_max = 100 # um/ns
 
 
 ### --- dt
