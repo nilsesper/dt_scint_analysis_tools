@@ -940,6 +940,29 @@ def fit_super_sl_patterns(super_patterns, *, silent=False, verbose=False, fit_vd
 
         tan_alpha_min_bound, tan_alpha_max_bound = np.tan(alpha_min_bound), np.tan(alpha_max_bound)
 
+        # ------------------------------------------------------------
+        # starting guesses seeded from the individual single-SL fits
+        # (best-fit values already stored in super_patterns by the
+        # builder), computed once per pattern -- independent of which
+        # lat_id1/lat_id2 hypothesis is tried below, just used to seed
+        # curve_fit closer to a sensible solution than the bound-midpoint
+        # ------------------------------------------------------------
+        t0_start = np.mean([super_patterns["t0_sl1"][i], super_patterns["t0_sl3"][i]]) - ts_offset
+        t0_start = np.clip(t0_start, t0_min_bound, t0_max_bound)
+
+        tan_alpha_start = np.mean([super_patterns["tan_alpha_sl1"][i], super_patterns["tan_alpha_sl3"][i]])
+        tan_alpha_start = np.clip(tan_alpha_start, tan_alpha_min_bound, tan_alpha_max_bound)
+
+        # x0 seed: take it from whichever half is the topmost detector sl
+        # (global frame, same convention as the x0 bounds below); shifted
+        # into the local frame and clipped per-laterality inside the loop
+        if sl1 == derived_params._super_pattern_top_sl:
+            x0_start_global = super_patterns["x0_sl1"][i]
+        else:
+            x0_start_global = super_patterns["x0_sl3"][i]
+
+        vd_start = derived_params._drift_velocity_mm_per_timestamp
+
         lat_fits, lat_chi2 = [], []
         # full cartesian product: every (lat1, lat2) combination is a distinct 8-layer hypothesis
         for lat_id1, lat1 in enumerate(lats1):
@@ -965,10 +988,7 @@ def fit_super_sl_patterns(super_patterns, *, silent=False, verbose=False, fit_vd
                         (t0_min_bound, x0_min_bound, tan_alpha_min_bound, vd_min_bound),
                         (t0_max_bound, x0_max_bound, tan_alpha_max_bound, vd_max_bound),
                     ])
-                t0_start = np.mean([p_bounds[0][0], p_bounds[1][0]])
-                x0_start = np.mean([p_bounds[0][1], p_bounds[1][1]])
-                tan_alpha_start = np.mean([tan_alpha_min_bound, tan_alpha_max_bound])
-                vd_start = derived_params._drift_velocity_mm_per_timestamp
+                x0_start = np.clip(x0_start_global - ref_x, x0_min_bound, x0_max_bound)
                 p0 = np.float64([t0_start, x0_start, tan_alpha_start] + ([vd_start] if fit_vd else []))
 
                 if not fit_vd:
@@ -1053,7 +1073,6 @@ def fit_super_sl_patterns(super_patterns, *, silent=False, verbose=False, fit_vd
         fits["ts_residual" + suffix][i] = lat_fits[best_fit_idx]["ts_residual"]
 
     return fits
-
 
 """
 ### fit sl patterns WITH MEANTIMER METHOD

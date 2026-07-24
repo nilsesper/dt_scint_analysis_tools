@@ -7,11 +7,11 @@ import matplotlib.pyplot as plt
 import matplotlib as mpl
 
 base_path = "data_ba/"
-dataset_name = "cosmic_85-15_3575-1800-1200_run1_th20_cut100"
-sl_patterns_file = base_path + "pcls/" + dataset_name + "_sl_patterns.pcl"  
-sl_fits_file = base_path + "pcls/" + dataset_name + "_sl_fits.pcl"
-sl_refits_file = base_path + "pcls/" + dataset_name + "_sl_refits.pcl"
-super_fits_path = base_path + "pcls/" + dataset_name + "_super_fits.pcl"
+dataset_name = "cosmic_82-18_3550-1800-1200_run1_th20_cut_50"
+sl_patterns_file = base_path + f"pcls/{dataset_name}/" + dataset_name + "_sl_patterns.pcl"  
+sl_fits_file = base_path + f"pcls/{dataset_name}/" + dataset_name + "_sl_fits.pcl"
+sl_refits_file = base_path + f"pcls/{dataset_name}/" + dataset_name + "_sl_refits.pcl"
+super_fits_path = base_path + f"pcls/{dataset_name}/" + dataset_name + "_super_fits.pcl"
 plots_path = base_path + "plots/sl_fits/"
 plot_type = ".png"
 

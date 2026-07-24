@@ -56,7 +56,7 @@ print (f"Flushing-Time with Safety in days: {flush_time_safe/htoday:.2f} d")
 
 #####################################
 max_gas_flow = 10 # l/h
-ar_concentration = 0.83 # fraction of argon in the gas mixture
+ar_concentration = 0.87 # fraction of argon in the gas mixture
 co2_concentration = 1 - ar_concentration # fraction of CO2 in the gas
 ar_flow = max_gas_flow * ar_concentration # l/h
 co2_flow = max_gas_flow * co2_concentration # l/h
@@ -88,3 +88,53 @@ print(f"Flushing-Time with Safety: {flush_time_safe:.2f} h")
 print(f"\nFlushing-Time without Safety in days: {flush_time/htoday:.2f} d")
 print (f"Flushing-Time with Safety in days: {flush_time_safe/htoday:.2f} d")
 
+
+
+import numpy as np
+import matplotlib.pyplot as plt
+from scipy.optimize import curve_fit
+
+days = np.array([0, 4, 18, 20, 21, 24, 27])
+ar = np.array([195, 170, 102, 93, 87, 75, 57])
+co2 = np.array([61, 60, 59, 59, 58, 56, 55])
+
+# exponentielles Modell
+def exp_fit(x, a, b, c):
+    return a * np.exp(-b*x) + c
+
+# Ableitung = Druckverlust pro Tag
+def pressure_loss(x, a, b):
+    return a * b * np.exp(-b*x)
+
+# Fit
+params_ar, _ = curve_fit(exp_fit, days, ar, maxfev=10000)
+params_co2, _ = curve_fit(exp_fit, days, co2, maxfev=10000)
+
+a_ar, b_ar, c_ar = params_ar
+a_co2, b_co2, c_co2 = params_co2
+
+# Zeitachse inkl. 20 Tage Extrapolation
+t = np.linspace(0, 47, 200)
+
+# Druckverlust bar/Tag
+loss_ar = pressure_loss(t, a_ar, b_ar)
+loss_co2 = pressure_loss(t, a_co2, b_co2)
+
+plt.figure(figsize=(8,5))
+plt.plot(t, loss_ar, label="Argon Druckverlust")
+plt.plot(t, loss_co2, label="CO₂ Druckverlust")
+
+plt.xlabel("Zeit [Tage]")
+plt.ylabel("Druckverlust [bar/Tag]")
+plt.grid()
+plt.legend()
+plt.show()
+
+# Beispiele:
+print(f"Argon Druckverlust am Tag 0: {pressure_loss(0,a_ar,b_ar):.2f} bar/Tag")
+print(f"Argon Druckverlust am Tag 27: {pressure_loss(27,a_ar,b_ar):.2f} bar/Tag")
+print(f"Argon Druckverlust am Tag 47: {pressure_loss(47,a_ar,b_ar):.2f} bar/Tag")
+
+print(f"CO2 Druckverlust am Tag 0: {pressure_loss(0,a_co2,b_co2):.2f} bar/Tag")
+print(f"CO2 Druckverlust am Tag 27: {pressure_loss(27,a_co2,b_co2):.2f} bar/Tag")
+print(f"CO2 Druckverlust am Tag 47: {pressure_loss(47,a_co2,b_co2):.2f} bar/Tag")

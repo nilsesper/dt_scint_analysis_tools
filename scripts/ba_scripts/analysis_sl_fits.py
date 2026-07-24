@@ -1138,201 +1138,379 @@ def main():
                     "cosmic_82-18_3625-1800-1200_run1_th20_cut100", 
                     "cosmic_85-15_3550-1800-1200_run1_th20_cut100", "cosmic_85-15_3575-1800-1200_run1_th20_cut100", 
                     "cosmic_85-15_3600-1800-1200_run2_th20_cut100"]
-    
+
+    list_of_fits = ["cosmic_82-18_3550-1800-1200_run1_th20_cut_50"]
+
+    do_only_gauss_fit = False #if stet to True, only double gauss fit is done, resulding in a quicker analysis
+
+
     base_path = "data_ba/"
 
     plot_type = ".png"
-    dataset_name = "cosmic_82-18_3550-1800-1200_run1_th20_cut_50"
-
-    sl_patterns_file = base_path + f"pcls/{dataset_name}/" + dataset_name + "_sl_patterns.pcl"
-    sl_fits_file = base_path + f"pcls/{dataset_name}/" + dataset_name + "_sl_fits.pcl"
-    sl_refits_file = base_path + f"pcls/{dataset_name}/" + dataset_name + "_sl_refits.pcl"
-    super_fits_path = base_path + f"pcls/{dataset_name}/" + dataset_name + "_super_fits.pcl"
-    plot_save_path = base_path + f"plots/sl_fits/{dataset_name}/" 
-    os.makedirs(plot_save_path, exist_ok=True)
- 
-
-    ### data import
-    #print(f"###### Importing fits...")
-    sl_fits = data_utils.load_pickle(file = sl_fits_file)
-
-    #print(f"###### Importing refits...")
-    sl_refits = data_utils.load_pickle(file = sl_refits_file)
-    #print("### imported refits data from file: " + sl_refits_file)
-
-    #print(f"###### Importing super fits...")
-    super_fits = data_utils.load_pickle(file = super_fits_path)
-    print("### imported super fits data from file: " + super_fits_path)
-
-    #refit_keylist = [ "chi2/ndf_refit", "vd_refit", "tan_alpha_refit",  "x0_refit", "t0_refit", "dt0_refit",  "dt1_refit", "dt2_refit", "dt2_refit"]
-    #fit_keylist = ["chi2/ndf", "vd", "tan_alpha",  "x0", "dt1",  "dt2", "dt2", "pat_type"]
-
-
-
-
-
-
+    fig_size = (8,6)
+    #dataset_name = "cosmic_82-18_3550-1800-1200_run1_th20_cut_50"
+    analysis_out = {}
     
-    
-    # Dataset info from name; Use parse_fit_name to extract information from dataset name
-    dataset_info = parse_fit_name(name = dataset_name)
-    pct_ar = dataset_info["pct_Ar"]
-    pct_co2 = dataset_info["pct_CO2"]
-    u_wire = dataset_info["U_wire"]
-    u_fieldshaper = dataset_info["U_Fieldshaper"]
-    u_catheode = dataset_info["U_cathode"]
-
-    no_cut = "no_cut"
-    w_cut = "w_cut"
+    for dataset_idx in range(len(list_of_fits)):
 
 
-    ###########################
- 
+        dataset_name = list_of_fits[dataset_idx]
 
-
-    #super_fit_keylist = ['sl1', 'sl3', 'pat_type_sl1', 'pat_type_sl3', 'idx_sl1', 'idx_sl3', 'muon_id_mismatch', 'ts0', 'err_ts0', 'ts4', 'err_ts4', 'wi0_sl1', 'wi0_sl3', 'ts1', 'err_ts1', 'ts5', 'err_ts5', 'wi1_sl1', 'wi1_sl3', 'ts2', 'err_ts2', 'ts6', 'err_ts6', 'wi2_sl1', 'wi2_sl3', 'ts3', 'err_ts3', 'ts7', 'err_ts7', 'wi3_sl1', 'wi3_sl3', 'impossible_sl1', 'impossible_sl3', 'laterality_sl1', 'laterality_sl3', 't0_sl1', 't0_sl3', 'err_t0_sl1', 'err_t0_sl3', 'x0_sl1', 'x0_sl3', 'err_x0_sl1', 'err_x0_sl3', 'tan_alpha_sl1', 'tan_alpha_sl3', 'err_tan_alpha_sl1', 'err_tan_alpha_sl3', 'vd_sl1', 'vd_sl3', 'err_vd_sl1', 'err_vd_sl3', 'corr_t0_x0_sl1', 'corr_t0_x0_sl3', 'corr_t0_tan_alpha_sl1', 'corr_t0_tan_alpha_sl3', 'corr_t0_vd_sl1', 'corr_t0_vd_sl3', 'corr_x0_tan_alpha_sl1', 'corr_x0_tan_alpha_sl3', 'corr_x0_vd_sl1', 'corr_x0_vd_sl3', 'corr_tan_alpha_vd_sl1', 'corr_tan_alpha_vd_sl3', 'chi2/ndf_sl1', 'chi2/ndf_sl3', 'dt0_sl1', 'dt0_sl3', 'dt1_sl1', 'dt1_sl3', 'dt2_sl1', 'dt2_sl3', 'dt3_sl1', 'dt3_sl3', 'muon_id', 'muon_ts', 'muon_phi', 'muon_theta', 'muon_x0', 'muon_y0', 'muon_z0', 'impossible_free_vd_super_fit', 'lat_id1_free_vd_super_fit', 'lat_id2_free_vd_super_fit', 't0_free_vd_super_fit', 'x0_free_vd_super_fit', 'tan_alpha_free_vd_super_fit', 'vd_free_vd_super_fit', 'chi2/ndf_free_vd_super_fit', 'dt0_free_vd_super_fit', 'dt1_free_vd_super_fit', 'dt2_free_vd_super_fit', 'dt3_free_vd_super_fit', 'dt4_free_vd_super_fit', 'dt5_free_vd_super_fit', 'dt6_free_vd_super_fit', 'dt7_free_vd_super_fit', 'err_t0_free_vd_super_fit', 'err_x0_free_vd_super_fit', 'err_tan_alpha_free_vd_super_fit', 'err_vd_free_vd_super_fit', 'corr_t0_x0_free_vd_super_fit', 'corr_t0_tan_alpha_free_vd_super_fit', 'corr_t0_vd_free_vd_super_fit', 'corr_x0_tan_alpha_free_vd_super_fit', 'corr_x0_vd_free_vd_super_fit', 'corr_tan_alpha_vd_free_vd_super_fit', 'ref_x_free_vd_super_fit', 'ref_z_free_vd_super_fit']
-
-    # Format:[              key,      Plot title,                             factor,     Unit of measurement,  xlabel, ylabel, gas_mix, U_wire]
-    
-    
-    good_super_fit_keys = [["t0_sl1", "T0 distribution of cosmic muons in SL1", 1, "TS", "T0 [TS]", "counts"], 
-                           ['t0_sl3', "T0 distribution of cosmic muons in SL3", 1, "TS", "T0 [TS]", "counts"], 
-                           ["x0_free_vd_super_fit", "x0 distribution of muon super fits", 1, "mm", "x0 [mm]", "counts"], 
-                           ['tan_alpha_free_vd_super_fit', "tan alpha distribution of cosmic muon super fits", 1, "", "tan alpha", "counts"], 
-                           ['vd_free_vd_super_fit', "electron drift velocity distribution from fits", vd_factor, "um/ns", "v_drift [um/ns]", "counts"], 
-                           ['chi2/ndf_free_vd_super_fit', "chi2/ndf distribution from fits", 1, "", "chi2/ndf", "counts"], 
-                           ['dt0_free_vd_super_fit', "drift time distribution of wire 0", 1, "TS", "dt1 [TU]", "counts"],
-                           ['dt1_free_vd_super_fit', "drift time distribution of wire 1", 1, "TS", "dt1 [TU]", "counts"], 
-                           ['dt2_free_vd_super_fit', "drift time distribution of wire 2", 1, "TS", "dt1 [TU]", "counts"], 
-                           ['dt3_free_vd_super_fit', "drift time distribution of wire 3", 1, "TS", "dt1 [TU]", "counts"], 
-                           ['dt4_free_vd_super_fit', "drift time distribution of wire 4", 1, "TS", "dt1 [TU]", "counts"],  
-                           ['dt5_free_vd_super_fit', "drift time distribution of wire 5", 1, "TS", "dt1 [TU]", "counts"], 
-                           ['dt6_free_vd_super_fit', "drift time distribution of wire 6", 1, "TS", "dt1 [TU]", "counts"],  
-                           ['dt7_free_vd_super_fit', "drift time distribution of wire 7", 1, "TS", "dt1 [TU]", "counts"], 
-                           ]
+        sl_patterns_file = base_path + f"pcls/{dataset_name}/" + dataset_name + "_sl_patterns.pcl"
+        sl_fits_file = base_path + f"pcls/{dataset_name}/" + dataset_name + "_sl_fits.pcl"
+        sl_refits_file = base_path + f"pcls/{dataset_name}/" + dataset_name + "_sl_refits.pcl"
+        super_fits_path = base_path + f"pcls/{dataset_name}/" + dataset_name + "_super_fits.pcl"
+        plot_save_path = base_path + f"plots/sl_fits/{dataset_name}/" 
+        os.makedirs(plot_save_path, exist_ok=True)
     
 
+        ### data import
+        #print(f"###### Importing fits...")
+        sl_fits = data_utils.load_pickle(file = sl_fits_file)
 
-    
+        #print(f"###### Importing refits...")
+        sl_refits = data_utils.load_pickle(file = sl_refits_file)
+        #print("### imported refits data from file: " + sl_refits_file)
 
-    print(super_fits.keys())
+        #print(f"###### Importing super fits...")
+        super_fits = data_utils.load_pickle(file = super_fits_path)
+        print("### imported super fits data from file: " + super_fits_path)
+
+        #refit_keylist = [ "chi2/ndf_refit", "vd_refit", "tan_alpha_refit",  "x0_refit", "t0_refit", "dt0_refit",  "dt1_refit", "dt2_refit", "dt2_refit"]
+        #fit_keylist = ["chi2/ndf", "vd", "tan_alpha",  "x0", "dt1",  "dt2", "dt2", "pat_type"]
 
 
-    for i in range(2):
-        if i == 1:
-            # beginning with analysis of all fits that are flagged as "possible" (impossible == 0)
-            super_fits_cuts = data_utils.cut_data(
-                data=super_fits,
-                conditions=[
-                    ("impossible_free_vd_super_fit", "==", 0),
-                    #("chi2/ndf_free_vd_super_fit", "<", 10),
-                    #("vd_free_vd_super_fit", "<", 70 * derived_params._drift_velocity_conversion),
-                    #("vd_free_vd_super_fit", ">", 40 * derived_params._drift_velocity_conversion),
+
+
+
+
         
-                    #("dt0_refit", ">", min_td),
-                    #("dt0_refit", "<", max_td),
         
-                ],
-                silent=True,
-            )
-            suffix = no_cut
+        # Dataset info from name; Use parse_fit_name to extract information from dataset name
+        dataset_info = parse_fit_name(name = dataset_name)
+        pct_ar = dataset_info["pct_Ar"]
+        pct_co2 = dataset_info["pct_CO2"]
+        u_wire = dataset_info["U_wire"]
+        u_fieldshaper = dataset_info["U_Fieldshaper"]
+        u_cathode = dataset_info["U_cathode"]
 
-        elif i == 0:
-            # The analyisis of more restrictive cuts beginns here
-            super_fits_cuts = data_utils.cut_data(
-                data=super_fits,
-                conditions=[
-                    ("impossible_free_vd_super_fit", "==", 0),
-                    ("chi2/ndf_free_vd_super_fit", "<", 10),
-                    #("chi2/ndf_free_vd_super_fit", ">", 0.5),
-                    #("vd_free_vd_super_fit", "<", 59 * derived_params._drift_velocity_conversion),
-                    #("vd_free_vd_super_fit", ">", 51 * derived_params._drift_velocity_conversion),
-                    ("err_t0_free_vd_super_fit", "<", 10),
-                    #("err_vd_free_vd_super_fit", "<", 10),
-                    #("err_tan_alpha_free_vd_super_fit", ">", 0.25*1e6),
-                    #("vd_free_vd_super_fit", ">", 40 * derived_params._drift_velocity_conversion),
-        
-                    #("dt0_refit", ">", min_td),
-                    #("dt0_refit", "<", max_td),
-        
-                ],
-                silent=True,
-            )
-            suffix = w_cut
-            # gauss fit of drift velocity
+        no_cut = "no_cut"
+        w_cut = "w_cut"
 
-            print("fitting gaussian to cut drift velocity")
-            key = 'vd_free_vd_super_fit'
-            title = f"Gaussian fit to drift velocity histogram {pct_ar}/{pct_co2} Ar/CO2 U_wire = {u_wire} {suffix}"
-            factor = vd_factor
-            unit = "um/ns"
-            x_label = f"drift velocity in [{unit}]"
-            y_label = "counts"
+
+        ###########################
+    
+
+
+        #super_fit_keylist = ['sl1', 'sl3', 'pat_type_sl1', 'pat_type_sl3', 'idx_sl1', 'idx_sl3', 'muon_id_mismatch', 'ts0', 'err_ts0', 'ts4', 'err_ts4', 'wi0_sl1', 'wi0_sl3', 'ts1', 'err_ts1', 'ts5', 'err_ts5', 'wi1_sl1', 'wi1_sl3', 'ts2', 'err_ts2', 'ts6', 'err_ts6', 'wi2_sl1', 'wi2_sl3', 'ts3', 'err_ts3', 'ts7', 'err_ts7', 'wi3_sl1', 'wi3_sl3', 'impossible_sl1', 'impossible_sl3', 'laterality_sl1', 'laterality_sl3', 't0_sl1', 't0_sl3', 'err_t0_sl1', 'err_t0_sl3', 'x0_sl1', 'x0_sl3', 'err_x0_sl1', 'err_x0_sl3', 'tan_alpha_sl1', 'tan_alpha_sl3', 'err_tan_alpha_sl1', 'err_tan_alpha_sl3', 'vd_sl1', 'vd_sl3', 'err_vd_sl1', 'err_vd_sl3', 'corr_t0_x0_sl1', 'corr_t0_x0_sl3', 'corr_t0_tan_alpha_sl1', 'corr_t0_tan_alpha_sl3', 'corr_t0_vd_sl1', 'corr_t0_vd_sl3', 'corr_x0_tan_alpha_sl1', 'corr_x0_tan_alpha_sl3', 'corr_x0_vd_sl1', 'corr_x0_vd_sl3', 'corr_tan_alpha_vd_sl1', 'corr_tan_alpha_vd_sl3', 'chi2/ndf_sl1', 'chi2/ndf_sl3', 'dt0_sl1', 'dt0_sl3', 'dt1_sl1', 'dt1_sl3', 'dt2_sl1', 'dt2_sl3', 'dt3_sl1', 'dt3_sl3', 'muon_id', 'muon_ts', 'muon_phi', 'muon_theta', 'muon_x0', 'muon_y0', 'muon_z0', 'impossible_free_vd_super_fit', 'lat_id1_free_vd_super_fit', 'lat_id2_free_vd_super_fit', 't0_free_vd_super_fit', 'x0_free_vd_super_fit', 'tan_alpha_free_vd_super_fit', 'vd_free_vd_super_fit', 'chi2/ndf_free_vd_super_fit', 'dt0_free_vd_super_fit', 'dt1_free_vd_super_fit', 'dt2_free_vd_super_fit', 'dt3_free_vd_super_fit', 'dt4_free_vd_super_fit', 'dt5_free_vd_super_fit', 'dt6_free_vd_super_fit', 'dt7_free_vd_super_fit', 'err_t0_free_vd_super_fit', 'err_x0_free_vd_super_fit', 'err_tan_alpha_free_vd_super_fit', 'err_vd_free_vd_super_fit', 'corr_t0_x0_free_vd_super_fit', 'corr_t0_tan_alpha_free_vd_super_fit', 'corr_t0_vd_free_vd_super_fit', 'corr_x0_tan_alpha_free_vd_super_fit', 'corr_x0_vd_free_vd_super_fit', 'corr_tan_alpha_vd_free_vd_super_fit', 'ref_x_free_vd_super_fit', 'ref_z_free_vd_super_fit']
+
+        # Format:[              key,      Plot title,                             factor,     Unit of measurement,  xlabel, ylabel, gas_mix, U_wire]
+        
+        
+        good_super_fit_keys = [["t0_sl1", "T0 distribution of cosmic muons in SL1", 1, "TS", "T0 [TS]", "counts"], 
+                            ['t0_sl3', "T0 distribution of cosmic muons in SL3", 1, "TS", "T0 [TS]", "counts"], 
+                            ["x0_free_vd_super_fit", "x0 distribution of muon super fits", 1, "mm", "x0 [mm]", "counts"], 
+                            ['tan_alpha_free_vd_super_fit', "tan alpha distribution of cosmic muon super fits", 1, "", "tan alpha", "counts"], 
+                            ['vd_free_vd_super_fit', "electron drift velocity distribution from fits", vd_factor, "um/ns", "v_drift [um/ns]", "counts"], 
+                            ['chi2/ndf_free_vd_super_fit', "chi2/ndf distribution from fits", 1, "", "chi2/ndf", "counts"], 
+                            ['dt0_free_vd_super_fit', "drift time distribution of wire 0", 1, "TS", "dt1 [TU]", "counts"],
+                            ['dt1_free_vd_super_fit', "drift time distribution of wire 1", 1, "TS", "dt1 [TU]", "counts"], 
+                            ['dt2_free_vd_super_fit', "drift time distribution of wire 2", 1, "TS", "dt1 [TU]", "counts"], 
+                            ['dt3_free_vd_super_fit', "drift time distribution of wire 3", 1, "TS", "dt1 [TU]", "counts"], 
+                            ['dt4_free_vd_super_fit', "drift time distribution of wire 4", 1, "TS", "dt1 [TU]", "counts"],  
+                            ['dt5_free_vd_super_fit', "drift time distribution of wire 5", 1, "TS", "dt1 [TU]", "counts"], 
+                            ['dt6_free_vd_super_fit', "drift time distribution of wire 6", 1, "TS", "dt1 [TU]", "counts"],  
+                            ['dt7_free_vd_super_fit', "drift time distribution of wire 7", 1, "TS", "dt1 [TU]", "counts"], 
+                            ]
+        
+
+
+        
+
+        #print(super_fits.keys())
+
+
+        for i in range(2):
+            if i == 1:
+                # beginning with analysis of all fits that are flagged as "possible" (impossible == 0)
+                super_fits_cuts = data_utils.cut_data(
+                    data=super_fits,
+                    conditions=[
+                        ("impossible_free_vd_super_fit", "==", 0),
+                        #("chi2/ndf_free_vd_super_fit", "<", 10),
+                        #("vd_free_vd_super_fit", "<", 70 * derived_params._drift_velocity_conversion),
+                        #("vd_free_vd_super_fit", ">", 40 * derived_params._drift_velocity_conversion),
             
-    
-            data = super_fits_cuts[key]
-            specific_data = build_hist_general(
-                data_list=data,
-                # adjust range/binning per-quantity if needed, e.g. by checking key
+                        #("dt0_refit", ">", min_td),
+                        #("dt0_refit", "<", max_td),
+            
+                    ],
+                    silent=True,
+                )
+                suffix = no_cut
+
+            elif i == 0:
+                # The analyisis of more restrictive cuts beginns here
+                super_fits_cuts = data_utils.cut_data(
+                    data=super_fits,
+                    conditions=[
+                        ("impossible_free_vd_super_fit", "==", 0),
+                        ("chi2/ndf_free_vd_super_fit", "<", 10),
+                        #("chi2/ndf_free_vd_super_fit", ">", 0.5),
+                        #("vd_free_vd_super_fit", "<", 59 * derived_params._drift_velocity_conversion),
+                        #("vd_free_vd_super_fit", ">", 51 * derived_params._drift_velocity_conversion),
+                        ("err_t0_free_vd_super_fit", "<", 10),
+                        #("err_vd_free_vd_super_fit", "<", 10),
+                        #("err_tan_alpha_free_vd_super_fit", ">", 0.25*1e6),
+                        #("vd_free_vd_super_fit", ">", 40 * derived_params._drift_velocity_conversion),
+            
+                        #("dt0_refit", ">", min_td),
+                        #("dt0_refit", "<", max_td),
+            
+                    ],
+                    silent=True,
+                )
+                suffix = w_cut
+                # gauss fit of drift velocity
+
+                print("fitting gaussian to cut drift velocity")
+                key = 'vd_free_vd_super_fit'
+                title = f"Gaussian fit to drift velocity histogram {pct_ar}/{pct_co2} Ar/CO2 U_wire = {u_wire} {suffix}"
+                factor = vd_factor
+                unit = "um/ns"
+                x_label = f"drift velocity in [{unit}]"
+                y_label = "counts"
+                
+        
+                data = super_fits_cuts[key]
+                specific_data = build_hist_general(
+                    data_list=data,
+                    # adjust range/binning per-quantity if needed, e.g. by checking key
+                )
+        
+                # "/" in a key (e.g. "chi2/ndf_...") isn't safe in a filename
+                safe_key = key.replace("/", "_")
+                fig, ax, path, fit_results = fit_gaussian_hist(
+                    specific_data=specific_data,
+                    dataset_name=f"{safe_key}_{pct_ar}_{pct_co2}_{u_wire}",
+                    plot_save_path=plot_save_path,
+                    xlabel=x_label,
+                    ylabel=y_label,
+                    title=title,
+                    filename_suffix=suffix,
+                )
+                analysis_out[dataset_name] = fit_results
+
+                print(f"fitted mean drift velocity = {fit_results['mean']:.4g} ± {fit_results['mean_err']:.4g} {unit}")
+
+                if do_only_gauss_fit:
+                    continue
+
+            if do_only_gauss_fit:
+                continue
+
+
+            #hist of all interesting hist metrics
+            for i in range(len(good_super_fit_keys)):
+                key = good_super_fit_keys[i][0]
+                title =good_super_fit_keys[i][1] + f" {pct_ar}/{pct_co2} Ar/CO2 U_wire = {u_wire} {suffix}"
+                factor = good_super_fit_keys[i][2]
+                unit = good_super_fit_keys[i][3]
+                x_label = good_super_fit_keys[i][4]
+                y_label = good_super_fit_keys[i][5]
+                
+        
+                data = super_fits_cuts[key]
+                specific_data = build_hist_general(
+                    data_list=data,
+                    # adjust range/binning per-quantity if needed, e.g. by checking key
+                )
+        
+                # "/" in a key (e.g. "chi2/ndf_...") isn't safe in a filename
+                safe_key = key.replace("/", "_")
+        
+                fig, ax, path = plot_hist_general(
+                    specific_data=specific_data,
+                    dataset_name=dataset_name,
+                    plot_save_path=plot_save_path,
+                    filename_suffix=safe_key + "_" + suffix,
+                    scale_factor = factor,
+                    title = title,
+                    xlabel = x_label,
+                    ylabel = y_label,
+                    plot_type = plot_type
+                )
+        
+            plt.close("all")
+            # done with all hists
+            # beginning hist2d plots 
+
+            data_to_hist_2d(
+                data_x=super_fits_cuts["x0_free_vd_super_fit"],
+                data_y=super_fits_cuts['vd_free_vd_super_fit'] * vd_factor,
+                x_label="x0",
+                y_label="v_d",
+                title=f"Hist of x_0 and v_d {no_cut}",
+                save_path=plot_save_path + f"vd_vs_x0_{suffix}{plot_type}",
             )
-    
-            # "/" in a key (e.g. "chi2/ndf_...") isn't safe in a filename
-            safe_key = key.replace("/", "_")
-            fig, ax, path, fit_results = fit_gaussian_hist(
-                specific_data=specific_data,
-                dataset_name=f"{safe_key}_{pct_ar}_{pct_co2}_{u_wire}",
-                plot_save_path=plot_save_path,
-                xlabel=x_label,
-                ylabel=y_label,
-                title=title,
-                filename_suffix=suffix,
+
+            data_to_hist_2d(
+                data_x=np.rad2deg(np.arctan(super_fits_cuts["tan_alpha_free_vd_super_fit"])),
+                data_y=super_fits_cuts['vd_free_vd_super_fit'] * vd_factor,
+                x_label="alpha",
+                y_label="v_d",
+                title=f"Hist of alpha vs vd {suffix}",
+                save_path=plot_save_path + f"vd_vs_alpha_{suffix}{plot_type}",
             )
 
-            print(f"fitted mean drift velocity = {fit_results['mean']:.4g} ± {fit_results['mean_err']:.4g} {unit}")
+            data_to_hist_2d(
+                data_x=np.rad2deg(np.arctan(super_fits_cuts["tan_alpha_free_vd_super_fit"])),
+                data_y=super_fits_cuts["x0_free_vd_super_fit"],
+                x_label="alpha",
+                y_label="x_0",
+                title=f"Hist of alpha vs x_0 {suffix}",
+                save_path=plot_save_path + f"x0_vs_tanalpha_{suffix}{plot_type}",
+            )
+
+            data_to_hist_2d(
+                data_x=super_fits_cuts["x0_free_vd_super_fit"],
+                data_y=super_fits_cuts["dt0_free_vd_super_fit"] * derived_params._ts_unit,
+                x_label="x_0[mm]",
+                y_label="dt_0 [ns]",
+                title=f"Hist of x_0 vs dt_0 {suffix}",
+                save_path=plot_save_path + f"dt_0_vs_x0_{suffix}{plot_type}",
+            )
+            data_to_hist_2d(
+                data_x=super_fits_cuts["err_vd_free_vd_super_fit"] * vd_factor,
+                data_y=super_fits_cuts["vd_free_vd_super_fit"] * vd_factor,
+                x_label=f"err_vd [$\\mu$m/ns]",
+                y_label=f"vd [\\mu$m/ns]",
+                title=f"Hist of vd vs err vd {suffix}",
+                save_path=plot_save_path + f"vd_vs_err_vd_{suffix}{plot_type}",
+            )
+
+            data_to_hist_2d(
+                data_x=super_fits_cuts["err_vd_free_vd_super_fit"] * vd_factor,
+                data_y=super_fits_cuts["err_tan_alpha_free_vd_super_fit"],
+                x_label=f"err_vd [$\\mu$m/ns]",
+                y_label=f"err tan ($\\alpha$)",
+                title=f"Hist of err_tan_alpha vs err_vd {suffix}",
+                save_path=plot_save_path + f"err_tan_alpha_vs_err_vd_{suffix}{plot_type}",
+            )
+
+            for i in range(8):
+                data_to_hist_2d(
+                    data_x=np.rad2deg(np.arctan(super_fits_cuts["tan_alpha_free_vd_super_fit"])),
+                    data_y=super_fits_cuts[f"dt{i}_free_vd_super_fit"] * derived_params._ts_unit,
+                    x_label="alpha",
+                    y_label=f"dt_{i} [ns]",
+                    title=f"Hist of dt_{i} vs alpha {suffix}",
+                    save_path=plot_save_path + f"dt{i}_vs_alpha_{suffix}{plot_type}",
+                )
+
+            detector_track(super_fits_cuts = super_fits_cuts,
+                dataset_info = dataset_info,
+                plot_idcs = np.linspace(0, len(super_fits_cuts), 5, dtype = int),
+                suffix = suffix,
+                plot_save_path = plot_save_path,
+                dataset_name = dataset_name,
+                fit_suffix="_free_vd_super_fit",
+                plot_type=plot_type,
+                zoom=True,
+                zoom_margin=20.0,
+                orient="phi",
+            )
+            
+        
+                
+        
+            plt.close("all")
 
 
-        #hist of all interesting hist metrics
+    
+
+
+        """
+        # The analyisis of more restrictive cuts beginns here
+        super_fits_cuts = data_utils.cut_data(
+            data=super_fits,
+            conditions=[
+                ("impossible_free_vd_super_fit", "==", 0),
+                ("chi2/ndf_free_vd_super_fit", "<", 10),
+                #("chi2/ndf_free_vd_super_fit", ">", 0.5),
+                #("vd_free_vd_super_fit", "<", 50 * derived_params._drift_velocity_conversion),
+                #("err_t0_free_vd_super_fit", "<", 10),
+                ("err_vd_free_vd_super_fit", "<", 10),
+                #("vd_free_vd_super_fit", ">", 40 * derived_params._drift_velocity_conversion),
+
+                #("dt0_refit", ">", min_td),
+                #("dt0_refit", "<", max_td),
+
+            ],
+            silent=True,
+        )
+
+
+
+        #super_fits_cuts = data_utils.merge_dataset([super_fits_cuts1, super_fits_cuts2])
+
+        additional_cut_suffix = ""
+
+            #hist of all interesting plot metrics
         for i in range(len(good_super_fit_keys)):
             key = good_super_fit_keys[i][0]
-            title =good_super_fit_keys[i][1] + f" {pct_ar}/{pct_co2} Ar/CO2 U_wire = {u_wire} {suffix}"
+            title =good_super_fit_keys[i][1] + f" {pct_ar}/{pct_co2} Ar/CO2 U_wire = {u_wire} {w_cut} {additional_cut_suffix}"
             factor = good_super_fit_keys[i][2]
             unit = good_super_fit_keys[i][3]
             x_label = good_super_fit_keys[i][4]
             y_label = good_super_fit_keys[i][5]
             
-    
+
             data = super_fits_cuts[key]
             specific_data = build_hist_general(
                 data_list=data,
                 # adjust range/binning per-quantity if needed, e.g. by checking key
             )
-    
+
             # "/" in a key (e.g. "chi2/ndf_...") isn't safe in a filename
             safe_key = key.replace("/", "_")
-    
+
             fig, ax, path = plot_hist_general(
                 specific_data=specific_data,
                 dataset_name=dataset_name,
                 plot_save_path=plot_save_path,
-                filename_suffix=safe_key + "_" + suffix,
+                filename_suffix=safe_key + "_" + w_cut + "_" + additional_cut_suffix,
                 scale_factor = factor,
                 title = title,
                 xlabel = x_label,
                 ylabel = y_label,
-                plot_type = plot_type
+                plot_type = plot_type,
+
             )
-    
-        plt.close("all")
-        # done with all hists
-        # beginning hist2d plots 
+
+            plt.close("all")
+
+        # done with all hists with further cuts
+
+        data_to_hist_2d(
+            data_x=super_fits_cuts["chi2/ndf_free_vd_super_fit"],
+            data_y=super_fits_cuts['vd_free_vd_super_fit'] * vd_factor,
+            x_label="chi2/ndf",
+            y_label="v_d",
+            title=f"Hist of chi2/ndf and v_d {no_cut}",
+            save_path=plot_save_path + f"vd_vs_chi2_ndf_{w_cut}{plot_type}",
+            n_bins=100,
+        )
+
+        # beginning hist2d plots with all possible flagged hists with further cuts
 
         data_to_hist_2d(
             data_x=super_fits_cuts["x0_free_vd_super_fit"],
             data_y=super_fits_cuts['vd_free_vd_super_fit'] * vd_factor,
             x_label="x0",
             y_label="v_d",
-            title=f"Hist of x_0 and v_d {no_cut}",
-            save_path=plot_save_path + f"vd_vs_x0_{suffix}{plot_type}",
+            title=f"Hist of x_0 and v_d {w_cut} {additional_cut_suffix}",
+            save_path=plot_save_path + f"vd_vs_x0_{w_cut}_{additional_cut_suffix}{plot_type}",
         )
 
         data_to_hist_2d(
@@ -1340,8 +1518,8 @@ def main():
             data_y=super_fits_cuts['vd_free_vd_super_fit'] * vd_factor,
             x_label="alpha",
             y_label="v_d",
-            title=f"Hist of alpha vs vd {suffix}",
-            save_path=plot_save_path + f"vd_vs_alpha_{suffix}{plot_type}",
+            title=f"Hist of alpha vs vd {w_cut} {additional_cut_suffix}",
+            save_path=plot_save_path + f"vd_vs_alpha_{w_cut}_{additional_cut_suffix}{plot_type}",
         )
 
         data_to_hist_2d(
@@ -1349,8 +1527,8 @@ def main():
             data_y=super_fits_cuts["x0_free_vd_super_fit"],
             x_label="alpha",
             y_label="x_0",
-            title=f"Hist of alpha vs x_0 {suffix}",
-            save_path=plot_save_path + f"x0_vs_tanalpha_{suffix}{plot_type}",
+            title=f"Hist of alpha vs x_0 {w_cut} {additional_cut_suffix}",
+            save_path=plot_save_path + f"x0_vs_tanalpha_{w_cut}_{additional_cut_suffix}{plot_type}",
         )
 
         data_to_hist_2d(
@@ -1358,263 +1536,151 @@ def main():
             data_y=super_fits_cuts["dt0_free_vd_super_fit"] * derived_params._ts_unit,
             x_label="x_0[mm]",
             y_label="dt_0 [ns]",
-            title=f"Hist of x_0 vs dt_0 {suffix}",
-            save_path=plot_save_path + f"dt_0_vs_x0_{suffix}{plot_type}",
-        )
-        data_to_hist_2d(
-            data_x=super_fits_cuts["err_vd_free_vd_super_fit"] * vd_factor,
-            data_y=super_fits_cuts["vd_free_vd_super_fit"] * vd_factor,
-            x_label=f"err_vd [$\\mu$m/ns]",
-            y_label=f"vd [\\mu$m/ns]",
-            title=f"Hist of vd vs err vd {suffix}",
-            save_path=plot_save_path + f"vd_vs_err_vd_{suffix}{plot_type}",
-        )
-
-        data_to_hist_2d(
-            data_x=super_fits_cuts["err_vd_free_vd_super_fit"] * vd_factor,
-            data_y=super_fits_cuts["err_tan_alpha_free_vd_super_fit"],
-            x_label=f"err_vd [$\\mu$m/ns]",
-            y_label=f"err tan ($\\alpha$)",
-            title=f"Hist of err_tan_alpha vs err_vd {suffix}",
-            save_path=plot_save_path + f"err_tan_alpha_vs_err_vd_{suffix}{plot_type}",
+            title=f"Hist of x_0 vs dt_0 {w_cut} {additional_cut_suffix}",
+            save_path=plot_save_path + f"dt_0_vs_x0_{w_cut}_{additional_cut_suffix}{plot_type}",
         )
 
         for i in range(8):
             data_to_hist_2d(
-                data_x=np.rad2deg(np.arctan(super_fits_cuts["tan_alpha_free_vd_super_fit"])),
-                data_y=super_fits_cuts[f"dt{i}_free_vd_super_fit"] * derived_params._ts_unit,
-                x_label="alpha",
-                y_label=f"dt_{i} [ns]",
-                title=f"Hist of dt_{i} vs alpha {suffix}",
-                save_path=plot_save_path + f"dt{i}_vs_alpha_{suffix}{plot_type}",
+                data_x=super_fits_cuts[f"dt{i}_free_vd_super_fit"]* derived_params._ts_unit,
+                data_y=super_fits_cuts[f"x0_free_vd_super_fit"] ,
+                x_label=f"dt{i}",
+                y_label=f"x0 [mm]",
+                title=f"Hist of x0 vs dt{i} {w_cut} {additional_cut_suffix}",
+                save_path=plot_save_path + f"dt{i}_vs_x0_{w_cut}_{additional_cut_suffix}{plot_type}",
             )
 
-        detector_track(super_fits_cuts = super_fits_cuts,
-            dataset_info = dataset_info,
-            plot_idcs = np.linspace(0, len(super_fits_cuts), 5, dtype = int),
-            suffix = suffix,
-            plot_save_path = plot_save_path,
-            dataset_name = dataset_name,
-            fit_suffix="_free_vd_super_fit",
-            plot_type=plot_type,
-            zoom=True,
-            zoom_margin=20.0,
-            orient="phi",
-        )
-        
-    
-            
-    
-        plt.close("all")
+
+        """
 
 
 
+        """
+        # The analysis of refits beginns here
+        for i in range(2):
 
-    """
-    # The analyisis of more restrictive cuts beginns here
-    super_fits_cuts = data_utils.cut_data(
-        data=super_fits,
-        conditions=[
-            ("impossible_free_vd_super_fit", "==", 0),
-            ("chi2/ndf_free_vd_super_fit", "<", 10),
-            #("chi2/ndf_free_vd_super_fit", ">", 0.5),
-            #("vd_free_vd_super_fit", "<", 50 * derived_params._drift_velocity_conversion),
-            #("err_t0_free_vd_super_fit", "<", 10),
-            ("err_vd_free_vd_super_fit", "<", 10),
-            #("vd_free_vd_super_fit", ">", 40 * derived_params._drift_velocity_conversion),
+            if i == 0:
+                # cuts for four cell fits only possible hists
+                sl_refits_cuts = data_utils.cut_data(
+                    data=sl_refits,
+                    conditions=[
+                        ("impossible_refit", "==", 0),
+                    ],
+                    silent=True,
+                )
 
-            #("dt0_refit", ">", min_td),
-            #("dt0_refit", "<", max_td),
+                suffix = no_cut
 
-        ],
-        silent=True,
-    )
+            elif i == 1:
+                # cuts for four cell fits only possible hists
+                sl_refits_cuts = data_utils.cut_data(
+                    data=sl_refits,
+                    conditions=[
+                        ("impossible_refit", "==", 0),
+                    ],
+                    silent=True,
+                )
 
-
-
-    #super_fits_cuts = data_utils.merge_dataset([super_fits_cuts1, super_fits_cuts2])
-
-    additional_cut_suffix = ""
-
-        #hist of all interesting plot metrics
-    for i in range(len(good_super_fit_keys)):
-        key = good_super_fit_keys[i][0]
-        title =good_super_fit_keys[i][1] + f" {pct_ar}/{pct_co2} Ar/CO2 U_wire = {u_wire} {w_cut} {additional_cut_suffix}"
-        factor = good_super_fit_keys[i][2]
-        unit = good_super_fit_keys[i][3]
-        x_label = good_super_fit_keys[i][4]
-        y_label = good_super_fit_keys[i][5]
-        
-
-        data = super_fits_cuts[key]
-        specific_data = build_hist_general(
-            data_list=data,
-            # adjust range/binning per-quantity if needed, e.g. by checking key
-        )
-
-        # "/" in a key (e.g. "chi2/ndf_...") isn't safe in a filename
-        safe_key = key.replace("/", "_")
-
-        fig, ax, path = plot_hist_general(
-            specific_data=specific_data,
-            dataset_name=dataset_name,
-            plot_save_path=plot_save_path,
-            filename_suffix=safe_key + "_" + w_cut + "_" + additional_cut_suffix,
-            scale_factor = factor,
-            title = title,
-            xlabel = x_label,
-            ylabel = y_label,
-            plot_type = plot_type,
-
-        )
-
-        plt.close("all")
-
-    # done with all hists with further cuts
-
-    data_to_hist_2d(
-        data_x=super_fits_cuts["chi2/ndf_free_vd_super_fit"],
-        data_y=super_fits_cuts['vd_free_vd_super_fit'] * vd_factor,
-        x_label="chi2/ndf",
-        y_label="v_d",
-        title=f"Hist of chi2/ndf and v_d {no_cut}",
-        save_path=plot_save_path + f"vd_vs_chi2_ndf_{w_cut}{plot_type}",
-        n_bins=100,
-    )
-
-    # beginning hist2d plots with all possible flagged hists with further cuts
-
-    data_to_hist_2d(
-        data_x=super_fits_cuts["x0_free_vd_super_fit"],
-        data_y=super_fits_cuts['vd_free_vd_super_fit'] * vd_factor,
-        x_label="x0",
-        y_label="v_d",
-        title=f"Hist of x_0 and v_d {w_cut} {additional_cut_suffix}",
-        save_path=plot_save_path + f"vd_vs_x0_{w_cut}_{additional_cut_suffix}{plot_type}",
-    )
-
-    data_to_hist_2d(
-        data_x=np.rad2deg(np.arctan(super_fits_cuts["tan_alpha_free_vd_super_fit"])),
-        data_y=super_fits_cuts['vd_free_vd_super_fit'] * vd_factor,
-        x_label="alpha",
-        y_label="v_d",
-        title=f"Hist of alpha vs vd {w_cut} {additional_cut_suffix}",
-        save_path=plot_save_path + f"vd_vs_alpha_{w_cut}_{additional_cut_suffix}{plot_type}",
-    )
-
-    data_to_hist_2d(
-        data_x=np.rad2deg(np.arctan(super_fits_cuts["tan_alpha_free_vd_super_fit"])),
-        data_y=super_fits_cuts["x0_free_vd_super_fit"],
-        x_label="alpha",
-        y_label="x_0",
-        title=f"Hist of alpha vs x_0 {w_cut} {additional_cut_suffix}",
-        save_path=plot_save_path + f"x0_vs_tanalpha_{w_cut}_{additional_cut_suffix}{plot_type}",
-    )
-
-    data_to_hist_2d(
-        data_x=super_fits_cuts["x0_free_vd_super_fit"],
-        data_y=super_fits_cuts["dt0_free_vd_super_fit"] * derived_params._ts_unit,
-        x_label="x_0[mm]",
-        y_label="dt_0 [ns]",
-        title=f"Hist of x_0 vs dt_0 {w_cut} {additional_cut_suffix}",
-        save_path=plot_save_path + f"dt_0_vs_x0_{w_cut}_{additional_cut_suffix}{plot_type}",
-    )
-
-    for i in range(8):
-        data_to_hist_2d(
-            data_x=super_fits_cuts[f"dt{i}_free_vd_super_fit"]* derived_params._ts_unit,
-            data_y=super_fits_cuts[f"x0_free_vd_super_fit"] ,
-            x_label=f"dt{i}",
-            y_label=f"x0 [mm]",
-            title=f"Hist of x0 vs dt{i} {w_cut} {additional_cut_suffix}",
-            save_path=plot_save_path + f"dt{i}_vs_x0_{w_cut}_{additional_cut_suffix}{plot_type}",
-        )
+                suffix = w_cut 
 
 
-    """
-
-
-
-    """
-    # The analysis of refits beginns here
-    for i in range(2):
-
-        if i == 0:
-            # cuts for four cell fits only possible hists
-            sl_refits_cuts = data_utils.cut_data(
-                data=sl_refits,
-                conditions=[
-                    ("impossible_refit", "==", 0),
-                ],
-                silent=True,
+            # analysis of refits 
+            data_to_hist_2d(
+                data_x=sl_refits_cuts["x0_refit"],
+                data_y=sl_refits_cuts['vd_refit'] * vd_factor,
+                x_label="x0",
+                y_label="v_d",
+                title=f"Hist of x_0 and v_d refit {suffix}",
+                save_path=plot_save_path + f"refit_vd_vs_x0_{suffix}{plot_type}",
             )
 
-            suffix = no_cut
-
-        elif i == 1:
-            # cuts for four cell fits only possible hists
-            sl_refits_cuts = data_utils.cut_data(
-                data=sl_refits,
-                conditions=[
-                    ("impossible_refit", "==", 0),
-                ],
-                silent=True,
-            )
-
-            suffix = w_cut 
-
-
-        # analysis of refits 
-        data_to_hist_2d(
-            data_x=sl_refits_cuts["x0_refit"],
-            data_y=sl_refits_cuts['vd_refit'] * vd_factor,
-            x_label="x0",
-            y_label="v_d",
-            title=f"Hist of x_0 and v_d refit {suffix}",
-            save_path=plot_save_path + f"refit_vd_vs_x0_{suffix}{plot_type}",
-        )
-
-        data_to_hist_2d(
-            data_x=np.rad2deg(np.arctan(sl_refits_cuts["tan_alpha_refit"])),
-            data_y=sl_refits_cuts['vd_refit'] * vd_factor,
-            x_label="alpha",
-            y_label="v_d",
-            title=f"Hist of alpha vs vd refit {suffix}",
-            save_path=plot_save_path + f"refit_vd_vs_alpha_{suffix}{plot_type}",
-        )
-
-        data_to_hist_2d(
-            data_x=np.rad2deg(np.arctan(sl_refits_cuts["tan_alpha_refit"])),
-            data_y=sl_refits_cuts["x0_refit"],
-            x_label="alpha",
-            y_label="x_0",
-            title=f"Hist of alpha vs x_0 refit {suffix}",
-            save_path=plot_save_path + f"refit_x0_vs_tanalpha_{suffix}{plot_type}",
-        )
-
-        data_to_hist_2d(
-            data_x=sl_refits_cuts["x0_refit"],
-            data_y=sl_refits_cuts["dt0_refit"] * derived_params._ts_unit,
-            x_label="x_0[mm]",
-            y_label="dt_0 [ns]",
-            title=f"Hist of x_0 vs dt_0 refit {suffix}",
-            save_path=plot_save_path + f"refit_dt_0_vs_x0_{suffix}{plot_type}",
-        )
-
-        for i in range(4):
             data_to_hist_2d(
                 data_x=np.rad2deg(np.arctan(sl_refits_cuts["tan_alpha_refit"])),
-                data_y=sl_refits_cuts[f"dt{i}_refit"] * derived_params._ts_unit,
+                data_y=sl_refits_cuts['vd_refit'] * vd_factor,
                 x_label="alpha",
-                y_label=f"dt_{i} [ns]",
-                title=f"Hist of dt_{i} vs alpha refit {suffix}",
-                save_path=plot_save_path + f"refit_dt{i}_vs_alpha_{suffix}{plot_type}",
+                y_label="v_d",
+                title=f"Hist of alpha vs vd refit {suffix}",
+                save_path=plot_save_path + f"refit_vd_vs_alpha_{suffix}{plot_type}",
             )
-    """
+
+            data_to_hist_2d(
+                data_x=np.rad2deg(np.arctan(sl_refits_cuts["tan_alpha_refit"])),
+                data_y=sl_refits_cuts["x0_refit"],
+                x_label="alpha",
+                y_label="x_0",
+                title=f"Hist of alpha vs x_0 refit {suffix}",
+                save_path=plot_save_path + f"refit_x0_vs_tanalpha_{suffix}{plot_type}",
+            )
+
+            data_to_hist_2d(
+                data_x=sl_refits_cuts["x0_refit"],
+                data_y=sl_refits_cuts["dt0_refit"] * derived_params._ts_unit,
+                x_label="x_0[mm]",
+                y_label="dt_0 [ns]",
+                title=f"Hist of x_0 vs dt_0 refit {suffix}",
+                save_path=plot_save_path + f"refit_dt_0_vs_x0_{suffix}{plot_type}",
+            )
+
+            for i in range(4):
+                data_to_hist_2d(
+                    data_x=np.rad2deg(np.arctan(sl_refits_cuts["tan_alpha_refit"])),
+                    data_y=sl_refits_cuts[f"dt{i}_refit"] * derived_params._ts_unit,
+                    x_label="alpha",
+                    y_label=f"dt_{i} [ns]",
+                    title=f"Hist of dt_{i} vs alpha refit {suffix}",
+                    save_path=plot_save_path + f"refit_dt{i}_vs_alpha_{suffix}{plot_type}",
+                )
+        """
 
 
+    print(analysis_out["cosmic_82-18_3550-1800-1200_run1_th20_cut_50"])
+    plt.figure(figsize=fig_size)
 
+    # Get all unique wire voltages
+    unique_u_wires = sorted(set(
+        parse_fit_name(name=dataset)["U_wire"]
+        for dataset in analysis_out.keys()
+    ))
 
+    # Create one color per wire voltage
+    colors = plt.cm.tab10(np.linspace(0, 1, len(unique_u_wires)))
+
+    # Map voltage -> color
+    wire_color_map = dict(zip(unique_u_wires, colors))
+
+    for dataset, result in analysis_out.items():
+        dataset_info = parse_fit_name(name=dataset)
+
+        pct_ar = dataset_info["pct_Ar"]
+        pct_co2 = dataset_info["pct_CO2"]
+        u_wire = dataset_info["U_wire"]
+
+        mean_vd = result["mean_1"]
+        err_mean_vd = result["mean_1_err"]
+
+        plt.errorbar(
+            pct_ar,
+            mean_vd,
+            yerr=err_mean_vd,
+            fmt="o",
+            capsize=4,
+            markersize=6,
+            color=wire_color_map[u_wire],
+            label=f"{pct_ar}/{pct_co2}, $U_{{wire}}={u_wire}$ V"
+        )
+
+    plt.xlabel("Ar concentration [%]")
+    plt.ylabel(r"$v_d$ [$\mu$m/ns]")
+    plt.title("Comparison of gas mixtures and drift velocities")
+    plt.grid(True)
+
+    # Avoid duplicate legend entries for the same voltage
+    handles, labels = plt.gca().get_legend_handles_labels()
+    unique_labels = dict(zip(labels, handles))
+    plt.legend(unique_labels.values(), unique_labels.keys())
+
+    plt.tight_layout()
+    plt.savefig(base_path + f"plots/comparison_all_datasets{plot_type}")
     return
 
 
