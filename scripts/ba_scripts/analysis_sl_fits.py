@@ -17,6 +17,10 @@ from scipy.optimize import curve_fit
 import re
 from matplotlib.ticker import ScalarFormatter
 from matplotlib.lines import Line2D 
+import re
+from datetime import datetime
+import matplotlib.pyplot as plt
+import matplotlib.dates as mdates
 # ---------------------------------------------------------------
 # main function
 @mpl.rc_context({'font.family': 'sans-serif', 'font.size': 12}) #'font.sans-serif': 'Arial',
@@ -1139,10 +1143,38 @@ def main():
                     "cosmic_85-15_3550-1800-1200_run1_th20_cut100", "cosmic_85-15_3575-1800-1200_run1_th20_cut100", 
                     "cosmic_85-15_3600-1800-1200_run2_th20_cut100"]
 
-    list_of_fits = ["cosmic_82-18_3550-1800-1200_run1_th20_cut_50"]
+    #list_of_fits = ["cosmic_82-18_3550-1800-1200_run1_th20_cut_50"]
 
     do_only_gauss_fit = False #if stet to True, only double gauss fit is done, resulding in a quicker analysis
 
+
+
+
+    ramp_datasets = [
+    "data_mic0_start_2026-07-24_18-06-10_stop_2026-07-24_18-16-11",
+    "data_mic0_start_2026-07-24_22-16-13_stop_2026-07-24_22-26-14",
+    "data_mic0_start_2026-07-25_02-26-16_stop_2026-07-25_02-36-17",
+    "data_mic0_start_2026-07-25_06-36-19_stop_2026-07-25_06-46-20",
+    "data_mic0_start_2026-07-25_10-46-22_stop_2026-07-25_10-56-23",
+    "data_mic0_start_2026-07-25_14-56-25_stop_2026-07-25_15-06-26",
+    "data_mic0_start_2026-07-25_19-06-28_stop_2026-07-25_19-16-29",
+    "data_mic0_start_2026-07-25_23-16-31_stop_2026-07-25_23-26-32",
+    "data_mic0_start_2026-07-26_03-26-34_stop_2026-07-26_03-36-35",
+    "data_mic0_start_2026-07-26_07-36-37_stop_2026-07-26_07-46-38",
+    "data_mic0_start_2026-07-26_11-46-40_stop_2026-07-26_11-56-41",
+    "data_mic0_start_2026-07-26_15-56-43_stop_2026-07-26_16-06-44",
+    "data_mic0_start_2026-07-26_20-06-46_stop_2026-07-26_20-16-47",
+    "data_mic0_start_2026-07-27_00-16-49_stop_2026-07-27_00-26-50",
+    "data_mic0_start_2026-07-27_04-26-52_stop_2026-07-27_04-36-53",
+    "data_mic0_start_2026-07-27_08-36-55_stop_2026-07-27_08-46-56",
+    ]
+    do_ramp_measurement = False # when set to True, the parser function extracts time information
+
+    if do_ramp_measurement:
+        list_of_fits = ramp_datasets
+        do_only_gauss_fit = True
+    else: 
+        list_of_fits = list_of_fits
 
     base_path = "data_ba/"
 
@@ -1633,54 +1665,110 @@ def main():
         """
 
 
-    print(analysis_out["cosmic_82-18_3550-1800-1200_run1_th20_cut_50"])
-    plt.figure(figsize=fig_size)
+    if not do_ramp_measurement:
+            
+        plt.figure(figsize=fig_size)
 
-    # Get all unique wire voltages
-    unique_u_wires = sorted(set(
-        parse_fit_name(name=dataset)["U_wire"]
-        for dataset in analysis_out.keys()
-    ))
+        # Get all unique wire voltages
+        unique_u_wires = sorted(set(
+            parse_fit_name(name=dataset)["U_wire"]
+            for dataset in analysis_out.keys()
+        ))
 
-    # Create one color per wire voltage
-    colors = plt.cm.tab10(np.linspace(0, 1, len(unique_u_wires)))
+        # Create one color per wire voltage
+        colors = plt.cm.tab10(np.linspace(0, 1, len(unique_u_wires)))
 
-    # Map voltage -> color
-    wire_color_map = dict(zip(unique_u_wires, colors))
+        # Map voltage -> color
+        wire_color_map = dict(zip(unique_u_wires, colors))
+
+        for dataset, result in analysis_out.items():
+            dataset_info = parse_fit_name(name=dataset)
+
+            pct_ar = dataset_info["pct_Ar"]
+            pct_co2 = dataset_info["pct_CO2"]
+            u_wire = dataset_info["U_wire"]
+
+            mean_vd = result["mean_1"]
+            err_mean_vd = result["mean_1_err"]
+
+            plt.errorbar(
+                pct_ar,
+                mean_vd,
+                yerr=err_mean_vd,
+                fmt="o",
+                capsize=4,
+                markersize=6,
+                color=wire_color_map[u_wire],
+                label=f"{pct_ar}/{pct_co2}, $U_{{wire}}={u_wire}$ V"
+            )
+
+        plt.xlabel("Ar concentration [%]")
+        plt.ylabel(r"$v_d$ [$\mu$m/ns]")
+        plt.title("Comparison of gas mixtures and drift velocities")
+        plt.grid(True)
+
+        # Avoid duplicate legend entries for the same voltage
+        handles, labels = plt.gca().get_legend_handles_labels()
+        unique_labels = dict(zip(labels, handles))
+        plt.legend(unique_labels.values(), unique_labels.keys())
+
+        plt.tight_layout()
+        plt.savefig(base_path + f"plots/vd_track_fit_comparison{plot_type}")
+
+
+
+    #When doing ramp measurement, this loop is used
+    if do_ramp_measurement:
+        print("Analysis of ramp measurement begins...")
+        
+        def parse_start_time(dataset_name: str) -> datetime:
+            """
+            Extract the start timestamp from a dataset name.
+
+            Example:
+                data_mic0_start_2026-07-24_18-06-10_stop_2026-07-24_18-16-11
+                -> datetime(2026, 7, 24, 18, 6, 10)
+            """
+            match = re.search(r"start_(\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2})", dataset_name)
+            if match is None:
+                raise ValueError(f"Invalid dataset name: {dataset_name}")
+
+            return datetime.strptime(match.group(1), "%Y-%m-%d_%H-%M-%S")
+
+
+    times = []
+    values = []
+    errors = []
 
     for dataset, result in analysis_out.items():
-        dataset_info = parse_fit_name(name=dataset)
+        times.append(parse_start_time(dataset))
+        values.append(result["mean_1"])
+        errors.append(result["mean_1_err"])
 
-        pct_ar = dataset_info["pct_Ar"]
-        pct_co2 = dataset_info["pct_CO2"]
-        u_wire = dataset_info["U_wire"]
+    plt.figure(figsize=(10, 5))
 
-        mean_vd = result["mean_1"]
-        err_mean_vd = result["mean_1_err"]
+    plt.errorbar(
+        times,
+        values,
+        yerr=errors,
+        fmt="o",
+        capsize=4,
+        markersize=6,
+        label=r"$U_{\mathrm{wire}} = 3600\,\mathrm{V}$"
+    )
 
-        plt.errorbar(
-            pct_ar,
-            mean_vd,
-            yerr=err_mean_vd,
-            fmt="o",
-            capsize=4,
-            markersize=6,
-            color=wire_color_map[u_wire],
-            label=f"{pct_ar}/{pct_co2}, $U_{{wire}}={u_wire}$ V"
-        )
+    ax = plt.gca()
+    ax.xaxis.set_major_formatter(mdates.DateFormatter("%m-%d\n%H:%M"))
+    plt.gcf().autofmt_xdate()
 
-    plt.xlabel("Ar concentration [%]")
+    plt.xlabel("Start time")
     plt.ylabel(r"$v_d$ [$\mu$m/ns]")
-    plt.title("Comparison of gas mixtures and drift velocities")
+    plt.title(r"Drift velocity over time ($U_{\mathrm{wire}}=3600$ V)")
     plt.grid(True)
-
-    # Avoid duplicate legend entries for the same voltage
-    handles, labels = plt.gca().get_legend_handles_labels()
-    unique_labels = dict(zip(labels, handles))
-    plt.legend(unique_labels.values(), unique_labels.keys())
-
+    plt.legend()
     plt.tight_layout()
-    plt.savefig(base_path + f"plots/comparison_all_datasets{plot_type}")
+    plt.savefig(plot_save_path + f"ramp_analysis_track_fit{plot_type}")
+
     return
 
 

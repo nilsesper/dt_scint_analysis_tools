@@ -10,7 +10,7 @@ stderr = stderr/stderr-ClusterId$(ClusterId)-ProcId$(ProcId).err
 log = condorlog/condorlog-ClusterId$(ClusterId).log
 
 request_cpus = 6
-request_memory = 4G
+request_memory = 10G
 request_disk = 500M
 
 should_transfer_files = yes
