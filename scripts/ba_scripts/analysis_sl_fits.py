@@ -1155,7 +1155,7 @@ def main():
     "data_mic0_start_2026-07-24_22-16-13_stop_2026-07-24_22-26-14",
     "data_mic0_start_2026-07-25_02-26-16_stop_2026-07-25_02-36-17",
     "data_mic0_start_2026-07-25_06-36-19_stop_2026-07-25_06-46-20",
-    "data_mic0_start_2026-07-25_10-46-22_stop_2026-07-25_10-56-23",
+    #"data_mic0_start_2026-07-25_10-46-22_stop_2026-07-25_10-56-23",
     "data_mic0_start_2026-07-25_14-56-25_stop_2026-07-25_15-06-26",
     "data_mic0_start_2026-07-25_19-06-28_stop_2026-07-25_19-16-29",
     "data_mic0_start_2026-07-25_23-16-31_stop_2026-07-25_23-26-32",
@@ -1218,14 +1218,7 @@ def main():
 
         
         
-        # Dataset info from name; Use parse_fit_name to extract information from dataset name
-        dataset_info = parse_fit_name(name = dataset_name)
-        pct_ar = dataset_info["pct_Ar"]
-        pct_co2 = dataset_info["pct_CO2"]
-        u_wire = dataset_info["U_wire"]
-        u_fieldshaper = dataset_info["U_Fieldshaper"]
-        u_cathode = dataset_info["U_cathode"]
-
+        
         no_cut = "no_cut"
         w_cut = "w_cut"
 
@@ -1260,6 +1253,21 @@ def main():
         
 
         #print(super_fits.keys())
+        try:
+            # Dataset info from name; Use parse_fit_name to extract information from dataset name
+            dataset_info = parse_fit_name(name = dataset_name)
+            pct_ar = dataset_info["pct_Ar"]
+            pct_co2 = dataset_info["pct_CO2"]
+            u_wire = dataset_info["U_wire"]
+            u_fieldshaper = dataset_info["U_Fieldshaper"]
+            u_cathode = dataset_info["U_cathode"]
+
+        except:
+            pct_ar = ""
+            pct_co2 = ""
+            u_wire = ""
+            u_fieldshaper = ""
+            u_cathode = ""
 
 
         for i in range(2):
@@ -1355,6 +1363,7 @@ def main():
                 data = super_fits_cuts[key]
                 specific_data = build_hist_general(
                     data_list=data,
+                    n_bins = 200,
                     # adjust range/binning per-quantity if needed, e.g. by checking key
                 )
         
@@ -1736,38 +1745,38 @@ def main():
             return datetime.strptime(match.group(1), "%Y-%m-%d_%H-%M-%S")
 
 
-    times = []
-    values = []
-    errors = []
+        times = []
+        values = []
+        errors = []
 
-    for dataset, result in analysis_out.items():
-        times.append(parse_start_time(dataset))
-        values.append(result["mean_1"])
-        errors.append(result["mean_1_err"])
+        for dataset, result in analysis_out.items():
+            times.append(parse_start_time(dataset))
+            values.append(result["mean_1"])
+            errors.append(result["mean_1_err"])
 
-    plt.figure(figsize=(10, 5))
+        plt.figure(figsize=(10, 5))
 
-    plt.errorbar(
-        times,
-        values,
-        yerr=errors,
-        fmt="o",
-        capsize=4,
-        markersize=6,
-        label=r"$U_{\mathrm{wire}} = 3600\,\mathrm{V}$"
-    )
+        plt.errorbar(
+            times,
+            values,
+            yerr=errors,
+            fmt="o",
+            capsize=4,
+            markersize=6,
+            label=r"$U_{\mathrm{wire}} = 3600\,\mathrm{V}$"
+        )
 
-    ax = plt.gca()
-    ax.xaxis.set_major_formatter(mdates.DateFormatter("%m-%d\n%H:%M"))
-    plt.gcf().autofmt_xdate()
+        ax = plt.gca()
+        ax.xaxis.set_major_formatter(mdates.DateFormatter("%m-%d\n%H:%M"))
+        plt.gcf().autofmt_xdate()
 
-    plt.xlabel("Start time")
-    plt.ylabel(r"$v_d$ [$\mu$m/ns]")
-    plt.title(r"Drift velocity over time ($U_{\mathrm{wire}}=3600$ V)")
-    plt.grid(True)
-    plt.legend()
-    plt.tight_layout()
-    plt.savefig(plot_save_path + f"ramp_analysis_track_fit{plot_type}")
+        plt.xlabel("Start time")
+        plt.ylabel(r"$v_d$ [$\mu$m/ns]")
+        plt.title(r"Drift velocity over time ($U_{\mathrm{wire}}=3600$ V) Track-fit method")
+        plt.grid(True)
+        plt.legend()
+        plt.tight_layout()
+        plt.savefig(plot_save_path + f"ramp_analysis_track_fit{plot_type}")
 
     return
 

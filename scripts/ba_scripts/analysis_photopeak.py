@@ -51,89 +51,27 @@ def err_gauss_plus_quad(x, A, mu, sigma, a2, a1, a0, err_A, err_mu, err_sigma, e
         + (df_da0 * err_a0) ** 2
     )
 
-def gauss_plus_linear(x, A, mu, sigma, m, b):
-    return A * np.exp(-0.5 * ((x - mu) / sigma) ** 2) + m * x + b
+def gauss_plus_lin(x, A, mu, sigma, a1, a0):
+    return A * np.exp(-0.5 * ((x - mu) / sigma) ** 2) + a1 * x + a0
 
-def err_gauss_plus_linear(
-    x, A, mu, sigma, m, b,
-    err_A, err_mu, err_sigma, err_m, err_b,
-):
-    gauss = np.exp(-0.5*((x-mu)/sigma)**2)
+def err_gauss_plus_lin(x, A, mu, sigma, a1, a0,
+                       err_A, err_mu, err_sigma, err_a1, err_a0):
+
+    gauss = np.exp(-0.5 * ((x - mu) / sigma) ** 2)
 
     df_dA = gauss
-    df_dmu = A*gauss*(x-mu)/sigma**2
-    df_dsigma = A*gauss*(x-mu)**2/sigma**3
-    df_dm = x
-    df_db = np.ones_like(x)
+    df_dmu = A * gauss * (x - mu) / sigma ** 2
+    df_dsigma = A * gauss * (x - mu) ** 2 / sigma ** 3
+    df_da1 = x
+    df_da0 = np.ones_like(x)
 
     return np.sqrt(
-        (df_dA*err_A)**2 +
-        (df_dmu*err_mu)**2 +
-        (df_dsigma*err_sigma)**2 +
-        (df_dm*err_m)**2 +
-        (df_db*err_b)**2
+        (df_dA * err_A) ** 2
+        + (df_dmu * err_mu) ** 2
+        + (df_dsigma * err_sigma) ** 2
+        + (df_da1 * err_a1) ** 2
+        + (df_da0 * err_a0) ** 2
     )
-
-def find_peak_window_by_valley_height(
-    bins, hist, mu_est, valley_x,
-    smooth_window=9, tol_bins=0, search_max_x=None,
-):
-    """
-    Bestimmt ein Fit-Fenster [min_x, max_x] um einen Peak, indem ausgehend
-    vom Peak nach rechts gelaufen wird, bis der (geglättete) Histogrammwert
-    wieder auf das Niveau des zuvor gefundenen Valleys zurückgefallen ist.
-    Die linke Grenze ist einfach das Valley selbst. Beide Grenzen werden
-    um `tol_bins` nach außen erweitert, um etwas Untergrund-Baseline auf
-    beiden Seiten für den quadratischen Term mitzunehmen.
-
-    Motivation: bei sehr hohen, schmalen Peaks auf einer breiten Schulter
-    ist ein festes Vielfaches von sigma als Fensterbreite ungeeignet, weil
-    peak/valley-Kontrast stark variiert. "Gleiche Höhe wie das Valley" ist
-    dagegen ein adaptives, von der tatsächlichen Peakform abgeleitetes
-    Kriterium und nutzt aus, dass Peak und Valley in guter Näherung
-    symmetrisch um mu liegen.
-
-    Gibt (min_x, max_x, right_idx_found) zurück. right_idx_found=False
-    bedeutet, dass innerhalb von search_max_x kein Rückgang auf
-    Valley-Niveau gefunden wurde und stattdessen symmetrisch gespiegelt
-    wurde (Fallback).
-    """
-    if smooth_window > 1:
-        kernel = np.ones(smooth_window) / smooth_window
-        y_smooth = np.convolve(hist, kernel, mode="same")
-    else:
-        y_smooth = hist
-
-    valley_idx = int(np.argmin(np.abs(bins - valley_x)))
-    peak_idx = int(np.argmin(np.abs(bins - mu_est)))
-    valley_level = y_smooth[valley_idx]
-
-    if peak_idx <= valley_idx:
-        raise ValueError("mu_est muss rechts vom Valley liegen.")
-
-    max_idx = len(bins) - 1
-    if search_max_x is not None:
-        candidates = np.where(bins <= search_max_x)[0]
-        if len(candidates):
-            max_idx = candidates.max()
-
-    right_idx = None
-    for i in range(peak_idx, max_idx + 1):
-        if abs(y_smooth[i] - valley_level) / valley_level < 0.05:
-            right_idx = i
-            break
-
-    found = right_idx is not None
-    if not found:
-        # Kein Rückgang auf Valley-Niveau gefunden -> symmetrisch zum
-        # Valley um den Peak spiegeln als Fallback.
-        half_width_idx = peak_idx - valley_idx
-        right_idx = min(peak_idx + half_width_idx, max_idx)
-
-    left_idx = max(valley_idx - tol_bins, 0)
-    right_idx = min(right_idx + tol_bins, len(bins) - 1)
-
-    return bins[left_idx], bins[right_idx], found
 
 def find_all_valleys_after_main_peak(bins, hist, smooth_window=9, valley_prominence_frac=0.01):
     """Find the main (largest) peak, then ALL local minima ("valleys") to
@@ -175,74 +113,6 @@ def find_all_valleys_after_main_peak(bins, hist, smooth_window=9, valley_promine
 
     return bins[main_idx], [bins[i] for i in valley_idxs]
 
-def find_and_fit_secondary_peak(
-    bins, hist, err_hist,
-    bins_nobg, hist_nobg, err_hist_nobg,
-    smooth_window_valley=9, valley_prominence_frac=0.01,
-    smooth_window_peak=5, prominence_frac=0.03,
-    tol_bins=0,
-    window_sigmas=5, max_attempts=6, window_growth=1.3, max_sigma=None,
-    min_snr=5.0, max_chi2ndf=None,
-):
-    """Full pipeline: find main peak -> candidate valleys -> for each
-    valley, locate the secondary peak, derive an adaptive (valley-height
-    symmetric) fit window, refine the peak estimate inside that window,
-    and attempt the Gaussian+quad fit. Falls through to the next valley
-    candidate if a fit fails, since some valleys may be spurious shoulder
-    dips rather than the real gap before the secondary peak."""
-
-    main_peak_x, valley_candidates = find_all_valleys_after_main_peak(
-        bins, hist, smooth_window=smooth_window_valley,
-        valley_prominence_frac=valley_prominence_frac,
-    )
-
-    last_exc = None
-    for valley_x in valley_candidates:
-        try:
-            # 1) grobe Peak-Suche rechts vom Valley bis zum Ende, um ein
-            #    erstes mu_est/sigma_est/A_est zu bekommen
-            mu_est, sigma_est, A_est = find_secondary_peak(
-                bins, hist, valley_x, bins.max(),
-                prominence_frac=prominence_frac,
-                smooth_window=smooth_window_peak,
-            )
-
-            # 2) adaptives Fenster: Valley links, rechts der Punkt, an dem
-            #    das Histogramm wieder auf Valley-Niveau zurückfällt
-            min_x, max_x, found_right = find_peak_window_by_valley_height(
-                bins, hist, mu_est, valley_x,
-                smooth_window=smooth_window_valley, tol_bins=tol_bins,
-            )
-
-            # 3) Peak-Suche im engeren Fenster wiederholen für sauberere
-            #    Startwerte (weniger Kontamination durch die Schulter)
-            mu_est, sigma_est, A_est = find_secondary_peak(
-                bins, hist, min_x, max_x,
-                prominence_frac=prominence_frac,
-                smooth_window=smooth_window_peak,
-            )
-
-            # 4) eigentlicher Fit, startend mit dem expliziten Fenster
-            popt, pcov, fit_bins, fit_hist, err_fit_hist, fit_func = _fit_gaussian_window(
-                bins_nobg, hist_nobg, err_hist_nobg,
-                mu_est, sigma_est, A_est,
-                window_sigmas=window_sigmas, max_attempts=max_attempts,
-                window_growth=window_growth, max_sigma=max_sigma,
-                min_snr=min_snr, max_chi2ndf=max_chi2ndf,
-                explicit_window=(min_x, max_x),
-            )
-
-            return popt, pcov, fit_bins, fit_hist, err_fit_hist, fit_func, valley_x
-
-        except Exception as exc:  # noqa: BLE001 -- try next valley candidate
-            last_exc = exc
-            print(f"    valley candidate x={valley_x:.2f} failed: {exc}")
-            continue
-
-    raise RuntimeError(
-        f"No valley candidate produced a valid fit (tried {len(valley_candidates)} candidates). "
-        f"Last error: {last_exc}"
-    )
 
 def find_secondary_peak(bins, hist, min_x, max_x, prominence_frac=0.03, smooth_window=5):
     """Locate the most prominent local maximum in [min_x, max_x] on a
@@ -281,13 +151,41 @@ def find_secondary_peak(bins, hist, min_x, max_x, prominence_frac=0.03, smooth_w
     A_est = y_smooth[best]
 
     return mu_est, sigma_est, A_est
+def find_peak_fit_range(bins, hist, valley_x, mu_est):
+    """
+    Find fit boundaries: from the valley before the secondary peak to the
+    point where the histogram returns to (or below) the valley level on
+    the other side of the peak.
+    """
+    valley_idx = np.argmin(np.abs(bins - valley_x))
+    mu_idx = np.argmin(np.abs(bins - mu_est))
+
+    valley_y = hist[valley_idx] + np.sqrt(hist[valley_idx])
+
+    # left edge: the valley itself
+    left_idx = valley_idx
+
+    # right edge: first point after the peak where the histogram drops
+    # back down to (or below) the valley level, requiring several
+    # consecutive bins below that level so a single noisy bin doesn't
+    # prematurely close the fit window
+    right_candidates = np.where(hist[mu_idx:] <= valley_y)[0]
+
+    right_idx = len(hist) - 1  # fallback: never comes back down -> use end of hist
+    for idx in right_candidates:
+        check = hist[mu_idx + idx : mu_idx + idx + 5]
+        if len(check) >= 5 and np.all(check <= valley_y):
+            right_idx = mu_idx + idx
+            break
+
+    return bins[left_idx], bins[right_idx]
 
 def _fit_gaussian_window(
     bins_nobg, hist_nobg, err_hist_nobg,
     mu_est, sigma_est, A_est,
     window_sigmas, max_attempts, window_growth, max_sigma,
     min_snr=5.0, max_chi2ndf=None,
-    explicit_window=None,
+    fit_range=None,
 ):
     """Try to fit a Gaussian+quadratic-background window around a single
     (mu_est, sigma_est, A_est) seed, widening the window on failure.
@@ -295,13 +193,6 @@ def _fit_gaussian_window(
     how wide the *real* peak is allowed to be -- catches cases where the
     fit locks onto a broad shoulder feature instead of the genuine,
     narrower peak), or whose amplitude SNR is too low.
-
-    If `explicit_window=(min_x, max_x)` is given, the FIRST attempt uses
-    that window as-is (e.g. a valley-symmetric window computed upstream)
-    instead of mu_est +/- window_sigmas * sigma_est. If that attempt fails
-    for any reason, subsequent attempts fall back to the normal
-    sigma-based window and widen it with window_growth as before, so no
-    robustness is lost relative to the original behavior.
 
     Note: chi2/ndf is NOT a reliable accept/reject criterion here. With
     high-statistics histograms (small per-bin errors), even a correct fit
@@ -315,17 +206,30 @@ def _fit_gaussian_window(
     last_exc = None
 
     for attempt in range(max_attempts):
-        if explicit_window is not None:
-            lo, hi = explicit_window
-        else:
-            lo, hi = mu_est - win*sigma_est, mu_est + win*sigma_est
+        if fit_range is not None:
+            fit_min, fit_max = fit_range
+            if attempt > 0:
+                # grow the valley-derived range outward on each retry
+                half_width = (fit_max - fit_min) / 2
+                center = (fit_max + fit_min) / 2
+                half_width *= window_growth ** attempt
+                fit_min, fit_max = center - half_width, center + half_width
 
-        fit_mask = (bins_nobg >= lo) & (bins_nobg <= hi)
+            fit_mask = ((bins_nobg >= fit_min) & (bins_nobg <= fit_max))
+        else:
+            fit_mask = (
+                (bins_nobg >= mu_est - win*sigma_est)
+                &
+                (bins_nobg <= mu_est + win*sigma_est)
+            )
         fit_bins = bins_nobg[fit_mask]
         fit_hist = hist_nobg[fit_mask]
         err_fit_hist = err_hist_nobg[fit_mask]
 
         if len(fit_bins) < 10:
+            print(f"    (diagnostic) fit window has {len(fit_bins)} bins, "
+                f"bin width ≈ {np.mean(np.diff(bins_nobg)):.3g} ns, "
+                f"range = ({fit_min:.2f}, {fit_max:.2f})")
             win *= window_growth
             last_exc = RuntimeError("fit window contains too few bins")
             continue
@@ -334,29 +238,17 @@ def _fit_gaussian_window(
         edge_x = np.concatenate([fit_bins[:n_edge], fit_bins[-n_edge:]])
         edge_y = np.concatenate([fit_hist[:n_edge], fit_hist[-n_edge:]])
         try:
-            m_est, b_est = np.polyfit(edge_x, edge_y, 1)
+            a1_est, a0_est = np.polyfit(edge_x, edge_y, 1)
         except np.linalg.LinAlgError:
             a2_est, a1_est, a0_est = 0.0, 0.0, np.median(fit_hist)
 
-        p0 = ( A_est,mu_est,sigma_est,m_est,b_est,)
-        lower = [
-            0,
-            fit_bins.min(),
-            1e-6,
-            -np.inf,
-            -np.inf,
-        ]
+        p0 = (A_est, mu_est, sigma_est, a1_est, a0_est)
+        lower = [0, fit_bins.min(), 1e-6, -np.inf, -np.inf]
+        upper = [np.inf, fit_bins.max(), (fit_bins.max() - fit_bins.min()), np.inf, np.inf]
 
-        upper = [
-            np.inf,
-            fit_bins.max(),
-            fit_bins.max()-fit_bins.min(),
-            np.inf,
-            np.inf,
-        ]
         try:
             popt, pcov = curve_fit(
-                gauss_plus_linear, fit_bins, fit_hist,
+                gauss_plus_lin, fit_bins, fit_hist,
                 p0=p0, sigma=err_fit_hist, absolute_sigma=True,
                 bounds=(lower, upper), maxfev=20000,
             )
@@ -365,7 +257,7 @@ def _fit_gaussian_window(
             err_A_fit = np.sqrt(pcov[0][0])
             err_sigma_fit = np.sqrt(pcov[2][2])
 
-            fit_vals = gauss_plus_linear(fit_bins, *popt)
+            fit_vals = gauss_plus_lin(fit_bins, *popt)
             chi2 = np.sum((fit_hist - fit_vals) ** 2 / err_fit_hist ** 2)
             ndf = len(fit_hist) - len(popt)
             chi2ndf = chi2 / ndf if ndf > 0 else np.inf
@@ -392,7 +284,7 @@ def _fit_gaussian_window(
             print(f"    (diagnostic) chi2/ndf = {chi2:.1f}/{ndf} = {chi2ndf:.2f}, "
                   f"SNR = {A_fit/err_A_fit:.1f}")
 
-            return popt, pcov, fit_bins, fit_hist, err_fit_hist, gauss_plus_linear
+            return popt, pcov, fit_bins, fit_hist, err_fit_hist, gauss_plus_lin
 
         except Exception as exc:  # noqa: BLE001 -- intentionally broad, we retry
             last_exc = exc
@@ -417,25 +309,17 @@ def fit_secondary_peak(
     min_snr=3.0,
     max_chi2ndf=None,
     valley_prominence_frac=0.01,
-    smooth_window_valley=9,
-    tol_bins=0,
     verbose=True,
 ):
     """Automatically find and robustly fit the secondary peak with a
     Gaussian + quadratic background model.
 
-    For each valley candidate, an adaptive fit window is derived via
-    find_peak_window_by_valley_height (valley on the left, the point
-    where the histogram falls back to valley height on the right), which
-    is far more robust for very high/narrow peaks on a broad shoulder
-    than a fixed multiple of sigma. This window seeds an explicit-window
-    attempt in _fit_gaussian_window, which falls back to the normal
-    sigma-based widening if that first attempt fails.
-
     If search_min is None, ALL valleys right of the main peak are found
-    and tried in order (closest first); if search_min is given, it is
-    used directly as the "valley" boundary for a single-candidate fit
-    (useful when you already know roughly where the peak's left edge is).
+    and tried in order (closest first). For each valley candidate, a peak
+    is located and fit; if the resulting sigma exceeds max_sigma or the
+    amplitude SNR is too low, that candidate is rejected and the next
+    valley is tried. This avoids getting stuck on a spurious early
+    "valley" that isn't the genuine gap before the secondary peak.
 
     max_sigma should be set to a physically reasonable upper bound on the
     real peak's width for your detector (default 60 ns).
@@ -443,50 +327,46 @@ def fit_secondary_peak(
     why chi2/ndf is unreliable here) -- set it to a number to re-enable
     it as a hard cutoff.
     """
-    if search_max is None:
-        search_max = bins_nobg.max()
-
-    def _fit_one_valley(valley_x):
-        # 1) grobe Peak-Suche vom Valley bis search_max, für erstes
-        #    mu_est/sigma_est/A_est
+    if search_min is not None:
         mu_est, sigma_est, A_est = find_secondary_peak(
             bins_nobg, hist_nobg,
-            min_x=valley_x, max_x=search_max,
-            prominence_frac=prominence_frac, smooth_window=smooth_window,
+            min_x=search_min,
+            max_x=search_max if search_max is not None else bins_nobg.max(),
+            prominence_frac=prominence_frac,
+            smooth_window=smooth_window,
         )
 
-        # 2) adaptives Fenster: Valley links, rechts der Punkt, an dem
-        #    das Histogramm wieder auf Valley-Niveau zurückfällt
-        min_x, max_x, found_right = find_peak_window_by_valley_height(
-            bins_nobg, hist_nobg, mu_est, valley_x,
-            smooth_window=smooth_window_valley, tol_bins=tol_bins,
-            search_max_x=search_max,
+        fit_range = find_peak_fit_range(
+            bins_nobg,
+            hist_nobg,
+            search_min,
+            mu_est,
         )
 
-        # 3) Peak-Suche im engeren Fenster wiederholen für sauberere
-        #    Startwerte (weniger Kontamination durch die Schulter)
-        mu_est, sigma_est, A_est = find_secondary_peak(
-            bins_nobg, hist_nobg, min_x=min_x, max_x=max_x,
-            prominence_frac=prominence_frac, smooth_window=smooth_window,
-        )
+        print("Fit range:", fit_range)
 
-        # 4) eigentlicher Fit, startend mit dem expliziten Fenster
         return _fit_gaussian_window(
-            bins_nobg, hist_nobg, err_hist_nobg, mu_est, sigma_est, A_est,
-            window_sigmas, max_attempts, window_growth, max_sigma,
-            min_snr=min_snr, max_chi2ndf=max_chi2ndf,
-            explicit_window=(min_x, max_x),
+            bins_nobg,
+            hist_nobg,
+            err_hist_nobg,
+            mu_est,
+            sigma_est,
+            A_est,
+            window_sigmas,
+            max_attempts,
+            window_growth,
+            max_sigma,
+            min_snr=min_snr,
+            max_chi2ndf=max_chi2ndf,
+            fit_range=fit_range,
         )
-
-    if search_min is not None:
-        # explizite Region gegeben -- als einzelner Valley-Kandidat behandeln
-        return _fit_one_valley(search_min)
 
     # automatic mode: try every valley candidate in order
     main_peak_x, valley_candidates = find_all_valleys_after_main_peak(
-        bins_nobg, hist_nobg, smooth_window=smooth_window_valley,
-        valley_prominence_frac=valley_prominence_frac,
+        bins_nobg, hist_nobg, valley_prominence_frac=valley_prominence_frac,
     )
+    if search_max is None:
+        search_max = bins_nobg.max()
 
     last_exc = None
     for i, valley_x in enumerate(valley_candidates):
@@ -494,7 +374,38 @@ def fit_secondary_peak(
             print(f"  [candidate {i+1}/{len(valley_candidates)}] main peak at {main_peak_x:.1f} ns, "
                   f"trying valley at {valley_x:.1f} ns -> searching in ({valley_x:.1f}, {search_max:.1f}) ns")
         try:
-            result = _fit_one_valley(valley_x)
+            mu_est, sigma_est, A_est = find_secondary_peak(
+                bins_nobg, hist_nobg,
+                min_x=valley_x, max_x=search_max,
+                prominence_frac=prominence_frac, smooth_window=smooth_window,
+            )
+
+            fit_range = find_peak_fit_range(
+                bins_nobg,
+                hist_nobg,
+                valley_x,
+                mu_est
+            )
+
+            result = _fit_gaussian_window(
+                bins_nobg,
+                hist_nobg,
+                err_hist_nobg,
+                mu_est,
+                sigma_est,
+                A_est,
+                window_sigmas,
+                max_attempts,
+                window_growth,
+                max_sigma,
+                min_snr=min_snr,
+                max_chi2ndf=max_chi2ndf,
+                fit_range=fit_range,
+            )
+
+
+
+
             if verbose:
                 print(f"  [candidate {i+1}] accepted: mu={result[0][1]:.1f} ns, sigma={result[0][2]:.1f} ns")
             return result
@@ -509,11 +420,6 @@ def fit_secondary_peak(
         f"(tried {len(valley_candidates)} candidates). Last error: {last_exc}\n"
         f"Try lowering max_sigma / valley_prominence_frac, or pass an explicit search_min."
     )
-
-
-
-
-
 
 def parse_fit_name(*, name):
         # Erwartetes Format: cosmic_<Ar>-<CO2>_<U_wire>-<U_Fieldshaper>-<U_cathode>_<rest...>
@@ -533,6 +439,19 @@ def parse_fit_name(*, name):
             "U_cathode": int(u_cathode),
         }
 
+def parse_start_time(dataset_name: str) -> datetime:
+            """
+            Extract the start timestamp from a dataset name.
+
+            Example:
+                data_mic0_start_2026-07-24_18-06-10_stop_2026-07-24_18-16-11
+                -> datetime(2026, 7, 24, 18, 6, 10)
+            """
+            match = re.search(r"start_(\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2})", dataset_name)
+            if match is None:
+                raise ValueError(f"Invalid dataset name: {dataset_name}")
+
+            return datetime.strptime(match.group(1), "%Y-%m-%d_%H-%M-%S")
 # ---------------------------------------------------------------
 # main function
 @mpl.rc_context({'font.family': 'sans-serif', 'font.size': 12}) #'font.sans-serif': 'Arial',
@@ -544,10 +463,10 @@ def main():
                 "cosmic_82-18_3625-1800-1200_run1_th20_cut100", 
                 "cosmic_85-15_3550-1800-1200_run1_th20_cut100", "cosmic_85-15_3575-1800-1200_run1_th20_cut100", 
                 "cosmic_85-15_3600-1800-1200_run2_th20_cut100"]
-    list_of_fits = ["cosmic_82-18_3600-1800-1200_run1_th20_cut100", 
-                    "cosmic_82-18_3625-1800-1200_run1_th20_cut100", 
-                    "cosmic_85-15_3600-1800-1200_run2_th20_cut100"]
-
+    list_of_fits = [ 
+                        "cosmic_82-18_3625-1800-1200_run1_th20_cut100", 
+                        "cosmic_85-15_3600-1800-1200_run2_th20_cut100"]
+    
 
     ramp_datasets = [
         "data_mic0_start_2026-07-24_18-06-10_stop_2026-07-24_18-16-11",
@@ -583,7 +502,21 @@ def main():
     #beginn for loop over all datasets here
     for i in range(len(list_of_fits)):
         dataset_name = list_of_fits[i]
-    
+        try:
+            # Dataset info from name; Use parse_fit_name to extract information from dataset name
+            dataset_info = parse_fit_name(name = dataset_name)
+            pct_ar = dataset_info["pct_Ar"]
+            pct_co2 = dataset_info["pct_CO2"]
+            u_wire = dataset_info["U_wire"]
+            u_fieldshaper = dataset_info["U_Fieldshaper"]
+            u_cathode = dataset_info["U_cathode"]
+
+        except:
+            pct_ar = ""
+            pct_co2 = ""
+            u_wire = ""
+            u_fieldshaper = ""
+            u_cathode = ""
 
         # Ordner für dieses Dataset erstellen
         dataset_folder_pcls = base_path + pcls_path + dataset_name + "/"
@@ -600,7 +533,8 @@ def main():
          # when set to True, the parser function extracts time information
         save_plots = True
 
-        os.makedirs(plot_save_path, exist_ok=True)  
+        if save_plots:
+            os.makedirs(plot_save_path, exist_ok=True)  
         
 
 
@@ -631,12 +565,24 @@ def main():
 
         ### plot dt hit differences
         # plot hist, 
+        wire = "wire"
         print("Plotting full t_diff hist...")
         fig_size = (8, 6)
         fig, ax = plt.subplots(1, 1, figsize=fig_size)
         ax = hist_utils.plot_histogram(ax, hist=hist, centers=bins, err_hist_down=err_hist_down, err_hist_up=err_hist_up, log_scale=True, power_limits=[-4,4], add_info=True, entries=int(np.sum(hist)), overflow=overflow, underflow=underflow, bin_unit="ns")
         ax.set_xlim(0,np.amax(bins))
         ax.set_xlabel("$\\Delta T_\\text{cell}$ [ns]")
+
+        # setting the title according to the measurement type
+        if not do_ramp_measurement:
+            title = f"Raw time diff hist of all cells\n{pct_ar}/{pct_co2} Ar/CO$_2$, $U_{{wire}}$ = {u_wire}V"
+
+        elif do_ramp_measurement:
+            time = parse_start_time(dataset_name)
+            title = f"Raw time diff hist of all cells\nRamp measurement $t_{{\\mathrm{{start}}}}$ = {time}, $U_{{\\mathrm{{wire}}}}$ = 3600 V"
+
+
+        ax.set_title(title)
         fig.tight_layout()
         path = f"{plot_save_path}{dataset_name}_DIFF_SPECIFIC_ALL{plot_type}"
         if save_plots:
@@ -685,6 +631,16 @@ def main():
         ax[0].plot(bins[extrapol_index_range], f_bg_fit(bins[extrapol_index_range], a=a_fit, b=b_fit), color="tab:red", linestyle="--", label="Extrapolated fit")
         ax[0].set_yscale("log")
         ax[0].set_ylim(bottom=0.5, top=np.amax(hist)*np.exp(1.1))
+
+        if not do_ramp_measurement:
+            title = f"Background fit time diff hist of all cells\n{pct_ar}/{pct_co2} Ar/CO$_2$, $U_{{wire}}$ = {u_wire}V"
+
+        elif do_ramp_measurement:
+            time = parse_start_time(dataset_name)
+            title = f"Background fit time diff hist of all cells\nRamp measurement $t_{{\\mathrm{{start}}}}$ = {time}, $U_{{\\mathrm{{wire}}}}$ = 3600 V"
+
+        
+        ax[0].set_title(title)
         ax[0].legend(loc="lower right", prop={'size': legend_font_size}, fancybox=False, framealpha=params._legend_alpha)
         residuals = fit_hist - f_bg_fit(fit_bins, a=a_fit, b=b_fit)
         err_residuals = err_fit_hist
@@ -721,6 +677,14 @@ def main():
         ax = hist_utils.add_infobox(ax=ax, info_str=info_str, info_loc="top right")
         ax.set_xlim(0,600)
         ax.set_xlabel("$\\Delta T_\\text{cell}$ [ns]")
+        if not do_ramp_measurement:
+            title = f"Background subtracted fit time diff hist of all cells\n{pct_ar}/{pct_co2} Ar/CO$_2$, $U_{{wire}}$ = {u_wire}V"
+        
+        elif do_ramp_measurement:
+            time = parse_start_time(dataset_name)
+            title = f"Background subtracted fit time diff hist of all cells\nRamp measurement $t_{{\\mathrm{{start}}}}$ = {time}, $U_{{\\mathrm{{wire}}}}$ = 3600 V"
+
+        ax.set_title(title)
         fig.tight_layout()
         fig.show()
         ## store plot
@@ -739,10 +703,11 @@ def main():
             search_max=410,  # auto: end of histogram
             window_sigmas=3.0,
             prominence_frac=0.03,
+            min_snr=1.0,
         )
 
         perr = np.sqrt(np.diag(pcov))
-        param_names = ["A", "mu","sigma","m","b",]
+        param_names = ["A", "mu", "sigma", "a1", "a0"]
         fit_params = dict(zip(param_names, popt))
         errors = dict(zip(param_names, perr))
 
@@ -769,12 +734,12 @@ def main():
 
         fit_label = (
             "Gaussian + linear bg fit\n"
-            r"$f(\Delta T)=A\,e^{-\frac{1}{2}((\Delta T-\mu)/\sigma)^2}+a_2\Delta T^2+a_1\Delta T+a_0$"
+            r"$f(\Delta T)=A\,e^{-\frac{1}{2}((\Delta T-\mu)/\sigma)^2}+a_1\Delta T+a_0$"
         )
         for name in ["A", "mu", "sigma"]:
             fit_label += f"\n${name}=({fit_params[name]:.3g}\\pm {errors[name]:.2g})$"
         fit_label += f"\n$v_{{\\mathrm{{drift}}}}=({v_drift:.3g}\\pm {err_v_drift:.2g})$"
-        fit_err = err_gauss_plus_linear(fit_bins, *popt, *perr)
+        fit_err = err_gauss_plus_lin(fit_bins, *popt, *perr)
 
         # --- build the actual figure/axes for this plot ---
         fig, ax = plt.subplots(2, 1, figsize=fig_size, sharex=True, height_ratios=(5, 1))
@@ -806,6 +771,15 @@ def main():
         ax[0].set_ylim(bottom=0, top=np.amax(hist_nobg) * 1.1)
         ax[0].legend(loc="lower left", prop={'size': legend_font_size}, fancybox=False, framealpha=params._legend_alpha)
         ax[0].set_xlim(left=lims[0], right=lims[1])
+        if not do_ramp_measurement:
+            title = f"Photopeak fit\n{pct_ar}/{pct_co2} Ar/CO$_2$, $U_{{wire}}$ = {u_wire}V"
+                
+        elif do_ramp_measurement:
+            time = parse_start_time(dataset_name)
+            title = f"Photopeak fit\nRamp measurement $t_{{\\mathrm{{start}}}}$ = {time}, $U_{{\\mathrm{{wire}}}}$ = 3600 V"
+
+        
+        ax[0].set_title(title)
         # --- residuals panel ---
         residuals = fit_hist - fit_values
         err_residuals = err_fit_hist
@@ -900,19 +874,7 @@ def main():
 
         print("Analysis of ramp measurement begins...")
             
-        def parse_start_time(dataset_name: str) -> datetime:
-            """
-            Extract the start timestamp from a dataset name.
-
-            Example:
-                data_mic0_start_2026-07-24_18-06-10_stop_2026-07-24_18-16-11
-                -> datetime(2026, 7, 24, 18, 6, 10)
-            """
-            match = re.search(r"start_(\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2})", dataset_name)
-            if match is None:
-                raise ValueError(f"Invalid dataset name: {dataset_name}")
-
-            return datetime.strptime(match.group(1), "%Y-%m-%d_%H-%M-%S")
+        
     
 
         times = []
