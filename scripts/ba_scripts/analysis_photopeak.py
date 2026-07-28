@@ -113,7 +113,6 @@ def find_all_valleys_after_main_peak(bins, hist, smooth_window=9, valley_promine
 
     return bins[main_idx], [bins[i] for i in valley_idxs]
 
-
 def find_secondary_peak(bins, hist, min_x, max_x, prominence_frac=0.03, smooth_window=5):
     """Locate the most prominent local maximum in [min_x, max_x] on a
     smoothed copy of the histogram, and return rough (mu, sigma, A)
@@ -151,6 +150,7 @@ def find_secondary_peak(bins, hist, min_x, max_x, prominence_frac=0.03, smooth_w
     A_est = y_smooth[best]
 
     return mu_est, sigma_est, A_est
+
 def find_peak_fit_range(bins, hist, valley_x, mu_est):
     """
     Find fit boundaries: from the valley before the secondary peak to the
@@ -291,8 +291,6 @@ def _fit_gaussian_window(
             win *= window_growth
 
     raise RuntimeError(f"did not converge after {max_attempts} attempts. Last error: {last_exc}")
-
-
 
 def fit_secondary_peak(
     bins_nobg,
