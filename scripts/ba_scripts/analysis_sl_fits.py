@@ -241,6 +241,7 @@ def plot_hist_general(
     save=True,
     verbose=True,
     title = "",
+
 ):
     """
     General histogram plotting function.
@@ -494,7 +495,7 @@ def detector_track(
         z_arr = z_arr_glob - ref_z
 
         # -------------------------------------------------------------
-        # fit results
+        # SUPER FIT results
         # -------------------------------------------------------------
         t0 = fit["t0" + fit_suffix]
         x0 = fit["x0" + fit_suffix]
@@ -511,6 +512,60 @@ def detector_track(
         corr_x0_vd = fit["corr_x0_vd" + fit_suffix]
         corr_tan_alpha_vd = fit["corr_tan_alpha_vd" + fit_suffix]
         chi2ndf = fit["chi2/ndf" + fit_suffix]
+
+
+
+        # -------------------------------------------------------------
+        # FIT results
+        # -------------------------------------------------------------
+
+        t0_sl1 = fit["t0_sl1"]
+        t0_sl3 = fit["t0_sl3"]
+
+        x0_sl1 = fit["x0_sl1"]
+        x0_sl3 = fit["x0_sl3"]
+
+        tan_alpha_sl1 = fit["tan_alpha_sl1"]
+        tan_alpha_sl3 = fit["tan_alpha_sl3"]
+
+        vd_sl1 = fit["vd_sl1"]
+        vd_sl3 = fit["vd_sl3"]
+
+        err_t0_sl1 = fit["err_t0_sl1"]
+        err_t0_sl3 = fit["err_t0_sl3"]
+
+        err_x0_sl1 = fit["err_x0_sl1"]
+        err_x0_sl3 = fit["err_x0_sl3"]
+
+        err_tan_alpha_sl1 = fit["err_tan_alpha_sl1"]
+        err_tan_alpha_sl3 = fit["err_tan_alpha_sl3"]
+
+        err_vd_sl1 = fit["err_vd_sl1"]
+        err_vd_sl3 = fit["err_vd_sl3"]
+
+        corr_t0_x0_sl1 = fit["corr_t0_x0_sl1"]
+        corr_t0_x0_sl3 = fit["corr_t0_x0_sl3"]
+
+        corr_t0_tan_alpha_sl1 = fit["corr_t0_tan_alpha_sl1"]
+        corr_t0_tan_alpha_sl3 = fit["corr_t0_tan_alpha_sl3"]
+
+        corr_t0_vd_sl1 = fit["corr_t0_vd_sl1"]
+        corr_t0_vd_sl3 = fit["corr_t0_vd_sl3"]
+
+        corr_x0_tan_alpha_sl1 = fit["corr_x0_tan_alpha_sl1"]
+        corr_x0_tan_alpha_sl3 = fit["corr_x0_tan_alpha_sl3"]
+
+        corr_x0_vd_sl1 = fit["corr_x0_vd_sl1"]
+        corr_x0_vd_sl3 = fit["corr_x0_vd_sl3"]
+
+        corr_tan_alpha_vd_sl1 = fit["corr_tan_alpha_vd_sl1"]
+        corr_tan_alpha_vd_sl3 = fit["corr_tan_alpha_vd_sl3"]
+
+        chi2ndf_sl1 = fit["chi2/ndf_sl1"]
+        chi2ndf_sl3 = fit["chi2/ndf_sl3"]
+        # -------------------------------------------------------------
+
+
 
         # fit function evaluated at all 8 layers
         fit_ts, err_fit_ts = np.zeros(8), np.zeros(8)
@@ -773,11 +828,13 @@ def fit_gaussian_hist(
     show_components=True,
     show_residuals=True,      # NEW: toggle the residual sub-panel
     residual_height_ratio=1,  # NEW: relative height of residual panel vs main panel (main=3)
+    max_retries=5,            # NEW: number of alternate-p0 attempts if errors/chi2 are bad
+    chi2_ndf_max= 2 ,         # NEW: refit if chi2/ndf exceeds this
     ):
     #from scipy.optimize import curve_fit
 
     def gaussian(x, amplitude, mean, sigma):
-        return amplitude * np.exp(-0.5 * ((x - mean) / sigma) ** 2)
+        return np.abs(amplitude) * np.exp(-0.5 * ((x - mean) / sigma) ** 2)
 
     def double_gaussian(x, amp1, mean1, sigma1, amp2, mean2, sigma2):
         return gaussian(x, amp1, mean1, sigma1) + gaussian(x, amp2, mean2, sigma2)
@@ -790,7 +847,7 @@ def fit_gaussian_hist(
     centers = hist_utils.centers_from_edges(edges)
     overflow = specific_data[overflow_key]
     underflow = specific_data[underflow_key]
-
+    lo, hi = np.amin(centers), np.amax(centers)
     if verbose:
         print(f"Fitting double Gaussian to {dataset_name} ({filename_suffix})...")
 
@@ -803,6 +860,8 @@ def fit_gaussian_hist(
         mask = np.ones_like(centers, dtype=bool)
 
     n_params = 6
+    n_fit_pts = int(np.sum(mask))
+    ndf = max(n_fit_pts - n_params, 1)  # avoid div by zero
 
     if p0 is None:
         h_masked = hist[mask]
@@ -821,33 +880,112 @@ def fit_gaussian_hist(
             amp0, mean0 - 0.1 * span, spread0 * 0.7,
             amp0 * 0.5, mean0 + 0.1 * span, spread0 * 1.5,
         ]
+    else:
+        span = np.amax(centers) - np.amin(centers) if centers.size else 1.0
 
-    try:
-        popt, pcov = curve_fit(
-            double_gaussian,
-            centers[mask],
-            hist[mask],
-            p0=p0,
-            sigma=err_hist_safe[mask],
-            absolute_sigma=True,
-            maxfev=10000,
-        )
-        perr = np.sqrt(np.diag(pcov))
-    except (RuntimeError, ValueError) as e:
+    def compute_chi2(popt_):
+        """chi2 over the masked/fitted points for a given parameter set."""
+        model_vals = double_gaussian(centers[mask], *popt_)
+        resid = (hist[mask] - model_vals) / err_hist_safe[mask]
+        return float(np.sum(resid ** 2))
+    
+    def canonicalize_components(popt_, pcov_):
+            """Ensure component 1 is always the narrower (smaller sigma) component."""
+            amp1_, mean1_, sigma1_, amp2_, mean2_, sigma2_ = popt_
+            if np.abs(sigma1_) > np.abs(sigma2_):
+                # swap the two (amp, mean, sigma) triplets
+                order = [3, 4, 5, 0, 1, 2]
+                popt_ = popt_[order]
+                if pcov_ is not None:
+                    pcov_ = pcov_[np.ix_(order, order)]
+            return popt_, pcov_
+    
+    # --- first attempt ---
+    def run_fit(p0_guess):
+            try:
+                popt_, pcov_ = curve_fit(
+                    double_gaussian,
+                    centers[mask],
+                    hist[mask],
+                    p0=p0_guess,
+                    sigma=err_hist_safe[mask],
+                    absolute_sigma=True,
+                    maxfev=10000,
+                )
+                popt_, pcov_ = canonicalize_components(popt_, pcov_)
+                perr_ = np.sqrt(np.diag(pcov_))
+                chi2_ = compute_chi2(popt_)
+                chi2_ndf_ = chi2_ / ndf
+                return popt_, pcov_, perr_, chi2_ndf_
+            except (RuntimeError, ValueError):
+                return None, None, None, None
+
+    def bad_result(perr_, chi2_ndf_):
+        if perr_ is None or not np.all(np.isfinite(perr_)):
+            return True
+        if chi2_ndf_ is None or not np.isfinite(chi2_ndf_) or chi2_ndf_ > chi2_ndf_max:
+            return True
+        return False
+
+
+    popt, pcov, perr, chi2_ndf = run_fit(p0)
+
+    # --- retry with alternate starting parameters if errors are inf/nan or chi2/ndf too high ---
+    if bad_result(perr, chi2_ndf):
         if verbose:
-            print(f"  Double Gaussian fit failed for {dataset_name} ({filename_suffix}): {e}")
-        popt = np.full(n_params, np.nan)
-        perr = np.full(n_params, np.nan)
-        pcov = None
+            if popt is None:
+                reason = "fit did not converge"
+            elif not np.all(np.isfinite(perr)):
+                reason = "fit gave non-finite errors"
+            else:
+                reason = f"chi2/ndf too high ({chi2_ndf:.3f} > {chi2_ndf_max})"
+            print(f"  Initial fit: {reason} for {dataset_name} ({filename_suffix}); trying alternate starting parameters...")
+
+        # keep the best-so-far attempt around, in case no retry clears the threshold
+        best_popt, best_pcov, best_perr, best_chi2_ndf = popt, pcov, perr, chi2_ndf
+
+        rng = np.random.default_rng(0)
+        attempt = 0
+        while bad_result(perr, chi2_ndf) and attempt < max_retries:
+            jitter = 1 + rng.uniform(-0.3, 0.3, size=n_params)
+            alt_p0 = np.array(p0, dtype=float) * jitter
+            popt_try, pcov_try, perr_try, chi2_ndf_try = run_fit(alt_p0)
+
+            # track the best valid attempt by chi2/ndf, even if it doesn't clear the threshold
+            if perr_try is not None and np.all(np.isfinite(perr_try)) and chi2_ndf_try is not None and np.isfinite(chi2_ndf_try):
+                if best_chi2_ndf is None or not np.isfinite(best_chi2_ndf) or chi2_ndf_try < best_chi2_ndf:
+                    best_popt, best_pcov, best_perr, best_chi2_ndf = popt_try, pcov_try, perr_try, chi2_ndf_try
+
+            if not bad_result(perr_try, chi2_ndf_try):
+                popt, pcov, perr, chi2_ndf = popt_try, pcov_try, perr_try, chi2_ndf_try
+                if verbose:
+                    print(f"  Refit succeeded on attempt {attempt + 1} for {dataset_name} ({filename_suffix}) "
+                          f"(chi2/ndf = {chi2_ndf:.3f}).")
+                break
+            attempt += 1
+
+        if bad_result(perr, chi2_ndf):
+            # no attempt cleared the threshold -- fall back to the best one we saw
+            if best_popt is not None:
+                popt, pcov, perr, chi2_ndf = best_popt, best_pcov, best_perr, best_chi2_ndf
+                if verbose:
+                    print(f"  No refit attempt met chi2/ndf <= {chi2_ndf_max} for {dataset_name} ({filename_suffix}); "
+                          f"using best available (chi2/ndf = {chi2_ndf:.3f}).")
+            else:
+                if verbose:
+                    print(f"  All {max_retries} refit attempts failed outright for {dataset_name} ({filename_suffix}).")
+                popt = np.full(n_params, np.nan)
+                perr = np.full(n_params, np.nan)
+                pcov = None
+                chi2_ndf = np.nan
 
     amp1, mean1, sigma1, amp2, mean2, sigma2 = popt
-    sigma2, sigma2 = np.abs(sigma1), np.abs(sigma2)
+    sigma1, sigma2 = np.abs(sigma1), np.abs(sigma2)
     amp1_err, mean1_err, sigma1_err, amp2_err, mean2_err, sigma2_err = perr
 
-    # --- NEW: chi2 / ndf from the fitted (masked) points ---
-    chi2 = np.nan
-    ndf = np.nan
-    chi2_ndf = np.nan
+    # --- chi2 / ndf from the fitted (masked) points ---
+    chi2 = chi2_ndf * ndf if np.isfinite(chi2_ndf) else np.nan
+    chi2_ndf = chi2_ndf
     residuals = None       # raw residuals over ALL bins (for plotting)
     pull = None             # residuals / error, i.e. "sigma away from fit", over ALL bins
 
@@ -1054,8 +1192,6 @@ def data_to_hist_2d (*, data_x, data_y, x_label, y_label, title, colorbar_label 
     plt.savefig(save_path)
     plt.close()
     return
-
-
 # -------------------------------------------------------------------------------------------------------
 # main function
 @mpl.rc_context({'font.family': 'sans-serif', 'font.size': 12}) #'font.sans-serif': 'Arial',
@@ -1064,45 +1200,50 @@ def main():
 
 
 
-    do_only_gauss_fit = False #if set to True, only double gauss to SUPER FITS fit is done, resulting in a quicker analysis
-    do_ramp_measurement = True # if set to True, the ramp measurements are analyzed, changing plot naming and allowing for time, only gauss fits are saved, if also other analyisi is supposed to be saved, change if statement a few lines below
-    do_refit_full_analysis = False # if set to True, 2D hists of data is plotted, if set to False oly timeboxes, vd, and tan(alpha) dist is plotted
+    do_only_gauss_fit = True #if set to True, only double gauss to SUPER FITS fit is done, resulting in a quicker analysis
+    do_ramp_measurement = False # if set to True, the ramp measurements are analyzed, changing plot naming and allowing for time, only gauss fits are saved, if also other analyisi is supposed to be saved, change if statement a few lines below
+    do_refit_full_analysis = True # if set to True, 2D hists of data is plotted, if set to False oly timeboxes, vd, and tan(alpha) dist is plotted
+    do_super_fit_analysis = False
     
-    list_of_fits = ["cosmic_82-18_3550-1800-1200_run1_th20_cut_50", "cosmic_82-18_3550-1800-1200_run1_th20_cut100", 
-                    "cosmic_82-18_3575-1800-1200_run1_th20_cut100", "cosmic_82-18_3600-1800-1200_run1_th20_cut100", 
-                    "cosmic_82-18_3625-1800-1200_run1_th20_cut100", 
-                    "cosmic_85-15_3550-1800-1200_run1_th20_cut100", "cosmic_85-15_3575-1800-1200_run1_th20_cut100", 
-                    "cosmic_85-15_3600-1800-1200_run2_th20_cut100", "cosmic_83-17_3650-1800-1200_run1_th20_cut100",
-                    "cosmic_83-17_3625-1800-1200_run1_th20_cut100", "cosmic_83-17_3600-1800-1200_run1_th20_cut100",
-                    "cosmic_83-17_3575-1800-1200_run1_th20_cut100", "cosmic_83-17_3550-1800-1200_run1_th20_cut100",
+    list_of_fits = ["cosmic_82-18_3550-1800-1200_run1_th20_cut100",
+                "cosmic_82-18_3575-1800-1200_run1_th20_cut100", 
+                "cosmic_82-18_3600-1800-1200_run1_th20_cut100",
+                "cosmic_82-18_3625-1800-1200_run1_th20_cut100", 
+
+                #"cosmic_83-17_3650-1800-1200_run1_th20_cut100",not calculated, is beeing calculated
+                "cosmic_83-17_3625-1800-1200_run1_th20_cut100", 
+                "cosmic_83-17_3600-1800-1200_run1_th20_cut100", 
+                "cosmic_83-17_3575-1800-1200_run1_th20_cut100", 
+                "cosmic_83-17_3550-1800-1200_run1_th20_cut100",
+
+                "cosmic_85-15_3550-1800-1200_run1_th20_cut100",
+                "cosmic_85-15_3575-1800-1200_run1_th20_cut100", 
+                "cosmic_85-15_3600-1800-1200_run2_th20_cut100"
+                ]
+
+    ramp_datasets = [ "data_mic0_start_2026-07-24_18-06-10_stop_2026-07-24_18-16-11",
+                    "data_mic0_start_2026-07-24_22-16-13_stop_2026-07-24_22-26-14",
+                    "data_mic0_start_2026-07-25_02-26-16_stop_2026-07-25_02-36-17",
+                    "data_mic0_start_2026-07-25_06-36-19_stop_2026-07-25_06-46-20",
+                    "data_mic0_start_2026-07-25_10-46-22_stop_2026-07-25_10-56-23",
+                    "data_mic0_start_2026-07-25_14-56-25_stop_2026-07-25_15-06-26",
+                    "data_mic0_start_2026-07-25_19-06-28_stop_2026-07-25_19-16-29",
+                    "data_mic0_start_2026-07-25_23-16-31_stop_2026-07-25_23-26-32", 
+                    "data_mic0_start_2026-07-26_03-26-34_stop_2026-07-26_03-36-35",
+                    "data_mic0_start_2026-07-26_07-36-37_stop_2026-07-26_07-46-38", 
+                    "data_mic0_start_2026-07-26_11-46-40_stop_2026-07-26_11-56-41",
+                    "data_mic0_start_2026-07-26_15-56-43_stop_2026-07-26_16-06-44",
+                    "data_mic0_start_2026-07-26_20-06-46_stop_2026-07-26_20-16-47",
+                    "data_mic0_start_2026-07-27_00-16-49_stop_2026-07-27_00-26-50", 
+                    "data_mic0_start_2026-07-27_04-26-52_stop_2026-07-27_04-36-53", 
+                    "data_mic0_start_2026-07-27_08-36-55_stop_2026-07-27_08-46-56",
+                    #"data_mic0_start_2026-07-27_12-46-58_stop_2026-07-27_12-56-59", #not calculated
+                    "data_mic0_start_2026-07-27_16-57-02_stop_2026-07-27_17-07-03",
+                    "data_mic0_start_2026-07-27_21-07-05_stop_2026-07-27_21-17-06", 
+                    "data_mic0_start_2026-07-28_05-27-11_stop_2026-07-28_05-37-12",
+                    "data_mic0_start_2026-07-28_09-37-15_stop_2026-07-28_09-47-16",
+       
                     ]
-
-    ramp_datasets = [
-    "data_mic0_start_2026-07-24_18-06-10_stop_2026-07-24_18-16-11",
-    "data_mic0_start_2026-07-24_22-16-13_stop_2026-07-24_22-26-14",
-    "data_mic0_start_2026-07-25_02-26-16_stop_2026-07-25_02-36-17",
-    "data_mic0_start_2026-07-25_06-36-19_stop_2026-07-25_06-46-20",
-    #"data_mic0_start_2026-07-25_10-46-22_stop_2026-07-25_10-56-23",
-    "data_mic0_start_2026-07-25_14-56-25_stop_2026-07-25_15-06-26",
-    "data_mic0_start_2026-07-25_19-06-28_stop_2026-07-25_19-16-29",
-    "data_mic0_start_2026-07-25_23-16-31_stop_2026-07-25_23-26-32",
-    "data_mic0_start_2026-07-26_03-26-34_stop_2026-07-26_03-36-35",
-    "data_mic0_start_2026-07-26_07-36-37_stop_2026-07-26_07-46-38",
-    "data_mic0_start_2026-07-26_11-46-40_stop_2026-07-26_11-56-41",
-    "data_mic0_start_2026-07-26_15-56-43_stop_2026-07-26_16-06-44",
-    "data_mic0_start_2026-07-26_20-06-46_stop_2026-07-26_20-16-47",
-    "data_mic0_start_2026-07-27_00-16-49_stop_2026-07-27_00-26-50",
-    "data_mic0_start_2026-07-27_04-26-52_stop_2026-07-27_04-36-53",
-    "data_mic0_start_2026-07-27_08-36-55_stop_2026-07-27_08-46-56",
-    #"data_mic0_start_2026-07-27_12-46-58_stop_2026-07-27_12-56-59",
-    #"data_mic0_start_2026-07-27_16-57-02_stop_2026-07-27_17-07-03",
-    #"data_mic0_start_2026-07-27_21-07-05_stop_2026-07-27_21-17-06",
-    #"data_mic0_start_2026-07-28_01-17-08_stop_2026-07-28_01-27-09",
-    #"data_mic0_start_2026-07-28_05-27-11_stop_2026-07-28_05-37-12",
-    #"data_mic0_start_2026-07-28_09-37-15_stop_2026-07-28_09-47-16",
-
-
-    ]
     #list_of_fits = ["cosmic_82-18_3550-1800-1200_run1_th20_cut_50"]
     
         
@@ -1110,6 +1251,7 @@ def main():
     if do_ramp_measurement:
         list_of_fits = ramp_datasets
         do_only_gauss_fit = True
+        do_super_fit_analysis = True
     else: 
         list_of_fits = list_of_fits
 
@@ -1184,10 +1326,7 @@ def main():
                             ['dt6_free_vd_super_fit', "drift time distribution of wire 6", 1, "TS", "dt1 [TU]", "counts"],  
                             ['dt7_free_vd_super_fit', "drift time distribution of wire 7", 1, "TS", "dt1 [TU]", "counts"], 
                             ]
-        
-
-
-        
+        goood_fit_keys = ["tan_alpha"]
 
         #print(super_fits.keys())
         try:
@@ -1205,304 +1344,307 @@ def main():
             u_wire = ""
             u_fieldshaper = ""
             u_cathode = ""
+        
+        if do_super_fit_analysis:
 
 
-        for i in range(2):
-            if i == 1:
-                # beginning with analysis of all fits that are flagged as "possible" (impossible == 0)
-                super_fits_cuts = data_utils.cut_data(
-                    data=super_fits,
-                    conditions=[
-                        ("impossible_free_vd_super_fit", "==", 0),
-                        #("chi2/ndf_free_vd_super_fit", "<", 10),
-                        #("vd_free_vd_super_fit", "<", 70 * derived_params._drift_velocity_conversion),
-                        #("vd_free_vd_super_fit", ">", 40 * derived_params._drift_velocity_conversion),
-            
-                        #("dt0_refit", ">", min_td),
-                        #("dt0_refit", "<", max_td),
-            
-                    ],
-                    silent=True,
-                )
-                suffix = no_cut
 
-            elif i == 0:
-                # The analyisis of more restrictive cuts beginns here
-                super_fits_cuts = data_utils.cut_data(
-                    data=super_fits,
-                    conditions=[
-                        ("impossible_free_vd_super_fit", "==", 0),
-                        ("chi2/ndf_free_vd_super_fit", "<", 10),
-                        #("chi2/ndf_free_vd_super_fit", ">", 0.5),
-                        #("vd_free_vd_super_fit", "<", 59 * derived_params._drift_velocity_conversion),
-                        #("vd_free_vd_super_fit", ">", 51 * derived_params._drift_velocity_conversion),
-                        ("err_t0_free_vd_super_fit", "<", 10),
-                        #("err_vd_free_vd_super_fit", "<", 10),
-                        #("err_tan_alpha_free_vd_super_fit", ">", 0.25*1e6),
-                        #("vd_free_vd_super_fit", ">", 40 * derived_params._drift_velocity_conversion),
-            
-                        #("dt0_refit", ">", min_td),
-                        #("dt0_refit", "<", max_td),
-            
-                    ],
-                    silent=True,
-                )
-                suffix = w_cut
-                # gauss fit of drift velocity
-
-                print("fitting gaussian to cut drift velocity")
-                key = 'vd_free_vd_super_fit'
-
-                if not do_ramp_measurement:
-                    title = f"Gaussian fit to drift velocity histogram\n{pct_ar}/{pct_co2} Ar/CO2 U_wire = {u_wire} {suffix}"
-                if do_ramp_measurement:
-                    title = f"Gaussian fit to drift velocity histogram\nRamp measurement U_wire = 3600V"
-                factor = vd_factor
-                unit = "um/ns"
-                x_label = f"drift velocity in [{unit}]"
-                y_label = "counts"
+            for i in range(2):
+                if i == 1:
+                    # beginning with analysis of all fits that are flagged as "possible" (impossible == 0)
+                    super_fits_cuts = data_utils.cut_data(
+                        data=super_fits,
+                        conditions=[
+                            ("impossible_free_vd_super_fit", "==", 0),
+                            #("chi2/ndf_free_vd_super_fit", "<", 10),
+                            #("vd_free_vd_super_fit", "<", 70 * derived_params._drift_velocity_conversion),
+                            #("vd_free_vd_super_fit", ">", 40 * derived_params._drift_velocity_conversion),
                 
-        
-                data = super_fits_cuts[key]
-                specific_data = build_hist_general(
-                    data_list=data,
-                    # adjust range/binning per-quantity if needed, e.g. by checking key
-                )
-        
-                # "/" in a key (e.g. "chi2/ndf_...") isn't safe in a filename
-                safe_key = key.replace("/", "_")
-                if not do_ramp_measurement:
-                    strdataset_name = f"{safe_key}_{pct_ar}_{pct_co2}_{u_wire}"
+                            #("dt0_refit", ">", min_td),
+                            #("dt0_refit", "<", max_td),
+                
+                        ],
+                        silent=True,
+                    )
+                    suffix = no_cut
 
-                if do_ramp_measurement:
-                    strdataset_name = dataset_name
-                fig, ax, path, fit_results = fit_gaussian_hist(
-                    specific_data=specific_data,
-                    dataset_name=strdataset_name,
-                    plot_save_path=plot_save_path,
-                    xlabel=x_label,
-                    ylabel=y_label,
-                    title=title,
-                    filename_suffix=suffix,
-                )
-                analysis_out[dataset_name] = fit_results
+                elif i == 0:
+                    # The analyisis of more restrictive cuts beginns here
+                    super_fits_cuts = data_utils.cut_data(
+                        data=super_fits,
+                        conditions=[
+                            ("impossible_free_vd_super_fit", "==", 0),
+                            ("chi2/ndf_free_vd_super_fit", "<", 10),
+                            #("chi2/ndf_free_vd_super_fit", ">", 0.5),
+                            #("vd_free_vd_super_fit", "<", 59 * derived_params._drift_velocity_conversion),
+                            #("vd_free_vd_super_fit", ">", 51 * derived_params._drift_velocity_conversion),
+                            ("err_t0_free_vd_super_fit", "<", 10),
+                            #("err_vd_free_vd_super_fit", "<", 10),
+                            #("err_tan_alpha_free_vd_super_fit", ">", 0.25*1e6),
+                            #("vd_free_vd_super_fit", ">", 40 * derived_params._drift_velocity_conversion),
+                
+                            #("dt0_refit", ">", min_td),
+                            #("dt0_refit", "<", max_td),
+                
+                        ],
+                        silent=True,
+                    )
+                    suffix = w_cut
+                    # gauss fit of drift velocity
 
-                print(f"fitted mean drift velocity = {fit_results['mean']:.4g} ± {fit_results['mean_err']:.4g} {unit}")
+                    print("fitting gaussian to cut drift velocity")
+                    key = 'vd_free_vd_super_fit'
+
+                    if not do_ramp_measurement:
+                        title = f"Gaussian fit to drift velocity histogram\n{pct_ar}/{pct_co2} Ar/CO2 U_wire = {u_wire} {suffix}"
+                    if do_ramp_measurement:
+                        title = f"Gaussian fit to drift velocity histogram\nRamp measurement U_wire = 3600V"
+                    factor = vd_factor
+                    unit = "um/ns"
+                    x_label = f"drift velocity in [{unit}]"
+                    y_label = "counts"
+                    
+            
+                    data = super_fits_cuts[key]
+                    specific_data = build_hist_general(
+                        data_list=data,
+                        # adjust range/binning per-quantity if needed, e.g. by checking key
+                    )
+            
+                    # "/" in a key (e.g. "chi2/ndf_...") isn't safe in a filename
+                    safe_key = key.replace("/", "_")
+                    if not do_ramp_measurement:
+                        strdataset_name = f"{safe_key}_{pct_ar}_{pct_co2}_{u_wire}"
+
+                    if do_ramp_measurement:
+                        strdataset_name = dataset_name
+                    fig, ax, path, fit_results = fit_gaussian_hist(
+                        specific_data=specific_data,
+                        dataset_name=strdataset_name,
+                        plot_save_path=plot_save_path,
+                        xlabel=x_label,
+                        ylabel=y_label,
+                        title=title,
+                        filename_suffix=suffix,
+                    )
+                    analysis_out[dataset_name] = fit_results
+
+                    print(f"fitted mean drift velocity = {fit_results['mean']:.4g} ± {fit_results['mean_err']:.4g} {unit}")
+
+                    if do_only_gauss_fit:
+                        continue
 
                 if do_only_gauss_fit:
                     continue
 
-            if do_only_gauss_fit:
-                continue
 
+                #hist of all interesting hist metrics
+                for i in range(len(good_super_fit_keys)):
+                    key = good_super_fit_keys[i][0]
+                    title =good_super_fit_keys[i][1] + f"\n{pct_ar}/{pct_co2} Ar/CO2 U_wire = {u_wire} {suffix}"
+                    factor = good_super_fit_keys[i][2]
+                    unit = good_super_fit_keys[i][3]
+                    x_label = good_super_fit_keys[i][4]
+                    y_label = good_super_fit_keys[i][5]
+                    
+            
+                    data = super_fits_cuts[key]
+                    specific_data = build_hist_general(
+                        data_list=data,
+                        n_bins = 200,
+                        # adjust range/binning per-quantity if needed, e.g. by checking key
+                    )
+            
+                    # "/" in a key (e.g. "chi2/ndf_...") isn't safe in a filename
+                    safe_key = key.replace("/", "_")
+            
+                    fig, ax, path = plot_hist_general(
+                        specific_data=specific_data,
+                        dataset_name=dataset_name,
+                        plot_save_path=plot_save_path,
+                        filename_suffix=safe_key + "_" + suffix,
+                        scale_factor = factor,
+                        title = title,
+                        xlabel = x_label,
+                        ylabel = y_label,
+                        plot_type = plot_type
+                    )
+            
+                plt.close("all")
+                # done with all hists
+                # beginning hist2d plots 
 
-            #hist of all interesting hist metrics
-            for i in range(len(good_super_fit_keys)):
-                key = good_super_fit_keys[i][0]
-                title =good_super_fit_keys[i][1] + f"\n{pct_ar}/{pct_co2} Ar/CO2 U_wire = {u_wire} {suffix}"
-                factor = good_super_fit_keys[i][2]
-                unit = good_super_fit_keys[i][3]
-                x_label = good_super_fit_keys[i][4]
-                y_label = good_super_fit_keys[i][5]
-                
-        
-                data = super_fits_cuts[key]
-                specific_data = build_hist_general(
-                    data_list=data,
-                    n_bins = 200,
-                    # adjust range/binning per-quantity if needed, e.g. by checking key
+                data_to_hist_2d(
+                    data_x=super_fits_cuts["x0_free_vd_super_fit"],
+                    data_y=super_fits_cuts['vd_free_vd_super_fit'] * vd_factor,
+                    x_label="x0",
+                    y_label="v_d",
+                    title=f"Hist of x_0 and v_d {no_cut}",
+                    save_path=plot_save_path + f"vd_vs_x0_{suffix}{plot_type}",
                 )
-        
-                # "/" in a key (e.g. "chi2/ndf_...") isn't safe in a filename
-                safe_key = key.replace("/", "_")
-        
-                fig, ax, path = plot_hist_general(
-                    specific_data=specific_data,
-                    dataset_name=dataset_name,
-                    plot_save_path=plot_save_path,
-                    filename_suffix=safe_key + "_" + suffix,
-                    scale_factor = factor,
-                    title = title,
-                    xlabel = x_label,
-                    ylabel = y_label,
-                    plot_type = plot_type
-                )
-        
-            plt.close("all")
-            # done with all hists
-            # beginning hist2d plots 
 
-            data_to_hist_2d(
-                data_x=super_fits_cuts["x0_free_vd_super_fit"],
-                data_y=super_fits_cuts['vd_free_vd_super_fit'] * vd_factor,
-                x_label="x0",
-                y_label="v_d",
-                title=f"Hist of x_0 and v_d {no_cut}",
-                save_path=plot_save_path + f"vd_vs_x0_{suffix}{plot_type}",
-            )
-
-            data_to_hist_2d(
-                data_x=np.rad2deg(np.arctan(super_fits_cuts["tan_alpha_free_vd_super_fit"])),
-                data_y=super_fits_cuts['vd_free_vd_super_fit'] * vd_factor,
-                x_label="alpha",
-                y_label="v_d",
-                title=f"Hist of alpha vs vd {suffix}",
-                save_path=plot_save_path + f"vd_vs_alpha_{suffix}{plot_type}",
-            )
-
-            data_to_hist_2d(
-                data_x=np.rad2deg(np.arctan(super_fits_cuts["tan_alpha_free_vd_super_fit"])),
-                data_y=super_fits_cuts["x0_free_vd_super_fit"],
-                x_label="alpha",
-                y_label="x_0",
-                title=f"Hist of alpha vs x_0 {suffix}",
-                save_path=plot_save_path + f"x0_vs_tanalpha_{suffix}{plot_type}",
-            )
-
-            data_to_hist_2d(
-                data_x=super_fits_cuts["x0_free_vd_super_fit"],
-                data_y=super_fits_cuts["dt0_free_vd_super_fit"] * derived_params._ts_unit,
-                x_label="x_0[mm]",
-                y_label="dt_0 [ns]",
-                title=f"Hist of x_0 vs dt_0 {suffix}",
-                save_path=plot_save_path + f"dt_0_vs_x0_{suffix}{plot_type}",
-            )
-            data_to_hist_2d(
-                data_x=super_fits_cuts["err_vd_free_vd_super_fit"] * vd_factor,
-                data_y=super_fits_cuts["vd_free_vd_super_fit"] * vd_factor,
-                x_label=f"err_vd [$\\mu$m/ns]",
-                y_label=f"vd [\\mu$m/ns]",
-                title=f"Hist of vd vs err vd {suffix}",
-                save_path=plot_save_path + f"vd_vs_err_vd_{suffix}{plot_type}",
-            )
-
-            data_to_hist_2d(
-                data_x=super_fits_cuts["err_vd_free_vd_super_fit"] * vd_factor,
-                data_y=super_fits_cuts["err_tan_alpha_free_vd_super_fit"],
-                x_label=f"err_vd [$\\mu$m/ns]",
-                y_label=f"err tan ($\\alpha$)",
-                title=f"Hist of err_tan_alpha vs err_vd {suffix}",
-                save_path=plot_save_path + f"err_tan_alpha_vs_err_vd_{suffix}{plot_type}",
-            )
-
-            for i in range(8):
                 data_to_hist_2d(
                     data_x=np.rad2deg(np.arctan(super_fits_cuts["tan_alpha_free_vd_super_fit"])),
-                    data_y=super_fits_cuts[f"dt{i}_free_vd_super_fit"] * derived_params._ts_unit,
+                    data_y=super_fits_cuts['vd_free_vd_super_fit'] * vd_factor,
                     x_label="alpha",
-                    y_label=f"dt_{i} [ns]",
-                    title=f"Hist of dt_{i} vs alpha {suffix}",
-                    save_path=plot_save_path + f"dt{i}_vs_alpha_{suffix}{plot_type}",
+                    y_label="v_d",
+                    title=f"Hist of alpha vs vd {suffix}",
+                    save_path=plot_save_path + f"vd_vs_alpha_{suffix}{plot_type}",
                 )
 
-            detector_track(super_fits_cuts = super_fits_cuts,
-                dataset_info = dataset_info,
-                plot_idcs = np.linspace(0, len(super_fits_cuts), 5, dtype = int),
-                suffix = suffix,
-                plot_save_path = plot_save_path,
-                dataset_name = dataset_name,
-                fit_suffix="_free_vd_super_fit",
-                plot_type=plot_type,
-                zoom=True,
-                zoom_margin=20.0,
-                orient="phi",
-            )
-            
-        
+                data_to_hist_2d(
+                    data_x=np.rad2deg(np.arctan(super_fits_cuts["tan_alpha_free_vd_super_fit"])),
+                    data_y=super_fits_cuts["x0_free_vd_super_fit"],
+                    x_label="alpha",
+                    y_label="x_0",
+                    title=f"Hist of alpha vs x_0 {suffix}",
+                    save_path=plot_save_path + f"x0_vs_tanalpha_{suffix}{plot_type}",
+                )
+
+                data_to_hist_2d(
+                    data_x=super_fits_cuts["x0_free_vd_super_fit"],
+                    data_y=super_fits_cuts["dt0_free_vd_super_fit"] * derived_params._ts_unit,
+                    x_label="x_0[mm]",
+                    y_label="dt_0 [ns]",
+                    title=f"Hist of x_0 vs dt_0 {suffix}",
+                    save_path=plot_save_path + f"dt_0_vs_x0_{suffix}{plot_type}",
+                )
+                data_to_hist_2d(
+                    data_x=super_fits_cuts["err_vd_free_vd_super_fit"] * vd_factor,
+                    data_y=super_fits_cuts["vd_free_vd_super_fit"] * vd_factor,
+                    x_label=f"err_vd [$\\mu$m/ns]",
+                    y_label=f"vd [\\mu$m/ns]",
+                    title=f"Hist of vd vs err vd {suffix}",
+                    save_path=plot_save_path + f"vd_vs_err_vd_{suffix}{plot_type}",
+                )
+
+                data_to_hist_2d(
+                    data_x=super_fits_cuts["err_vd_free_vd_super_fit"] * vd_factor,
+                    data_y=super_fits_cuts["err_tan_alpha_free_vd_super_fit"],
+                    x_label=f"err_vd [$\\mu$m/ns]",
+                    y_label=f"err tan ($\\alpha$)",
+                    title=f"Hist of err_tan_alpha vs err_vd {suffix}",
+                    save_path=plot_save_path + f"err_tan_alpha_vs_err_vd_{suffix}{plot_type}",
+                )
+
+                for i in range(8):
+                    data_to_hist_2d(
+                        data_x=np.rad2deg(np.arctan(super_fits_cuts["tan_alpha_free_vd_super_fit"])),
+                        data_y=super_fits_cuts[f"dt{i}_free_vd_super_fit"] * derived_params._ts_unit,
+                        x_label="alpha",
+                        y_label=f"dt_{i} [ns]",
+                        title=f"Hist of dt_{i} vs alpha {suffix}",
+                        save_path=plot_save_path + f"dt{i}_vs_alpha_{suffix}{plot_type}",
+                    )
+
+                detector_track(super_fits_cuts = super_fits_cuts,
+                    dataset_info = dataset_info,
+                    plot_idcs = np.linspace(0, len(super_fits_cuts), 5, dtype = int),
+                    suffix = suffix,
+                    plot_save_path = plot_save_path,
+                    dataset_name = dataset_name,
+                    fit_suffix="_free_vd_super_fit",
+                    plot_type=plot_type,
+                    zoom=True,
+                    zoom_margin=20.0,
+                    orient="phi",
+                )
                 
-        
-            plt.close("all")
-
-        
-    #When doing ramp measurement, this loop is used
-    if do_ramp_measurement:
-        print("Analysis of ramp measurement begins...")
-        
-
-
-
-        times = []
-        values = []
-        errors = []
-
-        for dataset, result in analysis_out.items():
-            times.append(parse_start_time(dataset))
-            values.append(result["mean_1"])
-            errors.append(result["mean_1_err"])
-
-        plt.figure(figsize=(10, 5))
-
-        plt.errorbar(
-            times,
-            values,
-            yerr=errors,
-            fmt="o",
-            capsize=4,
-            markersize=6,
-            label=r"$U_{\mathrm{wire}} = 3600\,\mathrm{V}$"
-        )
-
-        ax = plt.gca()
-        ax.xaxis.set_major_formatter(mdates.DateFormatter("%m-%d\n%H:%M"))
-        plt.gcf().autofmt_xdate()
-
-        plt.xlabel("Start time")
-        plt.ylabel(r"$v_d$ [$\mu$m/ns]")
-        plt.title(r"Drift velocity over time ($U_{\mathrm{wire}}=3600$ V) Track-fit method")
-        plt.grid(True)
-        plt.legend()
-        plt.tight_layout()
-        plt.savefig(f"{base_path}plots/ramp_analysis_track_fit{plot_type}")
-
-    if not do_ramp_measurement:
             
-        plt.figure(figsize=fig_size)
+                    
+            
+                plt.close("all")
 
-        # Get all unique wire voltages
-        unique_u_wires = sorted(set(
-            parse_fit_name(name=dataset)["U_wire"]
-            for dataset in analysis_out.keys()
-        ))
+            
+        #When doing ramp measurement, this loop is used
+        if do_ramp_measurement:
+            print("Analysis of ramp measurement begins...")
+            
 
-        # Create one color per wire voltage
-        colors = plt.cm.tab10(np.linspace(0, 1, len(unique_u_wires)))
 
-        # Map voltage -> color
-        wire_color_map = dict(zip(unique_u_wires, colors))
 
-        for dataset, result in analysis_out.items():
-            dataset_info = parse_fit_name(name=dataset)
+            times = []
+            values = []
+            errors = []
 
-            pct_ar = dataset_info["pct_Ar"]
-            pct_co2 = dataset_info["pct_CO2"]
-            u_wire = dataset_info["U_wire"]
+            for dataset, result in analysis_out.items():
+                times.append(parse_start_time(dataset))
+                values.append(result["mean_1"])
+                errors.append(result["mean_1_err"])
 
-            mean_vd = result["mean_1"]
-            err_mean_vd = result["mean_1_err"]
+            plt.figure(figsize=(10, 5))
 
             plt.errorbar(
-                pct_ar,
-                mean_vd,
-                yerr=err_mean_vd,
+                times,
+                values,
+                yerr=errors,
                 fmt="o",
                 capsize=4,
                 markersize=6,
-                color=wire_color_map[u_wire],
-                label=f"{pct_ar}/{pct_co2}, $U_{{wire}}={u_wire}$ V"
+                label=r"$U_{\mathrm{wire}} = 3600\,\mathrm{V}$"
             )
 
-        plt.xlabel("Ar concentration [%]")
-        plt.ylabel(r"$v_d$ [$\mu$m/ns]")
-        plt.title("Comparison of gas mixtures and drift velocities")
-        plt.grid(True)
+            ax = plt.gca()
+            ax.xaxis.set_major_formatter(mdates.DateFormatter("%m-%d\n%H:%M"))
+            plt.gcf().autofmt_xdate()
 
-        # Avoid duplicate legend entries for the same voltage
-        handles, labels = plt.gca().get_legend_handles_labels()
-        unique_labels = dict(zip(labels, handles))
-        plt.legend(unique_labels.values(), unique_labels.keys())
+            plt.xlabel("Start time")
+            plt.ylabel(r"$v_d$ [$\mu$m/ns]")
+            plt.title(r"Drift velocity over time ($U_{\mathrm{wire}}=3600$ V) Track-fit method")
+            plt.grid(True)
+            plt.legend()
+            plt.tight_layout()
+            plt.savefig(f"{base_path}plots/ramp_analysis_track_fit{plot_type}")
 
-        plt.tight_layout()
-        plt.savefig(base_path + f"plots/vd_track_fit_comparison{plot_type}")
+        if not do_ramp_measurement:
+                
+            plt.figure(figsize=fig_size)
+
+            # Get all unique wire voltages
+            unique_u_wires = sorted(set(
+                parse_fit_name(name=dataset)["U_wire"]
+                for dataset in analysis_out.keys()
+            ))
+
+            # Create one color per wire voltage
+            colors = plt.cm.tab10(np.linspace(0, 1, len(unique_u_wires)))
+
+            # Map voltage -> color
+            wire_color_map = dict(zip(unique_u_wires, colors))
+
+            for dataset, result in analysis_out.items():
+                dataset_info = parse_fit_name(name=dataset)
+
+                pct_ar = dataset_info["pct_Ar"]
+                pct_co2 = dataset_info["pct_CO2"]
+                u_wire = dataset_info["U_wire"]
+
+                mean_vd = result["mean_1"]
+                err_mean_vd = result["mean_1_err"]
+
+                plt.errorbar(
+                    pct_ar,
+                    mean_vd,
+                    yerr=err_mean_vd,
+                    fmt="o",
+                    capsize=4,
+                    markersize=6,
+                    color=wire_color_map[u_wire],
+                    label=f"{pct_ar}/{pct_co2}, $U_{{wire}}={u_wire}$ V"
+                )
+
+            plt.xlabel("Ar concentration [%]")
+            plt.ylabel(r"$v_d$ [$\mu$m/ns]")
+            plt.title("Comparison of gas mixtures and drift velocities")
+            plt.grid(True)
+
+            # Avoid duplicate legend entries for the same voltage
+            handles, labels = plt.gca().get_legend_handles_labels()
+            unique_labels = dict(zip(labels, handles))
+            plt.legend(unique_labels.values(), unique_labels.keys())
+
+            plt.tight_layout()
+            plt.savefig(base_path + f"plots/vd_track_fit_comparison{plot_type}")
 
 
         """
@@ -1636,10 +1778,11 @@ def main():
 
                 if i == 0:
                     # cuts for four cell fits only possible hists
-                    sl_refits_cuts = data_utils.cut_data(
-                        data=sl_refits,
+                    sl_fits_cuts = data_utils.cut_data(
+                        data=sl_fits,
                         conditions=[
-                            ("impossible_refit", "==", 0),
+                            ("impossible", "==", 0),
+                            
                         ],
                         silent=True,
                     )
@@ -1648,63 +1791,87 @@ def main():
 
                 elif i == 1:
                     # cuts for four cell fits only possible hists
-                    sl_refits_cuts = data_utils.cut_data(
-                        data=sl_refits,
+                    sl_fits_cuts = data_utils.cut_data(
+                        data=sl_fits,
                         conditions=[
-                            ("impossible_refit", "==", 0),
+                            ("impossible", "==", 0),
+                            ("chi2/ndf", "<", 10),
+                            ("tan_alpha", "<", 1.19),
+                            ("tan_alpha", ">", -1.19),
+
                         ],
                         silent=True,
                     )
 
                     suffix = w_cut 
+                # for key in goood_fit_keys:...
+                key = "tan_alpha"
+                title = f"Distribution of tan($\\alpha$) \n{pct_ar}/{pct_co2} Ar/CO2 U_wire = {u_wire} {w_cut}"
+                factor = 1
+                unit = ""
+                x_label = "tan(alpha)"
+                y_label = "counts"
 
-
-                # analysis of refits 
-                data_to_hist_2d(
-                    data_x=sl_refits_cuts["x0_refit"],
-                    data_y=sl_refits_cuts['vd_refit'] * vd_factor,
-                    x_label="x0",
-                    y_label="v_d",
-                    title=f"Hist of x_0 and v_d refit {suffix}",
-                    save_path=plot_save_path + f"refit_vd_vs_x0_{suffix}{plot_type}",
-                )
-
-                data_to_hist_2d(
-                    data_x=np.rad2deg(np.arctan(sl_refits_cuts["tan_alpha_refit"])),
-                    data_y=sl_refits_cuts['vd_refit'] * vd_factor,
-                    x_label="alpha",
-                    y_label="v_d",
-                    title=f"Hist of alpha vs vd refit {suffix}",
-                    save_path=plot_save_path + f"refit_vd_vs_alpha_{suffix}{plot_type}",
-                )
-
-                data_to_hist_2d(
-                    data_x=np.rad2deg(np.arctan(sl_refits_cuts["tan_alpha_refit"])),
-                    data_y=sl_refits_cuts["x0_refit"],
-                    x_label="alpha",
-                    y_label="x_0",
-                    title=f"Hist of alpha vs x_0 refit {suffix}",
-                    save_path=plot_save_path + f"refit_x0_vs_tanalpha_{suffix}{plot_type}",
-                )
-
-                data_to_hist_2d(
-                    data_x=sl_refits_cuts["x0_refit"],
-                    data_y=sl_refits_cuts["dt0_refit"] * derived_params._ts_unit,
-                    x_label="x_0[mm]",
-                    y_label="dt_0 [ns]",
-                    title=f"Hist of x_0 vs dt_0 refit {suffix}",
-                    save_path=plot_save_path + f"refit_dt_0_vs_x0_{suffix}{plot_type}",
-                )
-
-                for i in range(4):
-                    data_to_hist_2d(
-                        data_x=np.rad2deg(np.arctan(sl_refits_cuts["tan_alpha_refit"])),
-                        data_y=sl_refits_cuts[f"dt{i}_refit"] * derived_params._ts_unit,
-                        x_label="alpha",
-                        y_label=f"dt_{i} [ns]",
-                        title=f"Hist of dt_{i} vs alpha refit {suffix}",
-                        save_path=plot_save_path + f"refit_dt{i}_vs_alpha_{suffix}{plot_type}",
+                data = sl_refits[key]
+                if key == "tan_alpha":
+                    specific_data = build_hist_general(
+                        data_list=data,
+                        n_bins = 200,
+                        # adjust range/binning per-quantity if needed, e.g. by checking key
                     )
+
+    
+                # "/" in a key (e.g. "chi2/ndf_...") isn't safe in a filename
+                safe_key = key.replace("/", "_")
+    
+                fig, ax, path = plot_hist_general(
+                    specific_data=specific_data,
+                    dataset_name=dataset_name,
+                    plot_save_path=plot_save_path,
+                    filename_suffix=safe_key + "_" + suffix,
+                    scale_factor = factor,
+                    title = title,
+                    xlabel = x_label,
+                    ylabel = y_label,
+                    plot_type = plot_type,
+    
+                )
+
+                key = "tan_alpha"
+
+                title = (
+                    f"Distribution of $\\alpha$\n"
+                    f"{pct_ar}/{pct_co2} Ar/CO2 U_wire = {u_wire} {suffix}"
+                )
+
+                factor = 180 / np.pi      # falls du Grad darstellen möchtest
+                unit = "°"
+                x_label = r"$\alpha$ [°]"
+                y_label = "Counts"
+
+                data = np.arctan(sl_fits_cuts[key])
+
+                specific_data = build_hist_general(
+                    data_list=data,
+                    n_bins=200,
+                )
+
+                fig, ax, path = plot_hist_general(
+                specific_data=specific_data,
+                dataset_name=dataset_name,
+                plot_save_path=plot_save_path,
+                filename_suffix="alpha_" + suffix,
+                scale_factor=1,   # you already convert to degrees here
+                title=title,
+                xlabel=x_label,
+                ylabel=y_label,
+                plot_type=plot_type,   # matches your `factor = 180/np.pi` conversion
+            )
+    
+                plt.close("all")
+
+
+                
 
 
 
