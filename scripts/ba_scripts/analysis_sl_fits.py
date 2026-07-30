@@ -380,6 +380,8 @@ def detector_track(
     orient="phi",
     wire_marker_size=4,
     wire_marker_color="black",
+    sl1_fit_color="tab:orange",
+    sl2_fit_color="tab:purple",
 ):
     """
     Reproduce every plot from plot_super_sl_pattern_fits.py's per-fit loop,
@@ -395,15 +397,30 @@ def detector_track(
     - "{dataset_name}_detector_track_zoom_{suffix}_{idx}{plot_type}"
             same, zoomed in x (only if zoom=True)
 
+    Additional plots (super fit + standalone sl1/sl3 fits):
+    - "{dataset_name}_detector_track_individual_fits_{suffix}_{idx}{plot_type}"
+            chamber view comparing the super fit track against the standalone
+            sl1-only and sl3-only fit tracks
+    - "{dataset_name}_detector_track_individual_fits_zoom_{suffix}_{idx}{plot_type}"
+            same, zoomed in x (only if zoom=True)
+    - "{dataset_name}_ts_vs_fit_individual_fits_{suffix}_{idx}{plot_type}"
+            same style/structure as ts_vs_fit above (measured vs. fitted
+            timestamps + residuals), but using the standalone sl1-only /
+            sl3-only fit predictions instead of the super fit
+
     Parameters
     ----------
     super_fits_cuts : dict of arrays
         The (already cut) super-fit dataset, e.g. the output of
         data_utils.cut_data() on the super_fits pcl. Must contain per-fit
         arrays for sl1, sl3, pat_type_sl1/sl3, wi{0-3}_sl1/sl3, ts{0-7},
-        err_ts{0-7}, and the fitted parameters selected by `fit_suffix`
+        err_ts{0-7}, the fitted parameters selected by `fit_suffix`
         (lat_id1/2, t0, x0, tan_alpha, vd, their errors, all corr_* terms,
-        ref_x, ref_z, chi2/ndf).
+        ref_x, ref_z, chi2/ndf), AND the standalone single-SL fit results
+        (t0_sl1/sl3, x0_sl1/sl3, tan_alpha_sl1/sl3, vd_sl1/sl3, their errors,
+        all corr_*_sl1/sl3 terms, chi2/ndf_sl1/sl3). There is no stored
+        reference point for the standalone fits, so each one's local origin
+        is derived here as that SL's own top wire (see in-code comments).
     dataset_info : dict
         Dict as returned by parse_fit_name(), with keys "pct_Ar", "pct_CO2",
         "U_wire", "U_Fieldshaper", "U_cathode". Used in the chamber-view title.
@@ -433,12 +450,21 @@ def detector_track(
         stay visible instead of being hidden by the highlight color.
     wire_marker_color : str
         Color used for the re-drawn wire dots.
+    sl1_fit_color : str
+        Line color for the standalone sl1 fit track in the individual-fits
+        comparison plot.
+    sl2_fit_color : str
+        Line color for the standalone sl2 (sl3) fit track in the
+        individual-fits comparison plot.
 
     Returns
     -------
     saved_paths : dict
         {idx: {"ts_vs_fit": path, "local_track": path,
-            "detector_track": path, "detector_track_zoom": path_or_None}}
+            "detector_track": path, "detector_track_zoom": path_or_None,
+            "detector_track_individual_fits": path,
+            "detector_track_individual_fits_zoom": path_or_None,
+            "ts_vs_fit_individual_fits": path}}
         for every index in `plot_idcs`.
     """
     os.makedirs(plot_save_path, exist_ok=True)
@@ -501,10 +527,10 @@ def detector_track(
         x0 = fit["x0" + fit_suffix]
         tan_alpha = fit["tan_alpha" + fit_suffix]
         vd = fit["vd" + fit_suffix]
-        err_t0 = fit["err_t0" + fit_suffix] 
+        err_t0 = fit["err_t0" + fit_suffix]
         err_x0 = fit["err_x0" + fit_suffix]
         err_tan_alpha = fit["err_tan_alpha" + fit_suffix]
-        err_vd = fit["err_vd" + fit_suffix] 
+        err_vd = fit["err_vd" + fit_suffix]
         corr_t0_x0 = fit["corr_t0_x0" + fit_suffix]
         corr_t0_tan_alpha = fit["corr_t0_tan_alpha" + fit_suffix]
         corr_t0_vd = fit["corr_t0_vd" + fit_suffix]
@@ -513,12 +539,9 @@ def detector_track(
         corr_tan_alpha_vd = fit["corr_tan_alpha_vd" + fit_suffix]
         chi2ndf = fit["chi2/ndf" + fit_suffix]
 
-
-
         # -------------------------------------------------------------
-        # FIT results
+        # standalone single-SL FIT results
         # -------------------------------------------------------------
-
         t0_sl1 = fit["t0_sl1"]
         t0_sl3 = fit["t0_sl3"]
 
@@ -563,11 +586,27 @@ def detector_track(
 
         chi2ndf_sl1 = fit["chi2/ndf_sl1"]
         chi2ndf_sl3 = fit["chi2/ndf_sl3"]
+
+        # There is no stored per-SL reference point in the data, so each
+        # standalone fit's local origin is taken to be that SL's OWN top
+        # wire (among its own 4 layers), evaluated in the same
+        # super_pattern_geometry() frame used for x_cell_glob/z_arr_glob.
+        # This mirrors the convention already used (and visually confirmed
+        # to work) for the chamber-frame track drawing below, just applied
+        # in the fit's own geometry frame instead of the plotting frame.
+        # NOTE: reusing the super fit's shared ref_x/ref_z here is WRONG
+        # whenever the global top wire doesn't happen to lie within that
+        # SL's own 4 layers -- that was the bug causing the huge residuals.
+        top_wire_idx_sl1_geom = int(np.argmax(z_arr_glob[0:4]))
+        ref_x_sl1 = x_cell_glob[0:4][top_wire_idx_sl1_geom]
+        ref_z_sl1 = z_arr_glob[0:4][top_wire_idx_sl1_geom]
+
+        top_wire_idx_sl3_geom = int(np.argmax(z_arr_glob[4:8]))
+        ref_x_sl3 = x_cell_glob[4:8][top_wire_idx_sl3_geom]
+        ref_z_sl3 = z_arr_glob[4:8][top_wire_idx_sl3_geom]
         # -------------------------------------------------------------
 
-
-
-        # fit function evaluated at all 8 layers
+        # fit function evaluated at all 8 layers (super fit)
         fit_ts, err_fit_ts = np.zeros(8), np.zeros(8)
         for ly in range(8):
             fit_ts[ly] = derived_params.f_ts_fit(
@@ -580,6 +619,41 @@ def detector_track(
                 err_t0=err_t0, err_x0=err_x0, err_tan_alpha=err_tan_alpha, err_vd=err_vd,
                 corr_t0_x0=corr_t0_x0, corr_t0_tan_alpha=corr_t0_tan_alpha, corr_t0_vd=corr_t0_vd,
                 corr_x0_tan_alpha=corr_x0_tan_alpha, corr_x0_vd=corr_x0_vd, corr_tan_alpha_vd=corr_tan_alpha_vd,
+            )
+
+        # fit function evaluated at each SL's own 4 layers, using ONLY that
+        # SL's standalone fit parameters and its own local frame
+        x_cell_sl1_local = x_cell_glob[0:4] - ref_x_sl1
+        z_arr_sl1_local = z_arr_glob[0:4] - ref_z_sl1
+        x_cell_sl3_local = x_cell_glob[4:8] - ref_x_sl3
+        z_arr_sl3_local = z_arr_glob[4:8] - ref_z_sl3
+
+        fit_ts_sl1_own, err_fit_ts_sl1_own = np.zeros(4), np.zeros(4)
+        for ly in range(4):
+            fit_ts_sl1_own[ly] = derived_params.f_ts_fit(
+                x_cell=x_cell_sl1_local[ly], t0=t0_sl1, x0=x0_sl1, tan_alpha=tan_alpha_sl1,
+                z=z_arr_sl1_local[ly], laterality=laterality[ly], vd=vd_sl1,
+            )
+            err_fit_ts_sl1_own[ly] = derived_params.err_f_ts_fit(
+                x_cell=x_cell_sl1_local[ly], t0=t0_sl1, x0=x0_sl1, tan_alpha=tan_alpha_sl1,
+                z=z_arr_sl1_local[ly], laterality=laterality[ly], vd=vd_sl1,
+                err_t0=err_t0_sl1, err_x0=err_x0_sl1, err_tan_alpha=err_tan_alpha_sl1, err_vd=err_vd_sl1,
+                corr_t0_x0=corr_t0_x0_sl1, corr_t0_tan_alpha=corr_t0_tan_alpha_sl1, corr_t0_vd=corr_t0_vd_sl1,
+                corr_x0_tan_alpha=corr_x0_tan_alpha_sl1, corr_x0_vd=corr_x0_vd_sl1, corr_tan_alpha_vd=corr_tan_alpha_vd_sl1,
+            )
+
+        fit_ts_sl3_own, err_fit_ts_sl3_own = np.zeros(4), np.zeros(4)
+        for ly in range(4):
+            fit_ts_sl3_own[ly] = derived_params.f_ts_fit(
+                x_cell=x_cell_sl3_local[ly], t0=t0_sl3, x0=x0_sl3, tan_alpha=tan_alpha_sl3,
+                z=z_arr_sl3_local[ly], laterality=laterality[ly + 4], vd=vd_sl3,
+            )
+            err_fit_ts_sl3_own[ly] = derived_params.err_f_ts_fit(
+                x_cell=x_cell_sl3_local[ly], t0=t0_sl3, x0=x0_sl3, tan_alpha=tan_alpha_sl3,
+                z=z_arr_sl3_local[ly], laterality=laterality[ly + 4], vd=vd_sl3,
+                err_t0=err_t0_sl3, err_x0=err_x0_sl3, err_tan_alpha=err_tan_alpha_sl3, err_vd=err_vd_sl3,
+                corr_t0_x0=corr_t0_x0_sl3, corr_t0_tan_alpha=corr_t0_tan_alpha_sl3, corr_t0_vd=corr_t0_vd_sl3,
+                corr_x0_tan_alpha=corr_x0_tan_alpha_sl3, corr_x0_vd=corr_x0_vd_sl3, corr_tan_alpha_vd=corr_tan_alpha_vd_sl3,
             )
 
         ts_label = "Hit timestamps"
@@ -622,6 +696,7 @@ Track ID = {idx}"""
         plt.close(fig)
         paths["ts_vs_fit"] = path
 
+        
         ################################
         ###### plot 2: projected local track (8 hits, spanning both SLs)
 
@@ -654,10 +729,10 @@ Track ID = {idx}"""
         fig.tight_layout()
 
         path = f"{plot_save_path}{dataset_name}_local_track_{suffix}_{idx}{plot_type}"
-        fig.savefig(fname=path)
+        #fig.savefig(fname=path)
         plt.close(fig)
         paths["local_track"] = path
-
+        
         ################################
         ###### plot 3: track inside the full detector geometry (global chamber view)
         # super patterns span sl1 + sl3, i.e. the "phi" superlayers
@@ -735,6 +810,46 @@ Track ID = {idx}"""
         paths["detector_track"] = path
 
         ################################
+        ###### standalone SL1/SL3 fit tracks in chamber coordinates
+        ###### (computed here so both the zoomed plot and plot 5 can use them)
+
+        # each standalone SL fit is drawn using ITS OWN top wire (among its
+        # own 4 layers) as the local-frame reference in chamber coordinates --
+        # same convention as plot 3 above, just restricted to one SL's cells
+        top_wire_idx_sl1 = int(np.argmax(z_arr_ch[0:4]))
+        x_ref_ch_sl1 = x_cell_ch[0:4][top_wire_idx_sl1]
+        z_ref_ch_sl1 = z_arr_ch[0:4][top_wire_idx_sl1]
+
+        top_wire_idx_sl3 = int(np.argmax(z_arr_ch[4:8]))
+        x_ref_ch_sl3 = x_cell_ch[4:8][top_wire_idx_sl3]
+        z_ref_ch_sl3 = z_arr_ch[4:8][top_wire_idx_sl3]
+
+        z_range_sl1 = np.linspace(
+            np.amin(z_arr_ch[0:4]) - params._cell_height * 2,
+            np.amax(z_arr_ch[0:4]) + params._cell_height * 2,
+            500,
+        )
+        z_range_sl3 = np.linspace(
+            np.amin(z_arr_ch[4:8]) - params._cell_height * 2,
+            np.amax(z_arr_ch[4:8]) + params._cell_height * 2,
+            500,
+        )
+
+        track_sl1_local = derived_params.f_x_muon(z=z_range_sl1 - z_ref_ch_sl1, x0=x0_sl1, tan_alpha=tan_alpha_sl1)
+        err_track_sl1_local = derived_params.err_f_x_muon(
+            z=z_range_sl1 - z_ref_ch_sl1, x0=x0_sl1, tan_alpha=tan_alpha_sl1,
+            err_x0=err_x0_sl1, err_tan_alpha=err_tan_alpha_sl1, corr_x0_tan_alpha=corr_x0_tan_alpha_sl1,
+        )
+        track_sl1_glob = track_sl1_local + x_ref_ch_sl1
+
+        track_sl3_local = derived_params.f_x_muon(z=z_range_sl3 - z_ref_ch_sl3, x0=x0_sl3, tan_alpha=tan_alpha_sl3)
+        err_track_sl3_local = derived_params.err_f_x_muon(
+            z=z_range_sl3 - z_ref_ch_sl3, x0=x0_sl3, tan_alpha=tan_alpha_sl3,
+            err_x0=err_x0_sl3, err_tan_alpha=err_tan_alpha_sl3, corr_x0_tan_alpha=corr_x0_tan_alpha_sl3,
+        )
+        track_sl3_glob = track_sl3_local + x_ref_ch_sl3
+
+        ################################
         ###### plot 4: zoomed chamber view (x-axis only)
 
         paths["detector_track_zoom"] = None
@@ -788,6 +903,134 @@ Track ID = {idx}"""
             fig_zoom.savefig(fname=path_zoom)
             plt.close(fig_zoom)
             paths["detector_track_zoom"] = path_zoom
+
+        ################################
+        ###### plot 5 (NEW): chamber view comparing the super fit track
+        ###### against the standalone sl1-only and sl3-only fit tracks
+        ###### (track data computed earlier, above the zoom block)
+
+        fig, ax = plt.subplots(1, 1, figsize=(14, 5))
+        ax = geoplot_utils.chamber_ax(ax=ax, orient=orient, cell_data=dt_cell_data, wire=True)
+
+        ax.scatter(x_cell_ch, z_arr_ch, marker="o", s=wire_marker_size, color=wire_marker_color, zorder=4)
+        ax.errorbar(x=x_hits_ch, y=z_arr_ch, xerr=err_x_hits, color="tab:blue", marker="o", markersize=4, linestyle="", label=ts_label, zorder=5)
+
+        ax.plot(track_glob, z_range_glob, linewidth=2, color="tab:red",
+                label=f"Super fit ($\\chi^2/N_{{df}}={chi2ndf:.2f}$)", zorder=6)
+        ax.fill_betweenx(x1=track_glob - err_track_local, x2=track_glob + err_track_local, y=z_range_glob, color="tab:red", alpha=0.15, zorder=0)
+
+        ax.plot(track_sl1_glob, z_range_sl1, linewidth=2, linestyle="--", color=sl1_fit_color,
+                label=f"SL{sl1}-only fit ($\\chi^2/N_{{df}}={chi2ndf_sl1:.2f}$)", zorder=6)
+        ax.fill_betweenx(x1=track_sl1_glob - err_track_sl1_local, x2=track_sl1_glob + err_track_sl1_local, y=z_range_sl1, color=sl1_fit_color, alpha=0.15, zorder=0)
+
+        ax.plot(track_sl3_glob, z_range_sl3, linewidth=2, linestyle="--", color=sl2_fit_color,
+                label=f"SL{sl2}-only fit ($\\chi^2/N_{{df}}={chi2ndf_sl3:.2f}$)", zorder=6)
+        ax.fill_betweenx(x1=track_sl3_glob - err_track_sl3_local, x2=track_sl3_glob + err_track_sl3_local, y=z_range_sl3, color=sl2_fit_color, alpha=0.15, zorder=0)
+
+        ax.legend(prop={"size": 13}, fancybox=False, framealpha=params._legend_alpha, loc="center right")
+        ax.set_xlabel("$x$ [mm]")
+        ax.set_ylabel("$z$ [mm]")
+        ax.set_ylim(np.amin(z_range_glob), np.amax(z_range_glob))
+        ax.set_title(
+            f"DT chamber ($\\phi$ view) -- super fit vs. standalone SL{sl1}/SL{sl2} fits, "
+            f"{pct_ar}/{pct_co2} Ar/CO2, U_wire={u_wire}, {suffix}"
+        )
+        fig.tight_layout()
+
+        path = f"{plot_save_path}{dataset_name}_detector_track_individual_fits_{suffix}_{idx}{plot_type}"
+        fig.savefig(fname=path)
+        plt.close(fig)
+        paths["detector_track_individual_fits"] = path
+
+        ################################
+        ###### plot 5b (NEW): zoomed version of plot 5
+
+        paths["detector_track_individual_fits_zoom"] = None
+        if zoom:
+            fig_zoom2, ax_zoom2 = plt.subplots(1, 1, figsize=(8, 10))
+            ax_zoom2 = geoplot_utils.chamber_ax(ax=ax_zoom2, orient=orient, cell_data=dt_cell_data, wire=True)
+
+            ax_zoom2.scatter(x_cell_ch, z_arr_ch, marker="o", s=wire_marker_size, color=wire_marker_color, zorder=4)
+            ax_zoom2.errorbar(x=x_hits_ch, y=z_arr_ch, xerr=err_x_hits, color="tab:blue", marker="o", markersize=7, linestyle="", label=ts_label, zorder=5)
+
+            ax_zoom2.plot(track_glob, z_range_glob, linewidth=2, color="tab:red",
+                          label=f"Super fit ($\\chi^2/N_{{df}}={chi2ndf:.2f}$)", zorder=6)
+            ax_zoom2.fill_betweenx(x1=track_glob - err_track_local, x2=track_glob + err_track_local, y=z_range_glob, color="tab:red", alpha=0.15, zorder=0)
+
+            ax_zoom2.plot(track_sl1_glob, z_range_sl1, linewidth=2, linestyle="--", color=sl1_fit_color,
+                          label=f"SL{sl1}-only fit ($\\chi^2/N_{{df}}={chi2ndf_sl1:.2f}$)", zorder=6)
+            ax_zoom2.fill_betweenx(x1=track_sl1_glob - err_track_sl1_local, x2=track_sl1_glob + err_track_sl1_local, y=z_range_sl1, color=sl1_fit_color, alpha=0.15, zorder=0)
+
+            ax_zoom2.plot(track_sl3_glob, z_range_sl3, linewidth=2, linestyle="--", color=sl2_fit_color,
+                          label=f"SL{sl2}-only fit ($\\chi^2/N_{{df}}={chi2ndf_sl3:.2f}$)", zorder=6)
+            ax_zoom2.fill_betweenx(x1=track_sl3_glob - err_track_sl3_local, x2=track_sl3_glob + err_track_sl3_local, y=z_range_sl3, color=sl2_fit_color, alpha=0.15, zorder=0)
+
+            xmin = min(
+                np.min(track_glob - err_track_local),
+                np.min(track_sl1_glob - err_track_sl1_local),
+                np.min(track_sl3_glob - err_track_sl3_local),
+                np.min(x_hits_ch - err_x_hits),
+            )
+            xmax = max(
+                np.max(track_glob + err_track_local),
+                np.max(track_sl1_glob + err_track_sl1_local),
+                np.max(track_sl3_glob + err_track_sl3_local),
+                np.max(x_hits_ch + err_x_hits),
+            )
+            ax_zoom2.set_xlim(xmin - zoom_margin, xmax + zoom_margin)
+            ax_zoom2.set_ylim(np.amin(z_range_glob), np.amax(z_range_glob))
+
+            ax_zoom2.set_xlabel("$x$ [mm]")
+            ax_zoom2.set_ylabel("$z$ [mm]")
+            ax_zoom2.set_title(f"DT chamber ($\\phi$ view) -- Zoomed, super vs. standalone SL{sl1}/SL{sl2} fits, {suffix}")
+            ax_zoom2.legend(prop={"size": 12}, fancybox=False, framealpha=params._legend_alpha, loc="center right")
+            fig_zoom2.tight_layout()
+
+            path_zoom2 = f"{plot_save_path}{dataset_name}_detector_track_individual_fits_zoom_{suffix}_{idx}{plot_type}"
+            fig_zoom2.savefig(fname=path_zoom2)
+            plt.close(fig_zoom2)
+            paths["detector_track_individual_fits_zoom"] = path_zoom2
+
+        ################################
+        ###### plot 6 (NEW): same style/structure as plot 1 (ts_vs_fit),
+        ###### but using the standalone sl1-only / sl3-only fit predictions
+        ###### instead of the super fit
+
+        fit_ts_indiv = np.concatenate([fit_ts_sl1_own, fit_ts_sl3_own])
+        err_fit_ts_indiv = np.concatenate([err_fit_ts_sl1_own, err_fit_ts_sl3_own])
+
+        fit_label_indiv = f"""Standalone SL fits:
+SL{sl1}: $T_0=({np.round(t0_sl1,0):.0f}\\pm{np.round(err_t0_sl1,0):.0f})$ {params._key_units['t0']}, $\\chi^2/N_{{df}}={np.round(chi2ndf_sl1,2):.2f}$
+SL{sl2}: $T_0=({np.round(t0_sl3,0):.0f}\\pm{np.round(err_t0_sl3,0):.0f})$ {params._key_units['t0']}, $\\chi^2/N_{{df}}={np.round(chi2ndf_sl3,2):.2f}$
+Track ID = {idx}"""
+
+        fig, ax = plt.subplots(2, 1, figsize=(12, 7), sharex=True, height_ratios=(5, 1))
+        ax[0].errorbar(x=lys - 0.04, y=ts, yerr=err_ts, color="tab:blue", marker="o", markersize=7, linestyle="", label=ts_label)
+        ax[0].errorbar(x=lys + 0.04, y=fit_ts_indiv, yerr=err_fit_ts_indiv, color="tab:red", marker="v", markersize=7, linestyle="", label=fit_label_indiv)
+        ax[0].axvline(x=3.5, color="gray", linestyle=":", linewidth=1)
+        ax[0].set_ylabel("Timestamp $T_{ly}$ [TU]")
+        ax[0].legend(prop={"size": 16}, fancybox=False, framealpha=params._legend_alpha)
+        ax[0].set_title(f"SL {sl1} + SL {sl2}, standalone fits, Patterns {pat_name_sl1}/{pat_name_sl2}, Laterality {[int(l) for l in laterality]}")
+        ax[0].yaxis.set_major_formatter(ScalarFormatter(useMathText=True))
+
+        residuals_indiv = ts - fit_ts_indiv
+        err_residuals_indiv = err_ts
+        ax[1].axhline(y=0, color="gray", linewidth=1)
+        ax[1].axvline(x=3.5, color="gray", linestyle=":", linewidth=1)
+        ax[1].errorbar(x=lys, y=residuals_indiv, yerr=err_residuals_indiv, color="black", marker="o", markersize=7, linestyle="")
+        y_span = np.amax(np.abs(residuals_indiv) + err_residuals_indiv) * 1.1
+        ax[1].set_ylim(-y_span, y_span)
+        ax[1].set_ylabel("Residuals [TU]")
+        ax[1].set_xlabel(f"Layer $ly$ (0-3: SL{sl1}, 4-7: SL{sl2})")
+        ax[1].set_xticks([i for i in range(8)])
+        ax[1].set_xticklabels([f"{i}" for i in range(8)])
+        fig.tight_layout()
+        fig.subplots_adjust(wspace=0, hspace=0.1)
+
+        path = f"{plot_save_path}{dataset_name}_ts_vs_fit_individual_fits_{suffix}_{idx}{plot_type}"
+        fig.savefig(fname=path)
+        plt.close(fig)
+        paths["ts_vs_fit_individual_fits"] = path
 
         saved_paths[idx] = paths
 
@@ -1150,6 +1393,129 @@ def fit_gaussian_hist(
 
     return fig, ax, path, fit_results
 
+
+def fit_parabola_peak(
+    *,
+    specific_data,
+    dataset_name,
+    plot_save_path,
+    xlabel,
+    ylabel="counts",
+    title="",
+    filename_suffix="ALL",
+    fit_half_width=5,
+    fit_half_range = 1,
+    scale_factor=1,
+    ):
+    # Draw histogram using your existing function
+    fig, ax, path = plot_hist_general(
+        specific_data=specific_data,
+        dataset_name=dataset_name,
+        plot_save_path=plot_save_path,
+        xlabel=xlabel,
+        ylabel=ylabel,
+        title=title,
+        filename_suffix=filename_suffix,
+        scale_factor=scale_factor,
+        save=False,          # save after adding fit
+    )
+
+    # Read histogram
+    hist = np.asarray(specific_data["hist"])
+    err = 0.5 * (
+        np.asarray(specific_data["err_hist_up"])
+        + np.asarray(specific_data["err_hist_down"])
+    )
+    err = np.where(err <= 0, 1.0, err)
+
+    edges = np.asarray(specific_data["edges"]) * scale_factor
+    centers = hist_utils.centers_from_edges(edges)
+
+    # Maximum bin
+    peak_fraction = 0.60
+    n_consecutive = 4
+
+    imax = np.argmax(hist)
+    threshold = peak_fraction * hist[imax]
+
+    # Search left
+    lo = imax
+    count = 0
+    while lo > 0:
+        lo -= 1
+        if hist[lo] < threshold:
+            count += 1
+            if count >= n_consecutive:
+                lo += n_consecutive - 1  # last bin above threshold
+                break
+        else:
+            count = 0
+
+    # Search right
+    hi = imax
+    count = 0
+    while hi < len(hist) - 1:
+        hi += 1
+        if hist[hi] < threshold:
+            count += 1
+            if count >= n_consecutive:
+                hi -= n_consecutive - 1  # last bin above threshold
+                break
+        else:
+            count = 0
+
+    x = centers[lo:hi+1]
+    y = hist[lo:hi+1]
+    sigma = err[lo:hi+1]
+
+    # Parabola
+    def parabola(x, a, b, c):
+        return a*x**2 + b*x + c
+
+    popt, pcov = curve_fit(
+        parabola,
+        x,
+        y,
+        sigma=sigma,
+        absolute_sigma=True,
+    )
+
+    a, b, c = popt
+
+    peak = -b/(2*a)
+
+    # error propagation
+    da = b/(2*a**2)
+    db = -1/(2*a)
+
+    peak_err = np.sqrt(
+        da**2 * pcov[0,0]
+        + db**2 * pcov[1,1]
+        + 2*da*db*pcov[0,1]
+    )
+
+    # Plot fit
+    xx = np.linspace(x[0], x[-1], 200)
+    ax.plot(xx, parabola(xx, *popt), "r-", lw=2,
+            label=f"Parabola\nPeak = {peak:.3f} ± {peak_err:.3f}")
+
+    ax.axvline(peak, color="red", ls="--", alpha=0.7)
+
+    ax.legend()
+    plt.close(fig)
+    # Save
+    path = f"{plot_save_path}{dataset_name}_{filename_suffix}_parabolafit.png"
+    fig.savefig(path)
+
+    fit_results = {
+        "peak": peak,
+        "peak_err": peak_err,
+        "popt": popt,
+        "pcov": pcov,
+    }
+
+    return fig, ax, path, fit_results
+
 def parse_fit_name(*, name):
     # Erwartetes Format: cosmic_<Ar>-<CO2>_<U_wire>-<U_Fieldshaper>-<U_cathode>_<rest...>
     pattern = r"^cosmic_(\d+)-(\d+)_(\d+)-(\d+)-(\d+)"
@@ -1192,6 +1558,7 @@ def data_to_hist_2d (*, data_x, data_y, x_label, y_label, title, colorbar_label 
     plt.savefig(save_path)
     plt.close()
     return
+
 # -------------------------------------------------------------------------------------------------------
 # main function
 @mpl.rc_context({'font.family': 'sans-serif', 'font.size': 12}) #'font.sans-serif': 'Arial',
@@ -1200,10 +1567,10 @@ def main():
 
 
 
-    do_only_gauss_fit = True #if set to True, only double gauss to SUPER FITS fit is done, resulting in a quicker analysis
+    do_only_gauss_fit = False #if set to True, only double gauss to SUPER FITS fit is done, resulting in a quicker analysis
     do_ramp_measurement = False # if set to True, the ramp measurements are analyzed, changing plot naming and allowing for time, only gauss fits are saved, if also other analyisi is supposed to be saved, change if statement a few lines below
     do_refit_full_analysis = True # if set to True, 2D hists of data is plotted, if set to False oly timeboxes, vd, and tan(alpha) dist is plotted
-    do_super_fit_analysis = False
+    do_super_fit_analysis = True
     
     list_of_fits = ["cosmic_82-18_3550-1800-1200_run1_th20_cut100",
                 "cosmic_82-18_3575-1800-1200_run1_th20_cut100", 
@@ -1220,30 +1587,37 @@ def main():
                 "cosmic_85-15_3575-1800-1200_run1_th20_cut100", 
                 "cosmic_85-15_3600-1800-1200_run2_th20_cut100"
                 ]
-
+    list_of_fits = ["cosmic_82-18_3550-1800-1200_run1_th20_cut_50", "cosmic_82-18_3550-1800-1200_run1_th20_cut_51"]
     ramp_datasets = [ "data_mic0_start_2026-07-24_18-06-10_stop_2026-07-24_18-16-11",
-                    "data_mic0_start_2026-07-24_22-16-13_stop_2026-07-24_22-26-14",
-                    "data_mic0_start_2026-07-25_02-26-16_stop_2026-07-25_02-36-17",
-                    "data_mic0_start_2026-07-25_06-36-19_stop_2026-07-25_06-46-20",
-                    "data_mic0_start_2026-07-25_10-46-22_stop_2026-07-25_10-56-23",
-                    "data_mic0_start_2026-07-25_14-56-25_stop_2026-07-25_15-06-26",
-                    "data_mic0_start_2026-07-25_19-06-28_stop_2026-07-25_19-16-29",
-                    "data_mic0_start_2026-07-25_23-16-31_stop_2026-07-25_23-26-32", 
-                    "data_mic0_start_2026-07-26_03-26-34_stop_2026-07-26_03-36-35",
-                    "data_mic0_start_2026-07-26_07-36-37_stop_2026-07-26_07-46-38", 
-                    "data_mic0_start_2026-07-26_11-46-40_stop_2026-07-26_11-56-41",
-                    "data_mic0_start_2026-07-26_15-56-43_stop_2026-07-26_16-06-44",
-                    "data_mic0_start_2026-07-26_20-06-46_stop_2026-07-26_20-16-47",
-                    "data_mic0_start_2026-07-27_00-16-49_stop_2026-07-27_00-26-50", 
-                    "data_mic0_start_2026-07-27_04-26-52_stop_2026-07-27_04-36-53", 
-                    "data_mic0_start_2026-07-27_08-36-55_stop_2026-07-27_08-46-56",
-                    #"data_mic0_start_2026-07-27_12-46-58_stop_2026-07-27_12-56-59", #not calculated
-                    "data_mic0_start_2026-07-27_16-57-02_stop_2026-07-27_17-07-03",
-                    "data_mic0_start_2026-07-27_21-07-05_stop_2026-07-27_21-17-06", 
-                    "data_mic0_start_2026-07-28_05-27-11_stop_2026-07-28_05-37-12",
-                    "data_mic0_start_2026-07-28_09-37-15_stop_2026-07-28_09-47-16",
-       
-                    ]
+                        "data_mic0_start_2026-07-24_22-16-13_stop_2026-07-24_22-26-14",
+                        "data_mic0_start_2026-07-25_02-26-16_stop_2026-07-25_02-36-17",
+                        "data_mic0_start_2026-07-25_06-36-19_stop_2026-07-25_06-46-20",
+                        "data_mic0_start_2026-07-25_10-46-22_stop_2026-07-25_10-56-23",
+                        "data_mic0_start_2026-07-25_14-56-25_stop_2026-07-25_15-06-26",
+                        "data_mic0_start_2026-07-25_19-06-28_stop_2026-07-25_19-16-29",
+                        "data_mic0_start_2026-07-25_23-16-31_stop_2026-07-25_23-26-32",
+                        "data_mic0_start_2026-07-26_03-26-34_stop_2026-07-26_03-36-35",
+                        "data_mic0_start_2026-07-26_07-36-37_stop_2026-07-26_07-46-38",
+                        "data_mic0_start_2026-07-26_11-46-40_stop_2026-07-26_11-56-41",
+                        "data_mic0_start_2026-07-26_15-56-43_stop_2026-07-26_16-06-44",
+                        "data_mic0_start_2026-07-26_20-06-46_stop_2026-07-26_20-16-47",
+                        "data_mic0_start_2026-07-27_00-16-49_stop_2026-07-27_00-26-50",
+                        "data_mic0_start_2026-07-27_04-26-52_stop_2026-07-27_04-36-53",
+                        "data_mic0_start_2026-07-27_08-36-55_stop_2026-07-27_08-46-56",
+                        #"data_mic0_start_2026-07-27_12-46-58_stop_2026-07-27_12-56-59", #not all calculated 
+                        "data_mic0_start_2026-07-27_16-57-02_stop_2026-07-27_17-07-03",
+                        "data_mic0_start_2026-07-27_21-07-05_stop_2026-07-27_21-17-06",
+                        "data_mic0_start_2026-07-28_01-17-08_stop_2026-07-28_01-27-09",
+                        "data_mic0_start_2026-07-28_05-27-11_stop_2026-07-28_05-37-12",
+                        "data_mic0_start_2026-07-28_09-37-15_stop_2026-07-28_09-47-16",
+                        "data_mic0_start_2026-07-28_13-47-18_stop_2026-07-28_13-57-19",
+                        "data_mic0_start_2026-07-28_17-57-21_stop_2026-07-28_18-07-22",
+                        "data_mic0_start_2026-07-28_22-07-25_stop_2026-07-28_22-17-26",
+                        "data_mic0_start_2026-07-29_02-17-28_stop_2026-07-29_02-27-29",
+                        "data_mic0_start_2026-07-29_06-27-31_stop_2026-07-29_06-37-32",
+                        "data_mic0_start_2026-07-29_10-37-34_stop_2026-07-29_10-47-35",
+                        "data_mic0_start_2026-07-29_14-47-37_stop_2026-07-29_14-57-38", 
+                        ]
     #list_of_fits = ["cosmic_82-18_3550-1800-1200_run1_th20_cut_50"]
     
         
@@ -1374,7 +1748,7 @@ def main():
                         data=super_fits,
                         conditions=[
                             ("impossible_free_vd_super_fit", "==", 0),
-                            ("chi2/ndf_free_vd_super_fit", "<", 10),
+                            ("chi2/ndf_free_vd_super_fit", "<", 5),
                             #("chi2/ndf_free_vd_super_fit", ">", 0.5),
                             #("vd_free_vd_super_fit", "<", 59 * derived_params._drift_velocity_conversion),
                             #("vd_free_vd_super_fit", ">", 51 * derived_params._drift_velocity_conversion),
@@ -1408,6 +1782,9 @@ def main():
                     data = super_fits_cuts[key]
                     specific_data = build_hist_general(
                         data_list=data,
+                        edge_max=70 / vd_factor,
+                        edge_min = 40 / vd_factor,
+                        n_bins = 280,
                         # adjust range/binning per-quantity if needed, e.g. by checking key
                     )
             
@@ -1416,8 +1793,12 @@ def main():
                     if not do_ramp_measurement:
                         strdataset_name = f"{safe_key}_{pct_ar}_{pct_co2}_{u_wire}"
 
-                    if do_ramp_measurement:
+                    elif do_ramp_measurement:
                         strdataset_name = dataset_name
+
+
+                    #does double gauss fit to dada, worse convergence and less reliable than parabola
+                    """
                     fig, ax, path, fit_results = fit_gaussian_hist(
                         specific_data=specific_data,
                         dataset_name=strdataset_name,
@@ -1427,9 +1808,22 @@ def main():
                         title=title,
                         filename_suffix=suffix,
                     )
+                    """
+                    
+                    fig, ax, path, fit_results = fit_parabola_peak(
+                        specific_data=specific_data,
+                        dataset_name=strdataset_name,
+                        plot_save_path=plot_save_path,
+                        xlabel=x_label,
+                        ylabel=y_label,
+                        title=title,
+                        filename_suffix=suffix,
+                        scale_factor = vd_factor
+                    )
+
                     analysis_out[dataset_name] = fit_results
 
-                    print(f"fitted mean drift velocity = {fit_results['mean']:.4g} ± {fit_results['mean_err']:.4g} {unit}")
+                    #print(f"fitted mean drift velocity = {fit_results['mean']:.4g} ± {fit_results['mean_err']:.4g} {unit}")
 
                     if do_only_gauss_fit:
                         continue
@@ -1555,7 +1949,8 @@ def main():
             
                 plt.close("all")
 
-            
+
+
         #When doing ramp measurement, this loop is used
         if do_ramp_measurement:
             print("Analysis of ramp measurement begins...")
@@ -1568,9 +1963,10 @@ def main():
             errors = []
 
             for dataset, result in analysis_out.items():
-                times.append(parse_start_time(dataset))
-                values.append(result["mean_1"])
-                errors.append(result["mean_1_err"])
+                if result["peak_err"] < 1:
+                    times.append(parse_start_time(dataset))
+                    values.append(result["peak"])
+                    errors.append(result["peak_err"])
 
             plt.figure(figsize=(10, 5))
 
@@ -1596,6 +1992,7 @@ def main():
             plt.tight_layout()
             plt.savefig(f"{base_path}plots/ramp_analysis_track_fit{plot_type}")
 
+
         if not do_ramp_measurement:
                 
             plt.figure(figsize=fig_size)
@@ -1619,8 +2016,8 @@ def main():
                 pct_co2 = dataset_info["pct_CO2"]
                 u_wire = dataset_info["U_wire"]
 
-                mean_vd = result["mean_1"]
-                err_mean_vd = result["mean_1_err"]
+                mean_vd = result["peak"]
+                err_mean_vd = result["peak_err"]
 
                 plt.errorbar(
                     pct_ar,

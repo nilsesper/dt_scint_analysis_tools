@@ -494,7 +494,7 @@ def main():
                         "data_mic0_start_2026-07-24_22-16-13_stop_2026-07-24_22-26-14",
                         "data_mic0_start_2026-07-25_02-26-16_stop_2026-07-25_02-36-17",
                         "data_mic0_start_2026-07-25_06-36-19_stop_2026-07-25_06-46-20",
-                        #"data_mic0_start_2026-07-25_10-46-22_stop_2026-07-25_10-56-23", not all calculated is in calculation
+                        "data_mic0_start_2026-07-25_10-46-22_stop_2026-07-25_10-56-23",
                         "data_mic0_start_2026-07-25_14-56-25_stop_2026-07-25_15-06-26",
                         "data_mic0_start_2026-07-25_19-06-28_stop_2026-07-25_19-16-29",
                         "data_mic0_start_2026-07-25_23-16-31_stop_2026-07-25_23-26-32",
@@ -507,12 +507,18 @@ def main():
                         "data_mic0_start_2026-07-27_04-26-52_stop_2026-07-27_04-36-53",
                         "data_mic0_start_2026-07-27_08-36-55_stop_2026-07-27_08-46-56",
                         #"data_mic0_start_2026-07-27_12-46-58_stop_2026-07-27_12-56-59", #not all calculated 
-                        #"data_mic0_start_2026-07-27_16-57-02_stop_2026-07-27_17-07-03", #not all calculated is in calculation
+                        "data_mic0_start_2026-07-27_16-57-02_stop_2026-07-27_17-07-03",
                         "data_mic0_start_2026-07-27_21-07-05_stop_2026-07-27_21-17-06",
-                        #"data_mic0_start_2026-07-28_01-17-08_stop_2026-07-28_01-27-09", #not all calculated is in calculation
+                        "data_mic0_start_2026-07-28_01-17-08_stop_2026-07-28_01-27-09",
                         "data_mic0_start_2026-07-28_05-27-11_stop_2026-07-28_05-37-12",
                         "data_mic0_start_2026-07-28_09-37-15_stop_2026-07-28_09-47-16",
-            
+                        "data_mic0_start_2026-07-28_13-47-18_stop_2026-07-28_13-57-19",
+                        "data_mic0_start_2026-07-28_17-57-21_stop_2026-07-28_18-07-22",
+                        "data_mic0_start_2026-07-28_22-07-25_stop_2026-07-28_22-17-26",
+                        "data_mic0_start_2026-07-29_02-17-28_stop_2026-07-29_02-27-29",
+                        "data_mic0_start_2026-07-29_06-27-31_stop_2026-07-29_06-37-32",
+                        "data_mic0_start_2026-07-29_10-37-34_stop_2026-07-29_10-47-35",
+                        #"data_mic0_start_2026-07-29_14-47-37_stop_2026-07-29_14-57-38", #not finished
                         ]
     
     if do_ramp_measurement:
@@ -940,7 +946,7 @@ def main():
     
         plt.xlabel("Start time")
         plt.ylabel(r"$v_d$ [$\mu$m/ns]")
-        plt.title(r"Drift velocity over time ($U_{\mathrm{wire}}=3600$ V)")
+        plt.title(r"Drift velocity over time ($U_{\mathrm{wire}}=3600$ V) Photopeak method")
         plt.grid(True)
         plt.legend()
         plt.tight_layout()

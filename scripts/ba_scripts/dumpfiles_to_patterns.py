@@ -23,15 +23,15 @@ def main():
     ### --- manuell gesetzte Parameter (ersetzt argparse) ---
     base_path = "data_ba/"
     
-    dataset_name = "cosmic_85_15_3300-1650-1100_test1"
+    dataset_name = "cosmic_82-18_3550-1800-1200_run1_th20_cut_51"
     dumpfile_name = dataset_name + ".txt"
-    dumpfile_path = base_path + dumpfile_name
-    dt_hits_file   = base_path + "pcls/" + dataset_name + "_hits_wdeadtime.pcl"  # output file path: dt hits (pcl file)
-    sl_patterns_file = base_path + "pcls/" + dataset_name + "_sl_patterns.pcl"   # output file path: sl_patterns
+    dumpfile_path = base_path + "data_tests_cuts/" + dumpfile_name
+    dt_hits_file   = base_path + f"pcls/{dataset_name}/" + dataset_name + "_hits_wdeadtime.pcl"  # output file path: dt hits (pcl file)
+    sl_patterns_file = base_path + f"pcls/{dataset_name}/" + dataset_name + "_sl_patterns.pcl"   # output file path: sl_patterns
     nodeadtime     = False   # True = do not apply dead time
 
     ### multiprocessing setup
-    n_processes = 11 # no of processes running in parallel
+    n_processes = 3 # no of processes running in parallel
     n_batches_clustering = 50000 # batch size for hit clustering
     do_multiprocessing = True
     # ---------------------------------------------------------

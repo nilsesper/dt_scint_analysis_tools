@@ -16,18 +16,17 @@ import matplotlib.pyplot as plt
 # main function
 def main():
     base_path = "data_ba/"
-    dataset_name = "cosmic_85-15_3600-1800-1200_run2_th20_cut"
-    sl_patterns_file = base_path + "pcls/" + dataset_name + "_sl_patterns.pcl"  
-    sl_fits_file = base_path + "pcls/" + dataset_name + "_sl_fits.pcl"
-    sl_refits_file = base_path + "pcls/" + dataset_name + "_sl_refits.pcl"
-    super_fits_path = base_path + "pcls/" + dataset_name + "_super_fits.pcl"
+    dataset_name = "cosmic_82-18_3550-1800-1200_run1_th20_cut_50"
+    sl_patterns_file = base_path + f"pcls/{dataset_name}/" + dataset_name + "_sl_patterns.pcl"  
+    sl_fits_file = base_path + f"pcls/{dataset_name}/" + dataset_name + "_sl_fits.pcl"
+    sl_refits_file = base_path + f"pcls/{dataset_name}/" + dataset_name + "_sl_refits.pcl"
+    super_fits_path = base_path + f"pcls/{dataset_name}/" + dataset_name + "_super_fits.pcl"
 
     verbose = False
    
     ### multiprocessing setup
-    n_processes = 11  # no of processes running in parallel
-    n_batches_sl_fitting = 1000  # batch size for sl fitting of hit clusters
-
+    n_processes = 2  # no of processes running in parallel
+    n_batches_sl_fitting = 1000  # batch size for sl fitting of hit clusters3
 
     do_multiprocessing = True  # Multiprocessing aktuell deaktiviert
 

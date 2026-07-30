@@ -54,7 +54,7 @@ def main():
     dataset_folder_pcls = base_path + pcls_path + dataset_name + "/"
     os.makedirs(dataset_folder_pcls, exist_ok=True)
 
-    input_dumpfile = base_path + "data_runs/" + dataset_name + ".txt"
+    input_dumpfile = base_path + "data_tests_cuts/" + dataset_name + ".txt"
 
     nodeadtime = True
     use_timestamp_sync = True
