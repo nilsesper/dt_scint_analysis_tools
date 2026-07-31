@@ -650,8 +650,6 @@ def fit_sl_patterns(patterns, *, silent=False, verbose=False, fit_vd=False, suff
 
 
 """
-
-
 #this is nils working code
 ### find pattern in dt hits for each superlayer separately, within given timestamp range
 # requires timestamps assigned in hits object

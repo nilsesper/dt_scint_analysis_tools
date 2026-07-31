@@ -21,9 +21,11 @@ from scipy.optimize import curve_fit
 from scipy.signal import find_peaks, peak_widths
 import re
 from datetime import datetime
+from matplotlib.ticker import ScalarFormatter
 
 import matplotlib.dates as mdates
-
+import sys
+from pathlib import Path
 
 # =================================================================
 # Robust secondary-peak fitting helpers
@@ -316,6 +318,589 @@ def fit_secondary_peak_parabola(
     )
 
 
+
+
+# Fixed U_wire -> color mapping, light to dark, so colors stay consistent
+# across every plot regardless of which subset of voltages is present in a
+# given `analysis_out`. Sampled from a sequential colormap (light = low
+# voltage, dark = high voltage). Extend this dict if you add more voltages.
+_WIRE_VOLTAGES = [3550, 3575, 3600, 3625, 3650]
+_WIRE_COLORMAP = plt.cm.Blues  # light -> dark as voltage increases
+_WIRE_COLOR_MAP = {
+    # skip the very lightest end (near-white) so the lowest voltage is still visible
+    v: _WIRE_COLORMAP(0.3 + 0.7 * i / (len(_WIRE_VOLTAGES) - 1))
+    for i, v in enumerate(_WIRE_VOLTAGES)
+}
+ 
+ 
+
+def plot_vd_by_gas_mix(
+    *,
+    analysis_out,
+    base_path,
+    dataset_info_fn,
+    plot_type=".png",
+    fig_size=(12, 7),
+    save_path=None,
+    y_margin=1.0,
+    verbose=True,
+    method = "",
+    strmethod = "",
+    ):
+    """
+    Bar-chart comparison of fitted drift velocities, grouped by gas mixture.
+ 
+    Replaces the errorbar-per-dataset scatter plot: instead of one point per
+    dataset scattered along an Ar-concentration x-axis, every dataset
+    sharing the same (pct_Ar, pct_CO2) gas mixture is grouped into one
+    x-axis category, and one bar is drawn per measurement within that group
+    (colored consistently by U_wire across groups, using a fixed hardcoded
+    color per voltage) -- mirroring the grouped-bar comparison plot used
+    elsewhere for pattern-type rates.
+ 
+    Parameters
+    ----------
+    analysis_out : dict
+        {dataset_name: fit_results}. Reads "peak"/"peak_err" (as produced
+        by fit_parabola_peak / fit_gaussian_hist) if present, otherwise
+        falls back to "v_drift"/"err_v_drift" (as produced by the photopeak
+        method), so the same function works on either analysis's output.
+    base_path : str
+        Used to build the default output file path
+        (base_path + "plots/vd_photo_peak_comparison<plot_type>").
+    dataset_info_fn : callable
+        Function taking `name=dataset_name` and returning a dict with keys
+        "pct_Ar", "pct_CO2", "U_wire" (e.g. your existing parse_fit_name).
+        Called once per dataset -- NOT once total with a stale name, which
+        was the bug in the original snippet (it called
+        `parse_fit_name(name=dataset_name)` using an outer-scope variable
+        instead of the actual per-iteration dataset). If it raises for a
+        given dataset, that dataset is skipped (with a printed warning)
+        instead of silently being plotted with the wrong / blank info.
+    plot_type : str, default ".png"
+    fig_size : tuple, default (12, 7)
+    save_path : str, optional
+        Full output path. Defaults to
+        f"{base_path}plots/vd_photo_peak_comparison{plot_type}".
+    y_margin : float, default 1.0
+        Padding (in the same units as vd, e.g. um/ns) added below the
+        lowest and above the highest (mean_vd +/- err_vd) across all
+        entries, used for the y-axis limits -- instead of the default
+        bar-chart behavior of always starting the y-axis at 0.
+    verbose : bool, default True
+        Print skipped datasets and the final save path.
+ 
+    Returns
+    -------
+    fig, ax, path
+    """
+    # --- collect (mix, u_wire, mean_vd, err_vd) per dataset ---
+    entries = []
+    for dataset_name, result in analysis_out.items():
+        try:
+            info = dataset_info_fn(name=dataset_name)
+        except Exception as e:
+            if verbose:
+                print(f"  skipping {dataset_name}: could not parse dataset info ({e})")
+            continue
+ 
+        pct_ar = int(info["pct_Ar"])
+        pct_co2 = int(info["pct_CO2"])
+        u_wire = int(info["U_wire"])  # force int so wide/fallback parsing paths can't mismatch
+        mix_label = f"{pct_ar}/{pct_co2}"
+ 
+        try:
+            entries.append({
+                "dataset": dataset_name,
+                "mix": mix_label,
+                "u_wire": u_wire,
+                "mean_vd": result["peak"],
+                "err_vd": result["peak_err"],
+            })
+        except KeyError:
+            entries.append({
+                "dataset": dataset_name,
+                "mix": mix_label,
+                "u_wire": u_wire,
+                "mean_vd": result["v_drift"],
+                "err_vd": result["err_v_drift"],
+            })
+ 
+    if not entries:
+        raise ValueError("No datasets could be parsed by dataset_info_fn; nothing to plot.")
+ 
+    # --- x-axis categories: one per unique gas mix, sorted by (Ar%, CO2%) ---
+    mixes = sorted(
+        set(e["mix"] for e in entries),
+        key=lambda m: tuple(int(v) for v in m.split("/")),
+    )
+    mix_to_x = {mix: i for i, mix in enumerate(mixes)}
+ 
+    # --- consistent color per U_wire, from the fixed hardcoded map ---
+    unique_u_wires = sorted(set(e["u_wire"] for e in entries))
+    unmapped = [u for u in unique_u_wires if u not in _WIRE_COLOR_MAP]
+    if unmapped:
+        raise KeyError(
+            f"No fixed color defined for U_wire value(s) {unmapped}. "
+            f"Add them to _WIRE_VOLTAGES / _WIRE_COLOR_MAP at the top of this "
+            f"module (currently defined for {_WIRE_VOLTAGES})."
+        )
+    wire_color_map = {u: _WIRE_COLOR_MAP[u] for u in unique_u_wires}
+ 
+    # --- group entries by mix, sort each group by wire voltage for a stable bar order ---
+    grouped = {mix: [] for mix in mixes}
+    for e in entries:
+        grouped[e["mix"]].append(e)
+    for mix in grouped:
+        grouped[mix].sort(key=lambda e: (e["u_wire"], e["dataset"]))
+ 
+    fig, ax = plt.subplots(1, 1, figsize=fig_size)
+ 
+    max_group_size = max(len(v) for v in grouped.values())
+    group_width = 0.8
+    bar_width = group_width / max_group_size
+ 
+    for mix, group_entries in grouped.items():
+        x0 = mix_to_x[mix]
+        n = len(group_entries)
+        # center this group's bars even if it has fewer entries than the widest group
+        offsets = (np.arange(n) - (n - 1) / 2) * bar_width
+        for e, offset in zip(group_entries, offsets):
+            color = wire_color_map[e["u_wire"]]
+            ax.bar(x0 + offset, e["mean_vd"], width=bar_width * 0.9, color=color)
+            ax.errorbar(
+                x0 + offset, e["mean_vd"], yerr=e["err_vd"],
+                fmt="none", ecolor="black", capsize=3,
+            )
+ 
+    ax.set_xticks(list(mix_to_x.values()))
+    ax.set_xticklabels(list(mix_to_x.keys()))
+    ax.set_xlabel("Gas mixture (Ar/CO2) [%]")
+    ax.set_ylabel(r"$v_d$ [$\mu$m/ns]")
+    ax.set_title(f"Comparison of gas mixtures and drift velocities from {strmethod}")
+    ax.grid(True, axis="y")
+ 
+    # y-axis scaled to the actual data range (incl. error bars) with a fixed
+    # margin, rather than the default bar-chart baseline-at-0 behavior
+    y_lo = min(e["mean_vd"] - e["err_vd"] for e in entries)
+    y_hi = max(e["mean_vd"] + e["err_vd"] for e in entries)
+    ax.set_ylim(y_lo - y_margin, y_hi + y_margin)
+ 
+    # legend: one entry per U_wire value, deduplicated
+    legend_handles = [plt.Rectangle((0, 0), 1, 1, color=wire_color_map[u]) for u in unique_u_wires]
+    legend_labels = [f"$U_{{wire}}$ = {u} V" for u in unique_u_wires]
+    ax.legend(legend_handles, legend_labels)
+ 
+    fig.tight_layout()
+ 
+    if save_path is None:
+        save_path = base_path + f"plots/vd_{method}_comparison{plot_type}"
+    fig.savefig(save_path)
+    if verbose:
+        print(f"store plot as {save_path}.")
+ 
+    return fig, ax, save_path
+
+
+ 
+def analyze_specific_data(
+    hits_data,
+    dataset_name,
+    base_path,
+    plot_save_path,
+    plot_type=".png",
+    save_plots=True,
+    verbose=True,
+    ):
+    """
+    Run the full "SPECIFIC" occupancy/rate analysis for one dataset of DT
+    chamber hits.
+ 
+    Parameters
+    ----------
+    hits_data : dict
+        Per-hit data as loaded from the "*_hits_nodeadtime.pcl" file. Must
+        contain at least the keys "sl", "ly", "wi", "ts" (parallel arrays,
+        one entry per hit).
+    dataset_name : str
+        Name of the dataset, used for plot titles / filenames.
+    base_path : str
+        Base path used together with `dataset_name` for building filenames.
+    plot_save_path : str
+        Directory the plots get saved to (created if it doesn't exist).
+    plot_type : str, default ".png"
+        File extension (including dot) used for all saved plots, e.g.
+        ".png", ".pdf", ".svg".
+    save_plots : bool, default True
+        If True, plots are saved to `plot_save_path`.
+    verbose : bool, default True
+        If True, all info/status messages are also printed to stdout.
+        Regardless of this flag, every message is collected in the
+        returned `log` list.
+ 
+    Returns
+    -------
+    results : dict
+        {
+            "log": list[str],                 # all print/info messages
+            "cell_counts": dict,               # cell_counts[sl][ly][wi]
+            "duration_seconds": float,
+            "dead_cells": list[(sl, ly, wi)],
+            "noisy_cells": list[(sl, ly, wi)],
+            "mean_rate_all_cells": float,
+            "mean_rate_all_cells_err": float,
+            "avg_rate_phi1": float,
+            "avg_rate_phi1_err": float,
+            "avg_rate_theta": float,
+            "avg_rate_theta_err": float,
+            "avg_rate_phi3": float,
+            "avg_rate_phi3_err": float,
+            "avg_rate_phi13": float,
+            "avg_rate_phi13_err": float,
+            "avg_rate_chamber": float,
+            "avg_rate_chamber_err": float,
+        }
+    """
+ 
+    log = []
+ 
+    def emit(msg):
+        log.append(msg)
+        if verbose:
+            print(msg)
+ 
+    if save_plots:
+        os.makedirs(plot_save_path, exist_ok=True)
+ 
+    layer_labels = {
+        0: "SL 1, Ly 0",
+        1: "SL 1, Ly 1",
+        2: "SL 1, Ly 2",
+        3: "SL 1, Ly 3",
+        4: "SL 2, Ly 0",
+        5: "SL 2, Ly 1",
+        6: "SL 2, Ly 2",
+        7: "SL 2, Ly 3",
+        8: "SL 3, Ly 0",
+        9: "SL 3, Ly 1",
+        10: "SL 3, Ly 2",
+        11: "SL 3, Ly 3",
+    }
+ 
+    ########################
+    ####### build cell_counts from raw hits, and derive duration
+ 
+    sl_arr = np.asarray(hits_data["sl"])
+    ly_arr = np.asarray(hits_data["ly"])
+    wi_arr = np.asarray(hits_data["wi"])
+    ts_arr = np.asarray(hits_data["ts"])
+ 
+    # duration: span of timestamps, converted from clock ticks to seconds
+    # using the same conversion factor as the original script.
+    duration_ticks = float(np.max(ts_arr) - np.min(ts_arr))
+    duration_seconds = duration_ticks * 0.78 * 1e-9
+    emit(f"duration = {duration_seconds} s")
+ 
+    cell_counts = {
+        sl: {
+            ly: {
+                wi: 0
+                for wi in range(
+                    params._dt_chamber["sls"][sl]["lys"][ly]["min_wi"],
+                    params._dt_chamber["sls"][sl]["lys"][ly]["max_wi"] + 1,
+                )
+            }
+            for ly in range(0, 4)
+        }
+        for sl in range(1, 4)
+    }
+    for sl, ly, wi in zip(sl_arr, ly_arr, wi_arr):
+        cell_counts[int(sl)][int(ly)][int(wi)] += 1
+ 
+    ########################
+    ####### occupancy plot (2d matrix)
+ 
+    chamber_matrix = np.full((12, 58), np.nan)  # -1: invalid cell
+    cell_hits = 0
+    for sl in range(1, 4):
+        for ly in range(0, 4):
+            for wi in range(
+                params._dt_chamber["sls"][sl]["lys"][ly]["min_wi"],
+                params._dt_chamber["sls"][sl]["lys"][ly]["max_wi"] + 1,
+            ):
+                chamber_matrix[4 * (sl - 1) + ly][wi] = cell_counts[sl][ly][wi]
+                cell_hits += cell_counts[sl][ly][wi]
+ 
+    fig, ax = plt.subplots(1, 1, figsize=(16, 6))
+    im_obj = ax.imshow(
+        X=chamber_matrix,
+        origin="lower",
+        extent=[0 - 0.5, 57 + 0.5, 0 - 0.5, 11 + 0.5],
+        vmin=0,
+    )
+    ax.set_xlabel("Wire")
+    ax.set_yticks(list(layer_labels.keys()))
+    ax.set_yticklabels(list(layer_labels.values()))
+    ax.set_aspect("auto")
+    cmap = plt.get_cmap("viridis")
+    formatter = ScalarFormatter(useMathText=True)
+    formatter.set_powerlimits([-3, 3])
+    cbar = fig.colorbar(im_obj, ax=ax, fraction=0.05, cmap=cmap, format=formatter)
+    cbar.set_label("Count")
+    entries = int(cell_hits)
+    info_str = f"entries = {entries}"
+    ax = hist_utils.add_infobox(ax=ax, info_str=info_str, info_loc="bottom left")
+    fig.tight_layout()
+    fig.show()
+    if save_plots:
+        hist_plot_file = (
+            plot_save_path + dataset_name + "_SPECIFIC_" + "OCCUPANCY" + plot_type
+        )
+        emit(f"store plot as {hist_plot_file}.")
+        fig.savefig(hist_plot_file)
+    plt.close(fig)
+ 
+    ########################
+    ####### rate plot (2d matrix)
+ 
+    chamber_matrix = np.full((12, 58), np.nan)
+    cell_hits = 0
+    for sl in range(1, 4):
+        for ly in range(0, 4):
+            for wi in range(
+                params._dt_chamber["sls"][sl]["lys"][ly]["min_wi"],
+                params._dt_chamber["sls"][sl]["lys"][ly]["max_wi"] + 1,
+            ):
+                chamber_matrix[4 * (sl - 1) + ly][wi] = (
+                    cell_counts[sl][ly][wi] / duration_seconds
+                )
+                cell_hits += cell_counts[sl][ly][wi]
+ 
+    fig, ax = plt.subplots(1, 1, figsize=(16, 6))
+    im_obj = ax.imshow(
+        X=chamber_matrix,
+        origin="lower",
+        extent=[0 - 0.5, 57 + 0.5, 0 - 0.5, 11 + 0.5],
+        vmin=0,
+    )
+    ax.set_xlabel("Wire")
+    ax.set_yticks(list(layer_labels.keys()))
+    ax.set_yticklabels(list(layer_labels.values()))
+    ax.set_aspect("auto")
+    cmap = plt.get_cmap("viridis")
+    cbar = fig.colorbar(im_obj, ax=ax, fraction=0.05, cmap=cmap)
+    cbar.set_label("Rate [Hz]")
+    entries = int(cell_hits)
+    info_str = f"entries = {entries}"
+    ax = hist_utils.add_infobox(ax=ax, info_str=info_str, info_loc="bottom left")
+    fig.tight_layout()
+    fig.show()
+    if save_plots:
+        hist_plot_file = (
+            plot_save_path + dataset_name + "_SPECIFIC_" + "RATE" + plot_type
+        )
+        emit(f"store plot as {hist_plot_file}.")
+        fig.savefig(hist_plot_file)
+    plt.close(fig)
+ 
+    ########################
+    ####### find dead & noisy cells
+ 
+    total_count_all_cells = 0
+    n_cells = 0
+    for sl in range(1, 4):
+        for ly in range(0, 4):
+            for wi in range(
+                params._dt_chamber["sls"][sl]["lys"][ly]["min_wi"],
+                params._dt_chamber["sls"][sl]["lys"][ly]["max_wi"] + 1,
+            ):
+                total_count_all_cells += cell_counts[sl][ly][wi]
+                n_cells += 1
+ 
+    mean_rate_all_cells = total_count_all_cells / n_cells / duration_seconds
+    mean_rate_all_cells_err = (
+        np.sqrt(total_count_all_cells) / n_cells / duration_seconds
+    )
+    emit(
+        f"total count all cells: {total_count_all_cells} "
+        f"+- {np.sqrt(total_count_all_cells)}"
+    )
+    emit(
+        f"mean count all cells: {total_count_all_cells/n_cells} "
+        f"+- {np.sqrt(total_count_all_cells)/n_cells}"
+    )
+    emit(
+        f"mean rate all cells: {mean_rate_all_cells} "
+        f"+- {mean_rate_all_cells_err} Hz"
+    )
+ 
+    emit("dead and noisy cells:")
+    count_thres = total_count_all_cells / n_cells
+    dead_cells = []
+    noisy_cells = []
+    for sl in range(1, 4):
+        for ly in range(0, 4):
+            for wi in range(
+                params._dt_chamber["sls"][sl]["lys"][ly]["min_wi"],
+                params._dt_chamber["sls"][sl]["lys"][ly]["max_wi"] + 1,
+            ):
+                if cell_counts[sl][ly][wi] < 0.5 * count_thres:
+                    ro_ch = derived_params._dt_inverted_remap_table[sl][ly][wi]["ro_ch"]
+                    ch = derived_params._dt_inverted_remap_table[sl][ly][wi]["ch"]
+                    emit(
+                        f"  low occupancy in  sl={sl:1}, ly={ly:1}, wi={wi:2} "
+                        f"(ro_ch={ro_ch:2}, ch={ch:3})"
+                    )
+                    dead_cells.append((sl, ly, wi))
+                if cell_counts[sl][ly][wi] > 1.5 * count_thres:
+                    ro_ch = derived_params._dt_inverted_remap_table[sl][ly][wi]["ro_ch"]
+                    ch = derived_params._dt_inverted_remap_table[sl][ly][wi]["ch"]
+                    emit(
+                        f"  high occupancy in sl={sl:1}, ly={ly:1}, wi={wi:2} "
+                        f"(ro_ch={ro_ch:2}, ch={ch:3})"
+                    )
+                    noisy_cells.append((sl, ly, wi))
+ 
+    ########################
+    ####### average phi and theta rates (without dead channels)
+ 
+    phi1_total_count, phi3_total_count, theta_total_count = 0, 0, 0
+    n_phi1, n_phi3, n_theta = 0, 0, 0
+    for sl in range(1, 4):
+        for ly in range(0, 4):
+            for wi in range(
+                params._dt_chamber["sls"][sl]["lys"][ly]["min_wi"],
+                params._dt_chamber["sls"][sl]["lys"][ly]["max_wi"] + 1,
+            ):
+                if (sl, ly, wi) not in dead_cells:
+                    if sl in [1]:
+                        phi1_total_count += cell_counts[sl][ly][wi]
+                        n_phi1 += 1
+                    elif sl in [3]:
+                        phi3_total_count += cell_counts[sl][ly][wi]
+                        n_phi3 += 1
+                    elif sl in [2]:
+                        theta_total_count += cell_counts[sl][ly][wi]
+                        n_theta += 1
+ 
+    avg_rate_phi1 = phi1_total_count / n_phi1 / duration_seconds if n_phi1 != 0 else 0
+    avg_rate_phi1_err = (
+        np.sqrt(phi1_total_count) / n_phi1 / duration_seconds if n_phi1 != 0 else 0
+    )
+    avg_rate_theta = (
+        theta_total_count / n_theta / duration_seconds if n_theta != 0 else 0
+    )
+    avg_rate_theta_err = (
+        np.sqrt(theta_total_count) / n_theta / duration_seconds
+        if n_theta != 0
+        else 0
+    )
+    avg_rate_phi3 = phi3_total_count / n_phi3 / duration_seconds if n_phi3 != 0 else 0
+    avg_rate_phi3_err = (
+        np.sqrt(phi3_total_count) / n_phi3 / duration_seconds if n_phi3 != 0 else 0
+    )
+    avg_rate_phi13 = (
+        (phi1_total_count + phi3_total_count) / (n_phi1 + n_phi3) / duration_seconds
+    )
+    avg_rate_phi13_err = (
+        np.sqrt(phi1_total_count + phi3_total_count)
+        / (n_phi1 + n_phi3)
+        / duration_seconds
+    )
+    avg_rate_chamber = (
+        (phi1_total_count + phi3_total_count + theta_total_count)
+        / (n_phi1 + n_phi3 + n_theta)
+        / duration_seconds
+    )
+    avg_rate_chamber_err = (
+        np.sqrt(phi1_total_count + phi3_total_count + theta_total_count)
+        / (n_phi1 + n_phi3 + n_theta)
+        / duration_seconds
+    )
+ 
+    emit("* = dead or noisy cells not considered")
+    emit(f"average sl 1 phi cell rate *    : {avg_rate_phi1} +- {avg_rate_phi1_err} Hz")
+    emit(
+        f"average sl 2 theta cell rate *  : {avg_rate_theta} +- {avg_rate_theta_err} Hz"
+    )
+    emit(f"average sl 3 phi cell rate *    : {avg_rate_phi3} +- {avg_rate_phi3_err} Hz")
+    emit(
+        f"average sl 1 & 3 phi cell rate *: {avg_rate_phi13} +- {avg_rate_phi13_err} Hz"
+    )
+    emit(
+        f"average chamber cell rate *     : {avg_rate_chamber} +- {avg_rate_chamber_err} Hz"
+    )
+ 
+    ########################
+    ####### rate plot (multiple bar plots)
+ 
+    for sl in range(1, 4):
+        fig, ax = plt.subplots(4, 1, figsize=(16, 8), sharex=True)
+        for ly in range(0, 4):
+            wires = np.array(
+                list(
+                    range(
+                        params._dt_chamber["sls"][sl]["lys"][ly]["min_wi"],
+                        params._dt_chamber["sls"][sl]["lys"][ly]["max_wi"] + 1,
+                    )
+                )
+            )
+            wire_hits = np.array([cell_counts[sl][ly][wi] for wi in wires])
+            wire_rates = wire_hits / duration_seconds
+            err_wire_rates = np.sqrt(wire_hits) / duration_seconds
+            ax[ly].bar(wires, wire_rates, width=1, align="center")
+            ax[ly].bar(
+                wires,
+                bottom=wire_rates - err_wire_rates,
+                height=2 * err_wire_rates,
+                width=1,
+                align="center",
+                hatch="xxx",
+                fill=False,
+                edgecolor="0.2",
+                linestyle="",
+            )
+            ax[ly].set_ylim(bottom=0, top=np.amax(wire_rates + err_wire_rates) * 1.1)
+            if ly == 3:
+                ax[ly].set_xlabel("Wire")
+            ax[ly].set_ylabel("Rate [Hz]")
+            ax[ly].set_title(f"SL {sl}, Ly {ly}")
+        fig.tight_layout()
+        fig.show()
+        if save_plots:
+            hist_plot_file = (
+                plot_save_path
+                + dataset_name
+                + "_SPECIFIC_"
+                + f"SL{sl}_RATE"
+                + plot_type
+            )
+            emit(f"store plot as {hist_plot_file}.")
+            fig.savefig(hist_plot_file)
+        plt.close(fig)
+ 
+    return {
+        "log": log,
+        "cell_counts": cell_counts,
+        "duration_seconds": duration_seconds,
+        "dead_cells": dead_cells,
+        "noisy_cells": noisy_cells,
+        "mean_rate_all_cells": mean_rate_all_cells,
+        "mean_rate_all_cells_err": mean_rate_all_cells_err,
+        "avg_rate_phi1": avg_rate_phi1,
+        "avg_rate_phi1_err": avg_rate_phi1_err,
+        "avg_rate_theta": avg_rate_theta,
+        "avg_rate_theta_err": avg_rate_theta_err,
+        "avg_rate_phi3": avg_rate_phi3,
+        "avg_rate_phi3_err": avg_rate_phi3_err,
+        "avg_rate_phi13": avg_rate_phi13,
+        "avg_rate_phi13_err": avg_rate_phi13_err,
+        "avg_rate_chamber": avg_rate_chamber,
+        "avg_rate_chamber_err": avg_rate_chamber_err,
+    }
+ 
+
+
 def parse_fit_name(*, name):
         # Erwartetes Format: cosmic_<Ar>-<CO2>_<U_wire>-<U_Fieldshaper>-<U_cathode>_<rest...>
         pattern = r"^cosmic_(\d+)-(\d+)_(\d+)-(\d+)-(\d+)"
@@ -333,6 +918,8 @@ def parse_fit_name(*, name):
             "U_Fieldshaper": int(u_fieldshaper),
             "U_cathode": int(u_cathode),
         }
+
+
 
 def parse_start_time(dataset_name: str) -> datetime:
             """
@@ -352,14 +939,16 @@ def parse_start_time(dataset_name: str) -> datetime:
 @mpl.rc_context({'font.family': 'sans-serif', 'font.size': 12}) #'font.sans-serif': 'Arial',
 def main():
     ###################################################
-    do_ramp_measurement = True
+    do_ramp_measurement = False
+    save_plots = True
 
     list_of_fits = [#"cosmic_82-18_3550-1800-1200_run1_th20_cut100", no peak
                 #"cosmic_82-18_3575-1800-1200_run1_th20_cut100", no peak
                 #"cosmic_82-18_3600-1800-1200_run1_th20_cut100", no peak
                 "cosmic_82-18_3625-1800-1200_run1_th20_cut100", 
+                "cosmic_82-18_3650-1800-1200_run1_th20_cut100",
 
-                #"cosmic_83-17_3650-1800-1200_run1_th20_cut100",not calculated, in calculation
+                "cosmic_83-17_3650-1800-1200_run1_th20_cut100",
                 "cosmic_83-17_3625-1800-1200_run1_th20_cut100", 
                 "cosmic_83-17_3600-1800-1200_run1_th20_cut100", 
                 #"cosmic_83-17_3575-1800-1200_run1_th20_cut100",no peak
@@ -367,9 +956,11 @@ def main():
 
                 #"cosmic_85-15_3550-1800-1200_run1_th20_cut100", no peak
                 "cosmic_85-15_3575-1800-1200_run1_th20_cut100", 
-                "cosmic_85-15_3600-1800-1200_run2_th20_cut100"]
+                "cosmic_85-15_3600-1800-1200_run2_th20_cut100", 
 
+                ]
 
+    #list_of_fits = ["mb1_sxa5_cosmics_10min"]
 
     ramp_datasets = [ "data_mic0_start_2026-07-24_18-06-10_stop_2026-07-24_18-16-11",
                     "data_mic0_start_2026-07-24_22-16-13_stop_2026-07-24_22-26-14",
@@ -398,15 +989,28 @@ def main():
     if do_ramp_measurement:
         list_of_fits = ramp_datasets
 
+
  
     #list_of_fits = ["cosmic_82-18_3550-1800-1200_run1_th20_cut_50"]
     base_path = "data_ba/"
     pcls_path = "pcls/" 
     plot_type = ".png"
-    results_photopeak = {}
-    
+    analysis_out = {}
+    results_raw_data = {}
 
-    
+    non_existing_hit_diff_hists = []
+    for dataset in list_of_fits:
+        file_name = f"{dataset}_hit_diff.pcl"
+        dataset_path = Path(f"{base_path}pcls/{dataset}/{file_name}")
+
+        if not dataset_path.exists():
+            print(f"Error: Dataset '{file_name}' does not exist.")
+            non_existing_hit_diff_hists.append(file_name)
+
+    if len(non_existing_hit_diff_hists)>=1:
+        sys.exit(1)  # Stop the entire script   
+
+
     #beginn for loop over all datasets here
     for i in range(len(list_of_fits)):
         dataset_name = list_of_fits[i]
@@ -417,16 +1021,24 @@ def main():
             pct_co2 = dataset_info["pct_CO2"]
             u_wire = dataset_info["U_wire"]
             u_fieldshaper = dataset_info["U_Fieldshaper"]
-            u_cathode = dataset_info["U_cathode"]
+            u_cathode = f"-{dataset_info["U_cathode"]}"
 
         except:
-            pct_ar = ""
-            pct_co2 = ""
-            u_wire = ""
-            u_fieldshaper = ""
-            u_cathode = ""
+            if dataset_name == "mb1_sxa5_cosmics_10min":
+                pct_ar = "85"
+                pct_co2 = "15"
+                u_wire = "3600"
+                u_fieldshaper = "1800"
+                u_cathode = "-1200"
 
-        # Ordner für dieses Dataset erstellen
+            else:
+                pct_ar = ""
+                pct_co2 = ""
+                u_wire = ""
+                u_fieldshaper = ""
+                u_cathode = ""
+
+        # set up folder structure to find and write data
         dataset_folder_pcls = base_path + pcls_path + dataset_name + "/"
 
         #input_dumpfile = base_path + "data_runs/" + dataset_name + ".txt"
@@ -438,22 +1050,33 @@ def main():
 
         dt_hit_diff_hist_file = f"data_ba/pcls/{dataset_name}/{dataset_name}_hit_diff.pcl"
         plot_save_path = base_path + f"plots/photo_peak/{dataset_name}/"
-         # when set to True, the parser function extracts time information
-        save_plots = True
+
+
+        
 
         if save_plots:
             os.makedirs(plot_save_path, exist_ok=True)  
         
 
-
-
-
         ####################
         specific_data = data_utils.load_pickle(dt_hit_diff_hist_file)
+        dt_hits_file = data_utils.load_pickle(dt_hits_file)
+        print(dt_hits_file.keys())
         cell_half_width = 21000 # um
         err_cell_half_width = 100 # um
 
         legend_font_size = 13
+
+        analysis_out[dataset_name] = analyze_specific_data(
+            hits_data=dt_hits_file,
+            dataset_name=dataset_name,
+            base_path=base_path,
+            plot_save_path=plot_save_path,
+            plot_type=plot_type,
+            save_plots=save_plots,
+            verbose=True,
+        )
+
 
         ### hist to plot
         # read data
@@ -722,11 +1345,13 @@ def main():
             fig.savefig(path)
             print(f"histogram plot stored as {path}.")
 
-        results_photopeak[dataset_name] = {
+        analysis_out[dataset_name] = {
             **fit_params,
             **{f"{key}_err": value for key, value in errors.items()},
             "mu": mu_val,
             "mu_err": err_mu,
+            "v_drift": v_drift,
+            "err_v_drift": err_v_drift
         }
 
 
@@ -734,58 +1359,16 @@ def main():
         # analyze data from all data_sets
 
 
-
     if not do_ramp_measurement:
-        # Get all unique wire voltages
-        unique_u_wires = sorted(set(
-            parse_fit_name(name=dataset)["U_wire"]
-            for dataset in results_photopeak.keys()
-        ))
-
-        # Create one color per wire voltage
-        colors = plt.cm.tab10(np.linspace(0, 1, len(unique_u_wires)))
-
-        # Map voltage -> color
-        wire_color_map = dict(zip(unique_u_wires, colors))
-
-        plt.figure(figsize=fig_size)
-
-        for dataset_name, result in results_photopeak.items():
-
-            dataset_info = parse_fit_name(name=dataset_name)
-
-            pct_ar = dataset_info["pct_Ar"]
-            pct_co2 = dataset_info["pct_CO2"]
-            u_wire = dataset_info["U_wire"]
-
-            mu = result["mu"]
-            err_mu = result["mu_err"]
-
-            vd = cell_half_width / mu
-            err_vd = vd * (err_mu / mu)
-            plt.errorbar(
-                pct_ar,
-                vd,
-                yerr=err_vd,
-                fmt="o",
-                capsize=4,
-                markersize=6,
-                color=wire_color_map[u_wire],
-                label=f"{pct_ar}/{pct_co2}, $U_{{wire}}={u_wire}$ V"
-            )
-
-        plt.xlabel("Ar concentration [%]")
-        plt.ylabel(r"$v_d$ [$\mu$m/ns]")
-        plt.title("Comparison of gas mixtures and drift velocities for photopeakmethod")
-        plt.grid(True)
-
-        # Avoid duplicate legend entries for the same voltage
-        handles, labels = plt.gca().get_legend_handles_labels()
-        unique_labels = dict(zip(labels, handles))
-        plt.legend(unique_labels.values(), unique_labels.keys())
-
-        plt.tight_layout()
-        plt.savefig(base_path + f"plots/vd_photopeak_comparison{plot_type}")
+        fig, ax, path = plot_vd_by_gas_mix(
+                    analysis_out=analysis_out,
+                    base_path=base_path,
+                    dataset_info_fn=parse_fit_name,
+                    plot_type=plot_type,
+                    fig_size=fig_size,
+                    method = "photopeak",
+                    strmethod = "Photopeak Method",
+                    )
 
     elif do_ramp_measurement:
 
@@ -798,7 +1381,7 @@ def main():
         values = []
         errors = []
     
-        for dataset, result in results_photopeak.items():
+        for dataset, result in analysis_out.items():
             times.append(parse_start_time(dataset))
             mu = result["mu"]
             err_mu = result["mu_err"]

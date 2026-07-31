@@ -380,18 +380,64 @@ _sl_fit_group_keys = {
     "idcs": [], # list of sl_fits indices of sl fits belonging to this group
 }
 
+
+# super pattern fit keys (fit list also also keeps super_pattern keys)
+_super_pattern_fit_keys = { # {key: dtype}
+    # best fit
+    "impossible": np.float64, # impossible True = 1, False = 0
+    "laterality_sl1": np.uint8, # idx of selected laterality [] in _dt_sl_patterns 
+    "laterality_sl3": np.uint8, # idx of selected laterality [] in _dt_sl_patterns 
+    "t0": np.float64, # t0 fit param
+    "err_t0": np.float64, # error from fit
+    "x0": np.float64, # x0 fit param
+    "err_x0": np.float64, # error from fit
+    "tan_alpha": np.float64, # tan(alpha) fit param
+    "err_tan_alpha": np.float64, # error from fit
+    "vd": np.float64, # drift velocity (in mm/ts unit) fit param
+    "err_vd": np.float64, # error from fit
+    "x_pos": np.float64, # x position of relative wire
+    "z_pos": np.float64, # z position of relative wire
+
+    # correlations
+    "corr_t0_x0": np.float64,
+    "corr_t0_tan_alpha": np.float64,
+    "corr_t0_vd": np.float64,
+    "corr_x0_tan_alpha": np.float64,
+    "corr_x0_vd": np.float64,
+    "corr_tan_alpha_vd": np.float64,
+
+    "chi2/ndf": np.float64, # reduced chi2 value
+
+    "dt0": np.float64, # estimated drift time t0-ts for ly0
+    "dt1": np.float64, # estimated drift time t0-ts for ly1
+    "dt2": np.float64, # estimated drift time t0-ts for ly2
+    "dt3": np.float64, # estimated drift time t0-ts for ly3
+    "dt4": np.float64, # estimated drift time t0-ts for ly4 here the new SL begins
+    "dt5": np.float64, # estimated drift time t0-ts for ly5
+    "dt6": np.float64, # estimated drift time t0-ts for ly6
+    "dt7": np.float64, # estimated drift time t0-ts for ly7
+} # sl fits also have pattern keys already i.e. "muon_XXX" keys
+
+_other_super_pattern_keys = _sl_fit_other_keys
 ## --------- when reconstructing hits
 
 # dt drift velocity
 _drift_velocity = 54.5 #53 #54.5 #53 #54.5 #53 #50.8 #54.5 # initial value: 54.5 # unit: um / ns = 10^-6 / 10 ^-9 m/s = 10^3 m/s
 _dt_cell_width = 42 # mm, width of dt cell = 2x max drift distance
 # when allowing changes of vd in fit, give vd param bounds:
-_drift_velocity_min = 10 # um/ns
+#_drift_velocity_min = 10 # um/ns old value
+
+#_drift_velocity_min = 40    # for checking bad fits cause
+#_drift_velocity_max = 100 # um/ns
+_drift_velocity_min = 20    # for checking bad fits cause
 _drift_velocity_max = 100 # um/ns
+
 
 ### --- dt
 
-_dt_max_drift_time = (_dt_cell_width*1e-3/2) / (_drift_velocity*1e3) / 0.78e-9 # max drift time measured from time of muon arrival t0 in the sl pattern fit, in ts units
+#_dt_max_drift_time = (_dt_cell_width*1e-3/2) / (_drift_velocity*1e3) / 0.78e-9 # max drift time measured from time of muon arrival t0 in the sl pattern fit, in ts units
+# use larger max drift time for floating parameter refit
+_dt_max_drift_time = 600 / 0.78e-9
 _dt_max_drift_time_vd_min = (_dt_cell_width*1e-3/2) / (_drift_velocity_min*1e3) / 0.78e-9 # max drift time for vdmin
 
 ## --- dumpfile -> dt hits
@@ -400,11 +446,12 @@ _dt_ts_individual_dead_time = 600 #1000 #600 #1250 #800 #0 # in ts units
 
 # additional uncertainty assiged to dt ts because of geometry (different path lengths for charges if not on height of wire)
 # assumed 5 ns = 6 tu uncertainty
-dt_hit_add_ts_unc = 6 # in tu
+dt_hit_add_ts_unc = 3 # in tu was set to 6
 
 ## --- dt hits -> sl patterns
 # timestamp window in which hits of sl must lie in order to be counted as pattern
 _t0_tolerance = 0 # tolerance of t0 beyond max drift time bound
+# 
 # if vd as fit parameter: use max drift time possible with lower vdmin bound
 _dt_sl_patterns_ts_window_fit_vd = _dt_max_drift_time_vd_min + _t0_tolerance # in same unit as timestamp (0.78 ns)
 # if vd fixed: use reference drift time
@@ -442,7 +489,7 @@ _sl_fit_group_ts_tolerance = _dt_max_drift_time
 ## --- sl fit groups -> dt muons
 _muon_tgroup_tolerance = 20/0.78 # time interval in which sl fit groups of different sls are combined to "muon"
 _muon_n_fits_max = 1 # max n_fits in sl fit groups selected for "muon"
-_muon_slphi_tan_alpha_tolerance = 0.1 # max deviation of tan_alpha for both sl fits in phi sl
+_muon_slphi_tan_alpha_tolerance = 0.05 # max deviation of tan_alpha for both sl fits in phi sl was set to 0.1
 _muon_slphi_xproj_tolerance = 30 # max deviation of x_proj (projected sl fit track position at z=_muon_reco_z0) for both sl fits in phi sl
 _muon_chi2_ndf_max = 10 #10 # max chi2 of muon sl fits
 # reco muon z0 value (select base z value for reco muon)
@@ -1208,7 +1255,8 @@ _dt_chamber = {
     "pos": (cmssw_chamber_pos[0]+global_shift[0], cmssw_chamber_pos[1]+global_shift[1], cmssw_chamber_pos[2]+global_shift[2]), # point with smallest coordinates of dt chamber
     "size": (cmssw_chamber_size[0], cmssw_chamber_size[1], cmssw_chamber_size[2]), 
 }
-print(f"chamber_pos = {_dt_chamber["pos"]}")
+
+#print(f"chamber_pos = {_dt_chamber["pos"]}")
 
 ### obdt mappings: {fe_conn_name: {chs: (ch list), fe: fec name, sl: superlayer}}, fe conns sorted in order
 _obdt_phi_1_fe_mapping = { # need to mask connectors J26, J27
@@ -1543,7 +1591,7 @@ scint_ref_pos = (
     scint_edge_to_sl2_edge[1]+(cmssw_sl2_pos[1]-cmssw_sl2_ly1_pos[1]),
     scint_edge_to_sl1_edge[2]-scint_size[2]+(cmssw_sl1_pos[2]-cmssw_sl1_ly1_pos[2])
 )
-print(f"scint_ref_pos = {scint_ref_pos}")
+#print(f"scint_ref_pos = {scint_ref_pos}")
 
 ### hardware setup
 ## dt mapping: {ro_ch: obdt_mapping}

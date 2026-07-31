@@ -21,6 +21,8 @@ import re
 from datetime import datetime
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
+import sys
+from pathlib import Path
 # ---------------------------------------------------------------
 
 vd_factor = 1 / derived_params._drift_velocity_conversion
@@ -1393,7 +1395,6 @@ def fit_gaussian_hist(
 
     return fig, ax, path, fit_results
 
-
 def fit_parabola_peak(
     *,
     specific_data,
@@ -1516,6 +1517,579 @@ def fit_parabola_peak(
 
     return fig, ax, path, fit_results
 
+
+
+
+def _sl_display(sl):
+    """Human-readable label for an SL identifier, for titles/filenames."""
+    return sl.upper() if isinstance(sl, str) else f"SL{sl}"
+
+def _get_pattern_and_mask(
+    *,
+    data,
+    sl,
+    pattern_key,
+    impossible_key,
+    sl_selector_key,
+    exclude_impossible,
+    ):
+    """
+    Pull the pattern-type array for one SL out of `data`, handling two
+    possible data layouts, auto-detected per call:
+ 
+    - "wide" layout (e.g. the super_fit dataset): a separate key per SL,
+      built as f"{pattern_key}_{sl}" (and f"{impossible_key}_{sl}" for the
+      validity flag), e.g. "pat_type_sl1" / "impossible_sl1".
+ 
+    - "long" layout (e.g. the single-SL sl_fit dataset): one shared
+      `pattern_key` column (e.g. "pat_type") and one shared `impossible_key`
+      column (e.g. "impossible"), both selected via a per-row
+      `sl_selector_key` column (e.g. "sl") matching the given `sl` value.
+ 
+    Returns
+    -------
+    pat_type_valid : np.ndarray
+        pattern-type values for this SL, with impossible fits already
+        removed (if exclude_impossible and the flag is available).
+    n_excluded : int
+    n_total_for_sl : int
+        entry count for this SL before excluding impossible fits.
+    """
+    wide_pat_key = f"{pattern_key}_{sl}"
+    wide_imp_key = f"{impossible_key}_{sl}"
+ 
+    if wide_pat_key in data:
+        # --- wide layout ---
+        pat_type_arr = np.asarray(data[wide_pat_key])
+        if exclude_impossible and wide_imp_key in data:
+            impossible_arr = np.asarray(data[wide_imp_key]).astype(bool)
+        else:
+            impossible_arr = np.zeros(len(pat_type_arr), dtype=bool)
+ 
+    elif pattern_key in data and sl_selector_key in data:
+        # --- long layout ---
+        sl_arr = np.asarray(data[sl_selector_key])
+        sl_mask = sl_arr == sl
+        pat_type_arr = np.asarray(data[pattern_key])[sl_mask]
+        if exclude_impossible and impossible_key in data:
+            impossible_arr = np.asarray(data[impossible_key])[sl_mask].astype(bool)
+        else:
+            impossible_arr = np.zeros(len(pat_type_arr), dtype=bool)
+ 
+    else:
+        raise KeyError(
+            f"Could not find pattern data for sl={sl!r}: neither '{wide_pat_key}' "
+            f"(wide layout: separate key per SL) nor the pair "
+            f"('{pattern_key}', '{sl_selector_key}') (long layout: shared "
+            "column + SL selector column) are present in `data`. Pass "
+            "pattern_key / sl_selector_key explicitly if your keys are "
+            "named differently."
+        )
+ 
+    valid_mask = ~impossible_arr
+    return pat_type_arr[valid_mask], int(np.sum(impossible_arr)), int(len(pat_type_arr))
+ 
+def _auto_detect_sl_list(*, data, pattern_key, sl_selector_key):
+    """
+    Figure out which SLs to analyze when `sl_list` isn't given explicitly:
+    - wide layout -> collect every suffix from keys named f"{pattern_key}_*"
+    - long layout -> collect every unique value in data[sl_selector_key]
+    """
+    wide_prefix = pattern_key + "_"
+    wide_suffixes = [k[len(wide_prefix):] for k in data.keys() if k.startswith(wide_prefix)]
+    if wide_suffixes:
+        return tuple(sorted(wide_suffixes))
+ 
+    if sl_selector_key in data:
+        unique_sls = np.unique(np.asarray(data[sl_selector_key]))
+        return tuple(int(s) if np.issubdtype(unique_sls.dtype, np.integer) else s for s in unique_sls)
+ 
+    raise ValueError(
+        "Could not auto-detect sl_list from `data` (no "
+        f"'{pattern_key}_<sl>' keys and no '{sl_selector_key}' selector "
+        "column found). Pass sl_list explicitly."
+    )
+ 
+def analyze_pattern_type_data(
+    data,
+    dataset_name,
+    plot_save_path,
+    plot_type=".png",
+    save_plots=True,
+    verbose=True,
+    sl_list=None,
+    pattern_key="pat_type",
+    impossible_key="impossible",
+    sl_selector_key="sl",
+    pattern_labels=None,
+    exclude_impossible=True,
+    duration_seconds=None,
+    duration_key="ts0",
+    dataset_info = "",
+    suffix = "",
+    fit_type = "",
+    add_title_info = "",
+
+
+
+    ):
+    """
+    Run the pattern-type occupancy/rate analysis for one dataset, for each
+    SL in `sl_list`. Histograms the pattern values, converts to rates, and
+    produces comparison plots + a tex table -- mirroring the structure of
+    `analyze_specific_data`.
+ 
+    Works with either of two data layouts, auto-detected per SL (mixing is
+    even fine within the same call, though that would be unusual):
+ 
+    - "wide" layout, e.g. the super_fit dataset: a separate key per SL,
+      "pat_type_sl1" / "pat_type_sl3", "impossible_sl1" / "impossible_sl3".
+      Here `sl_list` entries are the key suffixes, e.g. ("sl1", "sl3").
+ 
+    - "long" layout, e.g. the single-SL sl_fit dataset: one shared
+      "pat_type" column and one shared "impossible" column, both selected
+      per-SL via a shared "sl" column (data["sl"] == sl). Here `sl_list`
+      entries are the values found in the "sl" column, e.g. (1, 2, 3).
+ 
+    All of the relevant key names (pattern_key, impossible_key,
+    sl_selector_key) are overridable if your dataset names them
+    differently.
+ 
+    Parameters
+    ----------
+    data : dict
+        Loaded fit pickle (or a cuts-filtered slice of it), in either the
+        "wide" or "long" layout described above. Must also contain a
+        per-row timestamp array under `duration_key` (default "ts0") to
+        derive the run duration -- NOT "muon_ts", which has been observed
+        to be an unpopulated/placeholder field (all zeros) in at least one
+        of these pipelines' outputs; "ts0" etc. are the actual populated
+        hit timestamps used throughout the rest of the analysis.
+    dataset_name : str
+        Name of the dataset, used for plot titles / filenames.
+    plot_save_path : str
+        Directory the plots get saved to (created if it doesn't exist).
+    plot_type : str, default ".png"
+        File extension (including dot) used for all saved plots.
+    save_plots : bool, default True
+        If True, plots are saved to `plot_save_path`.
+    verbose : bool, default True
+        If True, all info/status messages are also printed to stdout.
+        Regardless of this flag, every message is collected in the
+        returned `log` list.
+    sl_list : tuple, optional
+        Which SLs to analyze. If None (default), auto-detected from
+        `data`: every f"{pattern_key}_<suffix>" key found (wide layout),
+        or every unique value in data[sl_selector_key] (long layout).
+    pattern_key : str, default "pat_type"
+        Base name of the pattern-type field. Wide layout looks for
+        f"{pattern_key}_{sl}"; long layout looks for data[pattern_key]
+        filtered by the sl selector column.
+    impossible_key : str, default "impossible"
+        Base name of the fit-validity flag field, same wide/long lookup
+        pattern as `pattern_key`.
+    sl_selector_key : str, default "sl"
+        Column used to select rows per SL in the long layout.
+    pattern_labels : list, optional
+        Labels for the pattern ids, in id order (label at index p == the
+        pattern with value p). Defaults to ["0", "1", "2", "3", "4", "5"].
+    exclude_impossible : bool, default True
+        If True and the impossible-flag field is available for a given SL
+        (wide or long layout), fits flagged as impossible are excluded
+        from the counts/rates.
+    duration_seconds : float, optional
+        Run duration to use for the rate calculation. If None (default),
+        it is derived from `data[duration_key]` (max - min, *0.78e-9). Pass
+        this explicitly if you track the run duration separately (e.g.
+        from a run-info file) rather than deriving it per-call.
+        A ValueError is raised if the derived duration is 0 or the array
+        has fewer than 2 entries -- that indicates `duration_key` is
+        missing, unfiltered, or otherwise out of sync with the rest of
+        `data`, which is worth fixing at the source rather than working
+        around here.
+    duration_key : str, default "ts0"
+        Key in `data` holding a per-row timestamp array (in the same TU
+        units as the rest of the pipeline), used to derive the run
+        duration when `duration_seconds` is not given.
+ 
+    Returns
+    -------
+    results : dict
+        {
+            "log": list[str],
+            "duration_seconds": float,
+            "pat_counts": dict,      # pat_counts[sl][pattern_id | "com"]
+            "pat_rate": dict,        # pat_rate[sl][pattern_id | "com"]  (Hz)
+            "err_pat_rate": dict,    # err_pat_rate[sl][pattern_id | "com"]
+            "n_entries": dict,       # n_entries[sl] -> valid entry count
+            "tex_table": str,
+        }
+    """
+ 
+    log = []
+ 
+    def emit(msg):
+        log.append(msg)
+        if verbose:
+            print(msg)
+ 
+    if save_plots:
+        os.makedirs(plot_save_path, exist_ok=True)
+ 
+    if pattern_labels is None:
+        pattern_labels = [str(i) for i in range(6)]
+ 
+    if sl_list is None:
+        sl_list = _auto_detect_sl_list(
+            data=data, pattern_key=pattern_key, sl_selector_key=sl_selector_key,
+        )
+        emit(f"auto-detected sl_list = {sl_list}")
+
+
+    pct_ar = dataset_info["pct_Ar"]
+    pct_co2 = dataset_info["pct_CO2"]
+    u_wire = dataset_info["U_wire"]
+    """
+    #u_fieldshaper = dataset_info["U_Fieldshaper"]
+    #u_cathode = f"-{dataset_info["U_cathode"]}"
+    """
+    ########################
+    ####### duration from a per-row timestamp array (or an explicit override)
+ 
+    if duration_seconds is None:
+        ts_arr = np.asarray(data[duration_key])
+        emit(f"{duration_key}: {len(ts_arr)} entries, {len(np.unique(ts_arr))} unique values")
+        if len(ts_arr) < 2:
+            raise ValueError(
+                f"Cannot derive a duration from {duration_key}: only {len(ts_arr)} "
+                "entries present. Pass duration_seconds explicitly."
+            )
+        duration_ticks = float(np.max(ts_arr) - np.min(ts_arr))
+        duration_seconds = duration_ticks * 0.78 * 1e-9
+        if duration_seconds == 0.0:
+            raise ValueError(
+                f"Derived duration is 0 s (all {duration_key} entries are identical). "
+                f"Try a different duration_key, or pass duration_seconds explicitly "
+                "to bypass derivation entirely."
+            )
+    emit(f"duration = {duration_seconds} s")
+ 
+    ########################
+    ####### per-SL pattern type counts / rates
+ 
+    pat_counts = {}
+    pat_rate = {}
+    err_pat_rate = {}
+    n_entries = {}
+ 
+    for sl in sl_list:
+        pat_type_valid, n_excluded, n_total = _get_pattern_and_mask(
+            data=data,
+            sl=sl,
+            pattern_key=pattern_key,
+            impossible_key=impossible_key,
+            sl_selector_key=sl_selector_key,
+            exclude_impossible=exclude_impossible,
+        )
+        n_entries[sl] = int(len(pat_type_valid))
+ 
+        counts, rates, errs = {}, {}, {}
+        for p, label in enumerate(pattern_labels):
+            c = int(np.sum(pat_type_valid == p))
+            counts[p] = c
+            rates[p] = c / duration_seconds
+            errs[p] = np.sqrt(c) / duration_seconds
+        counts["com"] = int(len(pat_type_valid))
+        rates["com"] = counts["com"] / duration_seconds
+        errs["com"] = np.sqrt(counts["com"]) / duration_seconds
+ 
+        pat_counts[sl] = counts
+        pat_rate[sl] = rates
+        err_pat_rate[sl] = errs
+ 
+        emit(f"[{_sl_display(sl)}] total valid entries: {counts['com']} "
+             f"(excluded {n_excluded} impossible fits out of {n_total})")
+        for p, label in enumerate(pattern_labels):
+            emit(f"  pattern {label}: {counts[p]} counts, rate = ({rates[p]:.3f} +- {errs[p]:.3f}) Hz")
+ 
+    ########################
+    ####### bar plot: pattern type rate distribution, one plot per SL
+ 
+    for sl in sl_list:
+        fig, ax = plt.subplots(1, 1, figsize=(10, 6))
+        x = np.arange(len(pattern_labels))
+        heights = [pat_rate[sl][p] for p in range(len(pattern_labels))]
+        errors = [err_pat_rate[sl][p] for p in range(len(pattern_labels))]
+        ax.bar(x, heights, width=0.6, align="center")
+        ax.errorbar(x, heights, yerr=errors, fmt="none", ecolor="black", capsize=4)
+        ax.set_xticks(x)
+        ax.set_xticklabels(pattern_labels)
+        ax.set_xlabel("Pattern type")
+        ax.set_ylabel("Rate [Hz]")
+        ax.set_title(f"{add_title_info}: {_sl_display(sl)} pattern type rates\nfor {pct_ar}/{pct_co2} Ar/CO$_2$, $U_{{\\mathrm{{wire}}}} = {u_wire}$, {suffix}")
+        info_str = f"entries = {n_entries[sl]}"
+        ax = hist_utils.add_infobox(ax=ax, info_str=info_str, info_loc="upper right")
+        fig.tight_layout()
+        fig.show()
+        if save_plots:
+            hist_plot_file = plot_save_path + dataset_name + f"_PAT_TYPE_{_sl_display(sl)}_{suffix}" + plot_type
+            emit(f"store plot as {hist_plot_file}.")
+            fig.savefig(hist_plot_file)
+        plt.close(fig)
+ 
+    ########################
+    ####### comparison plot: grouped bars across all requested SLs
+ 
+    fig, ax = plt.subplots(1, 1, figsize=(10, 6))
+    n_sl = len(sl_list)
+    width = 0.8 / n_sl
+    x = np.arange(len(pattern_labels))
+    for i, sl in enumerate(sl_list):
+        heights = [pat_rate[sl][p] for p in range(len(pattern_labels))]
+        errors = [err_pat_rate[sl][p] for p in range(len(pattern_labels))]
+        offset = (i - (n_sl - 1) / 2) * width
+        ax.bar(x + offset, heights, width=width, label=_sl_display(sl))
+        ax.errorbar(x + offset, heights, yerr=errors, fmt="none", ecolor="black", capsize=3)
+    ax.set_xticks(x)
+    ax.set_xticklabels(pattern_labels)
+    ax.set_xlabel("Pattern type")
+    ax.set_ylabel("Rate [Hz]")
+    ax.set_title(
+    f"pattern type rate comparison\nfor {pct_ar}/{pct_co2} Ar/CO$_2$, "
+    f"$U_{{\\mathrm{{wire}}}} = {u_wire}$, {suffix}"
+)
+    ax.legend()
+    fig.tight_layout()
+    fig.show()
+    if save_plots:
+        hist_plot_file = plot_save_path + dataset_name + f"_{fit_type}_PAT_TYPE_COMPARISON_{suffix}" + plot_type
+        emit(f"store plot as {hist_plot_file}.")
+        fig.savefig(hist_plot_file)
+    plt.close(fig)
+ 
+    ########################
+    ####### tex table (mirrors the layout from the original plot_specific_hist.py)
+ 
+    float_precision = 2
+    header_cols = " & ".join(f"\\ac{{{_sl_display(sl)}}}" for sl in sl_list)
+    tex_lines = [
+        f"\\begin{{tabular}}{{|c|{'c|' * n_sl}}}",
+        "    \\hline",
+        f"    Pattern & {header_cols} \\\\ \\hline",
+    ]
+    for p, label in enumerate(pattern_labels):
+        row_vals = " & ".join(
+            f"$({np.round(pat_rate[sl][p], float_precision):.{float_precision}f} \\pm "
+            f"{np.round(err_pat_rate[sl][p], float_precision):.{float_precision}f})\\;\\si{{\\hertz}}$"
+            for sl in sl_list
+        )
+        tex_lines.append(f"    ${label}$ & {row_vals} \\\\")
+    tex_lines.append("    \\hline")
+    com_vals = " & ".join(
+        f"$({np.round(pat_rate[sl]['com'], float_precision):.{float_precision}f} \\pm "
+        f"{np.round(err_pat_rate[sl]['com'], float_precision):.{float_precision}f})\\;\\si{{\\hertz}}$"
+        for sl in sl_list
+    )
+    tex_lines.append(f"    Cumulative & {com_vals} \\\\ \\hline")
+    tex_lines.append("\\end{tabular}")
+    tex_table = "\n".join(tex_lines)
+    emit(tex_table)
+ 
+    return {
+        "log": log,
+        "duration_seconds": duration_seconds,
+        "pat_counts": pat_counts,
+        "pat_rate": pat_rate,
+        "err_pat_rate": err_pat_rate,
+        "n_entries": n_entries,
+        "tex_table": tex_table,
+    }
+
+
+
+# Fixed U_wire -> color mapping, light to dark, so colors stay consistent
+# across every plot regardless of which subset of voltages is present in a
+# given `analysis_out`. Sampled from a sequential colormap (light = low
+# voltage, dark = high voltage). Extend this dict if you add more voltages.
+_WIRE_VOLTAGES = [3550, 3575, 3600, 3625, 3650]
+_WIRE_COLORMAP = plt.cm.Blues  # light -> dark as voltage increases
+_WIRE_COLOR_MAP = {
+    # skip the very lightest end (near-white) so the lowest voltage is still visible
+    v: _WIRE_COLORMAP(0.3 + 0.7 * i / (len(_WIRE_VOLTAGES) - 1))
+    for i, v in enumerate(_WIRE_VOLTAGES)
+}
+ 
+ 
+def plot_vd_by_gas_mix(
+    *,
+    analysis_out,
+    base_path,
+    dataset_info_fn,
+    plot_type=".png",
+    fig_size=(12, 7),
+    save_path=None,
+    y_margin=1.0,
+    verbose=True,
+    method = "",
+    strmethod = "",
+    ):
+    """
+    Bar-chart comparison of fitted drift velocities, grouped by gas mixture.
+ 
+    Replaces the errorbar-per-dataset scatter plot: instead of one point per
+    dataset scattered along an Ar-concentration x-axis, every dataset
+    sharing the same (pct_Ar, pct_CO2) gas mixture is grouped into one
+    x-axis category, and one bar is drawn per measurement within that group
+    (colored consistently by U_wire across groups, using a fixed hardcoded
+    color per voltage) -- mirroring the grouped-bar comparison plot used
+    elsewhere for pattern-type rates.
+ 
+    Parameters
+    ----------
+    analysis_out : dict
+        {dataset_name: fit_results}. Reads "peak"/"peak_err" (as produced
+        by fit_parabola_peak / fit_gaussian_hist) if present, otherwise
+        falls back to "v_drift"/"err_v_drift" (as produced by the photopeak
+        method), so the same function works on either analysis's output.
+    base_path : str
+        Used to build the default output file path
+        (base_path + "plots/vd_photo_peak_comparison<plot_type>").
+    dataset_info_fn : callable
+        Function taking `name=dataset_name` and returning a dict with keys
+        "pct_Ar", "pct_CO2", "U_wire" (e.g. your existing parse_fit_name).
+        Called once per dataset -- NOT once total with a stale name, which
+        was the bug in the original snippet (it called
+        `parse_fit_name(name=dataset_name)` using an outer-scope variable
+        instead of the actual per-iteration dataset). If it raises for a
+        given dataset, that dataset is skipped (with a printed warning)
+        instead of silently being plotted with the wrong / blank info.
+    plot_type : str, default ".png"
+    fig_size : tuple, default (12, 7)
+    save_path : str, optional
+        Full output path. Defaults to
+        f"{base_path}plots/vd_photo_peak_comparison{plot_type}".
+    y_margin : float, default 1.0
+        Padding (in the same units as vd, e.g. um/ns) added below the
+        lowest and above the highest (mean_vd +/- err_vd) across all
+        entries, used for the y-axis limits -- instead of the default
+        bar-chart behavior of always starting the y-axis at 0.
+    verbose : bool, default True
+        Print skipped datasets and the final save path.
+ 
+    Returns
+    -------
+    fig, ax, path
+    """
+    # --- collect (mix, u_wire, mean_vd, err_vd) per dataset ---
+    entries = []
+    for dataset_name, result in analysis_out.items():
+        try:
+            info = dataset_info_fn(name=dataset_name)
+        except Exception as e:
+            if verbose:
+                print(f"  skipping {dataset_name}: could not parse dataset info ({e})")
+            continue
+ 
+        pct_ar = int(info["pct_Ar"])
+        pct_co2 = int(info["pct_CO2"])
+        u_wire = int(info["U_wire"])  # force int so wide/fallback parsing paths can't mismatch
+        mix_label = f"{pct_ar}/{pct_co2}"
+ 
+        try:
+            entries.append({
+                "dataset": dataset_name,
+                "mix": mix_label,
+                "u_wire": u_wire,
+                "mean_vd": result["peak"],
+                "err_vd": result["peak_err"],
+            })
+        except KeyError:
+            entries.append({
+                "dataset": dataset_name,
+                "mix": mix_label,
+                "u_wire": u_wire,
+                "mean_vd": result["v_drift"],
+                "err_vd": result["err_v_drift"],
+            })
+ 
+    if not entries:
+        raise ValueError("No datasets could be parsed by dataset_info_fn; nothing to plot.")
+ 
+    # --- x-axis categories: one per unique gas mix, sorted by (Ar%, CO2%) ---
+    mixes = sorted(
+        set(e["mix"] for e in entries),
+        key=lambda m: tuple(int(v) for v in m.split("/")),
+    )
+    mix_to_x = {mix: i for i, mix in enumerate(mixes)}
+ 
+    # --- consistent color per U_wire, from the fixed hardcoded map ---
+    unique_u_wires = sorted(set(e["u_wire"] for e in entries))
+    unmapped = [u for u in unique_u_wires if u not in _WIRE_COLOR_MAP]
+    if unmapped:
+        raise KeyError(
+            f"No fixed color defined for U_wire value(s) {unmapped}. "
+            f"Add them to _WIRE_VOLTAGES / _WIRE_COLOR_MAP at the top of this "
+            f"module (currently defined for {_WIRE_VOLTAGES})."
+        )
+    wire_color_map = {u: _WIRE_COLOR_MAP[u] for u in unique_u_wires}
+ 
+    # --- group entries by mix, sort each group by wire voltage for a stable bar order ---
+    grouped = {mix: [] for mix in mixes}
+    for e in entries:
+        grouped[e["mix"]].append(e)
+    for mix in grouped:
+        grouped[mix].sort(key=lambda e: (e["u_wire"], e["dataset"]))
+ 
+    fig, ax = plt.subplots(1, 1, figsize=fig_size)
+ 
+    max_group_size = max(len(v) for v in grouped.values())
+    group_width = 0.8
+    bar_width = group_width / max_group_size
+ 
+    for mix, group_entries in grouped.items():
+        x0 = mix_to_x[mix]
+        n = len(group_entries)
+        # center this group's bars even if it has fewer entries than the widest group
+        offsets = (np.arange(n) - (n - 1) / 2) * bar_width
+        for e, offset in zip(group_entries, offsets):
+            color = wire_color_map[e["u_wire"]]
+            ax.bar(x0 + offset, e["mean_vd"], width=bar_width * 0.9, color=color)
+            ax.errorbar(
+                x0 + offset, e["mean_vd"], yerr=e["err_vd"],
+                fmt="none", ecolor="black", capsize=3,
+            )
+ 
+    ax.set_xticks(list(mix_to_x.values()))
+    ax.set_xticklabels(list(mix_to_x.keys()))
+    ax.set_xlabel("Gas mixture (Ar/CO2) [%]")
+    ax.set_ylabel(r"$v_d$ [$\mu$m/ns]")
+    ax.set_title(f"Comparison of gas mixtures and drift velocities from {strmethod}")
+    ax.grid(True, axis="y")
+ 
+    # y-axis scaled to the actual data range (incl. error bars) with a fixed
+    # margin, rather than the default bar-chart baseline-at-0 behavior
+    y_lo = min(e["mean_vd"] - e["err_vd"] for e in entries)
+    y_hi = max(e["mean_vd"] + e["err_vd"] for e in entries)
+    ax.set_ylim(y_lo - y_margin, y_hi + y_margin)
+ 
+    # legend: one entry per U_wire value, deduplicated
+    legend_handles = [plt.Rectangle((0, 0), 1, 1, color=wire_color_map[u]) for u in unique_u_wires]
+    legend_labels = [f"$U_{{wire}}$ = {u} V" for u in unique_u_wires]
+    ax.legend(legend_handles, legend_labels)
+ 
+    fig.tight_layout()
+ 
+    if save_path is None:
+        save_path = base_path + f"plots/vd_{method}_comparison{plot_type}"
+    fig.savefig(save_path)
+    if verbose:
+        print(f"store plot as {save_path}.")
+ 
+    return fig, ax, save_path
+
+
+
+
 def parse_fit_name(*, name):
     # Erwartetes Format: cosmic_<Ar>-<CO2>_<U_wire>-<U_Fieldshaper>-<U_cathode>_<rest...>
     pattern = r"^cosmic_(\d+)-(\d+)_(\d+)-(\d+)-(\d+)"
@@ -1567,27 +2141,28 @@ def main():
 
 
 
-    do_only_gauss_fit = False #if set to True, only double gauss to SUPER FITS fit is done, resulting in a quicker analysis
+    do_only_gauss_fit = True #if set to True, only double gauss to SUPER FITS fit is done, resulting in a quicker analysis
     do_ramp_measurement = False # if set to True, the ramp measurements are analyzed, changing plot naming and allowing for time, only gauss fits are saved, if also other analyisi is supposed to be saved, change if statement a few lines below
-    do_refit_full_analysis = True # if set to True, 2D hists of data is plotted, if set to False oly timeboxes, vd, and tan(alpha) dist is plotted
+    do_refit_full_analysis = False # if set to True, 2D hists of data is plotted, if set to False oly timeboxes, vd, and tan(alpha) dist is plotted
     do_super_fit_analysis = True
     
     list_of_fits = ["cosmic_82-18_3550-1800-1200_run1_th20_cut100",
                 "cosmic_82-18_3575-1800-1200_run1_th20_cut100", 
                 "cosmic_82-18_3600-1800-1200_run1_th20_cut100",
                 "cosmic_82-18_3625-1800-1200_run1_th20_cut100", 
+                "cosmic_82-18_3650-1800-1200_run1_th20_cut100",#full
 
-                #"cosmic_83-17_3650-1800-1200_run1_th20_cut100",not calculated, is beeing calculated
+                "cosmic_83-17_3650-1800-1200_run1_th20_cut100",
                 "cosmic_83-17_3625-1800-1200_run1_th20_cut100", 
                 "cosmic_83-17_3600-1800-1200_run1_th20_cut100", 
                 "cosmic_83-17_3575-1800-1200_run1_th20_cut100", 
-                "cosmic_83-17_3550-1800-1200_run1_th20_cut100",
+                "cosmic_83-17_3550-1800-1200_run1_th20_cut100",#full
 
                 "cosmic_85-15_3550-1800-1200_run1_th20_cut100",
                 "cosmic_85-15_3575-1800-1200_run1_th20_cut100", 
-                "cosmic_85-15_3600-1800-1200_run2_th20_cut100"
+                "cosmic_85-15_3600-1800-1200_run2_th20_cut100",#missing 3625, 3650 (not measured)
                 ]
-    list_of_fits = ["cosmic_82-18_3550-1800-1200_run1_th20_cut_50", "cosmic_82-18_3550-1800-1200_run1_th20_cut_51"]
+    #list_of_fits = ["mb1_sxa5_cosmics_10min"]
     ramp_datasets = [ "data_mic0_start_2026-07-24_18-06-10_stop_2026-07-24_18-16-11",
                         "data_mic0_start_2026-07-24_22-16-13_stop_2026-07-24_22-26-14",
                         "data_mic0_start_2026-07-25_02-26-16_stop_2026-07-25_02-36-17",
@@ -1635,7 +2210,23 @@ def main():
     fig_size = (8,6)
     #dataset_name = "cosmic_82-18_3550-1800-1200_run1_th20_cut_50"
     analysis_out = {}
-    
+
+
+    #check that datasets exist
+    non_existing_super_fits = []
+    for dataset in list_of_fits:
+        file_name = f"{dataset}_super_fits.pcl"
+        dataset_path = Path(f"{base_path}pcls/{dataset}/{file_name}")
+
+        if not dataset_path.exists():
+            print(f"Error: Dataset '{file_name}' does not exist.")
+            non_existing_super_fits.append(file_name)
+
+    if len(non_existing_super_fits)>=1:
+        sys.exit(1)  # Stop the entire script      
+
+    # If the loop completes, all datasets exist
+    print("All datasets found. Continuing...")
     for dataset_idx in range(len(list_of_fits)):
 
 
@@ -1651,11 +2242,7 @@ def main():
 
         ### data import
         #print(f"###### Importing fits...")
-        sl_fits = data_utils.load_pickle(file = sl_fits_file)
-
-        #print(f"###### Importing refits...")
-        sl_refits = data_utils.load_pickle(file = sl_refits_file)
-        #print("### imported refits data from file: " + sl_refits_file)
+        
 
         #print(f"###### Importing super fits...")
         super_fits = data_utils.load_pickle(file = super_fits_path)
@@ -1706,18 +2293,32 @@ def main():
         try:
             # Dataset info from name; Use parse_fit_name to extract information from dataset name
             dataset_info = parse_fit_name(name = dataset_name)
-            pct_ar = dataset_info["pct_Ar"]
-            pct_co2 = dataset_info["pct_CO2"]
-            u_wire = dataset_info["U_wire"]
-            u_fieldshaper = dataset_info["U_Fieldshaper"]
-            u_cathode = dataset_info["U_cathode"]
+            pct_ar = dataset_info['pct_Ar']
+            pct_co2 = dataset_info['pct_CO2']
+            u_wire = dataset_info['U_wire']
+            u_fieldshaper = dataset_info['U_Fieldshaper']
+            u_cathode = f"-{dataset_info['U_cathode']}"
 
         except:
-            pct_ar = ""
-            pct_co2 = ""
-            u_wire = ""
-            u_fieldshaper = ""
-            u_cathode = ""
+            if dataset_name == "mb1_sxa5_cosmics_10min":
+                dataset_info = {}
+                pct_ar = "85"
+                pct_co2 = "15"
+                u_wire = "3600"
+                u_fieldshaper = "1800"
+                u_cathode = "-1200"
+                dataset_info["pct_Ar"] = pct_ar
+                dataset_info["pct_CO2"] = pct_co2
+                dataset_info["U_wire"] = u_wire
+                dataset_info["U_Fieldshaper"] = u_fieldshaper
+                dataset_info["U_cathode"] = u_cathode 
+
+            else:
+                pct_ar = ""
+                pct_co2 = ""
+                u_wire = ""
+                u_fieldshaper = ""
+                u_cathode = ""
         
         if do_super_fit_analysis:
 
@@ -1943,6 +2544,26 @@ def main():
                     zoom_margin=20.0,
                     orient="phi",
                 )
+
+
+                print(len(super_fits_cuts["muon_ts"]))
+                print(len(super_fits_cuts["pat_type_sl1"]))   # should match the line above
+                print(np.unique(super_fits_cuts["muon_ts"])[:10])
+
+                results = analyze_pattern_type_data(
+                    data=super_fits_cuts,
+                    dataset_name=dataset_name,
+                    plot_save_path=plot_save_path,
+                    plot_type= plot_type,
+                    save_plots=True,
+                    verbose=True,
+                    suffix = suffix,
+                    dataset_info = dataset_info,
+                    fit_type = "super_fit",
+                    add_title_info = "Super Fit" # fit type for title
+
+
+                )
                 
             
                     
@@ -1995,53 +2616,16 @@ def main():
 
         if not do_ramp_measurement:
                 
-            plt.figure(figsize=fig_size)
+            fig, ax, path = plot_vd_by_gas_mix(
+            analysis_out=analysis_out,
+            base_path=base_path,
+            dataset_info_fn=parse_fit_name,
+            plot_type=plot_type,
+            fig_size=fig_size,
+            method = "track_fit",
+            strmethod= "Track-fit Method"
+            )
 
-            # Get all unique wire voltages
-            unique_u_wires = sorted(set(
-                parse_fit_name(name=dataset)["U_wire"]
-                for dataset in analysis_out.keys()
-            ))
-
-            # Create one color per wire voltage
-            colors = plt.cm.tab10(np.linspace(0, 1, len(unique_u_wires)))
-
-            # Map voltage -> color
-            wire_color_map = dict(zip(unique_u_wires, colors))
-
-            for dataset, result in analysis_out.items():
-                dataset_info = parse_fit_name(name=dataset)
-
-                pct_ar = dataset_info["pct_Ar"]
-                pct_co2 = dataset_info["pct_CO2"]
-                u_wire = dataset_info["U_wire"]
-
-                mean_vd = result["peak"]
-                err_mean_vd = result["peak_err"]
-
-                plt.errorbar(
-                    pct_ar,
-                    mean_vd,
-                    yerr=err_mean_vd,
-                    fmt="o",
-                    capsize=4,
-                    markersize=6,
-                    color=wire_color_map[u_wire],
-                    label=f"{pct_ar}/{pct_co2}, $U_{{wire}}={u_wire}$ V"
-                )
-
-            plt.xlabel("Ar concentration [%]")
-            plt.ylabel(r"$v_d$ [$\mu$m/ns]")
-            plt.title("Comparison of gas mixtures and drift velocities")
-            plt.grid(True)
-
-            # Avoid duplicate legend entries for the same voltage
-            handles, labels = plt.gca().get_legend_handles_labels()
-            unique_labels = dict(zip(labels, handles))
-            plt.legend(unique_labels.values(), unique_labels.keys())
-
-            plt.tight_layout()
-            plt.savefig(base_path + f"plots/vd_track_fit_comparison{plot_type}")
 
 
         """
@@ -2168,8 +2752,14 @@ def main():
         """
 
 
+        
 
         if do_refit_full_analysis:
+            sl_fits = data_utils.load_pickle(file = sl_fits_file)
+            print(sl_fits.keys())
+            #print(f"###### Importing refits...")
+            sl_refits = data_utils.load_pickle(file = sl_refits_file)
+            #print("### imported refits data from file: " + sl_refits_file)
             # The analysis of refits beginns here
             for i in range(2):
 
@@ -2263,7 +2853,19 @@ def main():
                 xlabel=x_label,
                 ylabel=y_label,
                 plot_type=plot_type,   # matches your `factor = 180/np.pi` conversion
-            )
+                )
+                results = analyze_pattern_type_data(
+                data=sl_fits,
+                dataset_name=dataset_name,
+                plot_save_path=plot_save_path,
+                plot_type= plot_type,
+                save_plots=True,
+                verbose=True,
+                suffix = suffix,
+                dataset_info = dataset_info,
+                fit_type = "fit",
+                add_title_info = "four hit Fit" # fit type for title
+                )
     
                 plt.close("all")
 
