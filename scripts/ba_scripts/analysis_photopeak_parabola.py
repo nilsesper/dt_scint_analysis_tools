@@ -111,6 +111,9 @@ def fit_secondary_peak_parabola(
     window_growth=1.3,
     min_bins=6,
     verbose=True,
+    min_bins_syst = 4,
+    max_bis_syst = 20,
+
 ):
     """Fit a parabola (a2*x^2 + a1*x + a0) directly to the region around
     the secondary peak.
@@ -260,6 +263,8 @@ def fit_secondary_peak_parabola(
                 maxfev=20000,
             )
 
+
+
             A_fit, mu_fit, c_fit = popt_refit
             err_A, err_mu_fit, err_c = np.sqrt(np.diag(pcov_refit))
             popt = popt_refit
@@ -267,6 +272,10 @@ def fit_secondary_peak_parabola(
             fit_bins = refit_bins
             fit_hist = refit_hist
             err_fit_hist = refit_err
+
+
+            
+
 
             if c_fit <= 0:
                 raise RuntimeError(
@@ -301,7 +310,92 @@ def fit_secondary_peak_parabola(
                       f"[halfwidth_left={halfwidth_left:.1f} ns, halfwidth_right={halfwidth_right:.1f} ns], "
                       f"mu = {mu_fit:.2f} +- {err_mu_fit:.2g} ns, chi2/ndf = {chi2:.1f}/{ndf} = {chi2ndf:.2f}")
 
-            return popt, pcov, fit_bins, fit_hist, err_fit_hist, parabola_vertex_form, mu_fit, err_mu_fit
+            # -----------------------------------------
+            # Systematic uncertainty from fit window
+            # -----------------------------------------
+            mu_scan = []
+
+            bin_width = np.mean(np.diff(bins_nobg))
+
+            for n_bins in range(min_bins_syst, max_bis_syst + 1):
+
+                half_width_syst = n_bins * bin_width
+
+                mask = (
+                    (bins_nobg >= mu_fit - half_width_syst) &
+                    (bins_nobg <= mu_fit + half_width_syst)
+                )
+
+                x_syst = bins_nobg[mask]
+                y_syst = hist_nobg[mask]
+                err_syst = err_hist_nobg[mask]
+
+                if len(x_syst) < 3:
+                    continue
+
+                try:
+                    lower_syst = (0.0, x_syst.min(), 0.0)
+                    upper_syst = (np.inf, x_syst.max(), np.inf)
+                    p0_syst = (A_fit, mu_fit, c_fit)
+
+                    popt_syst, _ = curve_fit(
+                        parabola_vertex_form,
+                        x_syst,
+                        y_syst,
+                        p0=p0_syst,
+                        sigma=err_syst,
+                        absolute_sigma=True,
+                        bounds=(lower_syst, upper_syst),
+                        maxfev=20000,
+                    )
+
+                    A_syst, mu_syst, c_syst = popt_syst
+
+                    # Reject non-parabolic fits (c<=0 means no real curvature/peak)
+                    if c_syst <= 0:
+                        continue
+
+                    # Best-fit values
+                    fit_syst = parabola_vertex_form(x_syst, *popt_syst)
+
+                    # Chi-square
+                    chi2_syst = np.sum(((y_syst - fit_syst) / err_syst)**2)
+
+                    # Degrees of freedom
+                    ndf_syst = len(x_syst) - len(popt_syst)
+
+                    # Reduced chi-square
+                    chi2_ndf_syst = chi2_syst / ndf_syst if ndf_syst > 0 else np.nan
+
+                    if verbose:
+                        print(f"n_bins={n_bins:2d}, chi2/ndf={chi2_ndf_syst:.2f}, mu={mu_syst:.5f}")
+
+                    mu_scan.append(mu_syst)
+
+                except Exception:
+                    continue
+
+            # systematic uncertainty
+            if len(mu_scan) > 1:
+                mu_scan = np.array(mu_scan)
+
+                # rms around the nominal (refit) peak position
+                err_mu_syst = np.sqrt(np.mean((mu_scan - mu_fit)**2))
+            else:
+                err_mu_syst = 0.0
+
+            tot_err = np.sqrt(err_mu_fit**2 + err_mu_syst**2)
+
+            fit_results = {
+                "peak_pos": mu_fit,
+                "peak_err_stat": err_mu_fit,
+                "popt": popt,
+                "pcov": pcov,
+                "peak_err_tot": tot_err,
+                "peak_err_syst": err_mu_syst,
+            }
+
+            return popt, pcov, fit_bins, fit_hist, err_fit_hist, parabola_vertex_form, mu_fit, err_mu_fit, fit_results
 
         except Exception as exc:  # noqa: BLE001 -- intentionally broad, we retry
             last_exc = exc
@@ -409,22 +503,26 @@ def plot_vd_by_gas_mix(
         u_wire = int(info["U_wire"])  # force int so wide/fallback parsing paths can't mismatch
         mix_label = f"{pct_ar}/{pct_co2}"
  
-        try:
-            entries.append({
-                "dataset": dataset_name,
-                "mix": mix_label,
-                "u_wire": u_wire,
-                "mean_vd": result["peak"],
-                "err_vd": result["peak_err"],
-            })
-        except KeyError:
-            entries.append({
-                "dataset": dataset_name,
-                "mix": mix_label,
-                "u_wire": u_wire,
-                "mean_vd": result["v_drift"],
-                "err_vd": result["err_v_drift"],
-            })
+        if "peak_pos" in result and "peak_err_tot" in result:
+            mean_vd = result["peak_pos"]
+            err_vd = result["peak_err_tot"]
+
+        elif "v_drift" in result and "err_v_drift" in result:
+            mean_vd = result["v_drift"]
+            err_vd = result["err_v_drift"]
+
+        else:
+            if verbose:
+                print(f"  skipping {dataset_name}: no drift velocity keys found")
+            continue
+
+        entries.append({
+            "dataset": dataset_name,
+            "mix": mix_label,
+            "u_wire": u_wire,
+            "mean_vd": mean_vd,
+            "err_vd": err_vd,
+        })
  
     if not entries:
         raise ValueError("No datasets could be parsed by dataset_info_fn; nothing to plot.")
@@ -934,6 +1032,18 @@ def parse_start_time(dataset_name: str) -> datetime:
                 raise ValueError(f"Invalid dataset name: {dataset_name}")
 
             return datetime.strptime(match.group(1), "%Y-%m-%d_%H-%M-%S")
+
+
+def dataset_plots_exist(plot_save_path, dataset_name, plot_type):
+    """Return True if the final plot of the per-dataset analysis pipeline
+    (the peak-fit plot) already exists for this dataset. Used as an
+    'analysis already done' marker so re-running the script doesn't redo
+    everything for datasets that haven't changed. This is a heuristic:
+    it assumes that if the *last* plot in the pipeline was written, all
+    earlier steps for that dataset also completed successfully."""
+    marker_file = f"{plot_save_path}{dataset_name}_t_diff_peak_fit{plot_type}"
+    return os.path.exists(marker_file)
+
 # ---------------------------------------------------------------
 # main function
 @mpl.rc_context({'font.family': 'sans-serif', 'font.size': 12}) #'font.sans-serif': 'Arial',
@@ -941,6 +1051,13 @@ def main():
     ###################################################
     do_ramp_measurement = False
     save_plots = True
+    only_do_analysis = True  # set True to skip the analysis and only make plots from existing results
+    skip_existing_datasets = True  # set False to force re-analysis of every dataset
+
+#define parameters
+    fig_size = (8, 6)
+    cell_half_width = 20500 # um 21 mm - 1mm/2 i beam thickness
+    err_cell_half_width = 100 # um
 
     list_of_fits = [#"cosmic_82-18_3550-1800-1200_run1_th20_cut100", no peak
                 #"cosmic_82-18_3575-1800-1200_run1_th20_cut100", no peak
@@ -957,6 +1074,9 @@ def main():
                 #"cosmic_85-15_3550-1800-1200_run1_th20_cut100", no peak
                 "cosmic_85-15_3575-1800-1200_run1_th20_cut100", 
                 "cosmic_85-15_3600-1800-1200_run2_th20_cut100", 
+
+                "cosmic_87-13_3550-1800-1200_run1_th20_cut100",
+                "cosmic_87-13_3575-1800-1200_run1_th20_cut100",
 
                 ]
 
@@ -981,9 +1101,26 @@ def main():
                     #"data_mic0_start_2026-07-27_12-46-58_stop_2026-07-27_12-56-59", #not calculated
                     "data_mic0_start_2026-07-27_16-57-02_stop_2026-07-27_17-07-03",
                     "data_mic0_start_2026-07-27_21-07-05_stop_2026-07-27_21-17-06",
-                    #"data_mic0_start_2026-07-28_01-17-08_stop_2026-07-28_01-27-09",
+                    "data_mic0_start_2026-07-28_01-17-08_stop_2026-07-28_01-27-09",
                     "data_mic0_start_2026-07-28_05-27-11_stop_2026-07-28_05-37-12",
                     "data_mic0_start_2026-07-28_09-37-15_stop_2026-07-28_09-47-16",
+                    "data_mic0_start_2026-07-28_13-47-18_stop_2026-07-28_13-57-19",
+                    "data_mic0_start_2026-07-28_17-57-21_stop_2026-07-28_18-07-22",
+                    "data_mic0_start_2026-07-28_22-07-25_stop_2026-07-28_22-17-26",
+                    "data_mic0_start_2026-07-29_02-17-28_stop_2026-07-29_02-27-29",
+                    "data_mic0_start_2026-07-29_06-27-31_stop_2026-07-29_06-37-32",
+                    "data_mic0_start_2026-07-29_10-37-34_stop_2026-07-29_10-47-35",
+                    "data_mic0_start_2026-07-29_14-47-37_stop_2026-07-29_14-57-38",
+                    "data_mic0_start_2026-07-29_18-57-40_stop_2026-07-29_19-07-41",
+                    "data_mic0_start_2026-07-29_23-07-43_stop_2026-07-29_23-17-44",
+                    "data_mic0_start_2026-07-30_07-27-49_stop_2026-07-30_07-37-50",
+                    "data_mic0_start_2026-07-30_11-37-52_stop_2026-07-30_11-47-53",
+                    "data_mic0_start_2026-07-30_15-47-55_stop_2026-07-30_15-57-56",
+                    "data_mic0_start_2026-07-30_19-57-58_stop_2026-07-30_20-07-59",
+                    "data_mic0_start_2026-07-31_00-08-02_stop_2026-07-31_00-18-03",
+                    "data_mic0_start_2026-07-31_04-18-05_stop_2026-07-31_04-28-06",
+                    "data_mic0_start_2026-07-31_08-28-08_stop_2026-07-31_08-38-09",
+
        
                     ]
     if do_ramp_measurement:
@@ -998,8 +1135,35 @@ def main():
     analysis_out = {}
     results_raw_data = {}
 
+    # --- load previously saved analysis results so datasets that are
+    # already fully analyzed (plot + result present) can be skipped instead
+    # of redone from scratch ---
+    analysis_pkl_name = (
+        "analysis_out_photo_peak_ramp.pcl" if do_ramp_measurement
+        else "analysis_out_photo_peak_data.pcl"
+    )
+    analysis_pkl_path = f"{pcls_path}{analysis_pkl_name}"
+    if skip_existing_datasets and os.path.exists(analysis_pkl_path):
+        analysis_out_prev = data_utils.load_pickle(analysis_pkl_path)
+    else:
+        analysis_out_prev = {}
+
+    datasets_to_skip = set()
+    if skip_existing_datasets:
+        for dataset_name in list_of_fits:
+            plot_save_path = base_path + f"plots/photo_peak/{dataset_name}/"
+            if (dataset_plots_exist(plot_save_path, dataset_name, plot_type)
+                    and dataset_name in analysis_out_prev):
+                datasets_to_skip.add(dataset_name)
+
+    if datasets_to_skip:
+        print(f"Skipping {len(datasets_to_skip)} already-analyzed dataset(s): "
+              f"{sorted(datasets_to_skip)}")
+
     non_existing_hit_diff_hists = []
     for dataset in list_of_fits:
+        if dataset in datasets_to_skip:
+            continue  # no need for the raw pcl if we're not analyzing it
         file_name = f"{dataset}_hit_diff.pcl"
         dataset_path = Path(f"{base_path}pcls/{dataset}/{file_name}")
 
@@ -1007,359 +1171,382 @@ def main():
             print(f"Error: Dataset '{file_name}' does not exist.")
             non_existing_hit_diff_hists.append(file_name)
 
-    if len(non_existing_hit_diff_hists)>=1:
-        sys.exit(1)  # Stop the entire script   
-
+    if len(non_existing_hit_diff_hists) >= 1:
+        sys.exit(1)  # Stop the entire script
 
     #beginn for loop over all datasets here
-    for i in range(len(list_of_fits)):
-        dataset_name = list_of_fits[i]
-        try:
-            # Dataset info from name; Use parse_fit_name to extract information from dataset name
-            dataset_info = parse_fit_name(name = dataset_name)
-            pct_ar = dataset_info["pct_Ar"]
-            pct_co2 = dataset_info["pct_CO2"]
-            u_wire = dataset_info["U_wire"]
-            u_fieldshaper = dataset_info["U_Fieldshaper"]
-            u_cathode = f"-{dataset_info["U_cathode"]}"
+    
+    if not only_do_analysis:
+        for i in range(len(list_of_fits)):
+            dataset_name = list_of_fits[i]
 
-        except:
-            if dataset_name == "mb1_sxa5_cosmics_10min":
-                pct_ar = "85"
-                pct_co2 = "15"
-                u_wire = "3600"
-                u_fieldshaper = "1800"
-                u_cathode = "-1200"
+            if dataset_name in datasets_to_skip:
+                print(f"[{i+1}/{len(list_of_fits)}] {dataset_name}: "
+                      f"already analyzed, skipping.")
+                analysis_out[dataset_name] = analysis_out_prev[dataset_name]
+                continue
 
-            else:
-                pct_ar = ""
-                pct_co2 = ""
-                u_wire = ""
-                u_fieldshaper = ""
-                u_cathode = ""
-
-        # set up folder structure to find and write data
-        dataset_folder_pcls = base_path + pcls_path + dataset_name + "/"
-
-        #input_dumpfile = base_path + "data_runs/" + dataset_name + ".txt"
-        #nodeadtime = True
-        #use_timestamp_sync = True
-        dt_hits_file = dataset_folder_pcls + dataset_name + "_hits_nodeadtime.pcl"
-        #dt_hit_diff_hist_file = dataset_folder_pcls + dataset_name + "_hit_diff.pcl"
-        #dt_hits_file_deadtime = dataset_folder_pcls + dataset_name + "_hits_wdeadtime.pcl"
-
-        dt_hit_diff_hist_file = f"data_ba/pcls/{dataset_name}/{dataset_name}_hit_diff.pcl"
-        plot_save_path = base_path + f"plots/photo_peak/{dataset_name}/"
-
-
-        
-
-        if save_plots:
-            os.makedirs(plot_save_path, exist_ok=True)  
-        
-
-        ####################
-        specific_data = data_utils.load_pickle(dt_hit_diff_hist_file)
-        dt_hits_file = data_utils.load_pickle(dt_hits_file)
-        print(dt_hits_file.keys())
-        cell_half_width = 21000 # um
-        err_cell_half_width = 100 # um
-
-        legend_font_size = 13
-
-        analysis_out[dataset_name] = analyze_specific_data(
-            hits_data=dt_hits_file,
-            dataset_name=dataset_name,
-            base_path=base_path,
-            plot_save_path=plot_save_path,
-            plot_type=plot_type,
-            save_plots=save_plots,
-            verbose=True,
-        )
-
-
-        ### hist to plot
-        # read data
-        start_idx = 0
-        hist = np.array(specific_data["hist"])[start_idx:]
-        err_hist = np.array(specific_data["err_hist"])[start_idx:]
-        err_hist_down = np.array(specific_data["err_hist_down"])[start_idx:]
-        err_hist_up = np.array(specific_data["err_hist_up"])[start_idx:]
-        edges = np.array(specific_data["edges"])[start_idx:]*0.78 # convert from tu to ns
-        centers = hist_utils.centers_from_edges(edges)
-        bins = centers
-        overflow = specific_data["overflow"]
-        underflow = specific_data["underflow"]
-
-        ######################
-        ##### poisson bg subtraction
-
-        ### plot dt hit differences
-        # plot hist, 
-        wire = "wire"
-        print("Plotting full t_diff hist...")
-        fig_size = (8, 6)
-        fig, ax = plt.subplots(1, 1, figsize=fig_size)
-        ax = hist_utils.plot_histogram(ax, hist=hist, centers=bins, err_hist_down=err_hist_down, err_hist_up=err_hist_up, log_scale=True, power_limits=[-4,4], add_info=True, entries=int(np.sum(hist)), overflow=overflow, underflow=underflow, bin_unit="ns")
-        ax.set_xlim(0,np.amax(bins))
-        ax.set_xlabel("$\\Delta T_\\text{cell}$ [ns]")
-
-        # setting the title according to the measurement type
-        if not do_ramp_measurement:
-            title = f"Raw time diff hist of all cells\n{pct_ar}/{pct_co2} Ar/CO$_2$, $U_{{wire}}$ = {u_wire}V"
-
-        elif do_ramp_measurement:
-            time = parse_start_time(dataset_name)
-            title = f"Raw time diff hist of all cells\nRamp measurement $t_{{\\mathrm{{start}}}}$ = {time}, $U_{{\\mathrm{{wire}}}}$ = 3600 V"
-
-
-        ax.set_title(title)
-        fig.tight_layout()
-        path = f"{plot_save_path}{dataset_name}_DIFF_SPECIFIC_ALL{plot_type}"
-        if save_plots:
-            #print(f"store histogram plot as {path}.")
-            print("storing histogram...")
-            fig.savefig(path)
-            print(f"Done saving hist as {path}\n")
-
-        ### remove exponential "poisson" background
-        print("\nFitting exp. backgrund...")
-        boarder = 2000 # ns
-        fit_index_range = (bins > boarder) # > 1000 ns
-        extrapol_index_range = (bins <= boarder)
-        fit_bins = bins[fit_index_range]
-        fit_hist = hist[fit_index_range]
-        err_fit_hist = err_hist[fit_index_range]
-        def f_bg_fit(x, a, b):
-            return a*np.exp(-x/b)
-        def err_f_bg_fit(x, a, b, err_a, err_b):
-            return np.sqrt( (err_a*np.exp(-x/b))**2 + (-1/b*a*np.exp(-x/b)*err_b)**2 )
-        p0 = (1000, 100)
-        popt, pcov, infodict, mesg, _ = curve_fit(f=f_bg_fit, xdata=fit_bins, ydata=fit_hist, p0=p0, sigma=err_fit_hist, absolute_sigma=True, full_output=True)
-        a_fit, b_fit = popt
-        err_a_fit = np.sqrt(pcov[0][0])
-        err_b_fit = np.sqrt(pcov[1][1])
-        chi2 = np.sum((fit_hist - f_bg_fit(x=fit_bins, a=a_fit, b=b_fit))**2/err_fit_hist**2)
-        ndf = len(fit_hist)-2
-        chi2ndf = chi2/ndf
-        print(f"exp fit to interval delta_t = ({np.amin(fit_bins)}, {np.amax(fit_bins)}) ns")
-        print(f"  a = {a_fit} +- {err_a_fit}")
-        print(f"  b = {b_fit} +- {err_b_fit}")
-        print(f"  chi2/ndf = {chi2} / {ndf} = {chi2ndf}")
-
-        ## plot fit, with residual plot
-        print("\nFit successfull \n beginn plotting of dt hit diff with bg fit...")
-        fig, ax = plt.subplots(2, 1, figsize=fig_size, sharex=True, height_ratios=(5,1))
-        rel_spacing = 0
-        barwidth = np.mean(np.diff(bins))*(1-rel_spacing)
-        ax[0] = hist_utils.plot_histogram(ax[0], hist=hist, centers=bins, err_hist_down=err_hist_down, err_hist_up=err_hist_up, log_scale=True, power_limits=[-4,4], add_info=True, entries=int(np.sum(hist)), overflow=overflow, underflow=underflow, bin_unit="ns")
-        fit_label = f"""Exponential fit:
-        $f(\\Delta T) = a \\cdot e^{{-x/b}}$
-        $a=({np.round(a_fit,2):.2f}\\pm{np.round(err_a_fit,2):.2f})$
-        $b=({np.round(b_fit,2):.2f}\\pm{np.round(err_b_fit,2):.2f})$ ns
-        $\\chi^2 / N_{{df}} = {chi2:.1f}\\; / \\;{ndf:.0f} ={np.round(chi2ndf,1):.1f}$"""
-        ax[0].plot(fit_bins, f_bg_fit(fit_bins, a=a_fit, b=b_fit), color="tab:red", label=fit_label)
-        ax[0].fill_between(bins, y1=f_bg_fit(x=bins, a=a_fit, b=b_fit)-err_f_bg_fit(x=bins, a=a_fit, b=b_fit, err_a=err_a_fit, err_b=err_b_fit), y2=f_bg_fit(x=bins, a=a_fit, b=b_fit)+err_f_bg_fit(x=bins, a=a_fit, b=b_fit, err_a=err_a_fit, err_b=err_b_fit), color="tab:red", alpha=0.1)
-        ax[0].plot(bins[extrapol_index_range], f_bg_fit(bins[extrapol_index_range], a=a_fit, b=b_fit), color="tab:red", linestyle="--", label="Extrapolated fit")
-        ax[0].set_yscale("log")
-        ax[0].set_ylim(bottom=0.5, top=np.amax(hist)*np.exp(1.1))
-
-        if not do_ramp_measurement:
-            title = f"Background fit time diff hist of all cells\n{pct_ar}/{pct_co2} Ar/CO$_2$, $U_{{wire}}$ = {u_wire}V"
-
-        elif do_ramp_measurement:
-            time = parse_start_time(dataset_name)
-            title = f"Background fit time diff hist of all cells\nRamp measurement $t_{{\\mathrm{{start}}}}$ = {time}, $U_{{\\mathrm{{wire}}}}$ = 3600 V"
-
-        
-        ax[0].set_title(title)
-        ax[0].legend(loc="lower right", prop={'size': legend_font_size}, fancybox=False, framealpha=params._legend_alpha)
-        residuals = fit_hist - f_bg_fit(fit_bins, a=a_fit, b=b_fit)
-        err_residuals = err_fit_hist
-        ax[1].axhline(y=0, color="gray", linewidth=1)
-        ax[1].errorbar(x=fit_bins, y=residuals, yerr=err_residuals , color="black", marker="o", markersize=2, linewidth=1, linestyle="")
-        ax[1].set_xlim(0,np.amax(bins))
-        ax[1].set_ylim(-np.amax(residuals+err_residuals)*1.1, np.amax(residuals+err_residuals)*1.1)
-        ax[1].set_ylabel("Residuals")
-        ax[1].set_xlabel("$\\Delta T_\\text{cell}$ [ns]")
-        fig.tight_layout()
-        fig.subplots_adjust(wspace=0, hspace=0.1)
-        if save_plots:
-            path = f"{plot_save_path}{dataset_name}_t_diff_bgfit{plot_type}"
-            #print(f"store histogram plot as {path}.")
-            print("store plot...")
-            fig.savefig(path)
-            print(f"plot saved to {path}")
-
-        ### subtract exp bg
-        print("\nSubtracting background from hist...")
-        hist_nobg = hist - f_bg_fit(bins, a=a_fit, b=b_fit)
-        err_hist_nobg = np.sqrt( err_hist**2 + err_f_bg_fit(bins, a=a_fit, b=b_fit, err_a=err_a_fit, err_b=err_b_fit)**2 )
-        err_hist_nobg_down = np.sqrt( err_hist_down**2 + err_f_bg_fit(bins, a=a_fit, b=b_fit, err_a=err_a_fit, err_b=err_b_fit)**2 )
-        err_hist_nobg_up = np.sqrt( err_hist_up**2 + err_f_bg_fit(bins, a=a_fit, b=b_fit, err_a=err_a_fit, err_b=err_b_fit)**2 )
-        bins_nobg = bins
-        print("\nDone subtracting bg from hist.")
-
-        # plot wo bg
-        print("\nPlotting hist without bg...")
-        fig, ax = plt.subplots(1, 1, figsize=fig_size)
-        rel_spacing = 0
-        barwidth = np.mean(np.diff(bins_nobg))*(1-rel_spacing)
-        ax = hist_utils.plot_histogram(ax, hist=hist_nobg, centers=bins_nobg, err_hist_down=err_hist_nobg_down, err_hist_up=err_hist_nobg_up, log_scale=False, power_limits=[-3,3])
-        info_str = f"entries = {int(np.sum(hist_nobg))}\nbin count = {len(centers)}\nbin width = {np.mean(np.diff(bins_nobg)):.3g} ns"
-        ax = hist_utils.add_infobox(ax=ax, info_str=info_str, info_loc="top right")
-        ax.set_xlim(0,600)
-        ax.set_xlabel("$\\Delta T_\\text{cell}$ [ns]")
-        if not do_ramp_measurement:
-            title = f"Background subtracted fit time diff hist of all cells\n{pct_ar}/{pct_co2} Ar/CO$_2$, $U_{{wire}}$ = {u_wire}V"
-        
-        elif do_ramp_measurement:
-            time = parse_start_time(dataset_name)
-            title = f"Background subtracted fit time diff hist of all cells\nRamp measurement $t_{{\\mathrm{{start}}}}$ = {time}, $U_{{\\mathrm{{wire}}}}$ = 3600 V"
-
-        ax.set_title(title)
-        fig.tight_layout()
-        fig.show()
-        ## store plot
-        if save_plots:
-            path = f"{plot_save_path}{dataset_name}_t_diff_nobg{plot_type}"
-            #print(f"store histogram plot as {path}.")
-            print(f"storing hist...")
-            fig.savefig(path)
-            print(f"\nSaved plot to {path}")
-
-        ######################
-        ##### fit peak position (parabola, only in the region of the peak
-        ##### itself -- NOT a valley-to-valley approach, see docstring of
-        ##### fit_secondary_peak_parabola for caveats)
-
-        popt, pcov, fit_bins, fit_hist, err_fit_hist, fit_func, mu_val, err_mu = fit_secondary_peak_parabola(
-            bins_nobg, hist_nobg, err_hist_nobg,
-            search_min=387,
-            search_max=440,
-            window_sigmas_left=1.5,
-            window_sigmas_right=2.5,     # größer, da der Peak rechts einen längeren Ausläufer hat
-            min_halfwidth_left_ns=15,
-            min_halfwidth_right_ns=40,   # absolute Untergrenze rechts, damit der Ausläufer sicher erfasst wird
-            edge_margin_frac=0.15,
-            window_growth=1.3,
-            max_attempts=6,
-            prominence_frac=0.03,
-        )
-
-        perr = np.sqrt(np.diag(pcov))
-        param_names = ["A", "mu", "c"]
-        fit_params = dict(zip(param_names, popt))
-        errors = dict(zip(param_names, perr))
-
-        fit_values = fit_func(fit_bins, *popt)
-        chi2 = np.sum((fit_hist - fit_values)**2 / err_fit_hist**2)
-        ndf = len(fit_hist) - len(popt)
-        chi2ndf = chi2 / ndf
-
-        print(f"Peak-region fit interval ΔT = ({fit_bins.min():.1f}, {fit_bins.max():.1f}) ns")
-        for name in param_names:
-            print(f"  {name:>5} = {fit_params[name]:.6g} ± {errors[name]:.2g}")
-        print(f"  chi²/ndf = {chi2:.2f} / {ndf} = {chi2ndf:.2f}")
-
-        # --- estimate drift velocity ---
-        v_drift = cell_half_width / mu_val
-        err_v_drift = np.sqrt(
-            (err_cell_half_width / mu_val)**2 +
-            (cell_half_width * err_mu / mu_val**2)**2
-        )
-
-        print(f"v_drift = {v_drift:.4g} ± {err_v_drift:.2g} um/ns")
-
-        fit_label = (
-            "Parabola fit\n"
-            r"$f(\Delta T)=A-c\,(\Delta T-\mu)^2$"
-        )
-        fit_label += f"\n$\\mu=({mu_val:.3g}\\pm {err_mu:.2g})$ ns"
-        fit_label += f"\n$v_{{\\mathrm{{drift}}}}=({v_drift:.3g}\\pm {err_v_drift:.2g})$"
-        fit_err = err_parabola_vertex_form(fit_bins, *popt, *perr)
-
-
-        
-        # --- build the actual figure/axes for this plot ---
-        fig, ax = plt.subplots(2, 1, figsize=fig_size, sharex=True, height_ratios=(5, 1))
-
-        ax[0] = hist_utils.plot_histogram(
-            ax[0], hist=hist_nobg, centers=bins_nobg,
-            err_hist_down=err_hist_nobg_down, err_hist_up=err_hist_nobg_up,
-            log_scale=False, power_limits=[-3, 3],
-        )
-        info_str = (
-            f"entries = {int(np.sum(hist_nobg))}\n"
-            f"bin count = {len(centers)}\n"
-            f"bin width = {np.mean(np.diff(bins_nobg)):.3g} ns"
-        )
-        ax[0] = hist_utils.add_infobox(ax=ax[0], info_str=info_str, info_loc="top left")
-
-        ax[0].plot(fit_bins, fit_values, color="tab:red", label=fit_label)
-        ax[0].fill_between(
-            fit_bins,
-            fit_values - fit_err,
-            fit_values + fit_err,
-            color="tab:red",
-            alpha=0.1,
-        )
-
-        lims = [0, 500]
-        ax[0].axvline(x=mu_val, color="tab:red", linestyle="--", label="Peak position $\\mu$")
-        ax[0].axvspan(xmin=mu_val - err_mu, xmax=mu_val + err_mu, color="tab:red", alpha=0.1)
-        ax[0].set_ylim(bottom=0, top=np.amax(hist_nobg) * 1.1)
-        ax[0].legend(loc="lower left", prop={'size': legend_font_size}, fancybox=False, framealpha=params._legend_alpha)
-        ax[0].set_xlim(left=lims[0], right=lims[1])
-        if not do_ramp_measurement:
-            title = f"Photopeak fit (Parabel)\n{pct_ar}/{pct_co2} Ar/CO$_2$, $U_{{wire}}$ = {u_wire}V"
+            try:
+                dataset_info = parse_fit_name(name=dataset_name)
                 
-        elif do_ramp_measurement:
-            time = parse_start_time(dataset_name)
-            title = f"Photopeak fit (Parabel)\nRamp measurement $t_{{\\mathrm{{start}}}}$ = {time}, $U_{{\\mathrm{{wire}}}}$ = 3600 V"
+                pct_ar = dataset_info["pct_Ar"]
+                pct_co2 = dataset_info["pct_CO2"]
+                u_wire = dataset_info["U_wire"]
+                u_fieldshaper = dataset_info["U_Fieldshaper"]
+                u_cathode = f"-{dataset_info["U_cathode"]}"
 
-        
-        ax[0].set_title(title)
-        # --- residuals panel ---
-        residuals = fit_hist - fit_values
-        err_residuals = err_fit_hist
-        ax[1].axhline(y=0, color="gray", linewidth=1)
-        ax[1].errorbar(
-            x=fit_bins, y=residuals, yerr=err_residuals,
-            color="black", marker="o", markersize=2, linewidth=1, linestyle="",
-        )
-        ax[1].set_xlim(left=lims[0], right=lims[1])
-        ax[1].set_ylim(
-            -np.amax(residuals + err_residuals) * 1.1,
-            np.amax(residuals + err_residuals) * 1.1,
-        )
-        ax[1].set_ylabel("Residuals")
-        ax[1].set_xlabel("$\\Delta T_\\text{cell}$ [ns]")
+            except:
+                if dataset_name == "mb1_sxa5_cosmics_10min":
+                    pct_ar = "85"
+                    pct_co2 = "15"
+                    u_wire = "3600"
+                    u_fieldshaper = "1800"
+                    u_cathode = "-1200"
 
-        fig.tight_layout()
-        fig.subplots_adjust(wspace=0, hspace=0.1)
-        if save_plots:
-            path = f"{plot_save_path}{dataset_name}_t_diff_peak_fit{plot_type}"
-            #print(f"store histogram plot as {path}.")
-            print(f"storing histogram...")
-            fig.savefig(path)
-            print(f"histogram plot stored as {path}.")
+                else:
+                    pct_ar = ""
+                    pct_co2 = ""
+                    u_wire = ""
+                    u_fieldshaper = ""
+                    u_cathode = ""
 
-        analysis_out[dataset_name] = {
-            **fit_params,
-            **{f"{key}_err": value for key, value in errors.items()},
-            "mu": mu_val,
-            "mu_err": err_mu,
-            "v_drift": v_drift,
-            "err_v_drift": err_v_drift
-        }
+            # set up folder structure to find and write data
+            dataset_folder_pcls = base_path + pcls_path + dataset_name + "/"
+
+            #input_dumpfile = base_path + "data_runs/" + dataset_name + ".txt"
+            #nodeadtime = True
+            #use_timestamp_sync = True
+            dt_hits_file = dataset_folder_pcls + dataset_name + "_hits_nodeadtime.pcl"
+            #dt_hit_diff_hist_file = dataset_folder_pcls + dataset_name + "_hit_diff.pcl"
+            #dt_hits_file_deadtime = dataset_folder_pcls + dataset_name + "_hits_wdeadtime.pcl"
+
+            dt_hit_diff_hist_file = f"data_ba/pcls/{dataset_name}/{dataset_name}_hit_diff.pcl"
+            plot_save_path = base_path + f"plots/photo_peak/{dataset_name}/"
 
 
-        plt.close("all")
-        # analyze data from all data_sets
+            
+
+            if save_plots:
+                os.makedirs(plot_save_path, exist_ok=True)  
+            
+
+            ####################
+            specific_data = data_utils.load_pickle(dt_hit_diff_hist_file)
+            dt_hits_file = data_utils.load_pickle(dt_hits_file)
+            print(dt_hits_file.keys())
+            
+
+            legend_font_size = 13
+
+            analysis_out[dataset_name] = analyze_specific_data(
+                hits_data=dt_hits_file,
+                dataset_name=dataset_name,
+                base_path=base_path,
+                plot_save_path=plot_save_path,
+                plot_type=plot_type,
+                save_plots=save_plots,
+                verbose=True,
+            )
 
 
+            ### hist to plot
+            # read data
+            start_idx = 0
+            hist = np.array(specific_data["hist"])[start_idx:]
+            err_hist = np.array(specific_data["err_hist"])[start_idx:]
+            err_hist_down = np.array(specific_data["err_hist_down"])[start_idx:]
+            err_hist_up = np.array(specific_data["err_hist_up"])[start_idx:]
+            edges = np.array(specific_data["edges"])[start_idx:]*0.78 # convert from tu to ns
+            centers = hist_utils.centers_from_edges(edges)
+            bins = centers
+            overflow = specific_data["overflow"]
+            underflow = specific_data["underflow"]
+
+            ######################
+            ##### poisson bg subtraction
+
+            ### plot dt hit differences
+            # plot hist, 
+            wire = "wire"
+            print("Plotting full t_diff hist...")
+
+            fig, ax = plt.subplots(1, 1, figsize=fig_size)
+            ax = hist_utils.plot_histogram(ax, hist=hist, centers=bins, err_hist_down=err_hist_down, err_hist_up=err_hist_up, log_scale=True, power_limits=[-4,4], add_info=True, entries=int(np.sum(hist)), overflow=overflow, underflow=underflow, bin_unit="ns")
+            ax.set_xlim(0,np.amax(bins))
+            ax.set_xlabel("$\\Delta T_\\text{cell}$ [ns]")
+
+            # setting the title according to the measurement type
+            if not do_ramp_measurement:
+                title = f"Raw time diff hist of all cells\n{pct_ar}/{pct_co2} Ar/CO$_2$, $U_{{wire}}$ = {u_wire}V"
+
+            elif do_ramp_measurement:
+                time = parse_start_time(dataset_name)
+                title = f"Raw time diff hist of all cells\nRamp measurement $t_{{\\mathrm{{start}}}}$ = {time}, $U_{{\\mathrm{{wire}}}}$ = 3600 V"
+
+
+            ax.set_title(title)
+            fig.tight_layout()
+            path = f"{plot_save_path}{dataset_name}_DIFF_SPECIFIC_ALL{plot_type}"
+            if save_plots:
+                #print(f"store histogram plot as {path}.")
+                print("storing histogram...")
+                fig.savefig(path)
+                print(f"Done saving hist as {path}\n")
+
+            ### remove exponential "poisson" background
+            print("\nFitting exp. backgrund...")
+            boarder = 2000 # ns
+            fit_index_range = (bins > boarder) # > 1000 ns
+            extrapol_index_range = (bins <= boarder)
+            fit_bins = bins[fit_index_range]
+            fit_hist = hist[fit_index_range]
+            err_fit_hist = err_hist[fit_index_range]
+            def f_bg_fit(x, a, b):
+                return a*np.exp(-x/b)
+            def err_f_bg_fit(x, a, b, err_a, err_b):
+                return np.sqrt( (err_a*np.exp(-x/b))**2 + (-1/b*a*np.exp(-x/b)*err_b)**2 )
+            p0 = (1000, 100)
+            popt, pcov, infodict, mesg, _ = curve_fit(f=f_bg_fit, xdata=fit_bins, ydata=fit_hist, p0=p0, sigma=err_fit_hist, absolute_sigma=True, full_output=True)
+            a_fit, b_fit = popt
+            err_a_fit = np.sqrt(pcov[0][0])
+            err_b_fit = np.sqrt(pcov[1][1])
+            chi2 = np.sum((fit_hist - f_bg_fit(x=fit_bins, a=a_fit, b=b_fit))**2/err_fit_hist**2)
+            ndf = len(fit_hist)-2
+            chi2ndf = chi2/ndf
+            print(f"exp fit to interval delta_t = ({np.amin(fit_bins)}, {np.amax(fit_bins)}) ns")
+            print(f"  a = {a_fit} +- {err_a_fit}")
+            print(f"  b = {b_fit} +- {err_b_fit}")
+            print(f"  chi2/ndf = {chi2} / {ndf} = {chi2ndf}")
+
+            ## plot fit, with residual plot
+            print("\nFit successfull \n beginn plotting of dt hit diff with bg fit...")
+            fig, ax = plt.subplots(2, 1, figsize=fig_size, sharex=True, height_ratios=(5,1))
+            rel_spacing = 0
+            barwidth = np.mean(np.diff(bins))*(1-rel_spacing)
+            ax[0] = hist_utils.plot_histogram(ax[0], hist=hist, centers=bins, err_hist_down=err_hist_down, err_hist_up=err_hist_up, log_scale=True, power_limits=[-4,4], add_info=True, entries=int(np.sum(hist)), overflow=overflow, underflow=underflow, bin_unit="ns")
+            fit_label = f"""Exponential fit:
+            $f(\\Delta T) = a \\cdot e^{{-x/b}}$
+            $a=({np.round(a_fit,2):.2f}\\pm{np.round(err_a_fit,2):.2f})$
+            $b=({np.round(b_fit,2):.2f}\\pm{np.round(err_b_fit,2):.2f})$ ns
+            $\\chi^2 / N_{{df}} = {chi2:.1f}\\; / \\;{ndf:.0f} ={np.round(chi2ndf,1):.1f}$"""
+            ax[0].plot(fit_bins, f_bg_fit(fit_bins, a=a_fit, b=b_fit), color="tab:red", label=fit_label)
+            ax[0].fill_between(bins, y1=f_bg_fit(x=bins, a=a_fit, b=b_fit)-err_f_bg_fit(x=bins, a=a_fit, b=b_fit, err_a=err_a_fit, err_b=err_b_fit), y2=f_bg_fit(x=bins, a=a_fit, b=b_fit)+err_f_bg_fit(x=bins, a=a_fit, b=b_fit, err_a=err_a_fit, err_b=err_b_fit), color="tab:red", alpha=0.1)
+            ax[0].plot(bins[extrapol_index_range], f_bg_fit(bins[extrapol_index_range], a=a_fit, b=b_fit), color="tab:red", linestyle="--", label="Extrapolated fit")
+            ax[0].set_yscale("log")
+            ax[0].set_ylim(bottom=0.5, top=np.amax(hist)*np.exp(1.1))
+
+            if not do_ramp_measurement:
+                title = f"Background fit time diff hist of all cells\n{pct_ar}/{pct_co2} Ar/CO$_2$, $U_{{wire}}$ = {u_wire}V"
+
+            elif do_ramp_measurement:
+                time = parse_start_time(dataset_name)
+                title = f"Background fit time diff hist of all cells\nRamp measurement $t_{{\\mathrm{{start}}}}$ = {time}, $U_{{\\mathrm{{wire}}}}$ = 3600 V"
+
+            
+            ax[0].set_title(title)
+            ax[0].legend(loc="lower right", prop={'size': legend_font_size}, fancybox=False, framealpha=params._legend_alpha)
+            residuals = fit_hist - f_bg_fit(fit_bins, a=a_fit, b=b_fit)
+            err_residuals = err_fit_hist
+            ax[1].axhline(y=0, color="gray", linewidth=1)
+            ax[1].errorbar(x=fit_bins, y=residuals, yerr=err_residuals , color="black", marker="o", markersize=2, linewidth=1, linestyle="")
+            ax[1].set_xlim(0,np.amax(bins))
+            ax[1].set_ylim(-np.amax(residuals+err_residuals)*1.1, np.amax(residuals+err_residuals)*1.1)
+            ax[1].set_ylabel("Residuals")
+            ax[1].set_xlabel("$\\Delta T_\\text{cell}$ [ns]")
+            fig.tight_layout()
+            fig.subplots_adjust(wspace=0, hspace=0.1)
+            if save_plots:
+                path = f"{plot_save_path}{dataset_name}_t_diff_bgfit{plot_type}"
+                #print(f"store histogram plot as {path}.")
+                print("store plot...")
+                fig.savefig(path)
+                print(f"plot saved to {path}")
+
+            ### subtract exp bg
+            print("\nSubtracting background from hist...")
+            hist_nobg = hist - f_bg_fit(bins, a=a_fit, b=b_fit)
+            err_hist_nobg = np.sqrt( err_hist**2 + err_f_bg_fit(bins, a=a_fit, b=b_fit, err_a=err_a_fit, err_b=err_b_fit)**2 )
+            err_hist_nobg_down = np.sqrt( err_hist_down**2 + err_f_bg_fit(bins, a=a_fit, b=b_fit, err_a=err_a_fit, err_b=err_b_fit)**2 )
+            err_hist_nobg_up = np.sqrt( err_hist_up**2 + err_f_bg_fit(bins, a=a_fit, b=b_fit, err_a=err_a_fit, err_b=err_b_fit)**2 )
+            bins_nobg = bins
+            print("\nDone subtracting bg from hist.")
+
+            # plot wo bg
+            print("\nPlotting hist without bg...")
+            fig, ax = plt.subplots(1, 1, figsize=fig_size)
+            rel_spacing = 0
+            barwidth = np.mean(np.diff(bins_nobg))*(1-rel_spacing)
+            ax = hist_utils.plot_histogram(ax, hist=hist_nobg, centers=bins_nobg, err_hist_down=err_hist_nobg_down, err_hist_up=err_hist_nobg_up, log_scale=False, power_limits=[-3,3])
+            info_str = f"entries = {int(np.sum(hist_nobg))}\nbin count = {len(centers)}\nbin width = {np.mean(np.diff(bins_nobg)):.3g} ns"
+            ax = hist_utils.add_infobox(ax=ax, info_str=info_str, info_loc="top right")
+            ax.set_xlim(0,600)
+            ax.set_xlabel("$\\Delta T_\\text{cell}$ [ns]")
+            if not do_ramp_measurement:
+                title = f"Background subtracted fit time diff hist of all cells\n{pct_ar}/{pct_co2} Ar/CO$_2$, $U_{{wire}}$ = {u_wire}V"
+            
+            elif do_ramp_measurement:
+                time = parse_start_time(dataset_name)
+                title = f"Background subtracted fit time diff hist of all cells\nRamp measurement $t_{{\\mathrm{{start}}}}$ = {time}, $U_{{\\mathrm{{wire}}}}$ = 3600 V"
+
+            ax.set_title(title)
+            fig.tight_layout()
+            fig.show()
+            ## store plot
+            if save_plots:
+                path = f"{plot_save_path}{dataset_name}_t_diff_nobg{plot_type}"
+                #print(f"store histogram plot as {path}.")
+                print(f"storing hist...")
+                fig.savefig(path)
+                print(f"\nSaved plot to {path}")
+
+            ######################
+            ##### fit peak position (parabola, only in the region of the peak
+            ##### itself -- NOT a valley-to-valley approach, see docstring of
+            ##### fit_secondary_peak_parabola for caveats)
+
+            popt, pcov, fit_bins, fit_hist, err_fit_hist, fit_func, mu_val, err_mu, fit_results = fit_secondary_peak_parabola(
+                bins_nobg, hist_nobg, err_hist_nobg,
+                search_min=387,
+                search_max=440,
+                window_sigmas_left=1.5,
+                window_sigmas_right=2.5,     # größer, da der Peak rechts einen längeren Ausläufer hat
+                min_halfwidth_left_ns=15,
+                min_halfwidth_right_ns=40,   # absolute Untergrenze rechts, damit der Ausläufer sicher erfasst wird
+                edge_margin_frac=0.15,
+                window_growth=1.3,
+                max_attempts=6,
+                prominence_frac=0.03,
+            )
+            peak_err_stat = fit_results["peak_err_stat"]
+            peak_err_syst = fit_results["peak_err_syst"]
+            peak_err_total = np.sqrt(peak_err_stat**2 + peak_err_syst**2)
+            peak_pos = fit_results["peak_pos"]
+
+            perr = np.sqrt(np.diag(pcov))
+            param_names = ["A", "mu", "c"]
+            fit_params = dict(zip(param_names, popt))
+            errors = dict(zip(param_names, perr))
+
+            fit_values = fit_func(fit_bins, *popt)
+            chi2 = np.sum((fit_hist - fit_values)**2 / err_fit_hist**2)
+            ndf = len(fit_hist) - len(popt)
+            chi2ndf = chi2 / ndf
+
+            print(f"Peak-region fit interval ΔT = ({fit_bins.min():.1f}, {fit_bins.max():.1f}) ns")
+            for name in param_names:
+                print(f"  {name:>5} = {fit_params[name]:.6g} ± {errors[name]:.2g}")
+            print(f"  chi²/ndf = {chi2:.2f} / {ndf} = {chi2ndf:.2f}")
+
+            # --- estimate drift velocity ---
+            v_drift = cell_half_width / peak_pos
+            err_v_drift = np.sqrt(
+                (err_cell_half_width / peak_pos)**2 +
+                (cell_half_width * peak_err_total / peak_pos**2)**2
+            )
+
+            print(f"v_drift = {v_drift:.4g} ± {err_v_drift:.2g} um/ns")
+
+            fit_label = (
+                "Parabola fit\n"
+                r"$f(\Delta T)=A-c\,(\Delta T-\mu)^2$"
+            )
+            fit_label += f"\n$\\mu=({peak_pos:.3g}\\pm {peak_err_total:.2g})$ ns"
+            fit_label += f"\n$v_{{\\mathrm{{drift}}}}=({v_drift:.3g}\\pm {err_v_drift:.2g})$"
+            fit_err = err_parabola_vertex_form(fit_bins, *popt, *perr)
+
+
+            
+            # --- build the actual figure/axes for this plot ---
+            fig, ax = plt.subplots(2, 1, figsize=fig_size, sharex=True, height_ratios=(5, 1))
+
+            ax[0] = hist_utils.plot_histogram(
+                ax[0], hist=hist_nobg, centers=bins_nobg,
+                err_hist_down=err_hist_nobg_down, err_hist_up=err_hist_nobg_up,
+                log_scale=False, power_limits=[-3, 3],
+            )
+            info_str = (
+                f"entries = {int(np.sum(hist_nobg))}\n"
+                f"bin count = {len(centers)}\n"
+                f"bin width = {np.mean(np.diff(bins_nobg)):.3g} ns"
+            )
+            ax[0] = hist_utils.add_infobox(ax=ax[0], info_str=info_str, info_loc="top left")
+
+            ax[0].plot(fit_bins, fit_values, color="tab:red", label=fit_label)
+            ax[0].fill_between(
+                fit_bins,
+                fit_values - fit_err,
+                fit_values + fit_err,
+                color="tab:red",
+                alpha=0.1,
+            )
+
+            lims = [0, 500]
+            ax[0].axvline(x=peak_pos, color="tab:red", linestyle="--", label="Peak position $\\mu$")
+            ax[0].axvspan(xmin=peak_pos - peak_err_total, xmax=peak_pos + peak_err_total, color="tab:red", alpha=0.1)
+            ax[0].set_ylim(bottom=0, top=np.amax(hist_nobg) * 1.1)
+            ax[0].legend(loc="lower left", prop={'size': legend_font_size}, fancybox=False, framealpha=params._legend_alpha)
+            ax[0].set_xlim(left=lims[0], right=lims[1])
+            if not do_ramp_measurement:
+                title = f"Photopeak fit (Parabel)\n{pct_ar}/{pct_co2} Ar/CO$_2$, $U_{{wire}}$ = {u_wire}V"
+                    
+            elif do_ramp_measurement:
+                time = parse_start_time(dataset_name)
+                title = f"Photopeak fit (Parabel)\nRamp measurement $t_{{\\mathrm{{start}}}}$ = {time}, $U_{{\\mathrm{{wire}}}}$ = 3600 V"
+
+            
+            ax[0].set_title(title)
+            # --- residuals panel ---
+            residuals = fit_hist - fit_values
+            err_residuals = err_fit_hist
+            ax[1].axhline(y=0, color="gray", linewidth=1)
+            ax[1].errorbar(
+                x=fit_bins, y=residuals, yerr=err_residuals,
+                color="black", marker="o", markersize=2, linewidth=1, linestyle="",
+            )
+            ax[1].set_xlim(left=lims[0], right=lims[1])
+            ax[1].set_ylim(
+                -np.amax(residuals + err_residuals) * 1.1,
+                np.amax(residuals + err_residuals) * 1.1,
+            )
+            ax[1].set_ylabel("Residuals")
+            ax[1].set_xlabel("$\\Delta T_\\text{cell}$ [ns]")
+
+            fig.tight_layout()
+            fig.subplots_adjust(wspace=0, hspace=0.1)
+            if save_plots:
+                path = f"{plot_save_path}{dataset_name}_t_diff_peak_fit{plot_type}"
+                #print(f"store histogram plot as {path}.")
+                print(f"storing histogram...")
+                fig.savefig(path)
+                print(f"histogram plot stored as {path}.")
+
+            analysis_out[dataset_name] = {
+                **fit_params,
+                **{f"{key}_err": value for key, value in errors.items()},
+                "peak_pos": peak_pos,
+                "peak_err_tot": peak_err_total,
+                "v_drift": v_drift,
+                "err_v_drift": err_v_drift,
+                "peak_err_stat": peak_err_stat,
+                "peak_err_syst": peak_err_syst,
+
+            }
+
+
+            plt.close("all")
+            # analyze data from all data_sets
+
+
+        print("\nsaving analysis results...")
+        if do_ramp_measurement:
+            data_utils.store_pickle(analysis_out, f"{base_path}{pcls_path}analysis_out_photo_peak_ramp.pcl")
+
+        else:
+            data_utils.store_pickle(analysis_out, f"{base_path}{pcls_path}analysis_out_photo_peak_data.pcl")
+
+    
     if not do_ramp_measurement:
+        analysis_out = data_utils.load_pickle(f"{base_path}{pcls_path}analysis_out_photo_peak_data.pcl")
         fig, ax, path = plot_vd_by_gas_mix(
                     analysis_out=analysis_out,
                     base_path=base_path,
@@ -1372,10 +1559,11 @@ def main():
 
     elif do_ramp_measurement:
 
+        analysis_out = data_utils.load_pickle(f"{base_path}{pcls_path}analysis_out_photo_peak_ramp.pcl")
+
         print("Analysis of ramp measurement begins...")
-            
-        
-    
+        def exp(x, a, b, c):
+            return a * np.exp(-b * x) + c
 
         times = []
         values = []
@@ -1383,17 +1571,49 @@ def main():
     
         for dataset, result in analysis_out.items():
             times.append(parse_start_time(dataset))
-            mu = result["mu"]
-            err_mu = result["mu_err"]
-            vd = cell_half_width / mu 
-            err_vd = vd * (err_mu / mu) 
+            mu = result["peak_pos"]
+            err_mu = result["peak_err_tot"]
+            vd = cell_half_width / mu
+
+            err_vd = np.sqrt(
+                (err_cell_half_width / mu)**2 +
+                (cell_half_width * err_mu / mu**2)**2
+            )
             print("cell_half_width =", cell_half_width)
             print("mu =", mu)
             print("vd =", vd)
 
             values.append(vd)
             errors.append(err_vd)
-            
+            print(errors)
+
+        # numeric day values, shifted so the fit domain starts at t=0
+        # (fitting on the raw absolute date-number would make b*t huge and
+        # exp(-b*t) underflow to 0 for any reasonable b, matching p0's
+        # "b ~ 0.6 per day" assumption requires t to actually start near 0)
+        t_num = mdates.date2num(times)
+        t0_num = t_num[0]              # remember the reference epoch to convert back later
+        t_shifted = t_num - t0_num
+
+        p0 = [
+                values[0] - values[-1],  # amplitude ≈ 4.5
+                0.6,                    # per day
+                values[-1]              # equilibrium ≈ 50
+                ]
+
+        popt, pcov = curve_fit(
+            exp,
+            t_shifted,
+            values,
+            sigma=errors,
+            absolute_sigma=True,
+            p0=p0
+        )
+        a_fit, b_fit, c_fit = popt
+        err_a_fit = np.sqrt(pcov[0][0])
+        err_b_fit = np.sqrt(pcov[1][1])
+        err_c_fit = np.sqrt(pcov[2][2])
+        print(f"Exponential fit parameters: a = {a_fit:.4g} ± {err_a_fit:.2g}, b = {b_fit:.4g} ± {err_b_fit:.2g}, c = {c_fit:.4g} ± {err_c_fit:.2g}")
         plt.figure(figsize=(10, 5))
     
         plt.errorbar(
@@ -1405,7 +1625,24 @@ def main():
             markersize=6,
             label=r"$U_{\mathrm{wire}} = 3600\,\mathrm{V}$"
         )
-    
+
+        # build the fit curve in the SAME shifted-day domain used for the
+        # fit, then convert that domain back to real datetimes only for
+        # plotting against the datetime-formatted x-axis
+        t_fit_shifted = np.linspace(t_shifted.min(), t_shifted.max(), 100)
+        exp_fit_data = exp(t_fit_shifted, *popt)
+        exp_fit_times = mdates.num2date(t_fit_shifted + t0_num)
+
+        b_expected = 10 / 800 * 24   # day^-1  (Q/V, converted h^-1 -> day^-1)
+        pull_b = (b_fit - b_expected) / err_b_fit
+        print(f"b_fit = {b_fit:.4g} ± {err_b_fit:.2g} day^-1, "f"b_expected = {b_expected:.4g} day^-1, pull = {pull_b:.2f} sigma")
+
+
+        plt.plot(exp_fit_times, exp_fit_data, "-", label=r"$\mathrm{Exponential\ fit}$")
+
+        exp_fit_data_expected = exp(t_fit_shifted, a_fit, b_expected, c_fit)
+        plt.plot(exp_fit_times, exp_fit_data_expected, "--", color="gray", label=fr"Expected ($b={b_expected:.3g}\,\mathrm{{day}}^{{-1}}$, $\tau={1/b_expected:.2f}$ d)")
+
         ax = plt.gca()
         ax.xaxis.set_major_formatter(mdates.DateFormatter("%m-%d\n%H:%M"))
         plt.gcf().autofmt_xdate()
@@ -1418,7 +1655,7 @@ def main():
         plt.tight_layout()
         path = f"{base_path}plots/ramp_analysis_photo_peak{plot_type}"
         plt.savefig(path)
-        print(f"vd-comparison saved to {path}")
+        print(f"vd-comparison saved to: {path}")
         
     return 
        

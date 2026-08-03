@@ -19,6 +19,24 @@ import sys
 import time
 from tqdm import tqdm
 from scipy.optimize import curve_fit
+import gc
+
+
+
+
+def _free(namespace, *names):
+    """Delete the given variable names from `namespace` (usually locals())
+    and run a garbage collection pass. Cheap objects don't need this, but
+    for multi-hundred-MB / multi-GB dicts of hit/pattern data it noticeably
+    reduces peak RSS, especially before spawning multiprocessing workers
+    (which otherwise fork/copy the parent's whole heap)."""
+    for name in names:
+        if name in namespace:
+            del namespace[name]
+    gc.collect()
+
+
+
 
 # ---------------------------------------------------------------
 # main function
@@ -37,6 +55,10 @@ def main():
     ###################################################
     # IMPORTANT
     # When not using example data (dt_cosmics.txt) use params_justus
+    start = time.perf_counter()
+
+
+    verbose = False
     args = parser.parse_args()
     dataset_name = args.dataset_name
     base_path = "data_ba/"
@@ -54,7 +76,7 @@ def main():
     dataset_folder_pcls = base_path + pcls_path + dataset_name + "/"
     os.makedirs(dataset_folder_pcls, exist_ok=True)
 
-    input_dumpfile = base_path + "data_tests_cuts/" + dataset_name + ".txt"
+    input_dumpfile = base_path + "data_runs/" + dataset_name + ".txt"
 
     nodeadtime = True
     use_timestamp_sync = True
@@ -97,6 +119,7 @@ def main():
     print(f"###### Storing dt hit data to file \"{dt_hits_file}\"...")
     data_utils.store_pickle(data=dt_hits, file=dt_hits_file)
 
+    _free(locals(), "dumpfile_hits")
 
     ####################
 
@@ -141,6 +164,11 @@ def main():
     merged_ts_diff = data_utils.merge_dataset(split_data=ch_list, silent=True)["key"]
     merged_err_ts_diff = data_utils.merge_dataset(split_data=err_ch_list, silent=True)["key"]
 
+
+    # ch_list / err_ch_list held one small dict per (sl, ly, wi) combination -
+    # only the merged arrays are needed from here on
+    _free(locals(), "ch_list", "err_ch_list")
+
     # create histogram of specified key and shifted hists to respect data error
     hist_, _, _, entries_, underflow_, overflow_, hist_err_right_, hist_err_left_ = hist_utils.calculate_histogram_and_shifted_histograms(data=merged_ts_diff, edges=edges, err_data=merged_err_ts_diff)
     # add to combined histogram
@@ -151,6 +179,10 @@ def main():
     hist_err_right += hist_err_right_
     hist_err_left += hist_err_left_
 
+    # merged diff arrays and the per-bin shifted-hist outputs are now folded
+    # into `hist`/`entries`/... and not needed anymore
+    _free(locals(), "merged_ts_diff", "merged_err_ts_diff", "hist_", "entries_",
+          "underflow_", "overflow_", "hist_err_right_", "hist_err_left_")
 
     ### error calculation for full hist
     err_hist, err_hist_down, err_hist_up = hist_utils.calculate_hist_uncertainty(hist=hist, hist_err_right=hist_err_right, hist_err_left=hist_err_left, do_stat_err=True)
@@ -176,6 +208,13 @@ def main():
     specific_data_file = dt_hit_diff_hist_file 
     print(f"storing specific data as {specific_data_file}...")
     data_utils.store_pickle(data=specific_data, file=specific_data_file)
+
+    # the deadtime branch below (that branch re-extracts its own dt_hits_deadtime
+    # from a fresh import), so everything from the nodeadtime pass can go now
+    _free(locals(), "sub_data", "dt_hits", "hist", "err_hist", "err_hist_stat",
+          "err_hist_down", "err_hist_up", "hist_err_right", "hist_err_left",
+          "specific_data")
+
 
 
 
@@ -206,6 +245,11 @@ def main():
     dt_hits_deadtime = dt_utils.extract_dt_hits(hits=dumpfile_hits, ignore_deadtime=nodeadtime)
     #print("dt_hits_deadtime =", dt_hits_deadtime)
 
+
+
+    # raw dumpfile is only needed to build dt_hits_deadtime
+    _free(locals(), "dumpfile_hits")
+
     ### store to pcl file
     print(f"###### Storing data to file \"{dt_hits_file_deadtime}\"...")
     data_utils.store_pickle(data=dt_hits_deadtime, file=dt_hits_file_deadtime)
@@ -215,7 +259,6 @@ def main():
     
     
 
-    verbose = False
     simulation_only_muon_patterns = False
     fit_vd = True
     #do_timing_correction = False
@@ -260,6 +303,12 @@ def main():
     sl_patterns = data_utils.sort_by_key(data=sl_patterns, sort_key="ts3")
     #print("sl_patterns =",sl_patterns)
 
+
+    # dt_hits_deadtime has been clustered into sl_patterns; the flat hit dict
+    # is not touched again downstream
+    _free(locals(), "dt_hits_deadtime")
+
+
     ### store to pcl file
     print(f"###### Storing SL patterns to file \"{sl_patterns_file}\"...")
     data_utils.store_pickle(data=sl_patterns, file=sl_patterns_file)
@@ -276,7 +325,7 @@ def main():
 # Extract fits, refits with four hits, super fits from patterns and super patterns
 ######################################################
 
-    verbose = False
+
 
     ### multiprocessing setup
     #n_processes = 11  # no of processes running in parallel
@@ -304,7 +353,9 @@ def main():
         )
         print("Done fitting...\nStarting cut of fits")
 
-        
+        # sl_patterns has now produced sl_fits; not needed again
+        _free(locals(), "sl_patterns")
+
 
         sl_cut_fits = data_utils.cut_data(
             data=sl_fits,
@@ -332,6 +383,8 @@ def main():
             kwargs={"fit_vd": True, "suffix": "_refit"},
             mute=True,
         )
+        # sl_cut_fits was only needed to produce sl_refits
+        _free(locals(), "sl_cut_fits")
 
 
     else:  # without multiprocessing
@@ -367,6 +420,8 @@ def main():
     print(f"###### Storing SL-level refits to file \"{sl_refits_file}\"...")
     data_utils.store_pickle(data=sl_refits, file=sl_refits_file)
 
+    # sl_refits has been persisted and isn't used again in this run
+    _free(locals(), "sl_refits")
 
 
     print("Data saved\nBeginning with search for super patterns in both phi SLs")
@@ -379,9 +434,13 @@ def main():
     data_utils.store_pickle(data = super_fits, file = super_fits_path)
     print(f"\nDone saving data under {super_fits_path}")
     
+    _free(locals(), "super_fits")
 
 
+    stop = time.perf_counter()
 
+    tot_runtime = stop - start
+    print(f"This script ran for: {tot_runtime/60/60:.4f} hours")
     return
        
 if __name__ == "__main__":
