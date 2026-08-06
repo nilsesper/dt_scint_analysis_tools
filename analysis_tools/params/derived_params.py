@@ -437,12 +437,7 @@ def super_pattern_geometry(sl, ly, wi):
 
 
 def super_pattern_x0_bounds(wi_at_top_sl_ly3, laterality_top):
-    """
-    x0 bounds at the z=0 reference plane (ly=3 of the topmost phi sl), for the actual
-    wire index this specific pattern uses on its top-sl half, and that half's
-    laterality at ly=3. Same left/right-of-wire logic as the single-SL fit's x0 bound,
-    just evaluated on real global coordinates instead of the local pattern table.
-    """
+
     coord = _dt_cell_coordinates[_super_pattern_top_sl][3][wi_at_top_sl_ly3]
     xmin = coord[0][0] - _super_pattern_x_ref
     xmax = coord[0][1] - _super_pattern_x_ref
@@ -450,9 +445,6 @@ def super_pattern_x0_bounds(wi_at_top_sl_ly3, laterality_top):
     x0_min_bound = xmin if (laterality_top == -1) else x_center
     x0_max_bound = xmax if (laterality_top == 1) else x_center
     return x0_min_bound, x0_max_bound
-
-
-
 
 
 

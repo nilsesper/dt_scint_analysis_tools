@@ -504,10 +504,6 @@ def plot_vd_by_gas_mix(
         mix_label = f"{pct_ar}/{pct_co2}"
  
         if "peak_pos" in result and "peak_err_tot" in result:
-            mean_vd = result["peak_pos"]
-            err_vd = result["peak_err_tot"]
-
-        elif "v_drift" in result and "err_v_drift" in result:
             mean_vd = result["v_drift"]
             err_vd = result["err_v_drift"]
 
@@ -598,6 +594,181 @@ def plot_vd_by_gas_mix(
         print(f"store plot as {save_path}.")
  
     return fig, ax, save_path
+
+
+
+def plot_metric_by_gas_mix(
+    *,
+    analysis_out,
+    base_path,
+    dataset_info_fn,
+    value_key,
+    err_key,
+    ylabel,
+    filename_prefix,
+    plot_type=".png",
+    fig_size=(12, 7),
+    save_path=None,
+    y_margin=None,
+    verbose=True,
+    method="",
+    strmethod="",
+    ):
+    """
+    Generic bar-chart comparison of a scalar fit quantity (e.g. peak
+    position, peak amplitude, v_drift), grouped by gas mixture and
+    colored by U_wire -- shared implementation behind
+    plot_vd_by_gas_mix / plot_peak_pos_by_gas_mix / plot_peak_amplitude_by_gas_mix.
+
+    Parameters
+    ----------
+    value_key, err_key : str
+        Keys into each analysis_out[dataset_name] dict giving the value
+        and its (total) error to plot, e.g. ("peak_pos", "peak_err_tot")
+        or ("A", "A_err").
+    ylabel : str
+        Y-axis label, e.g. r"Photopeak amplitude [counts]".
+    filename_prefix : str
+        Used to build the default save_path:
+        f"{base_path}plots/{filename_prefix}_{method}_comparison{plot_type}".
+    y_margin : float, optional
+        Padding added below/above the data range for the y-axis limits.
+        Defaults to 5% of the data span if not given.
+    (all other parameters as in plot_peak_pos_by_gas_mix)
+    """
+    entries = []
+    for dataset_name, result in analysis_out.items():
+        try:
+            info = dataset_info_fn(name=dataset_name)
+        except Exception as e:
+            if verbose:
+                print(f"  skipping {dataset_name}: could not parse dataset info ({e})")
+            continue
+
+        if value_key not in result or err_key not in result:
+            if verbose:
+                print(f"  skipping {dataset_name}: missing '{value_key}'/'{err_key}'")
+            continue
+
+        pct_ar = int(info["pct_Ar"])
+        pct_co2 = int(info["pct_CO2"])
+        u_wire = int(info["U_wire"])
+
+        entries.append({
+            "dataset": dataset_name,
+            "mix": f"{pct_ar}/{pct_co2}",
+            "u_wire": u_wire,
+            "value": result[value_key],
+            "err": result[err_key],
+        })
+
+    if not entries:
+        raise ValueError(f"No datasets with '{value_key}'/'{err_key}' found; nothing to plot.")
+
+    mixes = sorted(
+        set(e["mix"] for e in entries),
+        key=lambda m: tuple(int(v) for v in m.split("/")),
+    )
+    mix_to_x = {mix: i for i, mix in enumerate(mixes)}
+
+    unique_u_wires = sorted(set(e["u_wire"] for e in entries))
+    unmapped = [u for u in unique_u_wires if u not in _WIRE_COLOR_MAP]
+    if unmapped:
+        raise KeyError(
+            f"No fixed color defined for U_wire value(s) {unmapped}. "
+            f"Add them to _WIRE_VOLTAGES / _WIRE_COLOR_MAP (currently defined for {_WIRE_VOLTAGES})."
+        )
+    wire_color_map = {u: _WIRE_COLOR_MAP[u] for u in unique_u_wires}
+
+    grouped = {mix: [] for mix in mixes}
+    for e in entries:
+        grouped[e["mix"]].append(e)
+    for mix in grouped:
+        grouped[mix].sort(key=lambda e: (e["u_wire"], e["dataset"]))
+
+    fig, ax = plt.subplots(1, 1, figsize=fig_size)
+
+    max_group_size = max(len(v) for v in grouped.values())
+    group_width = 0.8
+    bar_width = group_width / max_group_size
+
+    for mix, group_entries in grouped.items():
+        x0 = mix_to_x[mix]
+        n = len(group_entries)
+        offsets = (np.arange(n) - (n - 1) / 2) * bar_width
+        for e, offset in zip(group_entries, offsets):
+            color = wire_color_map[e["u_wire"]]
+            ax.bar(x0 + offset, e["value"], width=bar_width * 0.9, color=color)
+            ax.errorbar(
+                x0 + offset, e["value"], yerr=e["err"],
+                fmt="none", ecolor="black", capsize=3,
+            )
+
+    ax.set_xticks(list(mix_to_x.values()))
+    ax.set_xticklabels(list(mix_to_x.keys()))
+    ax.set_xlabel("Gas mixture (Ar/CO2) [%]")
+    ax.set_ylabel(ylabel)
+    ax.set_title(f"Comparison of gas mixtures and {ylabel.split(' [')[0].lower()} from {strmethod}")
+    ax.grid(True, axis="y")
+
+    y_lo = min(e["value"] - e["err"] for e in entries)
+    y_hi = max(e["value"] + e["err"] for e in entries)
+    if y_margin is None:
+        y_margin = 0.05 * (y_hi - y_lo) if y_hi > y_lo else 1.0
+    ax.set_ylim(y_lo - y_margin, y_hi + y_margin)
+
+    legend_handles = [plt.Rectangle((0, 0), 1, 1, color=wire_color_map[u]) for u in unique_u_wires]
+    legend_labels = [f"$U_{{wire}}$ = {u} V" for u in unique_u_wires]
+    ax.legend(legend_handles, legend_labels)
+
+    fig.tight_layout()
+
+    if save_path is None:
+        save_path = base_path + f"plots/{filename_prefix}_{method}_comparison{plot_type}"
+    fig.savefig(save_path)
+    if verbose:
+        print(f"store plot as {save_path}.")
+
+    return fig, ax, save_path
+
+
+def plot_peak_amplitude_by_gas_mix(
+    *,
+    analysis_out,
+    base_path,
+    dataset_info_fn,
+    plot_type=".png",
+    fig_size=(12, 7),
+    save_path=None,
+    y_margin=None,
+    verbose=True,
+    method="",
+    strmethod="",
+    ):
+    """
+    Bar-chart comparison of fitted photopeak amplitudes (the parabola
+    fit's 'A' parameter), grouped by gas mixture, colored by U_wire.
+    Thin wrapper around plot_metric_by_gas_mix -- see there for details.
+    Note: amplitude is fit-window/bin-width dependent, so only compare
+    datasets fit with the same binning/window settings.
+    """
+    return plot_metric_by_gas_mix(
+        analysis_out=analysis_out,
+        base_path=base_path,
+        dataset_info_fn=dataset_info_fn,
+        value_key="A",
+        err_key="A_err",
+        ylabel="Photopeak amplitude [counts]",
+        filename_prefix="peak_amp",
+        plot_type=plot_type,
+        fig_size=fig_size,
+        save_path=save_path,
+        y_margin=y_margin,
+        verbose=verbose,
+        method=method,
+        strmethod=strmethod,
+    )
+
 
 
  
@@ -1051,13 +1222,15 @@ def main():
     ###################################################
     do_ramp_measurement = False
     save_plots = True
-    only_do_analysis = True  # set True to skip the analysis and only make plots from existing results
+    only_do_analysis = False  # set True to skip the analysis and only make plots from existing results
     skip_existing_datasets = True  # set False to force re-analysis of every dataset
 
 #define parameters
     fig_size = (8, 6)
     cell_half_width = 20500 # um 21 mm - 1mm/2 i beam thickness
     err_cell_half_width = 100 # um
+
+    legend_font_size = mpl.rcParams['font.size'] + 1
 
     list_of_fits = [#"cosmic_82-18_3550-1800-1200_run1_th20_cut100", no peak
                 #"cosmic_82-18_3575-1800-1200_run1_th20_cut100", no peak
@@ -1077,8 +1250,10 @@ def main():
 
                 "cosmic_87-13_3550-1800-1200_run1_th20_cut100",
                 "cosmic_87-13_3575-1800-1200_run1_th20_cut100",
+                "cosmic_87-13_3600-1800-1200_run1_th20_cut100", # stopped because of tripping
 
                 ]
+    #list_of_fits = ["cosmic_82-18_3550-1800-1200_run1_th20_cut_50"]
 
     #list_of_fits = ["mb1_sxa5_cosmics_10min"]
 
@@ -1236,9 +1411,8 @@ def main():
             print(dt_hits_file.keys())
             
 
-            legend_font_size = 13
 
-            analysis_out[dataset_name] = analyze_specific_data(
+            specific_results = analyze_specific_data(
                 hits_data=dt_hits_file,
                 dataset_name=dataset_name,
                 base_path=base_path,
@@ -1247,7 +1421,8 @@ def main():
                 save_plots=save_plots,
                 verbose=True,
             )
-
+            duration_seconds = specific_results["duration_seconds"]
+            analysis_out[dataset_name] = specific_results
 
             ### hist to plot
             # read data
@@ -1261,6 +1436,29 @@ def main():
             bins = centers
             overflow = specific_data["overflow"]
             underflow = specific_data["underflow"]
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
             ######################
             ##### poisson bg subtraction
@@ -1426,6 +1624,9 @@ def main():
             param_names = ["A", "mu", "c"]
             fit_params = dict(zip(param_names, popt))
             errors = dict(zip(param_names, perr))
+  
+            A_rate = fit_params["A"] / duration_seconds
+            A_rate_err = errors["A"] / duration_seconds
 
             fit_values = fit_func(fit_bins, *popt)
             chi2 = np.sum((fit_hist - fit_values)**2 / err_fit_hist**2)
@@ -1529,7 +1730,8 @@ def main():
                 "err_v_drift": err_v_drift,
                 "peak_err_stat": peak_err_stat,
                 "peak_err_syst": peak_err_syst,
-
+                "A_rate": A_rate,
+                "A_rate_err": A_rate_err,
             }
 
 
@@ -1547,16 +1749,48 @@ def main():
     
     if not do_ramp_measurement:
         analysis_out = data_utils.load_pickle(f"{base_path}{pcls_path}analysis_out_photo_peak_data.pcl")
-        fig, ax, path = plot_vd_by_gas_mix(
+
+        fig, ax, path = plot_metric_by_gas_mix(
                     analysis_out=analysis_out,
                     base_path=base_path,
                     dataset_info_fn=parse_fit_name,
+                    value_key="v_drift",
+                    err_key="err_v_drift",
+                    ylabel=r"$v_d$ [$\mu$m/ns]",
+                    filename_prefix="vd",
                     plot_type=plot_type,
                     fig_size=fig_size,
-                    method = "photopeak",
-                    strmethod = "Photopeak Method",
+                    method="photopeak",
+                    strmethod="Photopeak Method",
                     )
 
+        fig, ax, path = plot_metric_by_gas_mix(
+                    analysis_out=analysis_out,
+                    base_path=base_path,
+                    dataset_info_fn=parse_fit_name,
+                    value_key="peak_pos",
+                    err_key="peak_err_tot",
+                    ylabel=r"Peak position $\mu$ [ns]",
+                    filename_prefix="peak_pos",
+                    plot_type=plot_type,
+                    fig_size=fig_size,
+                    method="photopeak",
+                    strmethod="Photopeak Method",
+                    )
+
+        fig, ax, path = plot_metric_by_gas_mix(
+                    analysis_out=analysis_out,
+                    base_path=base_path,
+                    dataset_info_fn=parse_fit_name,
+                    value_key="A_rate",
+                    err_key="A_rate_err",
+                    ylabel="Photopeak amplitude rate [Hz]",
+                    filename_prefix="peak_amp_rate",
+                    plot_type=plot_type,
+                    fig_size=fig_size,
+                    method="photopeak",
+                    strmethod="Photopeak Method",
+                    )
     elif do_ramp_measurement:
 
         analysis_out = data_utils.load_pickle(f"{base_path}{pcls_path}analysis_out_photo_peak_ramp.pcl")

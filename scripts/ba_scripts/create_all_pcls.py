@@ -9,9 +9,10 @@ import matplotlib.patches as pat
 import matplotlib as mpl
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 import copy
-from analysis_tools.utils import dummy_gen, data_utils, dt_utils, scint_utils, timestamp_utils, geoplot_utils, muon_utils, math_utils, hist_utils, process_utils
+from analysis_tools.utils import dummy_gen, data_utils, dt_utils, scint_utils, timestamp_utils, geoplot_utils, muon_utils, math_utils, hist_utils, process_utils, ba_justus_utils
 from analysis_tools.params import params, derived_params   #, params_justus
 import argparse
+
 
 import subprocess
 import atexit
@@ -66,8 +67,9 @@ def main():
     #runs = ["cosmic_82-18_3625-1800-1200_run1_th20", "cosmic_82-18_3600-1800-1200_run1_th20", "cosmic_82-18_3575-1800-1200_run1_th20", "cosmic_82-18_3550-1800-1200_run1_th20", "cosmic_85-15_3550-1800-1200_run1_th20", "cosmic_85-15_3575-1800-1200_run1_th20", "cosmic_85-15_3600-1800-1200_run2_th20"]
     #runs =  ["cosmic_82-18_3625-1800-1200_run1_th20_cut100", "cosmic_82-18_3600-1800-1200_run1_th20_cut100", "cosmic_82-18_3575-1800-1200_run1_th20_cut100", "cosmic_82-18_3550-1800-1200_run1_th20_cut100", "cosmic_85-15_3550-1800-1200_run1_th20_cut100", "cosmic_85-15_3575-1800-1200_run1_th20_cut100", "cosmic_85-15_3600-1800-1200_run2_th20_cut100"] # a cut of 100 MB for quick analysis of data
     #runs =  ["cosmic_85-15_3575-1800-1200_run1_th20_cut100"] # still to do, not complete but for first batch
-    max_alpha_in_deg = 15 #max value for muon angle higher values are cut away after track fit with vd = const
-    max_chi2 = 5
+    max_alpha_in_deg = 60 #max value for muon angle higher values are cut away after track fit with vd = const
+    max_alpha = np.deg2rad(max_alpha_in_deg)
+    max_chi2 = 20
 
     n_processes = 6 # no of processes running in parallel
     n_batches_clustering = 50000 # batch size for hit clustering
@@ -76,7 +78,7 @@ def main():
     dataset_folder_pcls = base_path + pcls_path + dataset_name + "/"
     os.makedirs(dataset_folder_pcls, exist_ok=True)
 
-    input_dumpfile = base_path + "data_runs/" + dataset_name + ".txt"
+
 
     nodeadtime = True
     use_timestamp_sync = True
@@ -93,8 +95,17 @@ def main():
 
     #################
     ### data import
-    print(f"###### Importing dumpfile \"{input_dumpfile}\"...")
-    dumpfile_hits = data_utils.import_raw(file_name=input_dumpfile) # dummy_filename, data_filename
+    ## data is stored in data_runs for long runs and ramp measurement or in data_tetsts_cuts for short test runs and cut data   
+    try:
+        input_dumpfile = base_path + "data_tests_cuts/" + dataset_name + ".txt"
+        
+        dumpfile_hits = data_utils.import_raw(file_name=input_dumpfile) # dummy_filename, data_filename
+        print(f"###### Importing dumpfile \"{input_dumpfile}\"...")
+    except:
+        input_dumpfile = base_path + "data_runs/" + dataset_name + ".txt"
+        print(f"###### Importing dumpfile \"{input_dumpfile}\"...")
+        dumpfile_hits = data_utils.import_raw(file_name=input_dumpfile) # dummy_filename, data_filename
+        
     # cut first entries of data (which might be old data from htg buffer)
     dumpfile_hits = data_utils.cut_first_entries(data=dumpfile_hits, n_cut=1000)
 
@@ -235,10 +246,10 @@ def main():
 
     ### data import
     print(f"###### Importing dumpfile \"{input_dumpfile}\"...")
-    dumpfile_hits = data_utils.import_raw(file_name=input_dumpfile) # dummy_filename, data_filename
+    #dumpfile_hits = data_utils.import_raw(file_name=input_dumpfile) # dummy_filename, data_filename
     # cut first entries of data (which might be old data from htg buffer)
-    dumpfile_hits = data_utils.cut_first_entries(data=dumpfile_hits, n_cut=params._dumpfile_hits_to_skip)
-    print("dumpfile_hits =",dumpfile_hits)
+    #dumpfile_hits = data_utils.cut_first_entries(data=dumpfile_hits, n_cut=params._dumpfile_hits_to_skip)
+    #print("dumpfile_hits =",dumpfile_hits)
 
     ### extract dt hit
     print(f"###### Extracting dt hits...")
@@ -296,9 +307,9 @@ def main():
     # apply clustering algorithm
     print(f"### DT hit clustering for each superlayer...")
     if do_multiprocessing:
-        sl_patterns = process_utils.multiprocess_data(n_processes=n_processes, n_batches=n_batches_clustering, function=dt_utils.find_sl_patterns, data=dt_hits_deadtime, data_key="hits", kwargs={"verbose": verbose, "simulation_only_muon_patterns": simulation_only_muon_patterns, "fit_vd": fit_vd}, mute=True)
+        sl_patterns = process_utils.multiprocess_data(n_processes=n_processes, n_batches=n_batches_clustering, function=ba_justus_utils.find_sl_patterns, data=dt_hits_deadtime, data_key="hits", kwargs={"verbose": verbose, "simulation_only_muon_patterns": simulation_only_muon_patterns, "fit_vd": fit_vd}, mute=True)
     else:
-        sl_patterns = dt_utils.find_sl_patterns(hits=dt_hits_deadtime, verbose=verbose, simulation_only_muon_patterns=simulation_only_muon_patterns)
+        sl_patterns = ba_justus_utils.find_sl_patterns(hits=dt_hits_deadtime, verbose=verbose, simulation_only_muon_patterns=simulation_only_muon_patterns)
     # sort by ts3 (reference timestamp)
     sl_patterns = data_utils.sort_by_key(data=sl_patterns, sort_key="ts3")
     #print("sl_patterns =",sl_patterns)
@@ -345,7 +356,7 @@ def main():
         sl_fits = process_utils.multiprocess_data(
             n_processes=n_processes,
             n_batches=n_batches_sl_fitting,
-            function=dt_utils.fit_sl_patterns,
+            function=ba_justus_utils.fit_sl_patterns,
             data=sl_patterns,
             data_key="patterns",
             kwargs={"fit_vd": False, "suffix": ""},
@@ -362,11 +373,11 @@ def main():
             conditions=[
                 ("impossible", "==", 0),
                 ("chi2/ndf", "<", max_chi2),
-                ("tan_alpha", ">=", (-tan_alpha)),
-                ("tan_alpha", "<=", (tan_alpha)),  # FIX (#1): kein doppeltes deg2rad mehr
+                #("tan_alpha", ">=", (-tan_alpha)),
+                #("tan_alpha", "<=", (tan_alpha)),
             ],
-            silent=True,
-        )
+                silent=True,
+            )
 
 
 
@@ -377,7 +388,7 @@ def main():
         sl_refits = process_utils.multiprocess_data(
             n_processes=n_processes,
             n_batches=n_batches_sl_fitting,
-            function=dt_utils.fit_sl_patterns,
+            function=ba_justus_utils.fit_sl_patterns,
             data=sl_cut_fits,
             data_key="patterns",
             kwargs={"fit_vd": True, "suffix": "_refit"},
@@ -388,7 +399,7 @@ def main():
 
 
     else:  # without multiprocessing
-        sl_fits = dt_utils.fit_sl_patterns(
+        sl_fits = ba_justus_utils.fit_sl_patterns(
             patterns=sl_patterns, verbose=verbose, fit_vd=False, suffix=""
         )
         sl_cut_fits = data_utils.cut_data(
@@ -396,12 +407,12 @@ def main():
             conditions=[
                 ("impossible", "==", 0),
                 ("chi2/ndf", "<", max_chi2),
-                ("tan_alpha", ">=", (-tan_alpha)),
-                ("tan_alpha", "<=", (tan_alpha)),  
+                #("tan_alpha", ">=", (-tan_alpha)),
+                #("tan_alpha", "<=", (tan_alpha)),  
             ],
             silent=True,
         )
-        sl_refits = dt_utils.fit_sl_patterns(
+        sl_refits = ba_justus_utils.fit_sl_patterns(
             patterns=sl_cut_fits,
             silent=True,
             verbose=verbose,
@@ -425,10 +436,10 @@ def main():
 
 
     print("Data saved\nBeginning with search for super patterns in both phi SLs")
-
-    super_patterns = dt_utils.build_phi_super_patterns(sl_fits)
+    
+    super_patterns = ba_justus_utils.build_phi_super_patterns(sl_fits, max_chi2ndf=max_chi2, max_alpha=max_alpha)
     suffix = "_free_vd_super_fit"
-    super_fits = dt_utils.fit_super_sl_patterns(super_patterns, fit_vd=True, suffix = suffix)
+    super_fits = ba_justus_utils.fit_super_sl_patterns(super_patterns, fit_vd=True, suffix = suffix)
     super_fits =data_utils.sort_by_key(data=super_fits, sort_key="t0" + suffix)
     print(f"Saving Superfits to {super_fits_path}...")
     data_utils.store_pickle(data = super_fits, file = super_fits_path)
@@ -438,6 +449,7 @@ def main():
 
 
     stop = time.perf_counter()
+
 
     tot_runtime = stop - start
     print(f"This script ran for: {tot_runtime/60/60:.4f} hours")

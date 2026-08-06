@@ -5,6 +5,8 @@
 import numpy as np
 import matplotlib as mpl
 
+
+
 # -----------------------------------------
 
 ### htg box data
@@ -437,7 +439,8 @@ _drift_velocity_max = 100 # um/ns
 
 #_dt_max_drift_time = (_dt_cell_width*1e-3/2) / (_drift_velocity*1e3) / 0.78e-9 # max drift time measured from time of muon arrival t0 in the sl pattern fit, in ts units
 # use larger max drift time for floating parameter refit
-_dt_max_drift_time = 600 / 0.78e-9
+#_dt_max_drift_time = 600 / 0.78e-9
+_dt_max_drift_time = 600 / 0.78
 _dt_max_drift_time_vd_min = (_dt_cell_width*1e-3/2) / (_drift_velocity_min*1e3) / 0.78e-9 # max drift time for vdmin
 
 ## --- dumpfile -> dt hits
@@ -1393,6 +1396,7 @@ _dt_wire_mask = { # sl: ly: [wire_ids]
 
 }
 """
+""" 
 _dt_wire_mask = { # sl: ly: [wire_ids]
     1: {
         0: [1, 2, 16, 38],
@@ -1411,6 +1415,52 @@ _dt_wire_mask = { # sl: ly: [wire_ids]
         1: [44, 36],
         2: [],
         3: [37],
+    }
+
+}
+"""
+_dt_wire_mask = { # sl: ly: [wire_ids]
+    1: {
+        0: [],
+        1: [],
+        2: [],
+        3: [],
+    },
+    2: {
+        0: [],
+        1: [],
+        2: [],
+        3: [],
+    },
+    3: {
+        0: [10],        #10 is dead wire
+        1: [41],        #41 is dead wire
+        2: [26],        #26 is dead wire
+        3: [],
+    }
+
+}
+
+
+
+_dt_dead_wires = { # sl: ly: [wire_ids] these wires are dead, no signal is expected from them, they are masked in the analysis
+    1: {
+        0: [],
+        1: [],
+        2: [],
+        3: [],
+    },
+    2: {
+        0: [],
+        1: [],
+        2: [],
+        3: [],
+    },
+    3: {
+        0: [10],        #10 is dead wire
+        1: [41],        #41 is dead wire
+        2: [26],        #26 is dead wire
+        3: [],
     }
 
 }

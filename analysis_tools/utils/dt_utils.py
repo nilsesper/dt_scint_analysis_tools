@@ -236,7 +236,16 @@ def apply_timing_calibration(hits, *, dt_tp_corrections, silent=False):
             corr_hits["oc"][i], corr_hits["bx"][i], corr_hits["tdc"][i] = oc, bx, tdc
     return corr_hits
 
-
+### create empty chamber_data object
+def _chamber_data(default={"color": params._color_info["cell"][None], "text": ""}):
+    chamber_data = {}
+    for sl in params._dt_chamber["sls"].keys():
+        chamber_data[sl] = {}
+        for ly in range(params._dt_chamber["sls"][sl]["n_lys"]):
+            chamber_data[sl][ly] = {}
+            for wi in range(params._dt_chamber["sls"][sl]["lys"][ly]["min_wi"], params._dt_chamber["sls"][sl]["lys"][ly]["max_wi"]+1):
+                chamber_data[sl][ly][wi] = copy.deepcopy(default)
+    return chamber_data
 
 
 ### find pattern in dt hits for each superlayer separately, within given timestamp range
@@ -247,34 +256,6 @@ def apply_timing_calibration(hits, *, dt_tp_corrections, silent=False):
 # simulation_only_muon_patterns = True: for simulation reject patterns which come from coincidence of multiple muons, may have wrong laterality
 # simulation_only_muon_patterns = False: for simulation keep all patterns (more like data)
 #
-# ------------------------------------------------------------------------------------------------
-# PERFORMANCE NOTES (logic is unchanged, see explanation after the code):
-#   1) The original code looped over EVERY possible base_wi (i.e. every wire index in SL layer 3)
-#      for EVERY pattern type, for EVERY hit, and then threw away almost all combinations with a
-#      "continue" because they didn't involve the wire that just changed. Since, for a fixed
-#      pattern type, there is exactly one base_wi that can possibly satisfy
-#      pat_wi[last_hit_ly] == last_hit_wi, we now solve for that single base_wi directly instead
-#      of scanning the whole wire range. This turns an O(n_hits * n_wire_range * n_pattern_types)
-#      loop into an O(n_hits * n_pattern_types) loop.
-#   2) The list of pattern names/rel_wis is precomputed once instead of being rebuilt
-#      (via enumerate(dict.keys())) on every single hit.
-#   3) The 4 per-layer "reference cell" dict lookups (last_hit[sl][ly][wi]) that used to be done
-#      separately for ts, err_ts, muon_dt, muon_dd, muon_id, muon_lat (several times each, some of
-#      them relying on the leaked `ly` loop variable from an earlier for-loop, which always ended
-#      up equal to 3) are now fetched once per layer into a small `cells` list and reused. This
-#      preserves the exact original behaviour of using the ly=3 ("reference cell") for
-#      x0_loc/tan_alpha/muon_x0/muon_y0/muon_z0/muon_theta/muon_phi/muon_vd, just done explicitly
-#      via cells[3] instead of implicitly via a stale loop variable.
-#   4) last_hit[sl] is hoisted into a local variable once per hit instead of being re-indexed by
-#      key on every single cell access.
-#
-# CAVEAT: because a single hit can trigger more than one pattern type at once, and each pattern
-# type used to be discovered while scanning base_wi in ascending order (interleaved with pattern
-# type), the *relative order* in which multiple simultaneous patterns are appended to pattern_list
-# can differ slightly from before (now they come out ordered by pattern type instead of by
-# base_wi-then-pattern-type). The *set* of found patterns and every stored value are identical.
-# This only matters if the final sort by "wi3" is a stable sort AND two patterns from the very
-# same hit end up with an identical wi3 value (rare). Flagging this for transparency.
 # ------------------------------------------------------------------------------------------------
 def find_sl_patterns(hits, *, dt_sl_patterns=params._dt_sl_patterns, silent=False, verbose=False, simulation_only_muon_patterns=False, fit_vd=False):
     pattern_list = []
@@ -418,30 +399,14 @@ def find_sl_patterns(hits, *, dt_sl_patterns=params._dt_sl_patterns, silent=Fals
     sl_patterns = data_utils.sort_by_key(data=sl_patterns, sort_key="wi3", silent=silent)
     return sl_patterns
 
-### create empty chamber_data object
-def _chamber_data(default={"color": params._color_info["cell"][None], "text": ""}):
-    chamber_data = {}
-    for sl in params._dt_chamber["sls"].keys():
-        chamber_data[sl] = {}
-        for ly in range(params._dt_chamber["sls"][sl]["n_lys"]):
-            chamber_data[sl][ly] = {}
-            for wi in range(params._dt_chamber["sls"][sl]["lys"][ly]["min_wi"], params._dt_chamber["sls"][sl]["lys"][ly]["max_wi"]+1):
-                chamber_data[sl][ly][wi] = copy.deepcopy(default)
-    return chamber_data
+
+
+
 
 ### fit sl patterns
 # fit muons to sl patterns, try all lateralities, select best fit
 # return list of fit results/parameters
-#
-# PERFORMANCE NOTES (logic unchanged):
-#   - `pat_name = list(params._dt_sl_patterns.keys())[pat_type]` used to rebuild the full key list
-#     from the dict on EVERY single pattern. It's now built once before the loop.
-#   - `z_arr` never actually depended on the pattern (it always indexes rel_wi position 0), so it
-#     is now computed once outside the loop instead of every iteration.
-#   - `x_cell` and the tan(alpha) bounds only depend on pat_type/pat_name, not on the specific
-#     pattern instance i, so they are now cached per pat_type instead of being recomputed for
-#     every single pattern that shares the same pat_type.
-#   - `lys = np.arange(0, 4)` is invariant and hoisted outside the loop.
+
 def fit_sl_patterns(patterns, *, silent=False, verbose=False, fit_vd=False, suffix=""):
     sl_fits = copy.deepcopy(patterns) # keep all pattern keys as well
     n_patterns = len(patterns["sl"])
@@ -1263,10 +1228,17 @@ def fit_super_sl_patterns(super_patterns, *, silent=False, verbose=False, fit_vd
 ### detector frame (derived_params.super_pattern_geometry, shifted by the topmost
 ### detector wire), and the laterality loop covers the full cartesian product of both
 ### sl's laterality options (8-layer laterality = concat(lat_sl1, lat_sl2)).
-def fit_super_sl_patterns(super_patterns, *, silent=False, verbose=False, fit_vd=True, suffix=""):
+
+def fit_super_sl_patterns(super_patterns, *, 
+                          silent=False, 
+                          verbose=False, 
+                          fit_vd=True, 
+                          suffix="",
+                          debugg = False):
+    
     n_patterns = len(super_patterns["ts0"])
     if not silent:
-        print(f"Performing super SL pattern fits for {n_patterns} patterns ...")
+        print(f"Performing super SL pattern fits for {n_patterns} super patterns ...")
 
     # self-contained output keys: dt0..dt7 (8 layers) + lat_id1/lat_id2 instead of the
     # single-sl "laterality" index, plus ref_x/ref_z bookkeeping (constant across rows,
@@ -1306,6 +1278,11 @@ def fit_super_sl_patterns(super_patterns, *, silent=False, verbose=False, fit_vd
         z_arr = np.full(8, 0, dtype=np.float64)
         x_cell = np.full(8, 0, dtype=np.float64)
 
+
+
+
+        
+
         for ly in range(4):
             x_cell[ly], z_arr[ly] = derived_params.super_pattern_geometry(sl1, ly, wi_sl1[ly])
             x_cell[ly + 4], z_arr[ly + 4] = derived_params.super_pattern_geometry(sl2, ly, wi_sl2[ly])
@@ -1318,6 +1295,22 @@ def fit_super_sl_patterns(super_patterns, *, silent=False, verbose=False, fit_vd
         ref_x = x_cell[top_wire_idx]
         ref_z = z_arr[top_wire_idx]
 
+
+        if debugg == True:
+            # Debug: print the topmost wire and layer in each super layer
+            top_sl1_layer = np.argmax(z_arr[:4])
+            top_sl2_layer = np.argmax(z_arr[4:])
+            print(
+                f"Pattern {i}: "
+                f"SL{sl1} -> top layer = {top_sl1_layer}, top wire = {wi_sl1[top_sl1_layer]}"
+            )
+
+            print(
+                f"Pattern {i}: "
+                f"SL{sl2} -> top layer = {top_sl2_layer}, top wire = {wi_sl2[top_sl2_layer]}"
+            )
+
+            print(sl1, "vs", sl2, "-> global top from SL", sl1 if z_arr[3] > z_arr[7] else sl2)
         x_cell = x_cell - ref_x
         z_arr = z_arr - ref_z
 
@@ -1619,7 +1612,7 @@ def fit_sl_patterns_meantimer(patterns, *, silent=False, verbose=False):
 ### derived_params._dt_cell_coordinates, params._orientation). Rename if needed.
 
 def build_phi_super_patterns(sl_fits, *, silent=False, verbose=False,
-                              max_chi2ndf=10, max_alpha=np.deg2rad(10),
+                              max_chi2ndf=10, max_alpha=np.deg2rad(60),
                               tgroup_tolerance=None, tan_alpha_tolerance=None,
                               xproj_tolerance=None, use_xproj_cut=True):
     """
