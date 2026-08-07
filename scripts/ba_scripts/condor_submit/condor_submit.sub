@@ -9,7 +9,7 @@ stdout = stdout/stdout-ClusterId$(ClusterId)-ProcId$(ProcId).ansi
 stderr = stderr/stderr-ClusterId$(ClusterId)-ProcId$(ProcId).err
 log = condorlog/condorlog-ClusterId$(ClusterId).log
 
-request_cpus = 6
+request_cpus = 2
 request_memory = 10G
 request_disk = 500M
 

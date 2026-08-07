@@ -55,142 +55,65 @@ def err_parabola_vertex_form(x, A, mu, c, err_A, err_mu, err_c):
     )
 
 
-def find_secondary_peak(bins, hist, min_x, max_x, prominence_frac=0.03, smooth_window=5):
-    """Locate the most prominent local maximum in [min_x, max_x] on a
-    smoothed copy of the histogram, and return rough (mu, sigma, A)
-    estimates to seed the fit."""
-    mask = (bins >= min_x) & (bins <= max_x)
-    x = bins[mask]
-    y = hist[mask]
-
-    if len(x) < smooth_window + 2:
-        raise RuntimeError("Search window contains too few bins to find a peak.")
-
-    if smooth_window > 1:
-        kernel = np.ones(smooth_window) / smooth_window
-        y_smooth = np.convolve(y, kernel, mode="same")
-    else:
-        y_smooth = y
-
-    prominence = prominence_frac * np.amax(y_smooth)
-    peaks, props = find_peaks(y_smooth, prominence=prominence)
-
-    if len(peaks) == 0:
-        raise RuntimeError(
-            f"No peak found in x=({min_x}, {max_x}) with prominence_frac={prominence_frac}. "
-            "Try lowering prominence_frac or widening the search window."
-        )
-
-    best = peaks[np.argmax(props["prominences"])]
-
-    widths, _, _, _ = peak_widths(y_smooth, [best], rel_height=0.5)
-    dx = np.mean(np.diff(x))
-    fwhm_x = widths[0] * dx
-    sigma_est = max(fwhm_x / 2.3548, dx)
-
-    mu_est = x[best]
-    A_est = y_smooth[best]
-
-    return mu_est, sigma_est, A_est
-
 
 def fit_secondary_peak_parabola(
     bins_nobg,
     hist_nobg,
     err_hist_nobg,
-    search_min,
-    search_max,
-    window_sigmas_left=1.5,
-    window_sigmas_right=3.0,
-    min_halfwidth_left_ns=None,
-    min_halfwidth_right_ns=None,
+    peak_pos,
+    halfwidth_left_ns=40,
+    halfwidth_right_ns=40,
     edge_margin_frac=0.15,
-    prominence_frac=0.03,
-    smooth_window=5,
     max_attempts=4,
     window_growth=1.3,
     min_bins=6,
     verbose=True,
-    min_bins_syst = 4,
-    max_bis_syst = 20,
-
+    min_bins_syst=4,
+    max_bis_syst=20,
 ):
-    """Fit a parabola (a2*x^2 + a1*x + a0) directly to the region around
-    the secondary peak.
-
-    IMPORTANT: unlike fit_secondary_peak() (the old Gaussian version),
-    this function does NOT use a "valley-to-valley" (Tal-zu-Tal) search to
-    define the fit boundaries. The fit window is instead a small,
-    peak-centered window around the roughly located peak position. This
-    is intentionally much less robust:
-    - There is no check that the window actually contains a real peak
-      (no valley on either side has to be crossed), so if the peak is
-      barely distinguishable from the background continuum the fit can
-      easily lock onto a random up/down fluctuation of the background
-      instead of the true peak.
-    - The parabola has no floor/background term beyond its own curvature
-      (a2*x^2+a1*x+a0), so any residual slope/curvature of the true
-      background inside the window biases the fitted vertex position.
-    - A parabola fit is only sensible sufficiently close to the peak; if
-      the window is chosen too wide the parabola will systematically
-      undershoot/overshoot the true peak position, but if it is chosen
-      too narrow the fit becomes very sensitive to statistical noise in
-      individual bins.
-    - The fit is done in VERTEX FORM, y = A - c*(x-mu)^2, with mu bounded
-      to lie within the fit window. This is a deliberate safeguard: with
-      the naive a2*x^2+a1*x+a0 form, mu is only computed *after* the fit
-      as -a1/(2*a2), and if the window contains little real peak
-      curvature (e.g. just a slight bend in an otherwise smooth
-      background), a1/a2 can fit "fine" in a chi2 sense while their ratio
-      extrapolates to a vertex far outside the window entirely -- giving
-      a wildly wrong drift-time estimate with no error/exception raised.
-      Bounding mu directly prevents that failure mode; a weak/absent peak
-      now instead shows up as mu getting pushed to a window edge or as
-      c coming out <= 0, both of which raise a caught, retryable error.
-    Use with caution and always inspect the resulting plot/residuals.
-
-    Controlling the fit window width (now ASYMMETRIC left/right, since
-    the photopeak typically has a longer tail to the right -- towards the
-    background hump -- than to the left towards the valley):
-    - window_sigmas_left / window_sigmas_right: base half-widths, in
-      units of sigma_est (the width automatically estimated from the raw
-      peak's FWHM), applied separately to the left and right side of
-      mu_est. Raise window_sigmas_right if the fit curve visibly stops
-      short of the peak's right-hand shoulder.
-    - min_halfwidth_left_ns / min_halfwidth_right_ns: absolute floors (in
-      ns) on the respective half-width, on top of
-      window_sigmas_**sigma_est. Useful when sigma_est itself is
-      underestimated (common for weak/noisy peaks), since the *_sigmas
-      parameters alone can't compensate for a bad sigma_est.
-    - edge_margin_frac: even if the fit converges, it is treated as "too
-      small" and automatically widened (via window_growth, applied to
-      both sides) if the fitted vertex mu lands within this fraction of
-      either edge of the window. This only catches mu sitting near an
-      edge -- it does NOT catch a window that is simply too narrow
-      overall while mu still sits comfortably in the middle (that's what
-      window_sigmas_right / min_halfwidth_right_ns are for).
     """
-    mu_est, sigma_est, A_est = find_secondary_peak(
-        bins_nobg, hist_nobg,
-        min_x=search_min, max_x=search_max,
-        prominence_frac=prominence_frac, smooth_window=smooth_window,
-    )
+    Fit a parabola (vertex form) to a FIXED window
+    [peak_pos - halfwidth_left_ns, peak_pos + halfwidth_right_ns]
+    around a hardcoded peak position.
 
-    win_left = window_sigmas_left
-    win_right = window_sigmas_right
+    No automatic peak search, no local width/amplitude estimate: the
+    window is chosen purely from `peak_pos` and the two `halfwidth_*_ns`
+    values you pass in. If `peak_pos` is wrong or the window doesn't
+    actually contain a peak, the fit will fail via the existing c<=0 /
+    A<=0 / edge-margin checks below -- there is no independent
+    verification that a peak actually exists at that location.
+
+    peak_pos : float
+        Hardcoded peak position (ns). The fit window is centered here.
+    halfwidth_left_ns, halfwidth_right_ns : float
+        Fixed half-widths (in ns) of the fit window, left/right of
+        `peak_pos`. Kept separate (not a single symmetric halfwidth)
+        because the photopeak typically has a longer tail to the right
+        (towards the background hump) than to the left (towards the
+        valley) -- raise halfwidth_right_ns if the fit curve visibly
+        stops short of the peak's right-hand shoulder.
+    edge_margin_frac : float, default 0.15
+        If the fitted vertex mu lands within this fraction of either
+        edge of the window, the window is treated as too small and
+        widened (via window_growth) for a retry.
+    max_attempts : int, default 4
+        Number of times to widen the window (by `window_growth`, applied
+        to both halfwidths) and retry, if the fit fails (too few bins,
+        c<=0, A<=0, or mu too close to an edge).
+    window_growth : float, default 1.3
+        Multiplicative factor applied to both halfwidths on each retry.
+    min_bins : int, default 6
+        Minimum number of bins required in the fit window.
+    (min_bins_syst, max_bis_syst, verbose: as before, used for the
+    systematic-uncertainty scan after a successful fit)
+    """
+    win_left_ns = halfwidth_left_ns
+    win_right_ns = halfwidth_right_ns
     last_exc = None
 
     for attempt in range(max_attempts):
-        halfwidth_left = win_left * sigma_est
-        if min_halfwidth_left_ns is not None:
-            halfwidth_left = max(halfwidth_left, min_halfwidth_left_ns)
-
-        halfwidth_right = win_right * sigma_est
-        if min_halfwidth_right_ns is not None:
-            halfwidth_right = max(halfwidth_right, min_halfwidth_right_ns)
-
-        fit_min = mu_est - halfwidth_left
-        fit_max = mu_est + halfwidth_right
+        fit_min = peak_pos - win_left_ns
+        fit_max = peak_pos + win_right_ns
         fit_mask = (bins_nobg >= fit_min) & (bins_nobg <= fit_max)
 
         fit_bins = bins_nobg[fit_mask]
@@ -201,23 +124,18 @@ def fit_secondary_peak_parabola(
             if verbose:
                 print(f"    (diagnostic) fit window has only {len(fit_bins)} bins "
                       f"(< {min_bins}), range = ({fit_min:.2f}, {fit_max:.2f}) ns -- widening window")
-            win_left *= window_growth
-            win_right *= window_growth
+            win_left_ns *= window_growth
+            win_right_ns *= window_growth
             last_exc = RuntimeError("fit window contains too few bins")
             continue
 
-        # seed values for a downward-opening parabola through (mu_est, A_est),
-        # in vertex form
-        c_0 = A_est / max(sigma_est, 1e-6) ** 2
-        p0 = (A_est, mu_est, c_0)
+        # seed values: amplitude from the bin nearest peak_pos, curvature
+        # guessed from the window half-width
+        idx_near = int(np.argmin(np.abs(fit_bins - peak_pos)))
+        A_seed = max(fit_hist[idx_near], 1e-3)
+        c_seed = A_seed / max(min(win_left_ns, win_right_ns), 1e-6) ** 2
+        p0 = (A_seed, peak_pos, c_seed)
 
-        # mu is bounded to the fit window itself -- this is the key change
-        # vs. the old a2*x^2+a1*x+a0 form: it makes it impossible for the
-        # fitted vertex to end up outside the window, no matter how weak
-        # or absent the real peak signal is in this window. A weak/absent
-        # peak will instead show up as mu getting pushed to (or very near)
-        # one of the bounds, or as c coming out <= 0 -- both of which are
-        # caught by the checks below.
         lower = (0.0, fit_bins.min(), 0.0)
         upper = (np.inf, fit_bins.max(), np.inf)
 
@@ -230,52 +148,6 @@ def fit_secondary_peak_parabola(
 
             A_fit, mu_fit, c_fit = popt
             err_mu_fit = np.sqrt(pcov[1][1])
-            # -----------------------------------------
-            # Refit in ± n_bins around fitted peak
-            # -----------------------------------------
-            bin_width = np.mean(np.diff(bins_nobg))
-            half_width = 9 * bin_width
-
-            refit_mask = (
-                (bins_nobg >= mu_fit - half_width) &
-                (bins_nobg <= mu_fit + half_width)
-            )
-
-            refit_bins = bins_nobg[refit_mask]
-            refit_hist = hist_nobg[refit_mask]
-            refit_err = err_hist_nobg[refit_mask]
-
-            # erster Fit als Startwert
-            p0_refit = (A_fit, mu_fit, c_fit)
-
-            # mu darf sich nur innerhalb des Refit-Fensters bewegen
-            lower = (0.0, mu_fit - half_width, 0.0)
-            upper = (np.inf, mu_fit + half_width, np.inf)
-
-            popt_refit, pcov_refit = curve_fit(
-                parabola_vertex_form,
-                refit_bins,
-                refit_hist,
-                p0=p0_refit,
-                sigma=refit_err,
-                absolute_sigma=True,
-                bounds=(lower, upper),
-                maxfev=20000,
-            )
-
-
-
-            A_fit, mu_fit, c_fit = popt_refit
-            err_A, err_mu_fit, err_c = np.sqrt(np.diag(pcov_refit))
-            popt = popt_refit
-            pcov = pcov_refit
-            fit_bins = refit_bins
-            fit_hist = refit_hist
-            err_fit_hist = refit_err
-
-
-            
-
 
             if c_fit <= 0:
                 raise RuntimeError(
@@ -307,25 +179,21 @@ def fit_secondary_peak_parabola(
 
             if verbose:
                 print(f"    (diagnostic) parabola fit window = ({fit_min:.1f}, {fit_max:.1f}) ns "
-                      f"[halfwidth_left={halfwidth_left:.1f} ns, halfwidth_right={halfwidth_right:.1f} ns], "
+                      f"[halfwidth_left={win_left_ns:.1f} ns, halfwidth_right={win_right_ns:.1f} ns], "
                       f"mu = {mu_fit:.2f} +- {err_mu_fit:.2g} ns, chi2/ndf = {chi2:.1f}/{ndf} = {chi2ndf:.2f}")
 
             # -----------------------------------------
             # Systematic uncertainty from fit window
             # -----------------------------------------
             mu_scan = []
-
             bin_width = np.mean(np.diff(bins_nobg))
 
             for n_bins in range(min_bins_syst, max_bis_syst + 1):
-
                 half_width_syst = n_bins * bin_width
-
                 mask = (
                     (bins_nobg >= mu_fit - half_width_syst) &
                     (bins_nobg <= mu_fit + half_width_syst)
                 )
-
                 x_syst = bins_nobg[mask]
                 y_syst = hist_nobg[mask]
                 err_syst = err_hist_nobg[mask]
@@ -350,41 +218,28 @@ def fit_secondary_peak_parabola(
                     )
 
                     A_syst, mu_syst, c_syst = popt_syst
-
-                    # Reject non-parabolic fits (c<=0 means no real curvature/peak)
                     if c_syst <= 0:
                         continue
 
-                    # Best-fit values
                     fit_syst = parabola_vertex_form(x_syst, *popt_syst)
-
-                    # Chi-square
-                    chi2_syst = np.sum(((y_syst - fit_syst) / err_syst)**2)
-
-                    # Degrees of freedom
+                    chi2_syst = np.sum(((y_syst - fit_syst) / err_syst) ** 2)
                     ndf_syst = len(x_syst) - len(popt_syst)
-
-                    # Reduced chi-square
                     chi2_ndf_syst = chi2_syst / ndf_syst if ndf_syst > 0 else np.nan
 
                     if verbose:
                         print(f"n_bins={n_bins:2d}, chi2/ndf={chi2_ndf_syst:.2f}, mu={mu_syst:.5f}")
 
                     mu_scan.append(mu_syst)
-
                 except Exception:
                     continue
 
-            # systematic uncertainty
             if len(mu_scan) > 1:
                 mu_scan = np.array(mu_scan)
-
-                # rms around the nominal (refit) peak position
-                err_mu_syst = np.sqrt(np.mean((mu_scan - mu_fit)**2))
+                err_mu_syst = np.sqrt(np.mean((mu_scan - mu_fit) ** 2))
             else:
                 err_mu_syst = 0.0
 
-            tot_err = np.sqrt(err_mu_fit**2 + err_mu_syst**2)
+            tot_err = np.sqrt(err_mu_fit ** 2 + err_mu_syst ** 2)
 
             fit_results = {
                 "peak_pos": mu_fit,
@@ -399,18 +254,16 @@ def fit_secondary_peak_parabola(
 
         except Exception as exc:  # noqa: BLE001 -- intentionally broad, we retry
             last_exc = exc
-            win_left *= window_growth
-            win_right *= window_growth
+            win_left_ns *= window_growth
+            win_right_ns *= window_growth
 
     raise RuntimeError(
-        f"Parabola fit around peak (mu_est={mu_est:.1f} ns, sigma_est={sigma_est:.1f} ns) "
+        f"Parabola fit in fixed window around peak_pos={peak_pos:.1f} ns "
         f"did not converge after {max_attempts} attempts. Last error: {last_exc}\n"
-        "The peak may be too weak / too close to the background here for a "
-        "narrow, un-anchored parabola fit -- consider widening "
-        "window_sigmas_left/window_sigmas_right (or the min_halfwidth_*_ns floors), "
-        "lowering prominence_frac, or falling back to the Gaussian valley-based fit."
+        "There may be no real peak at this hardcoded peak_pos, or the initial "
+        "halfwidth_left_ns/halfwidth_right_ns may be too small/large -- "
+        "check against the *_t_diff_nobg plot."
     )
-
 
 
 
@@ -708,7 +561,7 @@ def plot_metric_by_gas_mix(
     ax.set_xticklabels(list(mix_to_x.keys()))
     ax.set_xlabel("Gas mixture (Ar/CO2) [%]")
     ax.set_ylabel(ylabel)
-    ax.set_title(f"Comparison of gas mixtures and {ylabel.split(' [')[0].lower()} from {strmethod}")
+    ax.set_title(f"Comparison of gas mixtures\n{ylabel.split(' [')[0].lower()} from {strmethod}")
     ax.grid(True, axis="y")
 
     y_lo = min(e["value"] - e["err"] for e in entries)
@@ -1235,69 +1088,68 @@ def main():
     list_of_fits = [#"cosmic_82-18_3550-1800-1200_run1_th20_cut100", no peak
                 #"cosmic_82-18_3575-1800-1200_run1_th20_cut100", no peak
                 #"cosmic_82-18_3600-1800-1200_run1_th20_cut100", no peak
-                "cosmic_82-18_3625-1800-1200_run1_th20_cut100", 
-                "cosmic_82-18_3650-1800-1200_run1_th20_cut100",
+                ["cosmic_82-18_3625-1800-1200_run1_th20_cut100", 391], 
+                ["cosmic_82-18_3650-1800-1200_run1_th20_cut100", 391],
 
-                "cosmic_83-17_3650-1800-1200_run1_th20_cut100",
-                "cosmic_83-17_3625-1800-1200_run1_th20_cut100", 
-                "cosmic_83-17_3600-1800-1200_run1_th20_cut100", 
-                #"cosmic_83-17_3575-1800-1200_run1_th20_cut100",no peak
-                #"cosmic_83-17_3550-1800-1200_run1_th20_cut100",no peak
+                ["cosmic_83-17_3650-1800-1200_run1_th20_cut100", 400],
+                ["cosmic_83-17_3625-1800-1200_run1_th20_cut100", 400], 
+                #["cosmic_83-17_3600-1800-1200_run1_th20_cut100", 400],
+                #"cosmic_83-17_3575-1800-1200_run1_th20_cut100", 400], # no peak
+                #"cosmic_83-17_3550-1800-1200_run1_th20_cut100", 400], # no peak
 
-                #"cosmic_85-15_3550-1800-1200_run1_th20_cut100", no peak
-                "cosmic_85-15_3575-1800-1200_run1_th20_cut100", 
-                "cosmic_85-15_3600-1800-1200_run2_th20_cut100", 
+                #"cosmic_85-15_3550-1800-1200_run1_th20_cut100", 411], #no peak
+                ["cosmic_85-15_3575-1800-1200_run1_th20_cut100", 411],
+                ["cosmic_85-15_3600-1800-1200_run2_th20_cut100", 413],
 
-                "cosmic_87-13_3550-1800-1200_run1_th20_cut100",
-                "cosmic_87-13_3575-1800-1200_run1_th20_cut100",
-                "cosmic_87-13_3600-1800-1200_run1_th20_cut100", # stopped because of tripping
+                ["cosmic_87-13_3550-1800-1200_run1_th20_cut100", 440],
+                ["cosmic_87-13_3575-1800-1200_run1_th20_cut100", 440],
+                ["cosmic_87-13_3600-1800-1200_run1_th20_cut100", 440], # stopped because of tripping
 
                 ]
     #list_of_fits = ["cosmic_82-18_3550-1800-1200_run1_th20_cut_50"]
 
     #list_of_fits = ["mb1_sxa5_cosmics_10min"]
 
-    ramp_datasets = [ "data_mic0_start_2026-07-24_18-06-10_stop_2026-07-24_18-16-11",
-                    "data_mic0_start_2026-07-24_22-16-13_stop_2026-07-24_22-26-14",
-                    "data_mic0_start_2026-07-25_02-26-16_stop_2026-07-25_02-36-17",
-                    "data_mic0_start_2026-07-25_06-36-19_stop_2026-07-25_06-46-20",
-                    "data_mic0_start_2026-07-25_10-46-22_stop_2026-07-25_10-56-23",
-                    "data_mic0_start_2026-07-25_14-56-25_stop_2026-07-25_15-06-26",
-                    "data_mic0_start_2026-07-25_19-06-28_stop_2026-07-25_19-16-29",
-                    "data_mic0_start_2026-07-25_23-16-31_stop_2026-07-25_23-26-32",
-                    "data_mic0_start_2026-07-26_03-26-34_stop_2026-07-26_03-36-35",
-                    "data_mic0_start_2026-07-26_07-36-37_stop_2026-07-26_07-46-38",
-                    "data_mic0_start_2026-07-26_11-46-40_stop_2026-07-26_11-56-41",
-                    "data_mic0_start_2026-07-26_15-56-43_stop_2026-07-26_16-06-44",
-                    "data_mic0_start_2026-07-26_20-06-46_stop_2026-07-26_20-16-47",
-                    "data_mic0_start_2026-07-27_00-16-49_stop_2026-07-27_00-26-50",
-                    "data_mic0_start_2026-07-27_04-26-52_stop_2026-07-27_04-36-53",
-                    "data_mic0_start_2026-07-27_08-36-55_stop_2026-07-27_08-46-56",
-                    #"data_mic0_start_2026-07-27_12-46-58_stop_2026-07-27_12-56-59", #not calculated
-                    "data_mic0_start_2026-07-27_16-57-02_stop_2026-07-27_17-07-03",
-                    "data_mic0_start_2026-07-27_21-07-05_stop_2026-07-27_21-17-06",
-                    "data_mic0_start_2026-07-28_01-17-08_stop_2026-07-28_01-27-09",
-                    "data_mic0_start_2026-07-28_05-27-11_stop_2026-07-28_05-37-12",
-                    "data_mic0_start_2026-07-28_09-37-15_stop_2026-07-28_09-47-16",
-                    "data_mic0_start_2026-07-28_13-47-18_stop_2026-07-28_13-57-19",
-                    "data_mic0_start_2026-07-28_17-57-21_stop_2026-07-28_18-07-22",
-                    "data_mic0_start_2026-07-28_22-07-25_stop_2026-07-28_22-17-26",
-                    "data_mic0_start_2026-07-29_02-17-28_stop_2026-07-29_02-27-29",
-                    "data_mic0_start_2026-07-29_06-27-31_stop_2026-07-29_06-37-32",
-                    "data_mic0_start_2026-07-29_10-37-34_stop_2026-07-29_10-47-35",
-                    "data_mic0_start_2026-07-29_14-47-37_stop_2026-07-29_14-57-38",
-                    "data_mic0_start_2026-07-29_18-57-40_stop_2026-07-29_19-07-41",
-                    "data_mic0_start_2026-07-29_23-07-43_stop_2026-07-29_23-17-44",
-                    "data_mic0_start_2026-07-30_07-27-49_stop_2026-07-30_07-37-50",
-                    "data_mic0_start_2026-07-30_11-37-52_stop_2026-07-30_11-47-53",
-                    "data_mic0_start_2026-07-30_15-47-55_stop_2026-07-30_15-57-56",
-                    "data_mic0_start_2026-07-30_19-57-58_stop_2026-07-30_20-07-59",
-                    "data_mic0_start_2026-07-31_00-08-02_stop_2026-07-31_00-18-03",
-                    "data_mic0_start_2026-07-31_04-18-05_stop_2026-07-31_04-28-06",
-                    "data_mic0_start_2026-07-31_08-28-08_stop_2026-07-31_08-38-09",
-
-       
-                    ]
+    ramp_datasets = [
+        ["data_mic0_start_2026-07-24_18-06-10_stop_2026-07-24_18-16-11", 395],
+        ["data_mic0_start_2026-07-24_22-16-13_stop_2026-07-24_22-26-14", 401],
+        ["data_mic0_start_2026-07-25_02-26-16_stop_2026-07-25_02-36-17", 404],
+        ["data_mic0_start_2026-07-25_06-36-19_stop_2026-07-25_06-46-20", 407],
+        ["data_mic0_start_2026-07-25_10-46-22_stop_2026-07-25_10-56-23", 409],
+        ["data_mic0_start_2026-07-25_14-56-25_stop_2026-07-25_15-06-26", 412],
+        ["data_mic0_start_2026-07-25_19-06-28_stop_2026-07-25_19-16-29", 415],
+        ["data_mic0_start_2026-07-25_23-16-31_stop_2026-07-25_23-26-32", 416],
+        ["data_mic0_start_2026-07-26_03-26-34_stop_2026-07-26_03-36-35", 418],
+        ["data_mic0_start_2026-07-26_07-36-37_stop_2026-07-26_07-46-38", 420],
+        ["data_mic0_start_2026-07-26_11-46-40_stop_2026-07-26_11-56-41", 422],
+        ["data_mic0_start_2026-07-26_15-56-43_stop_2026-07-26_16-06-44", 424],
+        ["data_mic0_start_2026-07-26_20-06-46_stop_2026-07-26_20-16-47", 425],
+        ["data_mic0_start_2026-07-27_00-16-49_stop_2026-07-27_00-26-50", 426],
+        ["data_mic0_start_2026-07-27_04-26-52_stop_2026-07-27_04-36-53", 428],
+        ["data_mic0_start_2026-07-27_08-36-55_stop_2026-07-27_08-46-56", 429],
+        #["data_mic0_start_2026-07-27_12-46-58_stop_2026-07-27_12-56-59", 405],  #not calculated
+        ["data_mic0_start_2026-07-27_16-57-02_stop_2026-07-27_17-07-03", 430],
+        ["data_mic0_start_2026-07-27_21-07-05_stop_2026-07-27_21-17-06", 431],
+        ["data_mic0_start_2026-07-28_01-17-08_stop_2026-07-28_01-27-09", 432],
+        ["data_mic0_start_2026-07-28_05-27-11_stop_2026-07-28_05-37-12", 433],
+        ["data_mic0_start_2026-07-28_09-37-15_stop_2026-07-28_09-47-16", 434],
+        ["data_mic0_start_2026-07-28_13-47-18_stop_2026-07-28_13-57-19", 435],
+        ["data_mic0_start_2026-07-28_17-57-21_stop_2026-07-28_18-07-22", 435],
+        ["data_mic0_start_2026-07-28_22-07-25_stop_2026-07-28_22-17-26", 437],
+        ["data_mic0_start_2026-07-29_02-17-28_stop_2026-07-29_02-27-29", 436],
+        ["data_mic0_start_2026-07-29_06-27-31_stop_2026-07-29_06-37-32", 436],
+        ["data_mic0_start_2026-07-29_10-37-34_stop_2026-07-29_10-47-35", 436],
+        ["data_mic0_start_2026-07-29_14-47-37_stop_2026-07-29_14-57-38", 437],
+        ["data_mic0_start_2026-07-29_18-57-40_stop_2026-07-29_19-07-41", 437],
+        ["data_mic0_start_2026-07-29_23-07-43_stop_2026-07-29_23-17-44", 436],
+        ["data_mic0_start_2026-07-30_07-27-49_stop_2026-07-30_07-37-50", 437],
+        ["data_mic0_start_2026-07-30_11-37-52_stop_2026-07-30_11-47-53", 438],
+        ["data_mic0_start_2026-07-30_15-47-55_stop_2026-07-30_15-57-56", 438],
+        ["data_mic0_start_2026-07-30_19-57-58_stop_2026-07-30_20-07-59", 439],
+        ["data_mic0_start_2026-07-31_00-08-02_stop_2026-07-31_00-18-03", 439],
+        ["data_mic0_start_2026-07-31_04-18-05_stop_2026-07-31_04-28-06", 440],
+        ["data_mic0_start_2026-07-31_08-28-08_stop_2026-07-31_08-38-09", 440],
+    ]
     if do_ramp_measurement:
         list_of_fits = ramp_datasets
 
@@ -1325,22 +1177,24 @@ def main():
 
     datasets_to_skip = set()
     if skip_existing_datasets:
-        for dataset_name in list_of_fits:
+        for dataset_name, _ in list_of_fits:
             plot_save_path = base_path + f"plots/photo_peak/{dataset_name}/"
             if (dataset_plots_exist(plot_save_path, dataset_name, plot_type)
                     and dataset_name in analysis_out_prev):
                 datasets_to_skip.add(dataset_name)
-
     if datasets_to_skip:
         print(f"Skipping {len(datasets_to_skip)} already-analyzed dataset(s): "
               f"{sorted(datasets_to_skip)}")
 
     non_existing_hit_diff_hists = []
-    for dataset in list_of_fits:
-        if dataset in datasets_to_skip:
-            continue  # no need for the raw pcl if we're not analyzing it
-        file_name = f"{dataset}_hit_diff.pcl"
-        dataset_path = Path(f"{base_path}pcls/{dataset}/{file_name}")
+    for dataset_name, _ in list_of_fits:
+        if dataset_name in datasets_to_skip:
+            continue
+        file_name = f"{dataset_name}_hit_diff.pcl"
+        dataset_path = Path(f"{base_path}pcls/{dataset_name}/{file_name}")
+        if not dataset_path.exists():
+            print(f"Error: Dataset '{file_name}' does not exist.")
+            non_existing_hit_diff_hists.append(file_name)
 
         if not dataset_path.exists():
             print(f"Error: Dataset '{file_name}' does not exist.")
@@ -1353,7 +1207,8 @@ def main():
     
     if not only_do_analysis:
         for i in range(len(list_of_fits)):
-            dataset_name = list_of_fits[i]
+            dataset_name = list_of_fits[i][0]
+            dataset_peak_position = list_of_fits[i][1]
 
             if dataset_name in datasets_to_skip:
                 print(f"[{i+1}/{len(list_of_fits)}] {dataset_name}: "
@@ -1607,13 +1462,14 @@ def main():
                 search_min=387,
                 search_max=440,
                 window_sigmas_left=1.5,
-                window_sigmas_right=2.5,     # größer, da der Peak rechts einen längeren Ausläufer hat
+                window_sigmas_right=2.5,
                 min_halfwidth_left_ns=15,
-                min_halfwidth_right_ns=40,   # absolute Untergrenze rechts, damit der Ausläufer sicher erfasst wird
+                min_halfwidth_right_ns=40,
                 edge_margin_frac=0.15,
                 window_growth=1.3,
                 max_attempts=6,
-                prominence_frac=0.03,
+                prominence_frac=0.02,
+                peak_pos=dataset_peak_position,
             )
             peak_err_stat = fit_results["peak_err_stat"]
             peak_err_syst = fit_results["peak_err_syst"]

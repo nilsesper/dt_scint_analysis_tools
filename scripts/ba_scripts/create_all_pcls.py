@@ -71,7 +71,7 @@ def main():
     max_alpha = np.deg2rad(max_alpha_in_deg)
     max_chi2 = 20
 
-    n_processes = 6 # no of processes running in parallel
+    n_processes = 2 # no of processes running in parallel
     n_batches_clustering = 50000 # batch size for hit clustering
 
     # Ordner für dieses Dataset erstellen

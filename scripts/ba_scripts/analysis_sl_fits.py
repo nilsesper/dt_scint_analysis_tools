@@ -2764,7 +2764,7 @@ def main():
     max_err_to_free_vd_superfit = 20
     max_err_x0_free_vd_superfit = 1
     max_err_vd_free_vd_superfit = 2
-    max_err_tan_alpha_free_vd_superfit = 20
+    max_err_tan_alpha_free_vd_superfit = 0.1
     max_chi2ndf_frree_vd_superfit = 20
     max_angle_rad = max(alpha_max for _, (_, alpha_max) in params._dt_pattern_alpha_range.items())
     max_angle_deg = np.rad2deg(max_angle_rad)
@@ -2795,49 +2795,48 @@ def main():
                 "cosmic_87-13_3600-1800-1200_run1_th20_cut100", # stopped because of tripping
                 ]
     #list_of_fits = ["mb1_sxa5_cosmics_10min"]
-    list_of_fits = ["cosmic_82-18_3550-1800-1200_run1_th20_cut_50"]
+    #list_of_fits = ["cosmic_82-18_3550-1800-1200_run1_th20_cut_50"]
 
-    ramp_datasets = [ "data_mic0_start_2026-07-24_18-06-10_stop_2026-07-24_18-16-11",
-                    "data_mic0_start_2026-07-24_22-16-13_stop_2026-07-24_22-26-14",
-                    "data_mic0_start_2026-07-25_02-26-16_stop_2026-07-25_02-36-17",
-                    "data_mic0_start_2026-07-25_06-36-19_stop_2026-07-25_06-46-20",
-                    "data_mic0_start_2026-07-25_10-46-22_stop_2026-07-25_10-56-23",
-                    "data_mic0_start_2026-07-25_14-56-25_stop_2026-07-25_15-06-26",
-                    "data_mic0_start_2026-07-25_19-06-28_stop_2026-07-25_19-16-29",
-                    "data_mic0_start_2026-07-25_23-16-31_stop_2026-07-25_23-26-32",
-                    "data_mic0_start_2026-07-26_03-26-34_stop_2026-07-26_03-36-35",
-                    "data_mic0_start_2026-07-26_07-36-37_stop_2026-07-26_07-46-38",
-                    "data_mic0_start_2026-07-26_11-46-40_stop_2026-07-26_11-56-41",
-                    "data_mic0_start_2026-07-26_15-56-43_stop_2026-07-26_16-06-44",
-                    "data_mic0_start_2026-07-26_20-06-46_stop_2026-07-26_20-16-47",
-                    "data_mic0_start_2026-07-27_00-16-49_stop_2026-07-27_00-26-50",
-                    "data_mic0_start_2026-07-27_04-26-52_stop_2026-07-27_04-36-53",
-                    "data_mic0_start_2026-07-27_08-36-55_stop_2026-07-27_08-46-56",
-                    #"data_mic0_start_2026-07-27_12-46-58_stop_2026-07-27_12-56-59", #not calculated
-                    "data_mic0_start_2026-07-27_16-57-02_stop_2026-07-27_17-07-03",
-                    "data_mic0_start_2026-07-27_21-07-05_stop_2026-07-27_21-17-06",
-                    "data_mic0_start_2026-07-28_01-17-08_stop_2026-07-28_01-27-09",
-                    "data_mic0_start_2026-07-28_05-27-11_stop_2026-07-28_05-37-12",
-                    "data_mic0_start_2026-07-28_09-37-15_stop_2026-07-28_09-47-16",
-                    "data_mic0_start_2026-07-28_13-47-18_stop_2026-07-28_13-57-19",
-                    "data_mic0_start_2026-07-28_17-57-21_stop_2026-07-28_18-07-22",
-                    "data_mic0_start_2026-07-28_22-07-25_stop_2026-07-28_22-17-26",
-                    "data_mic0_start_2026-07-29_02-17-28_stop_2026-07-29_02-27-29",
-                    "data_mic0_start_2026-07-29_06-27-31_stop_2026-07-29_06-37-32",
-                    "data_mic0_start_2026-07-29_10-37-34_stop_2026-07-29_10-47-35",
-                    "data_mic0_start_2026-07-29_14-47-37_stop_2026-07-29_14-57-38",
-                    "data_mic0_start_2026-07-29_18-57-40_stop_2026-07-29_19-07-41",
-                    "data_mic0_start_2026-07-29_23-07-43_stop_2026-07-29_23-17-44",
-                    "data_mic0_start_2026-07-30_07-27-49_stop_2026-07-30_07-37-50",
-                    "data_mic0_start_2026-07-30_11-37-52_stop_2026-07-30_11-47-53",
-                    "data_mic0_start_2026-07-30_15-47-55_stop_2026-07-30_15-57-56",
-                    "data_mic0_start_2026-07-30_19-57-58_stop_2026-07-30_20-07-59",
-                    "data_mic0_start_2026-07-31_00-08-02_stop_2026-07-31_00-18-03",
-                    "data_mic0_start_2026-07-31_04-18-05_stop_2026-07-31_04-28-06",
-                    "data_mic0_start_2026-07-31_08-28-08_stop_2026-07-31_08-38-09",
-
-       
-                    ]
+    ramp_datasets = [
+        ["data_mic0_start_2026-07-24_18-06-10_stop_2026-07-24_18-16-11", 405],
+        ["data_mic0_start_2026-07-24_22-16-13_stop_2026-07-24_22-26-14", 405],
+        ["data_mic0_start_2026-07-25_02-26-16_stop_2026-07-25_02-36-17", 405],
+        ["data_mic0_start_2026-07-25_06-36-19_stop_2026-07-25_06-46-20", 405],
+        ["data_mic0_start_2026-07-25_10-46-22_stop_2026-07-25_10-56-23", 405],
+        ["data_mic0_start_2026-07-25_14-56-25_stop_2026-07-25_15-06-26", 405],
+        ["data_mic0_start_2026-07-25_19-06-28_stop_2026-07-25_19-16-29", 405],
+        ["data_mic0_start_2026-07-25_23-16-31_stop_2026-07-25_23-26-32", 405],
+        ["data_mic0_start_2026-07-26_03-26-34_stop_2026-07-26_03-36-35", 405],
+        ["data_mic0_start_2026-07-26_07-36-37_stop_2026-07-26_07-46-38", 405],
+        ["data_mic0_start_2026-07-26_11-46-40_stop_2026-07-26_11-56-41", 405],
+        ["data_mic0_start_2026-07-26_15-56-43_stop_2026-07-26_16-06-44", 405],
+        ["data_mic0_start_2026-07-26_20-06-46_stop_2026-07-26_20-16-47", 405],
+        ["data_mic0_start_2026-07-27_00-16-49_stop_2026-07-27_00-26-50", 405],
+        ["data_mic0_start_2026-07-27_04-26-52_stop_2026-07-27_04-36-53", 405],
+        ["data_mic0_start_2026-07-27_08-36-55_stop_2026-07-27_08-46-56", 405],
+        #["data_mic0_start_2026-07-27_12-46-58_stop_2026-07-27_12-56-59", 405],  #not calculated
+        ["data_mic0_start_2026-07-27_16-57-02_stop_2026-07-27_17-07-03", 405],
+        ["data_mic0_start_2026-07-27_21-07-05_stop_2026-07-27_21-17-06", 405],
+        ["data_mic0_start_2026-07-28_01-17-08_stop_2026-07-28_01-27-09", 405],
+        ["data_mic0_start_2026-07-28_05-27-11_stop_2026-07-28_05-37-12", 405],
+        ["data_mic0_start_2026-07-28_09-37-15_stop_2026-07-28_09-47-16", 405],
+        ["data_mic0_start_2026-07-28_13-47-18_stop_2026-07-28_13-57-19", 405],
+        ["data_mic0_start_2026-07-28_17-57-21_stop_2026-07-28_18-07-22", 405],
+        ["data_mic0_start_2026-07-28_22-07-25_stop_2026-07-28_22-17-26", 405],
+        ["data_mic0_start_2026-07-29_02-17-28_stop_2026-07-29_02-27-29", 405],
+        ["data_mic0_start_2026-07-29_06-27-31_stop_2026-07-29_06-37-32", 405],
+        ["data_mic0_start_2026-07-29_10-37-34_stop_2026-07-29_10-47-35", 405],
+        ["data_mic0_start_2026-07-29_14-47-37_stop_2026-07-29_14-57-38", 405],
+        ["data_mic0_start_2026-07-29_18-57-40_stop_2026-07-29_19-07-41", 405],
+        ["data_mic0_start_2026-07-29_23-07-43_stop_2026-07-29_23-17-44", 405],
+        ["data_mic0_start_2026-07-30_07-27-49_stop_2026-07-30_07-37-50", 405],
+        ["data_mic0_start_2026-07-30_11-37-52_stop_2026-07-30_11-47-53", 405],
+        ["data_mic0_start_2026-07-30_15-47-55_stop_2026-07-30_15-57-56", 405],
+        ["data_mic0_start_2026-07-30_19-57-58_stop_2026-07-30_20-07-59", 405],
+        ["data_mic0_start_2026-07-31_00-08-02_stop_2026-07-31_00-18-03", 405],
+        ["data_mic0_start_2026-07-31_04-18-05_stop_2026-07-31_04-28-06", 405],
+        ["data_mic0_start_2026-07-31_08-28-08_stop_2026-07-31_08-38-09", 405],
+    ]
     #list_of_fits = ["cosmic_82-18_3550-1800-1200_run1_th20_cut_50"]
     
         
@@ -3072,6 +3071,17 @@ def main():
                             ("err_x0_free_vd_super_fit", "<", max_err_x0_free_vd_superfit),
                             ("err_vd_free_vd_super_fit", "<", max_err_vd_free_vd_superfit),
                             ("err_tan_alpha_free_vd_super_fit", "<", max_err_tan_alpha_free_vd_superfit),
+                            #dt_i must be greater than zero, otherwise the fit is not valid
+                            ("dt0_free_vd_super_fit", ">", 0),
+                            ("dt1_free_vd_super_fit", ">", 0),
+                            ("dt2_free_vd_super_fit", ">", 0),
+                            ("dt3_free_vd_super_fit", ">", 0),
+                            ("dt4_free_vd_super_fit", ">", 0),
+                            ("dt5_free_vd_super_fit", ">", 0),
+                            ("dt6_free_vd_super_fit", ">", 0),
+                            ("dt7_free_vd_super_fit", ">", 0),
+
+
                             #("tan_alpha_free_vd_super_fit", "<", max_tan_alpha), # max alpha is defined over pattern max angles
                             #("tan_alpha_free_vd_super_fit", ">", -max_tan_alpha),
 
