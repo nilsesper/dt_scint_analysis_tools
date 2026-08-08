@@ -1459,17 +1459,12 @@ def main():
 
             popt, pcov, fit_bins, fit_hist, err_fit_hist, fit_func, mu_val, err_mu, fit_results = fit_secondary_peak_parabola(
                 bins_nobg, hist_nobg, err_hist_nobg,
-                search_min=387,
-                search_max=440,
-                window_sigmas_left=1.5,
-                window_sigmas_right=2.5,
-                min_halfwidth_left_ns=15,
-                min_halfwidth_right_ns=40,
+                peak_pos=dataset_peak_position,
+                halfwidth_left_ns=15,
+                halfwidth_right_ns=40,
                 edge_margin_frac=0.15,
                 window_growth=1.3,
                 max_attempts=6,
-                prominence_frac=0.02,
-                peak_pos=dataset_peak_position,
             )
             peak_err_stat = fit_results["peak_err_stat"]
             peak_err_syst = fit_results["peak_err_syst"]

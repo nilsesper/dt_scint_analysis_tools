@@ -46,7 +46,9 @@ printf "${GREEN}>>>>>> ${WHITE}STARTING SCRIPT AND TIMING IT ${RESET}\n"
 cd /home/home1/institut_3a/tacke/Bachelor_thesis/dt_scint_analysis_tools
 
 ###--- run normally:
-python scripts/ba_scripts/create_all_pcls.py --dataset_name ${dataset_name}
+#python scripts/ba_scripts/create_all_pcls.py --dataset_name ${dataset_name}
+python scripts/ba_scripts/root_pipeline_create_all_pcls.py --dataset_name ${dataset_name}
+
 ###--- run and measure resource utilization (is logged in stderr):
 # /usr/bin/time --verbose  python scripts/ba_scripts/create_all_pcls.py --datasetname ${dataset_name}
 

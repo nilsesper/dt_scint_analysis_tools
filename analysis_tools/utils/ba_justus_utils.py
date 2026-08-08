@@ -630,7 +630,7 @@ def fit_super_sl_patterns(super_patterns, *,
 
     return fits
 
-
+"""
 ### find sl patterns (unpaired hit clustering into 4-hit patterns)
 def find_sl_patterns(hits, *, dt_sl_patterns=params._dt_sl_patterns, silent=False, verbose=False, simulation_only_muon_patterns=False, fit_vd=False):
     pattern_list = []
@@ -721,6 +721,131 @@ def find_sl_patterns(hits, *, dt_sl_patterns=params._dt_sl_patterns, silent=Fals
                 muon_vd = ref_cell["muon_vd"]
                 pattern_list.append([sl, pat_type, pat_wi, pat_ts, muon_id, muon_ts, lat, dt, x0_loc, tan_alpha, ly_lats, dd, muon_x0, muon_y0, muon_z0, muon_theta, muon_phi, muon_vd, pat_err_ts])
 
+    n_patterns = len(pattern_list)
+    if not silent: print(f"Found {n_patterns} DT superlayer patterns.")
+    sl_patterns = {k: np.full(n_patterns, 0, dtype=v) for k, v in params._sl_pattern_keys.items()}
+    for i in range(n_patterns):
+        sl_patterns["sl"][i] = pattern_list[i][0]
+        sl_patterns["pat_type"][i] = pattern_list[i][1]
+        sl_patterns["muon_id"][i] = pattern_list[i][4]
+        sl_patterns["muon_ts"][i] = pattern_list[i][5]
+        sl_patterns[f"muon_lat_id"][i] = pattern_list[i][6]
+        sl_patterns[f"muon_x0_loc"][i] = pattern_list[i][8]
+        sl_patterns[f"muon_tan_alpha"][i] = pattern_list[i][9]
+        sl_patterns[f"muon_x0"][i] = pattern_list[i][12]
+        sl_patterns[f"muon_y0"][i] = pattern_list[i][13]
+        sl_patterns[f"muon_z0"][i] = pattern_list[i][14]
+        sl_patterns[f"muon_theta"][i] = pattern_list[i][15]
+        sl_patterns[f"muon_phi"][i] = pattern_list[i][16]
+        sl_patterns[f"muon_vd"][i] = pattern_list[i][17]
+        for j in range(4):
+            sl_patterns[f"wi{j}"][i] = pattern_list[i][2][j]
+            sl_patterns[f"ts{j}"][i] = pattern_list[i][3][j]
+            sl_patterns[f"err_ts{j}"][i] = pattern_list[i][18][j]
+            sl_patterns[f"muon_lat{j}"][i] = pattern_list[i][10][j]
+            sl_patterns[f"muon_dt{j}"][i] = pattern_list[i][7][j]
+            sl_patterns[f"muon_dd{j}"][i] = pattern_list[i][11][j]
+    sl_patterns = data_utils.sort_by_key(data=sl_patterns, sort_key="wi3", silent=silent)
+    return sl_patterns
+"""
+
+
+
+def find_sl_patterns(hits, *, dt_sl_patterns=params._dt_sl_patterns, silent=False, verbose=False, simulation_only_muon_patterns=False, fit_vd=False):
+    pattern_list = []
+    n_hits = len(hits["ch"])
+    if not silent: print(f"Extract DT superlayer patterns from {n_hits} total hits...")
+    dummy_dt_hit = {k: np.array(0, dtype=v) for k, v in params._htg_keys.items()} | {k: np.array(0, dtype=v) for k, v in params._dt_mapping_keys.items()} | {k: np.array(0, dtype=v) for k, v in params._dt_other_keys.items()}
+    if not fit_vd:
+        delta_ts_max = params._dt_sl_patterns_ts_window
+    else:
+        delta_ts_max = params._dt_sl_patterns_ts_window_fit_vd
+ 
+    pattern_defs = [(pat_type, pat_name, dt_sl_patterns[pat_name]["rel_wis"]) for pat_type, pat_name in enumerate(dt_sl_patterns.keys())]
+ 
+    for sl in params._dt_chamber["sls"].keys():
+        last_hit = _empty_dt_chamber_map(content=dummy_dt_hit)
+        sl_cell = last_hit[sl]
+        if not silent: print(f"  Progress: SL {sl}...")
+ 
+        # CHANGED: plain boolean mask instead of data_utils.cut_data --
+        # cut_data's "==" condition is exactly this mask, but without the
+        # triple deep-copy. See module docstring.
+        sl_mask = (hits["sl"] == sl)
+        this_sl_hits = {k: v[sl_mask] for k, v in hits.items()}
+ 
+        n_this_sl_hits = len(this_sl_hits["ch"])
+        this_sl_hits = timestamp_utils.sort_by_timestamp(hits=this_sl_hits, silent=silent)
+        hit_keys = list(this_sl_hits.keys())
+        min_wi, max_wi = [params._dt_chamber["sls"][sl]["lys"][ly]["min_wi"] for ly in params._dt_chamber["sls"][sl]["lys"].keys()], [params._dt_chamber["sls"][sl]["lys"][ly]["max_wi"] for ly in params._dt_chamber["sls"][sl]["lys"].keys()]
+        for i in tqdm(range(n_this_sl_hits), disable=silent):
+            ly = this_sl_hits["ly"][i]
+            wi = this_sl_hits["wi"][i]
+            ts = this_sl_hits["ts"][i]
+            muon_ts = this_sl_hits["muon_ts"][i]
+            if verbose: print(f"hit: sl={sl} ly={ly} wi={wi} ts={ts}")
+            sl_cell[ly][wi] = {k: this_sl_hits[k][i] for k in hit_keys}
+            last_hit_ly, last_hit_wi = ly, wi
+            last_hit_wi_int = int(last_hit_wi)
+            for pat_type, pat_name, pat_idcs in pattern_defs:
+                base_wi = last_hit_wi_int - int(pat_idcs[last_hit_ly])
+                if base_wi < min_wi[3] or base_wi > max_wi[3]:
+                    continue
+                pat_wi = np.full(4, 0, dtype=np.int16)
+                for ly2 in range(4):
+                    pat_wi[ly2] = base_wi + pat_idcs[ly2]
+                if pat_wi[0] < min_wi[0] or pat_wi[0] > max_wi[0]:
+                    continue
+                if pat_wi[1] < min_wi[1] or pat_wi[1] > max_wi[1]:
+                    continue
+                if pat_wi[2] < min_wi[2] or pat_wi[2] > max_wi[2]:
+                    continue
+                if pat_wi[3] < min_wi[3] or pat_wi[3] > max_wi[3]:
+                    continue
+                pat_wi = np.uint8(pat_wi)
+                cells = [sl_cell[ly2][pat_wi[ly2]] for ly2 in range(4)]
+                pat_ts = np.full(4, 0, dtype=params._ts_type)
+                pat_err_ts = np.full(4, 0, dtype=np.float64)
+                for ly2 in range(4):
+                    pat_ts[ly2] = cells[ly2]["ts"]
+                    pat_err_ts[ly2] = cells[ly2]["err_ts"]
+                if np.sum(pat_ts == 0) > 0:
+                    continue
+                pat_ts_diff = np.full(6, 0, dtype=params._ts_type)
+                pat_ts_diff[0] = np.abs((pat_ts[0]) - (pat_ts[1]))
+                pat_ts_diff[1] = np.abs((pat_ts[0]) - (pat_ts[2]))
+                pat_ts_diff[2] = np.abs((pat_ts[0]) - (pat_ts[3]))
+                pat_ts_diff[3] = np.abs((pat_ts[1]) - (pat_ts[2]))
+                pat_ts_diff[4] = np.abs((pat_ts[1]) - (pat_ts[3]))
+                pat_ts_diff[5] = np.abs((pat_ts[2]) - (pat_ts[3]))
+                if verbose: print(f"check pat: sl={sl}, pat_type={pat_type}, pat_wi={pat_wi}, pat_ts={pat_ts}, pat_ts_diff={pat_ts_diff}")
+                if np.sum(pat_ts_diff > delta_ts_max) > 0:
+                    continue
+                if verbose: print(f"found pat: sl={sl}, pat_wi={pat_wi}, pat_ts={pat_ts}")
+                dt = [cells[ly2]["muon_dt"] for ly2 in range(4)]
+                dd = [cells[ly2]["muon_dd"] for ly2 in range(4)]
+                ref_cell = cells[3]
+                x0_loc = dd[3] * ref_cell["muon_lat"]
+                ly_muon_id = [cells[ly2]["muon_id"] for ly2 in range(4)]
+                if simulation_only_muon_patterns:
+                    if len(set(ly_muon_id)) > 1:
+                        continue
+                muon_id = ly_muon_id[0]
+                tan_alpha = ref_cell["muon_tan_alpha"]
+                ly_lats = [cells[ly2]["muon_lat"] for ly2 in range(4)]
+                lat = 0
+                if simulation_only_muon_patterns:
+                    if ly_lats not in params._dt_sl_patterns[pat_name]["laterality"]:
+                        raise Exception(f"Missing laterality {ly_lats} for pattern {pat_type} in params !!!")
+                    lat = params._dt_sl_patterns[pat_name]["laterality"].index(ly_lats)
+                muon_x0 = ref_cell["muon_x0"]
+                muon_y0 = ref_cell["muon_y0"]
+                muon_z0 = ref_cell["muon_z0"]
+                muon_theta = ref_cell["muon_theta"]
+                muon_phi = ref_cell["muon_phi"]
+                muon_vd = ref_cell["muon_vd"]
+                pattern_list.append([sl, pat_type, pat_wi, pat_ts, muon_id, muon_ts, lat, dt, x0_loc, tan_alpha, ly_lats, dd, muon_x0, muon_y0, muon_z0, muon_theta, muon_phi, muon_vd, pat_err_ts])
+ 
     n_patterns = len(pattern_list)
     if not silent: print(f"Found {n_patterns} DT superlayer patterns.")
     sl_patterns = {k: np.full(n_patterns, 0, dtype=v) for k, v in params._sl_pattern_keys.items()}

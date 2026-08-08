@@ -8,9 +8,10 @@ arguments = $(ExecutableFile) $(dataset_name)
 stdout = stdout/stdout-ClusterId$(ClusterId)-ProcId$(ProcId).ansi
 stderr = stderr/stderr-ClusterId$(ClusterId)-ProcId$(ProcId).err
 log = condorlog/condorlog-ClusterId$(ClusterId).log
-
-request_cpus = 2
-request_memory = 10G
+stream_output = true
+stream_error = true
+request_cpus = 1
+request_memory = 5G
 request_disk = 500M
 
 should_transfer_files = yes
