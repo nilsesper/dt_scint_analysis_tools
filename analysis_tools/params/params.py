@@ -1421,16 +1421,16 @@ _dt_wire_mask = { # sl: ly: [wire_ids]
 """
 _dt_wire_mask = { # sl: ly: [wire_ids]
     1: {
-        0: [],
+        0: [38], #38is noisy in one dataset
         1: [],
         2: [],
-        3: [],
+        3: [12],
     },
-    2: {
-        0: [],
-        1: [],
+    2: { # here everything marked is noisy
+        0: [19],
+        1: [4, 56],
         2: [],
-        3: [],
+        3: [4, 16, 17],
     },
     3: {
         0: [10],        #10 is dead wire

@@ -26,6 +26,7 @@ from matplotlib.ticker import ScalarFormatter
 import matplotlib.dates as mdates
 import sys
 from pathlib import Path
+import uproot
 
 # =================================================================
 # Robust secondary-peak fitting helpers
@@ -272,7 +273,7 @@ def fit_secondary_peak_parabola(
 # given `analysis_out`. Sampled from a sequential colormap (light = low
 # voltage, dark = high voltage). Extend this dict if you add more voltages.
 _WIRE_VOLTAGES = [3550, 3575, 3600, 3625, 3650]
-_WIRE_COLORMAP = plt.cm.Blues  # light -> dark as voltage increases
+_WIRE_COLORMAP = plt.cm.Reds  # light -> dark as voltage increases
 _WIRE_COLOR_MAP = {
     # skip the very lightest end (near-white) so the lowest voltage is still visible
     v: _WIRE_COLORMAP(0.3 + 0.7 * i / (len(_WIRE_VOLTAGES) - 1))
@@ -623,6 +624,170 @@ def plot_peak_amplitude_by_gas_mix(
     )
 
 
+
+def plot_peak_amplitude_rate_vs_uwire_and_mix(
+    *,
+    analysis_out,
+    base_path,
+    dataset_info_fn,
+    plot_type=".png",
+    fig_size=(14, 6),
+    save_path=None,
+    verbose=True,
+    method="",
+    strmethod="",
+    ):
+    """
+    Two-panel line-plot comparison of the event-normalized photopeak
+    amplitude (A_rate = fitted amplitude 'A' / number of background-
+    subtracted events, int(np.sum(hist_nobg))):
+
+      left panel  : A_rate vs U_wire, one line per gas mixture
+                    -> shows how amplitude changes with wire voltage,
+                       holding the gas mixture fixed.
+      right panel : A_rate vs gas mixture (categorical x-axis), one
+                    line per U_wire
+                    -> shows how amplitude changes across gas mixtures,
+                       holding the wire voltage fixed.
+
+    Both panels are built from the same `entries` list, just grouped/
+    sorted along the other axis, so a dataset missing "A_rate"/
+    "A_rate_err" (or that dataset_info_fn can't parse) is skipped
+    consistently in both.
+
+    Parameters
+    ----------
+    analysis_out : dict
+        {dataset_name: fit_results}, must contain "A_rate"/"A_rate_err"
+        (as produced after switching the amplitude normalization to
+        event count, see fit_secondary_peak_parabola usage in main()).
+    base_path : str
+        Used to build the default output file path.
+    dataset_info_fn : callable
+        Function taking `name=dataset_name` -> dict with "pct_Ar",
+        "pct_CO2", "U_wire" (e.g. parse_fit_name). Called once per
+        dataset; datasets it can't parse are skipped with a warning.
+    plot_type : str, default ".png"
+    fig_size : tuple, default (14, 6)
+    save_path : str, optional
+        Full output path. Defaults to
+        f"{base_path}plots/peak_amp_rate_vs_uwire_and_mix_{method}_comparison{plot_type}".
+    verbose : bool, default True
+        Print skipped datasets and the final save path.
+
+    Returns
+    -------
+    fig, (ax_left, ax_right), path
+    """
+    entries = []
+    for dataset_name, result in analysis_out.items():
+        try:
+            info = dataset_info_fn(name=dataset_name)
+        except Exception as e:
+            if verbose:
+                print(f"  skipping {dataset_name}: could not parse dataset info ({e})")
+            continue
+
+        if "A_rate" not in result or "A_rate_err" not in result:
+            if verbose:
+                print(f"  skipping {dataset_name}: missing 'A_rate'/'A_rate_err'")
+            continue
+
+        pct_ar = int(info["pct_Ar"])
+        pct_co2 = int(info["pct_CO2"])
+        u_wire = int(info["U_wire"])
+
+        entries.append({
+            "dataset": dataset_name,
+            "mix": f"{pct_ar}/{pct_co2}",
+            "u_wire": u_wire,
+            "value": result["A_rate"],
+            "err": result["A_rate_err"],
+        })
+
+    if not entries:
+        raise ValueError("No datasets with 'A_rate'/'A_rate_err' found; nothing to plot.")
+
+    mixes = sorted(
+        set(e["mix"] for e in entries),
+        key=lambda m: tuple(int(v) for v in m.split("/")),
+    )
+    mix_to_x = {mix: i for i, mix in enumerate(mixes)}
+
+    unique_u_wires = sorted(set(e["u_wire"] for e in entries))
+    unmapped = [u for u in unique_u_wires if u not in _WIRE_COLOR_MAP]
+    if unmapped:
+        raise KeyError(
+            f"No fixed color defined for U_wire value(s) {unmapped}. "
+            f"Add them to _WIRE_VOLTAGES / _WIRE_COLOR_MAP (currently defined for {_WIRE_VOLTAGES})."
+        )
+    wire_color_map = {u: _WIRE_COLOR_MAP[u] for u in unique_u_wires}
+
+    # distinct color per gas mix for the left panel, independent of the
+    # fixed voltage color map (different axis being compared there)
+    mix_colormap = plt.cm.tab10
+    mix_color_map = {mix: mix_colormap(i % 10) for i, mix in enumerate(mixes)}
+
+    fig, (ax_left, ax_right) = plt.subplots(1, 2, figsize=fig_size)
+
+    # ---- left panel: A_rate vs U_wire, one line per gas mix ----
+    grouped_by_mix = {mix: [] for mix in mixes}
+    for e in entries:
+        grouped_by_mix[e["mix"]].append(e)
+
+    for mix in mixes:
+        group = sorted(grouped_by_mix[mix], key=lambda e: e["u_wire"])
+        if not group:
+            continue
+        x = [e["u_wire"] for e in group]
+        y = [e["value"] for e in group]
+        yerr = [e["err"] for e in group]
+        ax_left.errorbar(
+            x, y, yerr=yerr, marker="o", capsize=3,
+            color=mix_color_map[mix], label=mix,
+        )
+
+    ax_left.set_xlabel(r"$U_{\mathrm{wire}}$ [V]")
+    ax_left.set_ylabel("Photopeak amplitude / events")
+    ax_left.set_title("vs. wire voltage, per gas mix")
+    ax_left.grid(True)
+    ax_left.legend(title="Ar/CO$_2$ [%]", fancybox=False, framealpha=params._legend_alpha)
+
+    # ---- right panel: A_rate vs gas mix, one line per U_wire ----
+    grouped_by_wire = {u: [] for u in unique_u_wires}
+    for e in entries:
+        grouped_by_wire[e["u_wire"]].append(e)
+
+    for u in unique_u_wires:
+        group = sorted(grouped_by_wire[u], key=lambda e: mix_to_x[e["mix"]])
+        if not group:
+            continue
+        x = [mix_to_x[e["mix"]] for e in group]
+        y = [e["value"] for e in group]
+        yerr = [e["err"] for e in group]
+        ax_right.errorbar(
+            x, y, yerr=yerr, marker="o", capsize=3,
+            color=wire_color_map[u], label=f"$U_{{wire}}$ = {u} V",
+        )
+
+    ax_right.set_xticks(list(mix_to_x.values()))
+    ax_right.set_xticklabels(list(mix_to_x.keys()))
+    ax_right.set_xlabel("Gas mixture (Ar/CO$_2$) [%]")
+    ax_right.set_ylabel("Photopeak amplitude / events")
+    ax_right.set_title("vs. gas mix, per wire voltage")
+    ax_right.grid(True)
+    ax_right.legend(fancybox=False, framealpha=params._legend_alpha)
+
+    fig.suptitle(f"Photopeak amplitude (normalized) comparison from {strmethod}")
+    fig.tight_layout()
+
+    if save_path is None:
+        save_path = base_path + f"plots/peak_amp_rate_vs_uwire_and_mix_{method}_comparison{plot_type}"
+    fig.savefig(save_path)
+    if verbose:
+        print(f"store plot as {save_path}.")
+
+    return fig, (ax_left, ax_right), save_path
 
  
 def analyze_specific_data(
@@ -1076,7 +1241,7 @@ def main():
     do_ramp_measurement = False
     save_plots = True
     only_do_analysis = False  # set True to skip the analysis and only make plots from existing results
-    skip_existing_datasets = True  # set False to force re-analysis of every dataset
+    skip_existing_datasets = False  # set False to force re-analysis of every dataset
 
 #define parameters
     fig_size = (8, 6)
@@ -1085,25 +1250,68 @@ def main():
 
     legend_font_size = mpl.rcParams['font.size'] + 1
 
-    list_of_fits = [#"cosmic_82-18_3550-1800-1200_run1_th20_cut100", no peak
+    list_of_fits = [
+
+                #["cosmic_86-14_3650-1800-1200_run1_th20_cut100", 430],#issues with data proccessing
+                ["cosmic_86-14_3625-1800-1200_run1_th20_cut100", 430],
+                ["cosmic_86-14_3600-1800-1200_run1_th20_cut100", 430],
+                ["cosmic_86-14_3575-1800-1200_run1_th20_cut100", 430],
+                ["cosmic_86-14_3550-1800-1200_run1_th20_cut100",430],#full
+        
+
+                #"cosmic_82-18_3550-1800-1200_run1_th20_cut100", no peak
                 #"cosmic_82-18_3575-1800-1200_run1_th20_cut100", no peak
                 #"cosmic_82-18_3600-1800-1200_run1_th20_cut100", no peak
-                ["cosmic_82-18_3625-1800-1200_run1_th20_cut100", 391], 
+                ["cosmic_82-18_3625-1800-1200_run1_th20_cut100", 387], 
                 ["cosmic_82-18_3650-1800-1200_run1_th20_cut100", 391],
 
                 ["cosmic_83-17_3650-1800-1200_run1_th20_cut100", 400],
                 ["cosmic_83-17_3625-1800-1200_run1_th20_cut100", 400], 
-                #["cosmic_83-17_3600-1800-1200_run1_th20_cut100", 400],
+                ["cosmic_83-17_3600-1800-1200_run1_th20_cut100", 392],
                 #"cosmic_83-17_3575-1800-1200_run1_th20_cut100", 400], # no peak
                 #"cosmic_83-17_3550-1800-1200_run1_th20_cut100", 400], # no peak
 
-                #"cosmic_85-15_3550-1800-1200_run1_th20_cut100", 411], #no peak
+                ["cosmic_85-15_3550-1800-1200_run1_th20_cut100", 411], #no peak
                 ["cosmic_85-15_3575-1800-1200_run1_th20_cut100", 411],
                 ["cosmic_85-15_3600-1800-1200_run2_th20_cut100", 413],
+
+
 
                 ["cosmic_87-13_3550-1800-1200_run1_th20_cut100", 440],
                 ["cosmic_87-13_3575-1800-1200_run1_th20_cut100", 440],
                 ["cosmic_87-13_3600-1800-1200_run1_th20_cut100", 440], # stopped because of tripping
+
+                ]
+    list_of_fits = [
+
+                ["cosmic_86-14_3650-1800-1200_run1_th20", 430],#issues with data proccessing
+                ["cosmic_86-14_3625-1800-1200_run1_th20", 430],
+                ["cosmic_86-14_3600-1800-1200_run1_th20", 430],
+                ["cosmic_86-14_3575-1800-1200_run1_th20", 430],
+                ["cosmic_86-14_3550-1800-1200_run1_th20",430],#full
+        
+
+                #"cosmic_82-18_3550-1800-1200_run1_th20_cut100", no peak
+                #"cosmic_82-18_3575-1800-1200_run1_th20_cut100", no peak
+                #"cosmic_82-18_3600-1800-1200_run1_th20_cut100", no peak
+                ["cosmic_82-18_3625-1800-1200_run1_th20", 387], 
+                ["cosmic_82-18_3650-1800-1200_run1_th20", 391],
+
+                ["cosmic_83-17_3650-1800-1200_run1_th20", 400],
+                ["cosmic_83-17_3625-1800-1200_run1_th20", 400], 
+                ["cosmic_83-17_3600-1800-1200_run1_th20", 392],
+                #"cosmic_83-17_3575-1800-1200_run1_th20_cut100", 400], # no peak
+                #"cosmic_83-17_3550-1800-1200_run1_th20_cut100", 400], # no peak
+
+                ["cosmic_85-15_3550-1800-1200_run1_th20", 411], #no peak
+                ["cosmic_85-15_3575-1800-1200_run1_th20", 411],
+                ["cosmic_85-15_3600-1800-1200_run2_th20", 413],
+
+
+
+                ["cosmic_87-13_3550-1800-1200_run1_th20", 440],
+                ["cosmic_87-13_3575-1800-1200_run1_th20", 440],
+                ["cosmic_87-13_3600-1800-1200_run1_th20", 440], # stopped because of tripping
 
                 ]
     #list_of_fits = ["cosmic_82-18_3550-1800-1200_run1_th20_cut_50"]
@@ -1127,7 +1335,7 @@ def main():
         ["data_mic0_start_2026-07-27_00-16-49_stop_2026-07-27_00-26-50", 426],
         ["data_mic0_start_2026-07-27_04-26-52_stop_2026-07-27_04-36-53", 428],
         ["data_mic0_start_2026-07-27_08-36-55_stop_2026-07-27_08-46-56", 429],
-        #["data_mic0_start_2026-07-27_12-46-58_stop_2026-07-27_12-56-59", 405],  #not calculated
+        ["data_mic0_start_2026-07-27_12-46-58_stop_2026-07-27_12-56-59", 405],  #not calculated
         ["data_mic0_start_2026-07-27_16-57-02_stop_2026-07-27_17-07-03", 430],
         ["data_mic0_start_2026-07-27_21-07-05_stop_2026-07-27_21-17-06", 431],
         ["data_mic0_start_2026-07-28_01-17-08_stop_2026-07-28_01-27-09", 432],
@@ -1160,7 +1368,7 @@ def main():
     pcls_path = "pcls/" 
     plot_type = ".png"
     analysis_out = {}
-    results_raw_data = {}
+
 
     # --- load previously saved analysis results so datasets that are
     # already fully analyzed (plot + result present) can be skipped instead
@@ -1247,6 +1455,7 @@ def main():
             #nodeadtime = True
             #use_timestamp_sync = True
             dt_hits_file = dataset_folder_pcls + dataset_name + "_hits_nodeadtime.pcl"
+            dt_hits_root_file = dataset_folder_pcls + dataset_name + "_dt_hits.root"
             #dt_hit_diff_hist_file = dataset_folder_pcls + dataset_name + "_hit_diff.pcl"
             #dt_hits_file_deadtime = dataset_folder_pcls + dataset_name + "_hits_wdeadtime.pcl"
 
@@ -1262,9 +1471,13 @@ def main():
 
             ####################
             specific_data = data_utils.load_pickle(dt_hit_diff_hist_file)
-            dt_hits_file = data_utils.load_pickle(dt_hits_file)
+            # prefer the ROOT pipeline's output if it exists, fall back to
+            # the old .pcl for datasets not yet reprocessed through it
+            if os.path.exists(dt_hits_root_file):
+                dt_hits_file = uproot.open(f"{dt_hits_root_file}:dt_hits").arrays(library="np")
+            else:
+                dt_hits_file = data_utils.load_pickle(dt_hits_file)
             print(dt_hits_file.keys())
-            
 
 
             specific_results = analyze_specific_data(
@@ -1345,8 +1558,6 @@ def main():
                 print("storing histogram...")
                 fig.savefig(path)
                 print(f"Done saving hist as {path}\n")
-
-            ### remove exponential "poisson" background
             print("\nFitting exp. backgrund...")
             boarder = 2000 # ns
             fit_index_range = (bins > boarder) # > 1000 ns
@@ -1354,12 +1565,48 @@ def main():
             fit_bins = bins[fit_index_range]
             fit_hist = hist[fit_index_range]
             err_fit_hist = err_hist[fit_index_range]
+
             def f_bg_fit(x, a, b):
                 return a*np.exp(-x/b)
             def err_f_bg_fit(x, a, b, err_a, err_b):
                 return np.sqrt( (err_a*np.exp(-x/b))**2 + (-1/b*a*np.exp(-x/b)*err_b)**2 )
-            p0 = (1000, 100)
-            popt, pcov, infodict, mesg, _ = curve_fit(f=f_bg_fit, xdata=fit_bins, ydata=fit_hist, p0=p0, sigma=err_fit_hist, absolute_sigma=True, full_output=True)
+
+            # --- data-driven initial guess for (a, b) ---
+            # Fit a straight line to ln(hist) vs bins over the region where hist > 0:
+            # ln(a*exp(-x/b)) = ln(a) - x/b, so a linear regression directly gives
+            # slope = -1/b and intercept = ln(a), adapting the seed to each dataset's
+            # actual normalization and decay length instead of a fixed hardcoded guess.
+            mask_pos = fit_hist > 0
+            if np.sum(mask_pos) >= 2:
+                slope, intercept = np.polyfit(fit_bins[mask_pos], np.log(fit_hist[mask_pos]), 1)
+                if slope < 0:
+                    b_guess = -1.0 / slope
+                    a_guess = np.exp(intercept)
+                else:
+                    # flat/rising trend in log-space -- fall back to a width/first-bin guess
+                    # rather than a guess implying negative decay
+                    b_guess = fit_bins.max() - fit_bins.min()
+                    a_guess = fit_hist[0]
+            else:
+                # not enough positive bins to regress on -- fall back to simple estimates
+                b_guess = fit_bins.max() - fit_bins.min() if len(fit_bins) else 100
+                a_guess = fit_hist[0] if len(fit_hist) else 1000
+
+            # guard against a degenerate/zero guess feeding curve_fit a bad seed
+            a_guess = max(a_guess, 1e-3)
+            b_guess = max(b_guess, 1e-3)
+            p0 = (a_guess, b_guess)
+            print(f"  data-driven p0: a_guess = {a_guess:.4g}, b_guess = {b_guess:.4g}")
+
+            # bounds keep the fit physical (a > 0, b > 0) even if p0 is imperfect --
+            # this is what actually stops the runaway to b = -6e11 ns seen with the
+            # unbounded fixed p0
+            popt, pcov, infodict, mesg, _ = curve_fit(
+                f=f_bg_fit, xdata=fit_bins, ydata=fit_hist, p0=p0,
+                sigma=err_fit_hist, absolute_sigma=True,
+                bounds=([0.0, 0.0], [np.inf, np.inf]),
+                full_output=True,
+            )
             a_fit, b_fit = popt
             err_a_fit = np.sqrt(pcov[0][0])
             err_b_fit = np.sqrt(pcov[1][1])
@@ -1432,7 +1679,8 @@ def main():
             ax = hist_utils.plot_histogram(ax, hist=hist_nobg, centers=bins_nobg, err_hist_down=err_hist_nobg_down, err_hist_up=err_hist_nobg_up, log_scale=False, power_limits=[-3,3])
             info_str = f"entries = {int(np.sum(hist_nobg))}\nbin count = {len(centers)}\nbin width = {np.mean(np.diff(bins_nobg)):.3g} ns"
             ax = hist_utils.add_infobox(ax=ax, info_str=info_str, info_loc="top right")
-            ax.set_xlim(0,600)
+            max_dt = 700
+            ax.set_xlim(0,max_dt)
             ax.set_xlabel("$\\Delta T_\\text{cell}$ [ns]")
             if not do_ramp_measurement:
                 title = f"Background subtracted fit time diff hist of all cells\n{pct_ar}/{pct_co2} Ar/CO$_2$, $U_{{wire}}$ = {u_wire}V"
@@ -1460,8 +1708,8 @@ def main():
             popt, pcov, fit_bins, fit_hist, err_fit_hist, fit_func, mu_val, err_mu, fit_results = fit_secondary_peak_parabola(
                 bins_nobg, hist_nobg, err_hist_nobg,
                 peak_pos=dataset_peak_position,
-                halfwidth_left_ns=15,
-                halfwidth_right_ns=40,
+                halfwidth_left_ns=20,
+                halfwidth_right_ns=20,
                 edge_margin_frac=0.15,
                 window_growth=1.3,
                 max_attempts=6,
@@ -1475,9 +1723,10 @@ def main():
             param_names = ["A", "mu", "c"]
             fit_params = dict(zip(param_names, popt))
             errors = dict(zip(param_names, perr))
-  
-            A_rate = fit_params["A"] / duration_seconds
-            A_rate_err = errors["A"] / duration_seconds
+
+            n_events = int(np.sum(hist_nobg))
+            A_rate = fit_params["A"] / n_events
+            A_rate_err = errors["A"] / n_events
 
             fit_values = fit_func(fit_bins, *popt)
             chi2 = np.sum((fit_hist - fit_values)**2 / err_fit_hist**2)
@@ -1532,7 +1781,7 @@ def main():
                 alpha=0.1,
             )
 
-            lims = [0, 500]
+            lims = [0, max_dt]
             ax[0].axvline(x=peak_pos, color="tab:red", linestyle="--", label="Peak position $\\mu$")
             ax[0].axvspan(xmin=peak_pos - peak_err_total, xmax=peak_pos + peak_err_total, color="tab:red", alpha=0.1)
             ax[0].set_ylim(bottom=0, top=np.amax(hist_nobg) * 1.1)
@@ -1573,6 +1822,7 @@ def main():
                 print(f"histogram plot stored as {path}.")
 
             analysis_out[dataset_name] = {
+                **specific_results,
                 **fit_params,
                 **{f"{key}_err": value for key, value in errors.items()},
                 "peak_pos": peak_pos,
@@ -1635,13 +1885,37 @@ def main():
                     dataset_info_fn=parse_fit_name,
                     value_key="A_rate",
                     err_key="A_rate_err",
-                    ylabel="Photopeak amplitude rate [Hz]",
-                    filename_prefix="peak_amp_rate",
+                    ylabel="Photopeak normalized amplitude",
+                    filename_prefix="peak_amp",
                     plot_type=plot_type,
                     fig_size=fig_size,
                     method="photopeak",
                     strmethod="Photopeak Method",
                     )
+        fig, (ax_left, ax_right), path = plot_peak_amplitude_rate_vs_uwire_and_mix(
+            analysis_out=analysis_out,
+            base_path=base_path,
+            dataset_info_fn=parse_fit_name,
+            plot_type=plot_type,
+            method="photopeak",
+            strmethod="Photopeak Method",
+            )
+
+
+
+        fig, ax, path = plot_metric_by_gas_mix(
+            analysis_out=analysis_out,
+            base_path=base_path,
+            dataset_info_fn=parse_fit_name,
+            value_key="avg_rate_chamber",
+            err_key="avg_rate_chamber_err",
+            ylabel="Chamber rate [Hz]",
+            filename_prefix="chamber_rate",
+            plot_type=plot_type,
+            fig_size=fig_size,
+            method="photopeak",
+            strmethod="Photopeak Method",
+            )
     elif do_ramp_measurement:
 
         analysis_out = data_utils.load_pickle(f"{base_path}{pcls_path}analysis_out_photo_peak_ramp.pcl")

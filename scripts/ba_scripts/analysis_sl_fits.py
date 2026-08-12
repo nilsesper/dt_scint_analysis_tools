@@ -26,6 +26,7 @@ from pathlib import Path
 import matplotlib.cm as cm
 import matplotlib.colors as mcolors
 import matplotlib.patches as mpatches
+import uproot
 # ---------------------------------------------------------------
 
 vd_factor = 1 / derived_params._drift_velocity_conversion
@@ -1698,7 +1699,7 @@ def fit_parabola_peak(
     centers = hist_utils.centers_from_edges(edges)
 
     # Maximum bin
-    peak_fraction = 0.60
+    peak_fraction = 0.80
     n_consecutive = 4
 
     imax = np.argmax(hist)
@@ -2752,9 +2753,9 @@ def main():
 
 
 
-    do_only_vd_peak_fit = False # when set to true, only the gaussian fit of the photopeak is performed, no super-fit analysis
-    do_ramp_measurement = False
-    do_refit_full_analysis = True
+    do_only_vd_peak_fit = True # when set to true, only the gaussian fit of the photopeak is performed, no super-fit analysis
+    do_ramp_measurement = True
+    do_refit_full_analysis = False
     do_super_fit_analysis = True
     skip_existing_datasets = False  # set False to force re-analysis of every dataset
 
@@ -2790,6 +2791,13 @@ def main():
                 "cosmic_85-15_3575-1800-1200_run1_th20_cut100", 
                 "cosmic_85-15_3600-1800-1200_run2_th20_cut100",#missing 3625, 3650 (not measured)
 
+
+                "cosmic_86-14_3650-1800-1200_run1_th20_cut100", #issues with data proccessing
+                "cosmic_86-14_3625-1800-1200_run1_th20_cut100", 
+                "cosmic_86-14_3600-1800-1200_run1_th20_cut100", 
+                "cosmic_86-14_3575-1800-1200_run1_th20_cut100", 
+                "cosmic_86-14_3550-1800-1200_run1_th20_cut100",#full
+
                 "cosmic_87-13_3550-1800-1200_run1_th20_cut100",
                 "cosmic_87-13_3575-1800-1200_run1_th20_cut100",
                 "cosmic_87-13_3600-1800-1200_run1_th20_cut100", # stopped because of tripping
@@ -2798,44 +2806,44 @@ def main():
     #list_of_fits = ["cosmic_82-18_3550-1800-1200_run1_th20_cut_50"]
 
     ramp_datasets = [
-        ["data_mic0_start_2026-07-24_18-06-10_stop_2026-07-24_18-16-11", 405],
-        ["data_mic0_start_2026-07-24_22-16-13_stop_2026-07-24_22-26-14", 405],
-        ["data_mic0_start_2026-07-25_02-26-16_stop_2026-07-25_02-36-17", 405],
-        ["data_mic0_start_2026-07-25_06-36-19_stop_2026-07-25_06-46-20", 405],
-        ["data_mic0_start_2026-07-25_10-46-22_stop_2026-07-25_10-56-23", 405],
-        ["data_mic0_start_2026-07-25_14-56-25_stop_2026-07-25_15-06-26", 405],
-        ["data_mic0_start_2026-07-25_19-06-28_stop_2026-07-25_19-16-29", 405],
-        ["data_mic0_start_2026-07-25_23-16-31_stop_2026-07-25_23-26-32", 405],
-        ["data_mic0_start_2026-07-26_03-26-34_stop_2026-07-26_03-36-35", 405],
-        ["data_mic0_start_2026-07-26_07-36-37_stop_2026-07-26_07-46-38", 405],
-        ["data_mic0_start_2026-07-26_11-46-40_stop_2026-07-26_11-56-41", 405],
-        ["data_mic0_start_2026-07-26_15-56-43_stop_2026-07-26_16-06-44", 405],
-        ["data_mic0_start_2026-07-26_20-06-46_stop_2026-07-26_20-16-47", 405],
-        ["data_mic0_start_2026-07-27_00-16-49_stop_2026-07-27_00-26-50", 405],
-        ["data_mic0_start_2026-07-27_04-26-52_stop_2026-07-27_04-36-53", 405],
-        ["data_mic0_start_2026-07-27_08-36-55_stop_2026-07-27_08-46-56", 405],
-        #["data_mic0_start_2026-07-27_12-46-58_stop_2026-07-27_12-56-59", 405],  #not calculated
-        ["data_mic0_start_2026-07-27_16-57-02_stop_2026-07-27_17-07-03", 405],
-        ["data_mic0_start_2026-07-27_21-07-05_stop_2026-07-27_21-17-06", 405],
-        ["data_mic0_start_2026-07-28_01-17-08_stop_2026-07-28_01-27-09", 405],
-        ["data_mic0_start_2026-07-28_05-27-11_stop_2026-07-28_05-37-12", 405],
-        ["data_mic0_start_2026-07-28_09-37-15_stop_2026-07-28_09-47-16", 405],
-        ["data_mic0_start_2026-07-28_13-47-18_stop_2026-07-28_13-57-19", 405],
-        ["data_mic0_start_2026-07-28_17-57-21_stop_2026-07-28_18-07-22", 405],
-        ["data_mic0_start_2026-07-28_22-07-25_stop_2026-07-28_22-17-26", 405],
-        ["data_mic0_start_2026-07-29_02-17-28_stop_2026-07-29_02-27-29", 405],
-        ["data_mic0_start_2026-07-29_06-27-31_stop_2026-07-29_06-37-32", 405],
-        ["data_mic0_start_2026-07-29_10-37-34_stop_2026-07-29_10-47-35", 405],
-        ["data_mic0_start_2026-07-29_14-47-37_stop_2026-07-29_14-57-38", 405],
-        ["data_mic0_start_2026-07-29_18-57-40_stop_2026-07-29_19-07-41", 405],
-        ["data_mic0_start_2026-07-29_23-07-43_stop_2026-07-29_23-17-44", 405],
-        ["data_mic0_start_2026-07-30_07-27-49_stop_2026-07-30_07-37-50", 405],
-        ["data_mic0_start_2026-07-30_11-37-52_stop_2026-07-30_11-47-53", 405],
-        ["data_mic0_start_2026-07-30_15-47-55_stop_2026-07-30_15-57-56", 405],
-        ["data_mic0_start_2026-07-30_19-57-58_stop_2026-07-30_20-07-59", 405],
-        ["data_mic0_start_2026-07-31_00-08-02_stop_2026-07-31_00-18-03", 405],
-        ["data_mic0_start_2026-07-31_04-18-05_stop_2026-07-31_04-28-06", 405],
-        ["data_mic0_start_2026-07-31_08-28-08_stop_2026-07-31_08-38-09", 405],
+        "data_mic0_start_2026-07-24_18-06-10_stop_2026-07-24_18-16-11",
+        "data_mic0_start_2026-07-24_22-16-13_stop_2026-07-24_22-26-14", 
+        "data_mic0_start_2026-07-25_02-26-16_stop_2026-07-25_02-36-17", 
+        "data_mic0_start_2026-07-25_06-36-19_stop_2026-07-25_06-46-20", 
+        "data_mic0_start_2026-07-25_10-46-22_stop_2026-07-25_10-56-23",
+        "data_mic0_start_2026-07-25_14-56-25_stop_2026-07-25_15-06-26",
+        "data_mic0_start_2026-07-25_19-06-28_stop_2026-07-25_19-16-29",
+        "data_mic0_start_2026-07-25_23-16-31_stop_2026-07-25_23-26-32", 
+        "data_mic0_start_2026-07-26_03-26-34_stop_2026-07-26_03-36-35",
+        "data_mic0_start_2026-07-26_07-36-37_stop_2026-07-26_07-46-38",
+        "data_mic0_start_2026-07-26_11-46-40_stop_2026-07-26_11-56-41",
+        "data_mic0_start_2026-07-26_15-56-43_stop_2026-07-26_16-06-44", 
+        "data_mic0_start_2026-07-26_20-06-46_stop_2026-07-26_20-16-47", 
+        "data_mic0_start_2026-07-27_00-16-49_stop_2026-07-27_00-26-50", 
+        "data_mic0_start_2026-07-27_04-26-52_stop_2026-07-27_04-36-53",
+        "data_mic0_start_2026-07-27_08-36-55_stop_2026-07-27_08-46-56",
+        #"data_mic0_start_2026-07-27_12-46-58_stop_2026-07-27_12-56-59",
+        "data_mic0_start_2026-07-27_16-57-02_stop_2026-07-27_17-07-03", 
+        "data_mic0_start_2026-07-27_21-07-05_stop_2026-07-27_21-17-06", 
+        "data_mic0_start_2026-07-28_01-17-08_stop_2026-07-28_01-27-09", 
+        "data_mic0_start_2026-07-28_05-27-11_stop_2026-07-28_05-37-12", 
+        "data_mic0_start_2026-07-28_09-37-15_stop_2026-07-28_09-47-16", 
+        "data_mic0_start_2026-07-28_13-47-18_stop_2026-07-28_13-57-19", 
+        "data_mic0_start_2026-07-28_17-57-21_stop_2026-07-28_18-07-22", 
+        "data_mic0_start_2026-07-28_22-07-25_stop_2026-07-28_22-17-26", 
+        "data_mic0_start_2026-07-29_02-17-28_stop_2026-07-29_02-27-29", 
+        "data_mic0_start_2026-07-29_06-27-31_stop_2026-07-29_06-37-32", 
+        "data_mic0_start_2026-07-29_10-37-34_stop_2026-07-29_10-47-35", 
+        "data_mic0_start_2026-07-29_14-47-37_stop_2026-07-29_14-57-38", 
+        "data_mic0_start_2026-07-29_18-57-40_stop_2026-07-29_19-07-41", 
+        "data_mic0_start_2026-07-29_23-07-43_stop_2026-07-29_23-17-44", 
+        "data_mic0_start_2026-07-30_07-27-49_stop_2026-07-30_07-37-50", 
+        "data_mic0_start_2026-07-30_11-37-52_stop_2026-07-30_11-47-53",
+        "data_mic0_start_2026-07-30_15-47-55_stop_2026-07-30_15-57-56", 
+        "data_mic0_start_2026-07-30_19-57-58_stop_2026-07-30_20-07-59",
+        "data_mic0_start_2026-07-31_00-08-02_stop_2026-07-31_00-18-03",
+        "data_mic0_start_2026-07-31_04-18-05_stop_2026-07-31_04-28-06",
+        "data_mic0_start_2026-07-31_08-28-08_stop_2026-07-31_08-38-09",
     ]
     #list_of_fits = ["cosmic_82-18_3550-1800-1200_run1_th20_cut_50"]
     
@@ -2853,9 +2861,8 @@ def main():
         list_of_fits = ramp_datasets
 
     base_path = "data_ba/"
-
-
     plot_type = ".png"
+
     fig_size = (8,6)
     #dataset_name = "cosmic_82-18_3550-1800-1200_run1_th20_cut_50"
 
@@ -2897,22 +2904,24 @@ def main():
     if datasets_to_skip:
         print(f"Skipping {len(datasets_to_skip)} already-analyzed dataset(s): "
               f"{sorted(datasets_to_skip)}")
-
     # check that source datasets exist (skip the check for datasets we're
     # not going to touch anyway)
     non_existing_super_fits = []
 
-
-
     for dataset in list_of_fits:
         if dataset in datasets_to_skip:
             continue
-        file_name = f"{dataset}_super_fits.pcl"
-        dataset_path = Path(f"{base_path}pcls/{dataset}/{file_name}")
 
-        if not dataset_path.exists():
-            print(f"Error: Dataset '{file_name}' does not exist.")
-            non_existing_super_fits.append(file_name)
+        root_file_name = f"{dataset}_super_fits.root"
+        pcl_file_name = f"{dataset}_super_fits.pcl"
+        root_path = Path(f"{base_path}pcls/{dataset}/{root_file_name}")
+        pcl_path = Path(f"{base_path}pcls/{dataset}/{pcl_file_name}")
+
+        if root_path.exists() or pcl_path.exists():
+            continue
+
+        print(f"Error: Dataset '{root_file_name}' (or '{pcl_file_name}') does not exist.")
+        non_existing_super_fits.append(root_file_name)
 
     if len(non_existing_super_fits) >= 1:
         sys.exit(1)  # Stop the entire script
@@ -2928,11 +2937,31 @@ def main():
             analysis_out[dataset_name] = analysis_out_prev[dataset_name]
             continue
 
-        sl_patterns_file = base_path + f"pcls/{dataset_name}/" + dataset_name + "_sl_patterns.pcl"
-        sl_fits_file = base_path + f"pcls/{dataset_name}/" + dataset_name + "_sl_fits.pcl"
-        sl_refits_file = base_path + f"pcls/{dataset_name}/" + dataset_name + "_sl_refits.pcl"
-        super_fits_path = base_path + f"pcls/{dataset_name}/" + dataset_name + "_super_fits.pcl"
+        
+
+        #when using pcls use this
+        #sl_patterns_file = base_path + f"pcls/{dataset_name}/" + dataset_name + "_sl_patterns.pcl"
+        #sl_fits_file = base_path + f"pcls/{dataset_name}/" + dataset_name + "_sl_fits.pcl"
+        #sl_refits_file = base_path + f"pcls/{dataset_name}/" + dataset_name + "_sl_refits.pcl"
+        #super_fits_path = base_path + f"pcls/{dataset_name}/" + dataset_name + "_super_fits.pcl"
+        #plot_save_path = base_path + f"plots/sl_fits/{dataset_name}/" 
+        #print(f"###### Importing super fits...")
+        #super_fits = data_utils.load_pickle(file = super_fits_path)
+        #print("### imported super fits data from file: " + super_fits_path)
+
+
+
+        #when using root files, use this
+        sl_patterns_file = base_path + f"pcls/{dataset_name}/" + dataset_name + "_sl_patterns.root"
+        sl_fits_file = base_path + f"pcls/{dataset_name}/" + dataset_name + "_sl_fits.root"
+        sl_refits_file = base_path + f"pcls/{dataset_name}/" + dataset_name + "_sl_refits.root"
+        super_fits_path = base_path + f"pcls/{dataset_name}/" + dataset_name + "_super_fits.root"
         plot_save_path = base_path + f"plots/sl_fits/{dataset_name}/" 
+
+        super_fits = uproot.open(f"{super_fits_path}:tree").arrays(library="np")
+        print("### imported super fits data from file: " + super_fits_path)
+
+
         os.makedirs(plot_save_path, exist_ok=True)
     
 
@@ -2940,9 +2969,7 @@ def main():
         #print(f"###### Importing fits...")
         
 
-        #print(f"###### Importing super fits...")
-        super_fits = data_utils.load_pickle(file = super_fits_path)
-        print("### imported super fits data from file: " + super_fits_path)
+
 
         #refit_keylist = [ "chi2/ndf_refit", "vd_refit", "tan_alpha_refit",  "x0_refit", "t0_refit", "dt0_refit",  "dt1_refit", "dt2_refit", "dt2_refit"]
         #fit_keylist = ["chi2/ndf", "vd", "tan_alpha",  "x0", "dt1",  "dt2", "dt2", "pat_type"]
@@ -3338,10 +3365,12 @@ def main():
         # block above is already scoped.
         # -----------------------------------------------------------------
         if do_refit_full_analysis:
-            sl_fits = data_utils.load_pickle(file = sl_fits_file)
+            #sl_fits = data_utils.load_pickle(file = sl_fits_file) #when using pcl files use this
+
+            sl_fits = uproot.open(f"{sl_fits_file}:tree").arrays(library="np")
             print(sl_fits.keys())
             #print(f"###### Importing refits...")
-            sl_refits = data_utils.load_pickle(file = sl_refits_file)
+            sl_refits = uproot.open(f"{sl_refits_file}:tree").arrays(library="np")
             #print("### imported refits data from file: " + sl_refits_file)
             # The analysis of refits beginns here
             for i in range(2):
