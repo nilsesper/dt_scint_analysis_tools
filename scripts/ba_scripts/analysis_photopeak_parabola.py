@@ -789,9 +789,11 @@ def plot_peak_amplitude_rate_vs_uwire_and_mix(
 
     return fig, (ax_left, ax_right), save_path
 
- 
+
+
 def analyze_specific_data(
-    hits_data,
+    cell_counts,
+    duration_seconds,
     dataset_name,
     base_path,
     plot_save_path,
@@ -802,13 +804,16 @@ def analyze_specific_data(
     """
     Run the full "SPECIFIC" occupancy/rate analysis for one dataset of DT
     chamber hits.
- 
+
     Parameters
     ----------
-    hits_data : dict
-        Per-hit data as loaded from the "*_hits_nodeadtime.pcl" file. Must
-        contain at least the keys "sl", "ly", "wi", "ts" (parallel arrays,
-        one entry per hit).
+    cell_counts : dict
+        cell_counts[sl][ly][wi] -> int, per-cell hit counts as produced
+        by the streaming pipeline's chunked accumulation (or, for older
+        datasets, derived from the raw hit arrays as a fallback in
+        main()).
+    duration_seconds : float
+        Run duration in seconds, as derived from ts_max - ts_min.
     dataset_name : str
         Name of the dataset, used for plot titles / filenames.
     base_path : str
@@ -824,7 +829,7 @@ def analyze_specific_data(
         If True, all info/status messages are also printed to stdout.
         Regardless of this flag, every message is collected in the
         returned `log` list.
- 
+
     Returns
     -------
     results : dict
@@ -848,17 +853,17 @@ def analyze_specific_data(
             "avg_rate_chamber_err": float,
         }
     """
- 
+
     log = []
- 
+
     def emit(msg):
         log.append(msg)
         if verbose:
             print(msg)
- 
+
     if save_plots:
         os.makedirs(plot_save_path, exist_ok=True)
- 
+
     layer_labels = {
         0: "SL 1, Ly 0",
         1: "SL 1, Ly 1",
@@ -873,40 +878,13 @@ def analyze_specific_data(
         10: "SL 3, Ly 2",
         11: "SL 3, Ly 3",
     }
- 
-    ########################
-    ####### build cell_counts from raw hits, and derive duration
- 
-    sl_arr = np.asarray(hits_data["sl"])
-    ly_arr = np.asarray(hits_data["ly"])
-    wi_arr = np.asarray(hits_data["wi"])
-    ts_arr = np.asarray(hits_data["ts"])
- 
-    # duration: span of timestamps, converted from clock ticks to seconds
-    # using the same conversion factor as the original script.
-    duration_ticks = float(np.max(ts_arr) - np.min(ts_arr))
-    duration_seconds = duration_ticks * 0.78 * 1e-9
+
     emit(f"duration = {duration_seconds} s")
- 
-    cell_counts = {
-        sl: {
-            ly: {
-                wi: 0
-                for wi in range(
-                    params._dt_chamber["sls"][sl]["lys"][ly]["min_wi"],
-                    params._dt_chamber["sls"][sl]["lys"][ly]["max_wi"] + 1,
-                )
-            }
-            for ly in range(0, 4)
-        }
-        for sl in range(1, 4)
-    }
-    for sl, ly, wi in zip(sl_arr, ly_arr, wi_arr):
-        cell_counts[int(sl)][int(ly)][int(wi)] += 1
- 
+
     ########################
     ####### occupancy plot (2d matrix)
- 
+    # cell_counts is taken directly from the parameter -- no rebuild here
+
     chamber_matrix = np.full((12, 58), np.nan)  # -1: invalid cell
     cell_hits = 0
     for sl in range(1, 4):
@@ -917,7 +895,7 @@ def analyze_specific_data(
             ):
                 chamber_matrix[4 * (sl - 1) + ly][wi] = cell_counts[sl][ly][wi]
                 cell_hits += cell_counts[sl][ly][wi]
- 
+
     fig, ax = plt.subplots(1, 1, figsize=(16, 6))
     im_obj = ax.imshow(
         X=chamber_matrix,
@@ -946,10 +924,10 @@ def analyze_specific_data(
         emit(f"store plot as {hist_plot_file}.")
         fig.savefig(hist_plot_file)
     plt.close(fig)
- 
+
     ########################
     ####### rate plot (2d matrix)
- 
+
     chamber_matrix = np.full((12, 58), np.nan)
     cell_hits = 0
     for sl in range(1, 4):
@@ -962,7 +940,7 @@ def analyze_specific_data(
                     cell_counts[sl][ly][wi] / duration_seconds
                 )
                 cell_hits += cell_counts[sl][ly][wi]
- 
+
     fig, ax = plt.subplots(1, 1, figsize=(16, 6))
     im_obj = ax.imshow(
         X=chamber_matrix,
@@ -989,10 +967,10 @@ def analyze_specific_data(
         emit(f"store plot as {hist_plot_file}.")
         fig.savefig(hist_plot_file)
     plt.close(fig)
- 
+
     ########################
     ####### find dead & noisy cells
- 
+
     total_count_all_cells = 0
     n_cells = 0
     for sl in range(1, 4):
@@ -1003,7 +981,7 @@ def analyze_specific_data(
             ):
                 total_count_all_cells += cell_counts[sl][ly][wi]
                 n_cells += 1
- 
+
     mean_rate_all_cells = total_count_all_cells / n_cells / duration_seconds
     mean_rate_all_cells_err = (
         np.sqrt(total_count_all_cells) / n_cells / duration_seconds
@@ -1020,7 +998,7 @@ def analyze_specific_data(
         f"mean rate all cells: {mean_rate_all_cells} "
         f"+- {mean_rate_all_cells_err} Hz"
     )
- 
+
     emit("dead and noisy cells:")
     count_thres = total_count_all_cells / n_cells
     dead_cells = []
@@ -1047,10 +1025,10 @@ def analyze_specific_data(
                         f"(ro_ch={ro_ch:2}, ch={ch:3})"
                     )
                     noisy_cells.append((sl, ly, wi))
- 
+
     ########################
     ####### average phi and theta rates (without dead channels)
- 
+
     phi1_total_count, phi3_total_count, theta_total_count = 0, 0, 0
     n_phi1, n_phi3, n_theta = 0, 0, 0
     for sl in range(1, 4):
@@ -1069,7 +1047,7 @@ def analyze_specific_data(
                     elif sl in [2]:
                         theta_total_count += cell_counts[sl][ly][wi]
                         n_theta += 1
- 
+
     avg_rate_phi1 = phi1_total_count / n_phi1 / duration_seconds if n_phi1 != 0 else 0
     avg_rate_phi1_err = (
         np.sqrt(phi1_total_count) / n_phi1 / duration_seconds if n_phi1 != 0 else 0
@@ -1104,7 +1082,7 @@ def analyze_specific_data(
         / (n_phi1 + n_phi3 + n_theta)
         / duration_seconds
     )
- 
+
     emit("* = dead or noisy cells not considered")
     emit(f"average sl 1 phi cell rate *    : {avg_rate_phi1} +- {avg_rate_phi1_err} Hz")
     emit(
@@ -1117,10 +1095,10 @@ def analyze_specific_data(
     emit(
         f"average chamber cell rate *     : {avg_rate_chamber} +- {avg_rate_chamber_err} Hz"
     )
- 
+
     ########################
     ####### rate plot (multiple bar plots)
- 
+
     for sl in range(1, 4):
         fig, ax = plt.subplots(4, 1, figsize=(16, 8), sharex=True)
         for ly in range(0, 4):
@@ -1165,7 +1143,7 @@ def analyze_specific_data(
             emit(f"store plot as {hist_plot_file}.")
             fig.savefig(hist_plot_file)
         plt.close(fig)
- 
+
     return {
         "log": log,
         "cell_counts": cell_counts,
@@ -1185,8 +1163,6 @@ def analyze_specific_data(
         "avg_rate_chamber": avg_rate_chamber,
         "avg_rate_chamber_err": avg_rate_chamber_err,
     }
- 
-
 
 def parse_fit_name(*, name):
         # Erwartetes Format: cosmic_<Ar>-<CO2>_<U_wire>-<U_Fieldshaper>-<U_cathode>_<rest...>
@@ -1314,7 +1290,7 @@ def main():
                 ["cosmic_87-13_3600-1800-1200_run1_th20", 440], # stopped because of tripping
 
                 ]
-    #list_of_fits = ["cosmic_82-18_3550-1800-1200_run1_th20_cut_50"]
+    list_of_fits = [["cosmic_82-18_3550-1800-1200_run1_th20_cut_50", 390]]
 
     #list_of_fits = ["mb1_sxa5_cosmics_10min"]
 
@@ -1470,18 +1446,40 @@ def main():
             
 
             ####################
-            specific_data = data_utils.load_pickle(dt_hit_diff_hist_file)
-            # prefer the ROOT pipeline's output if it exists, fall back to
-            # the old .pcl for datasets not yet reprocessed through it
-            if os.path.exists(dt_hits_root_file):
-                dt_hits_file = uproot.open(f"{dt_hits_root_file}:dt_hits").arrays(library="np")
-            else:
-                dt_hits_file = data_utils.load_pickle(dt_hits_file)
-            print(dt_hits_file.keys())
+            cell_counts_file = dataset_folder_pcls + dataset_name + "_cell_counts.pcl"
+            if not os.path.exists(cell_counts_file):
+                raise FileNotFoundError(
+                    f"Missing '{cell_counts_file}'. Run root_streaming_pipeline_v3.py "
+                    f"for dataset '{dataset_name}' first."
+                )
+            cc = data_utils.load_pickle(cell_counts_file)
+            cell_counts = cc["cell_counts"]
+            duration_seconds = cc["duration_seconds"]
 
+            """
+
+            # fallback for datasets not yet reprocessed through the new pipeline
+            dt_hits_file_loaded = data_utils.load_pickle(dt_hits_file)
+            sl_arr = np.asarray(dt_hits_file_loaded["sl"])
+            ly_arr = np.asarray(dt_hits_file_loaded["ly"])
+            wi_arr = np.asarray(dt_hits_file_loaded["wi"])
+            ts_arr = np.asarray(dt_hits_file_loaded["ts"])
+            duration_seconds = float(np.max(ts_arr) - np.min(ts_arr)) * 0.78 * 1e-9
+            cell_counts = {
+                sl: {ly: {wi: 0 for wi in range(
+                        params._dt_chamber["sls"][sl]["lys"][ly]["min_wi"],
+                        params._dt_chamber["sls"][sl]["lys"][ly]["max_wi"] + 1)}
+                    for ly in range(0, 4)}
+                for sl in range(1, 4)
+            }
+            for sl, ly, wi in zip(sl_arr, ly_arr, wi_arr):
+                cell_counts[int(sl)][int(ly)][int(wi)] += 1
+            """
+            specific_data = data_utils.load_pickle(dt_hit_diff_hist_file)
 
             specific_results = analyze_specific_data(
-                hits_data=dt_hits_file,
+                cell_counts=cell_counts,
+                duration_seconds=duration_seconds,
                 dataset_name=dataset_name,
                 base_path=base_path,
                 plot_save_path=plot_save_path,
@@ -1493,7 +1491,6 @@ def main():
             analysis_out[dataset_name] = specific_results
 
             ### hist to plot
-            # read data
             start_idx = 0
             hist = np.array(specific_data["hist"])[start_idx:]
             err_hist = np.array(specific_data["err_hist"])[start_idx:]

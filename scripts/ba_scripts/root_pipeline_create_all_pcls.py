@@ -389,6 +389,22 @@ def run_streamed_pipeline(dt_hits_root_path, dataset_folder_pcls, dataset_name, 
     _log(f"[Phase 1+] START streaming \"{dt_hits_root_path}\" in chunks of {chunk_step_size}")
     phase1_t0 = time.perf_counter()
 
+
+    cell_counts = {
+        sl: {
+            ly: {
+                wi: 0
+                for wi in range(
+                    params._dt_chamber["sls"][sl]["lys"][ly]["min_wi"],
+                    params._dt_chamber["sls"][sl]["lys"][ly]["max_wi"] + 1,
+                )
+            }
+            for ly in range(0, 4)
+        }
+        for sl in range(1, 4)
+    }
+    ts_min, ts_max = None, None
+
     for chunk in uproot.iterate(f"{dt_hits_root_path}:dt_hits", step_size=chunk_step_size, library="np"):
         n_chunks += 1
         chunk_t0 = time.perf_counter()
@@ -399,6 +415,18 @@ def run_streamed_pipeline(dt_hits_root_path, dataset_folder_pcls, dataset_name, 
         _fold_histogram_chunk(chunk, running_hist)
 
         chunk_deadtime = _apply_individual_dead_time_chunk(chunk)
+
+        # --- occupancy/duration accumulation (vectorized, no python loop over hits) ---
+        combo = np.stack([chunk["sl"], chunk["ly"], chunk["wi"]], axis=1)
+        uniq_cells, uniq_counts = np.unique(combo, axis=0, return_counts=True)
+        for (sl_u, ly_u, wi_u), c in zip(uniq_cells, uniq_counts):
+            cell_counts[int(sl_u)][int(ly_u)][int(wi_u)] += int(c)
+
+        chunk_ts_min = chunk["ts"].min()
+        chunk_ts_max = chunk["ts"].max()
+        ts_min = chunk_ts_min if ts_min is None else min(ts_min, chunk_ts_min)
+        ts_max = chunk_ts_max if ts_max is None else max(ts_max, chunk_ts_max)
+
         del chunk
         n_hits_after_deadtime = len(chunk_deadtime["sl"])
         totals["hits_after_deadtime"] += n_hits_after_deadtime
@@ -507,6 +535,15 @@ def run_streamed_pipeline(dt_hits_root_path, dataset_folder_pcls, dataset_name, 
         hist_err_left=running_hist["hist_err_left"], do_stat_err=True,
     )
     err_hist_stat = np.sqrt(running_hist["hist"])
+    duration_seconds = float(ts_max - ts_min) * 0.78 * 1e-9
+    cell_counts_file = dataset_folder_pcls + dataset_name + "_cell_counts.pcl"
+    data_utils.store_pickle(
+        data={"cell_counts": cell_counts, "duration_seconds": duration_seconds,
+              "ts_min": ts_min, "ts_max": ts_max},
+        file=cell_counts_file,
+    )
+    print("Cell counts file saved")
+    _log(f"[Phase 1+] cell_counts -> {cell_counts_file}")
     specific_data = {
         "edges": running_hist["edges"], "centers": centers, "hist": running_hist["hist"],
         "err_hist": err_hist, "err_hist_stat": err_hist_stat, "err_hist_down": err_hist_down,

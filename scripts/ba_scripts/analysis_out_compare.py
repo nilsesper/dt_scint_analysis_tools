@@ -162,6 +162,7 @@ def build_comparison_entries(
             "pull": float,       # diff / err_diff
         }
     """
+    # find common datasets, datasets that are only in Photopeak, and only in track fit
     common = sorted(set(analysis_out_photopeak) & set(analysis_out_track_fit))
     only_tf = sorted(set(analysis_out_track_fit) - set(analysis_out_photopeak))
     only_pp = sorted(set(analysis_out_photopeak) - set(analysis_out_track_fit))
@@ -182,6 +183,7 @@ def build_comparison_entries(
                 print(f"  skipping {name}: could not parse dataset info ({e})")
             continue
 
+        # try extracting vd and err_vd
         try:
             vd_pp, err_pp = get_vd_photopeak(dataset_name=name, result=analysis_out_photopeak[name])
             vd_tf, err_tf = get_vd_trackfit(dataset_name=name, result=analysis_out_track_fit[name])
@@ -190,6 +192,7 @@ def build_comparison_entries(
                 print(f"  skipping {name}: {e}")
             continue
 
+        # calculate diff and error propagation
         diff = vd_pp - vd_tf
         err_diff = np.sqrt(err_pp ** 2 + err_tf ** 2)
         pull = diff / err_diff if err_diff > 0 else np.nan
@@ -206,6 +209,7 @@ def build_comparison_entries(
     return entries
 
 
+
 def build_ramp_comparison_entries(
     *,
     analysis_out_photopeak_ramp,
@@ -213,10 +217,7 @@ def build_ramp_comparison_entries(
     verbose=True,
     ):
     """
-    Same matching logic as build_comparison_entries(), but for the ramp
-    measurement: instead of (mix, u_wire), each entry carries the parsed
-    start `time` (datetime), since the ramp scan is single gas mix / single
-    U_wire = 3600 V, varying only in time.
+    extracts data to form a single plot to show change in vd over time for the ramp measurement from 83/17 to 87/13
 
     Returns
     -------
@@ -230,6 +231,7 @@ def build_ramp_comparison_entries(
         }
         sorted by time.
     """
+    # find common and non common datasets in both analysis
     common = sorted(set(analysis_out_photopeak_ramp) & set(analysis_out_track_fit_ramp))
     only_tf = sorted(set(analysis_out_track_fit_ramp) - set(analysis_out_photopeak_ramp))
     only_pp = sorted(set(analysis_out_photopeak_ramp) - set(analysis_out_track_fit_ramp))
@@ -242,6 +244,7 @@ def build_ramp_comparison_entries(
             print(f"  {len(only_tf)} dataset(s) only in track-fit ramp results, skipped: {only_tf}")
 
     entries = []
+    #extract start time
     for name in common:
         try:
             t = parse_start_time(name)
@@ -249,7 +252,7 @@ def build_ramp_comparison_entries(
             if verbose:
                 print(f"  skipping {name}: could not parse start time ({e})")
             continue
-
+        #extract vd
         try:
             vd_pp, err_pp = get_vd_photopeak(dataset_name=name, result=analysis_out_photopeak_ramp[name])
             vd_tf, err_tf = get_vd_trackfit(dataset_name=name, result=analysis_out_track_fit_ramp[name])
@@ -257,11 +260,11 @@ def build_ramp_comparison_entries(
             if verbose:
                 print(f"  skipping {name}: {e}")
             continue
-
+        # calculate diff, and do error propagation
         diff = vd_pp - vd_tf
         err_diff = np.sqrt(err_pp ** 2 + err_tf ** 2)
         pull = diff / err_diff if err_diff > 0 else np.nan
-
+        # form return
         entries.append({
             "dataset": name, "time": t,
             "vd_photopeak": vd_pp, "err_vd_photopeak": err_pp,
@@ -283,11 +286,7 @@ def build_rate_comparison_entries(
     verbose=True,
     ):
     """
-    Same matching/entry-building logic as build_comparison_entries(), but
-    for the chamber rate [Hz] instead of the drift velocity: photopeak's
-    `photopeak_rate_key`/`photopeak_err_key` (default: the overall chamber
-    rate) vs. track-fit's "track_rate"/"track_rate_err" (see the patch
-    documented above get_rate_photopeak/get_rate_trackfit).
+    extract rates from photopeak analysis out to build rate comparrison plots
 
     Returns
     -------
@@ -416,10 +415,6 @@ def build_ramp_rate_comparison_entries(
     return entries
 
 
-# =================================================================
-# Plot 1: grouped bar chart, both methods side by side, per gas mix
-# =================================================================
-
 def plot_vd_comparison_bars_by_gas_mix(
     *,
     entries,
@@ -536,9 +531,7 @@ def plot_vd_comparison_bars_by_gas_mix(
     return fig, ax, save_path
 
 
-# =================================================================
-# Plot 2: trend lines vs U_wire, one line per (gas mix, method)
-# =================================================================
+
 
 def plot_vd_vs_uwire_both_methods(
     *,
@@ -607,9 +600,6 @@ def plot_vd_vs_uwire_both_methods(
     return fig, ax, save_path
 
 
-# =================================================================
-# Plot 3: method difference (photopeak - track-fit), grouped by mix
-# =================================================================
 
 def plot_method_difference_by_gas_mix(
     *,
@@ -694,12 +684,7 @@ def plot_method_difference_by_gas_mix(
 
     return fig, ax, save_path
 
-
-# =================================================================
-# Plot 4: pull distribution -- are the two methods statistically
-# consistent overall?
-# =================================================================
-
+# pull dist
 def plot_pull_distribution(
     *,
     entries,
@@ -755,9 +740,7 @@ def plot_pull_distribution(
     return fig, ax, save_path
 
 
-# =================================================================
-# Plot 5: ramp measurement, both methods over time
-# =================================================================
+#both methods ramp measurement
 
 def plot_ramp_comparison(
     *,
@@ -815,10 +798,7 @@ def plot_ramp_comparison(
     return fig, ax, save_path
 
 
-# =================================================================
-# Plot 6: rate comparison bars, both methods side by side, per gas mix
-# =================================================================
-
+# rate comparison
 def plot_rate_comparison_bars_by_gas_mix(
     *,
     entries,
@@ -920,9 +900,7 @@ def plot_rate_comparison_bars_by_gas_mix(
     return fig, ax, save_path
 
 
-# =================================================================
-# Plot 7: rate trend lines vs U_wire, one line per (gas mix, method)
-# =================================================================
+# rate cs u_wire
 
 def plot_rate_vs_uwire_both_methods(
     *,
@@ -985,9 +963,7 @@ def plot_rate_vs_uwire_both_methods(
     return fig, ax, save_path
 
 
-# =================================================================
-# Plot 8: ramp measurement rate, both methods over time
-# =================================================================
+# ramp measurement rate
 
 def plot_ramp_rate_comparison(
     *,
@@ -1034,16 +1010,6 @@ def plot_ramp_rate_comparison(
     return fig, ax, save_path
 
 
-# =================================================================
-# Plot 9-11: rate trends across gas mix / wire voltage (SINGLE method)
-#
-# Unlike the plot_rate_*_both_methods functions above, these don't need
-# datasets to be present in both analysis_out dicts -- they just read the
-# rate straight out of one analysis_out dict (photopeak's, by default,
-# since that's the one with rates already populated -- see the notes
-# above get_rate_photopeak/get_rate_trackfit) and show how it depends on
-# gas mixture and wire voltage.
-# =================================================================
 
 def build_rate_entries_single_method(
     *,
@@ -1321,9 +1287,7 @@ def plot_rate_heatmap(
     return fig, ax, save_path
 
 
-# =================================================================
-# Plot 12: vd bar chart, plotted individually per method
-# =================================================================
+# idndividual vd plots
 
 def build_vd_entries_single_method(
     *,
@@ -1463,9 +1427,7 @@ def plot_vd_bars_by_gas_mix_single_method(
     return fig, ax, save_path
 
 
-# =================================================================
-# Summary tex table
-# =================================================================
+#tex table
 
 def make_comparison_tex_table(*, entries, float_precision=3):
     """
@@ -1512,18 +1474,7 @@ def main(save_plots=True, do_cut_data=True):
     if save_plots:
         os.makedirs(plot_save_path, exist_ok=True)
 
-    # -----------------------------------------------------------------
-    # NOTE / FIX: these filenames now match what the two source scripts
-    # actually write:
-    #   photo_peak_analysis.py -> f"{base_path}{pcls_path}analysis_out_photo_peak_data.pcl"
-    #                              f"{base_path}{pcls_path}analysis_out_photo_peak_ramp.pcl"
-    #   sl_fits_analysis.py    -> f"{pcls_path}analysis_out_track_fit.pcl"       (pcls_path there
-    #                                                                             already == base_path+"pcls/")
-    #                              f"{pcls_path}analysis_out_track_fit_ramp.pcl"
-    # The previous version of this file used "analyis_out_photopeak_data.pcl"
-    # and "analysis_out_track_fit_data.pcl", neither of which the other two
-    # scripts ever write -- fixed here.
-    # -----------------------------------------------------------------
+
     analysis_out_photopeak = data_utils.load_pickle(
         f"{pcls_file_path}analysis_out_photo_peak_data.pcl"
     )
