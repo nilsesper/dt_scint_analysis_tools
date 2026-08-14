@@ -446,7 +446,7 @@ def plot_vd_by_gas_mix(
     fig.savefig(save_path)
     if verbose:
         print(f"store plot as {save_path}.")
- 
+    plt.close("all")
     return fig, ax, save_path
 
 
@@ -582,7 +582,7 @@ def plot_metric_by_gas_mix(
     fig.savefig(save_path)
     if verbose:
         print(f"store plot as {save_path}.")
-
+    plt.close("all")
     return fig, ax, save_path
 
 
@@ -786,7 +786,7 @@ def plot_peak_amplitude_rate_vs_uwire_and_mix(
     fig.savefig(save_path)
     if verbose:
         print(f"store plot as {save_path}.")
-
+    plt.close("all")
     return fig, (ax_left, ax_right), save_path
 
 
@@ -1228,69 +1228,44 @@ def main():
 
     list_of_fits = [
 
+                ["cosmic_82-18_3650-1800-1200_run1_th20_cut100", 391],        
+                ["cosmic_82-18_3625-1800-1200_run1_th20_cut100", 387], 
+                #["cosmic_82-18_3550-1800-1200_run1_th20_cut100", 387], no peak
+                #["cosmic_82-18_3575-1800-1200_run1_th20_cut100", 387], no peak
+                #["cosmic_82-18_3600-1800-1200_run1_th20_cut100", 387], no peak
+
+                ["cosmic_83-17_3650-1800-1200_run1_th20_cut100", 400],
+                ["cosmic_83-17_3625-1800-1200_run1_th20_cut100", 400], 
+                ["cosmic_83-17_3600-1800-1200_run1_th20_cut100", 392],
+                #["cosmic_83-17_3575-1800-1200_run1_th20_cut100", 392], # no peak
+                #["cosmic_83-17_3550-1800-1200_run1_th20_cut100", 392], # no peak
+
+                ["cosmic_84-16_3650-1800-1200_run1_th20_cut100", 405], 
+                ["cosmic_84-16_3625-1800-1200_run1_th20_cut100", 405], 
+                ["cosmic_84-16_3600-1800-1200_run1_th20_cut100", 405],
+                ["cosmic_84-16_3575-1800-1200_run1_th20_cut100", 405],
+                ["cosmic_84-16_3550-1800-1200_run1_th20_cut100", 405],
+
+
+
+                ["cosmic_85-15_3600-1800-1200_run2_th20_cut100", 413],
+                ["cosmic_85-15_3575-1800-1200_run1_th20_cut100", 411],                
+                ["cosmic_85-15_3550-1800-1200_run1_th20_cut100", 411], #no peak
+
                 #["cosmic_86-14_3650-1800-1200_run1_th20_cut100", 430],#issues with data proccessing
                 ["cosmic_86-14_3625-1800-1200_run1_th20_cut100", 430],
                 ["cosmic_86-14_3600-1800-1200_run1_th20_cut100", 430],
                 ["cosmic_86-14_3575-1800-1200_run1_th20_cut100", 430],
                 ["cosmic_86-14_3550-1800-1200_run1_th20_cut100",430],#full
-        
 
-                #"cosmic_82-18_3550-1800-1200_run1_th20_cut100", no peak
-                #"cosmic_82-18_3575-1800-1200_run1_th20_cut100", no peak
-                #"cosmic_82-18_3600-1800-1200_run1_th20_cut100", no peak
-                ["cosmic_82-18_3625-1800-1200_run1_th20_cut100", 387], 
-                ["cosmic_82-18_3650-1800-1200_run1_th20_cut100", 391],
-
-                ["cosmic_83-17_3650-1800-1200_run1_th20_cut100", 400],
-                ["cosmic_83-17_3625-1800-1200_run1_th20_cut100", 400], 
-                ["cosmic_83-17_3600-1800-1200_run1_th20_cut100", 392],
-                #"cosmic_83-17_3575-1800-1200_run1_th20_cut100", 400], # no peak
-                #"cosmic_83-17_3550-1800-1200_run1_th20_cut100", 400], # no peak
-
-                ["cosmic_85-15_3550-1800-1200_run1_th20_cut100", 411], #no peak
-                ["cosmic_85-15_3575-1800-1200_run1_th20_cut100", 411],
-                ["cosmic_85-15_3600-1800-1200_run2_th20_cut100", 413],
-
-
-
-                ["cosmic_87-13_3550-1800-1200_run1_th20_cut100", 440],
-                ["cosmic_87-13_3575-1800-1200_run1_th20_cut100", 440],
                 ["cosmic_87-13_3600-1800-1200_run1_th20_cut100", 440], # stopped because of tripping
+                ["cosmic_87-13_3575-1800-1200_run1_th20_cut100", 440],
+                ["cosmic_87-13_3550-1800-1200_run1_th20_cut100", 440],
+
+
 
                 ]
-    list_of_fits = [
-
-                ["cosmic_86-14_3650-1800-1200_run1_th20", 430],#issues with data proccessing
-                ["cosmic_86-14_3625-1800-1200_run1_th20", 430],
-                ["cosmic_86-14_3600-1800-1200_run1_th20", 430],
-                ["cosmic_86-14_3575-1800-1200_run1_th20", 430],
-                ["cosmic_86-14_3550-1800-1200_run1_th20",430],#full
-        
-
-                #"cosmic_82-18_3550-1800-1200_run1_th20_cut100", no peak
-                #"cosmic_82-18_3575-1800-1200_run1_th20_cut100", no peak
-                #"cosmic_82-18_3600-1800-1200_run1_th20_cut100", no peak
-                ["cosmic_82-18_3625-1800-1200_run1_th20", 387], 
-                ["cosmic_82-18_3650-1800-1200_run1_th20", 391],
-
-                ["cosmic_83-17_3650-1800-1200_run1_th20", 400],
-                ["cosmic_83-17_3625-1800-1200_run1_th20", 400], 
-                ["cosmic_83-17_3600-1800-1200_run1_th20", 392],
-                #"cosmic_83-17_3575-1800-1200_run1_th20_cut100", 400], # no peak
-                #"cosmic_83-17_3550-1800-1200_run1_th20_cut100", 400], # no peak
-
-                ["cosmic_85-15_3550-1800-1200_run1_th20", 411], #no peak
-                ["cosmic_85-15_3575-1800-1200_run1_th20", 411],
-                ["cosmic_85-15_3600-1800-1200_run2_th20", 413],
-
-
-
-                ["cosmic_87-13_3550-1800-1200_run1_th20", 440],
-                ["cosmic_87-13_3575-1800-1200_run1_th20", 440],
-                ["cosmic_87-13_3600-1800-1200_run1_th20", 440], # stopped because of tripping
-
-                ]
-    list_of_fits = [["cosmic_82-18_3550-1800-1200_run1_th20_cut_50", 390]]
+    
 
     #list_of_fits = ["mb1_sxa5_cosmics_10min"]
 
@@ -1501,27 +1476,6 @@ def main():
             bins = centers
             overflow = specific_data["overflow"]
             underflow = specific_data["underflow"]
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 

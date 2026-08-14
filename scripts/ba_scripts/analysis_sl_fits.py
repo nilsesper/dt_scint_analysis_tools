@@ -1894,6 +1894,8 @@ def muon_heatmap_from_fits(
     save=True,
     cut_suff = "",
     dataset_info = "",
+    masked_cell_color="orange",
+    dead_cell_color="tab:red",
 ):
     """
     Build an x-z occupancy heatmap of incoming muons directly from fitted
@@ -2009,46 +2011,80 @@ def muon_heatmap_from_fits(
  
     hist2d, _, _ = np.histogram2d(x=all_z, y=all_x, bins=(z_edges, x_edges))
  
-    # mark the known masked wires (params._dt_dead_wires) on the chamber geometry
-    dt_cell_data = dt_utils._chamber_data()
-    n_masked = 0
+# pass 0: base chamber cell grid (all cells, neutral outline)
+    dt_cell_data_base = dt_utils._chamber_data()
+    for sl_key in dt_cell_data_base:
+        for ly_key in dt_cell_data_base[sl_key]:
+            for wi_key in dt_cell_data_base[sl_key][ly_key]:
+                dt_cell_data_base[sl_key][ly_key][wi_key]["color"] = "white"
+
+    # pass 1: full chamber geometry with dead cells (params._dt_dead_wires)
+    dt_cell_data_dead = dt_utils._chamber_data()
+    for sl_key in dt_cell_data_dead:
+        for ly_key in dt_cell_data_dead[sl_key]:
+            for wi_key in dt_cell_data_dead[sl_key][ly_key]:
+                dt_cell_data_dead[sl_key][ly_key][wi_key]["color"] = "none"
+
+    n_dead = 0
     for sl in used_sls:
         for ly, wire_ids in params._dt_dead_wires.get(sl, {}).items():
             for wi in wire_ids:
-                dt_cell_data[sl][ly][wi]["color"] = "tab:red"
-                n_masked += 1
- 
+                if wi in dt_cell_data_dead[sl][ly]:
+                    dt_cell_data_dead[sl][ly][wi]["color"] = dead_cell_color
+                    n_dead += 1
+
+    # pass 2: masked/noisy cells (params._dt_wire_mask)
+    dt_cell_data_masked = dt_utils._chamber_data()
+    for sl_key in dt_cell_data_masked:
+        for ly_key in dt_cell_data_masked[sl_key]:
+            for wi_key in dt_cell_data_masked[sl_key][ly_key]:
+                dt_cell_data_masked[sl_key][ly_key][wi_key]["color"] = "none"
+
+    n_masked = 0
+    for sl in used_sls:
+        for ly, wire_ids in params._dt_wire_mask.get(sl, {}).items():
+            for wi in wire_ids:
+                if wi in dt_cell_data_masked[sl][ly]:
+                    dt_cell_data_masked[sl][ly][wi]["color"] = masked_cell_color
+                    n_masked += 1
+
     fig, ax = plt.subplots(1, 1, figsize=(12, 5))
     im_obj = ax.imshow(X=hist2d, origin="lower",
                         extent=[x_bins.min(), x_bins.max(), z_bins.min(), z_bins.max()],
                         aspect="auto")
-    ax = geoplot_utils.chamber_ax(ax=ax, orient=orient, cell_data=dt_cell_data, wire=False, transparent=True)
- 
+
+    # draw base cell grid, then dead cells, then overlay masked cells on top
+    ax = geoplot_utils.chamber_ax(ax=ax, orient=orient, cell_data=dt_cell_data_base, wire=False, transparent=True)
+    ax = geoplot_utils.chamber_ax(ax=ax, orient=orient, cell_data=dt_cell_data_dead, wire=False, transparent=True)
+    ax = geoplot_utils.chamber_ax(ax=ax, orient=orient, cell_data=dt_cell_data_masked, wire=False, transparent=True)
     ax.set_title(f"DT tracks (reconstructed from fits), {cut_suff}", fontsize=20)
     ax.set_ylabel("$z$ [mm]")
     ax.set_xlabel("$x$ [mm]")
- 
+
     formatter = ScalarFormatter(useMathText=True)
     formatter.set_powerlimits([-3, 3])
     cbar = fig.colorbar(im_obj, ax=ax, fraction=0.05, format=formatter)
     cbar.set_label("Track-crossing density\n(extrapolated fits)")
- 
+
+    legend_entries = {"Chamber geometry": mpatches.Patch(edgecolor="white", facecolor="none")}
+    if n_dead > 0:
+        legend_entries["Dead cells"] = mpatches.Patch(edgecolor=dead_cell_color, facecolor="none")
     if n_masked > 0:
-        legend_entries = {
-            "Chamber geometry": mpatches.Patch(edgecolor="white", facecolor="none"),
-            "Dead cells": mpatches.Patch(edgecolor="tab:red", facecolor="none"),
-        }
+        legend_entries["Masked/noisy cells"] = mpatches.Patch(edgecolor=masked_cell_color, facecolor="none")
+
+    if n_dead > 0 or n_masked > 0:
         ax.legend(legend_entries.values(), legend_entries.keys(), prop={"size": 12}, loc="lower center",
                   fancybox=False, framealpha=params._legend_alpha)
- 
+
     fig.tight_layout()
- 
+
     path = f"{plot_save_path}{dataset_name}_muon_heatmap_fits_xz_CHAMBER_{cut_suff}{plot_type}"
     if save:
         fig.savefig(path)
+        print(f"Detector heatmap saved to: {path}")
     plt.close(fig)
     saved_paths["xz_heatmap"] = path
- 
+
     return saved_paths
 
 
@@ -2753,8 +2789,8 @@ def main():
 
 
 
-    do_only_vd_peak_fit = True # when set to true, only the gaussian fit of the photopeak is performed, no super-fit analysis
-    do_ramp_measurement = True
+    do_only_vd_peak_fit = False # when set to true, only the gaussian fit of the photopeak is performed, no super-fit analysis
+    do_ramp_measurement = False
     do_refit_full_analysis = False
     do_super_fit_analysis = True
     skip_existing_datasets = False  # set False to force re-analysis of every dataset
@@ -2775,7 +2811,11 @@ def main():
     print(max_angle_deg)  # 58.240519915187214
     
     
-    list_of_fits = ["cosmic_82-18_3550-1800-1200_run1_th20_cut100",
+    list_of_fits = [
+
+
+
+                "cosmic_82-18_3550-1800-1200_run1_th20_cut100",
                 "cosmic_82-18_3575-1800-1200_run1_th20_cut100", 
                 "cosmic_82-18_3600-1800-1200_run1_th20_cut100",
                 "cosmic_82-18_3625-1800-1200_run1_th20_cut100", 
@@ -2787,10 +2827,15 @@ def main():
                 "cosmic_83-17_3575-1800-1200_run1_th20_cut100", 
                 "cosmic_83-17_3550-1800-1200_run1_th20_cut100",#full
 
+                "cosmic_84-16_3650-1800-1200_run1_th20_cut100",
+                "cosmic_84-16_3625-1800-1200_run1_th20_cut100", 
+                "cosmic_84-16_3600-1800-1200_run1_th20_cut100", 
+                "cosmic_84-16_3575-1800-1200_run1_th20_cut100", 
+                "cosmic_84-16_3550-1800-1200_run1_th20_cut100",#full
+
                 "cosmic_85-15_3550-1800-1200_run1_th20_cut100",
                 "cosmic_85-15_3575-1800-1200_run1_th20_cut100", 
                 "cosmic_85-15_3600-1800-1200_run2_th20_cut100",#missing 3625, 3650 (not measured)
-
 
                 "cosmic_86-14_3650-1800-1200_run1_th20_cut100", #issues with data proccessing
                 "cosmic_86-14_3625-1800-1200_run1_th20_cut100", 
@@ -2848,13 +2893,6 @@ def main():
     #list_of_fits = ["cosmic_82-18_3550-1800-1200_run1_th20_cut_50"]
     
         
-# --- resolve the dataset list + effective mode flags ---
-    # NOTE: do_ramp_measurement forces do_only_vd_peak_fit and
-    # do_super_fit_analysis to True, overriding whatever was set for them
-    # above -- a ramp scan only ever needs the quick vd-peak fit per
-    # dataset, not the full super-fit plot suite. do_refit_full_analysis is
-    # NOT forced by ramp mode (it's independent and still respected as set
-    # above) 
     if do_ramp_measurement:
         do_only_vd_peak_fit = True
         do_super_fit_analysis = True

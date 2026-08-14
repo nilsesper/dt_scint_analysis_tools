@@ -582,6 +582,14 @@ def plot_vd_vs_uwire_both_methods(
         ax.errorbar(x, y_tf, yerr=yerr_tf, marker="^", linestyle="--",
                     capsize=3, color=color, label=f"{mix} (track-fit)")
 
+
+    y_margin_up = 2
+    y_margin_down = 0.5
+    y_lo = min(min(e["vd_photopeak"] - e["err_vd_photopeak"],
+                e["vd_trackfit"] - e["err_vd_trackfit"]) for e in entries)
+    y_hi = max(max(e["vd_photopeak"] + e["err_vd_photopeak"],
+                e["vd_trackfit"] + e["err_vd_trackfit"]) for e in entries)
+    ax.set_ylim(y_lo - y_margin_down, y_hi + y_margin_up)
     ax.set_xlabel(r"$U_{\mathrm{wire}}$ [V]")
     ax.set_ylabel(r"$v_d$ [$\mu$m/ns]")
     ax.set_title("Drift velocity vs. wire voltage -- both methods")
@@ -596,6 +604,8 @@ def plot_vd_vs_uwire_both_methods(
     fig.savefig(save_path)
     if verbose:
         print(f"store plot as {save_path}.")
+
+    plt.close("all")
 
     return fig, ax, save_path
 
@@ -682,6 +692,7 @@ def plot_method_difference_by_gas_mix(
     if verbose:
         print(f"store plot as {save_path}.")
 
+    plt.close("all")
     return fig, ax, save_path
 
 # pull dist
@@ -737,6 +748,7 @@ def plot_pull_distribution(
     if verbose:
         print(f"store plot as {save_path}.")
 
+    plt.close("all")
     return fig, ax, save_path
 
 
@@ -1287,6 +1299,127 @@ def plot_rate_heatmap(
     return fig, ax, save_path
 
 
+def build_rate_evolution_entries_photopeak(
+    *,
+    analysis_out_photopeak,
+    dataset_info_fn=parse_fit_name,
+    rate_key="avg_rate_chamber",
+    err_key="avg_rate_chamber_err",
+    verbose=True,
+    ):
+    """
+    One entry per photopeak dataset, ordered chronologically -- traces how
+    the rate evolves across the measurement campaign.
+
+    The cosmic-scan dataset names ("cosmic_82-18_...") carry no real
+    timestamp anywhere (not in the name, not in the stored fit result
+    dict -- only the ramp run's "data_mic0_start_..." names do). What IS
+    meaningful is processing order: analysis_out is built by
+    photo_peak_analysis.py iterating its hand-ordered `list_of_fits`
+    (82/18 -> 87/13), which follows the actual campaign order, so dict
+    insertion order is used as the x-axis here instead.
+
+    Returns
+    -------
+    entries : list[dict]
+        Each entry: {"dataset": str, "seq": int, "mix": str,
+                      "u_wire": int or None, "rate": float, "err_rate": float}
+        in analysis_out_photopeak's insertion (= campaign) order.
+    """
+    entries = []
+    for seq_idx, (dataset_name, result) in enumerate(analysis_out_photopeak.items()):
+        if rate_key not in result or err_key not in result:
+            if verbose:
+                print(f"  skipping {dataset_name}: missing '{rate_key}'/'{err_key}'")
+            continue
+
+        try:
+            info = dataset_info_fn(name=dataset_name)
+            mix = f"{int(info['pct_Ar'])}/{int(info['pct_CO2'])}"
+            u_wire = int(info["U_wire"])
+        except Exception:
+            mix, u_wire = "unknown", None
+
+        entries.append({
+            "dataset": dataset_name, "seq": seq_idx, "mix": mix, "u_wire": u_wire,
+            "rate": float(result[rate_key]), "err_rate": float(result[err_key]),
+        })
+
+    return entries
+
+def plot_rate_evolution_photopeak(
+    *,
+    entries,
+    base_path,
+    rate_label="Chamber rate [Hz]",
+    method_label="",
+    plot_type=".png",
+    fig_size=(13, 6),
+    save_path=None,
+    verbose=True,
+    ):
+    """
+    Rate-evolution plot for the photopeak method across the campaign,
+    x-axis = processing/campaign order (see
+    build_rate_evolution_entries_photopeak for why this isn't wall-clock
+    time), points colored by gas mixture so any drift lines up visibly
+    with a mix change. Dataset names are shown as tick labels (rotated)
+    so a specific run can still be identified.
+
+    Returns
+    -------
+    fig, ax, path
+    """
+    if not entries:
+        raise ValueError("No entries to plot.")
+
+    mixes = sorted(
+        set(e["mix"] for e in entries if e["mix"] != "unknown"),
+        key=lambda m: tuple(int(v) for v in m.split("/")),
+    )
+    if any(e["mix"] == "unknown" for e in entries):
+        mixes.append("unknown")
+    mix_color_map = {mix: (_MIX_CMAP(i % 10) if mix != "unknown" else "gray")
+                      for i, mix in enumerate(mixes)}
+
+    fig, ax = plt.subplots(1, 1, figsize=fig_size)
+
+    seqs = [e["seq"] for e in entries]
+    rates = [e["rate"] for e in entries]
+    errs = [e["err_rate"] for e in entries]
+
+    ax.plot(seqs, rates, color="lightgray", linewidth=1, zorder=1)
+    ax.errorbar(seqs, rates, yerr=errs, fmt="none", ecolor="black",
+                capsize=2, zorder=2)
+    for mix in mixes:
+        mix_seqs = [e["seq"] for e in entries if e["mix"] == mix]
+        mix_rates = [e["rate"] for e in entries if e["mix"] == mix]
+        ax.scatter(mix_seqs, mix_rates, color=mix_color_map[mix], label=mix,
+                   zorder=3, s=40, edgecolor="black", linewidth=0.5)
+
+    ax.set_xticks(seqs)
+    ax.set_xticklabels([e["dataset"] for e in entries], rotation=90, fontsize=7)
+    ax.set_xlabel("Dataset (campaign order)")
+    ax.set_ylabel(rate_label)
+    title = "Rate evolution over the measurement campaign (photopeak method)"
+    if method_label:
+        title += f" [{method_label}]"
+    ax.set_title(title)
+    ax.grid(True, alpha=0.3)
+    ax.legend(title="Ar/CO$_2$ [%]", fontsize=9, ncol=2,
+              fancybox=False, framealpha=params._legend_alpha)
+    fig.tight_layout()
+
+    if save_path is None:
+        tag = f"_{method_label}" if method_label else ""
+        save_path = base_path + f"plots/compare/rate_evolution_photopeak{tag}{plot_type}"
+    os.makedirs(os.path.dirname(save_path), exist_ok=True)
+    fig.savefig(save_path)
+    if verbose:
+        print(f"store plot as {save_path}.")
+
+    plt.close("all")
+    return fig, ax, save_path
 # idndividual vd plots
 
 def build_vd_entries_single_method(
@@ -1423,7 +1556,7 @@ def plot_vd_bars_by_gas_mix_single_method(
     fig.savefig(save_path)
     if verbose:
         print(f"store plot as {save_path}.")
-
+    plt.close("all")
     return fig, ax, save_path
 
 
@@ -1615,6 +1748,21 @@ def main(save_plots=True, do_cut_data=True):
             entries=rate_entries_single, base_path=base_path, rate_label=label,
             method_label=rate_key, plot_type=plot_type,
         )
+
+        # rate evolution over time, photopeak method
+        rate_evolution_entries = build_rate_evolution_entries_photopeak(
+            analysis_out_photopeak=analysis_out_photopeak,
+            dataset_info_fn=parse_fit_name,
+            rate_key=rate_key, err_key=err_key,
+        )
+        if rate_evolution_entries:
+            plot_rate_evolution_photopeak(
+                entries=rate_evolution_entries, base_path=base_path,
+                rate_label=label, method_label=rate_key, plot_type=plot_type,
+            )
+        else:
+            print(f"No datasets with a parseable start time for '{rate_key}'; "
+                  "skipping rate evolution plot.")
 
     return
 

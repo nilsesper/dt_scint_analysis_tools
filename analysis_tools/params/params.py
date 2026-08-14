@@ -1433,9 +1433,9 @@ _dt_wire_mask = { # sl: ly: [wire_ids]
         3: [4, 16, 17],
     },
     3: {
-        0: [10],        #10 is dead wire
-        1: [41],        #41 is dead wire
-        2: [26],        #26 is dead wire
+        0: [],        
+        1: [],        
+        2: [],        
         3: [],
     }
 
