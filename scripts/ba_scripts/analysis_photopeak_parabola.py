@@ -1252,7 +1252,7 @@ def main():
                 ["cosmic_85-15_3575-1800-1200_run1_th20_cut100", 411],                
                 ["cosmic_85-15_3550-1800-1200_run1_th20_cut100", 411], #no peak
 
-                #["cosmic_86-14_3650-1800-1200_run1_th20_cut100", 430],#issues with data proccessing
+                ["cosmic_86-14_3650-1800-1200_run1_th20_cut100", 430],#issues with data proccessing
                 ["cosmic_86-14_3625-1800-1200_run1_th20_cut100", 430],
                 ["cosmic_86-14_3600-1800-1200_run1_th20_cut100", 430],
                 ["cosmic_86-14_3575-1800-1200_run1_th20_cut100", 430],
@@ -1267,6 +1267,7 @@ def main():
                 ]
     
 
+    #list_of_fits = [["cosmic_82-18_3550-1800-1200_run1_th20_cut_50", 400]]
     #list_of_fits = ["mb1_sxa5_cosmics_10min"]
 
     ramp_datasets = [
@@ -1479,8 +1480,6 @@ def main():
 
 
 
-            ######################
-            ##### poisson bg subtraction
 
             ### plot dt hit differences
             # plot hist, 
@@ -1490,6 +1489,7 @@ def main():
             fig, ax = plt.subplots(1, 1, figsize=fig_size)
             ax = hist_utils.plot_histogram(ax, hist=hist, centers=bins, err_hist_down=err_hist_down, err_hist_up=err_hist_up, log_scale=True, power_limits=[-4,4], add_info=True, entries=int(np.sum(hist)), overflow=overflow, underflow=underflow, bin_unit="ns")
             ax.set_xlim(0,np.amax(bins))
+            #ax.set_xlim(0,100)
             ax.set_xlabel("$\\Delta T_\\text{cell}$ [ns]")
 
             # setting the title according to the measurement type
@@ -1509,6 +1509,15 @@ def main():
                 print("storing histogram...")
                 fig.savefig(path)
                 print(f"Done saving hist as {path}\n")
+
+
+
+            
+
+
+ 
+            ######################
+            ##### poisson bg subtraction           
             print("\nFitting exp. backgrund...")
             boarder = 2000 # ns
             fit_index_range = (bins > boarder) # > 1000 ns
@@ -1771,6 +1780,90 @@ def main():
                 print(f"storing histogram...")
                 fig.savefig(path)
                 print(f"histogram plot stored as {path}.")
+
+
+
+
+            #parabola peak fit
+            ### plot dt hit differences with a parabola fit around the known peak
+            # plot hist, with parabola fit overlay
+            wire = "wire"
+            print("Plotting full t_diff hist with peak fit...")
+
+            fig, ax = plt.subplots(1, 1, figsize=fig_size)
+            ax = hist_utils.plot_histogram(ax, hist=hist, centers=bins, err_hist_down=err_hist_down, err_hist_up=err_hist_up, log_scale=False, power_limits=[-4,4], add_info=True, entries=int(np.sum(hist)), overflow=overflow, underflow=underflow, bin_unit="ns")
+            ax.set_xlim(0,np.amax(bins))
+            #ax.set_xlim(0,100)
+            ax.set_xlabel("$\\Delta T_\\text{cell}$ [ns]")
+
+            ### fit a parabola in the vicinity (+/- peak_fit_halfwidth_bins
+            ### bins) of the ALREADY KNOWN peak position dataset_peak_position
+            ### -- no argmax search needed here, unlike the simulation script,
+            ### since the peak location came out of list_of_fits already
+            def f_parabola(x, a, x0, c):
+                return a * (x - x0) ** 2 + c
+
+            peak_fit_halfwidth_bins = 10
+            i_peak = int(np.argmin(np.abs(bins - dataset_peak_position)))
+            i_fit_lo = max(i_peak - peak_fit_halfwidth_bins, 0)
+            i_fit_hi = min(i_peak + peak_fit_halfwidth_bins + 1, len(bins))
+            x_fit_peak = bins[i_fit_lo:i_fit_hi]
+            y_fit_peak = hist[i_fit_lo:i_fit_hi]
+            yerr_fit_peak = err_hist[i_fit_lo:i_fit_hi]
+
+            try:
+                popt_peak, pcov_peak = curve_fit(
+                    f_parabola, x_fit_peak, y_fit_peak,
+                    p0=[-1.0, dataset_peak_position, hist[i_peak]],
+                    sigma=yerr_fit_peak, absolute_sigma=True,
+                )
+                peak_pos_fit, peak_pos_fit_err = popt_peak[1], np.sqrt(np.diag(pcov_peak))[1]
+
+
+                x_arr_peak = np.linspace(x_fit_peak[0], x_fit_peak[-1], num=200)
+                ax.plot(x_arr_peak, f_parabola(x_arr_peak, *popt_peak), color="tab:red",
+                        linewidth=2, zorder=5,
+                        label=f"parabola fit:\n$t_\\text{{peak}}={peak_pos_fit:.2f} \\pm {peak_pos_fit_err:.2f}$ ns")
+                ax.axvline(peak_pos_fit, color="tab:red", linestyle="--", linewidth=1, zorder=4)
+                ax.legend()
+                x_target = 600  # ns
+                i_target = np.argmin(np.abs(bins - x_target))
+
+                ax.set_xlim(0, x_target)
+                y_floor = max(hist[i_target], 1)  # avoid 0 on a log-scale axis
+                ax.set_ylim(y_floor, max(hist) + 100)
+            except RuntimeError as e:
+                print(f"  warning: parabola fit around peak (dataset_peak_position={dataset_peak_position}) "
+                        f"failed for {dataset_name}: {e}")
+
+            # setting the title according to the measurement type
+            if not do_ramp_measurement:
+                title = f"Raw time diff hist of all cells\n{pct_ar}/{pct_co2} Ar/CO$_2$, $U_{{wire}}$ = {u_wire}V"
+
+            elif do_ramp_measurement:
+                time = parse_start_time(dataset_name)
+                title = f"Raw time diff hist of all cells\nRamp measurement $t_{{\\mathrm{{start}}}}$ = {time}, $U_{{\\mathrm{{wire}}}}$ = 3600 V"
+
+
+            ax.set_title(title)
+            fig.tight_layout()
+            path = f"{plot_save_path}{dataset_name}_DIFF_SPECIFIC_ALL_PEAKFIT{plot_type}"
+            if save_plots:
+                #print(f"store histogram plot as {path}.")
+                print("storing histogram with peak fit...")
+                fig.savefig(path)
+                print(f"Done saving hist as {path}\n")
+
+            peak_pos, peak_err_total = peak_pos_fit, peak_pos_fit_err
+
+            v_drift = cell_half_width / peak_pos_fit
+
+            err_v_drift = np.sqrt(
+                            (err_cell_half_width / peak_pos_fit)**2 +
+                            (cell_half_width * peak_pos_fit_err / peak_pos_fit**2)**2
+                        )
+
+
 
             analysis_out[dataset_name] = {
                 **specific_results,
