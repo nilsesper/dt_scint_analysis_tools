@@ -1267,7 +1267,7 @@ def main():
                 ]
     
 
-    #list_of_fits = [["cosmic_82-18_3550-1800-1200_run1_th20_cut_50", 400]]
+    list_of_fits = [["cosmic_85-15_3600-1800-1200_test4_th20", 408]]
     #list_of_fits = ["mb1_sxa5_cosmics_10min"]
 
     ramp_datasets = [
