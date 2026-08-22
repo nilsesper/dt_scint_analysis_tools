@@ -20,7 +20,7 @@ h = 0.013 * 4 * 3  # m  cellheight * vertical cells per SL * number of SLs
 
 #####################################
 max_gas_flow = 10  # l/h
-ar_concentration = 0.845  # fraction of argon in the gas mixture (=84.5 %)
+ar_concentration = 0.855  # fraction of argon in the gas mixture (=84.5 %)
 
 # --- Uncertainty on the argon concentration -------------------------------
 # The mixing panel only accepts the argon percentage with one decimal place
@@ -85,9 +85,8 @@ print(f"Total-Gasflow: {max_gas_flow:.2f} l/h")
 
 # Argon air-eq can only be dialed in to ONE decimal place (l/h) -> resolution 0.1 l/h
 AR_AIR_EQ_RESOLUTION = 0.1  # l/h
-# CO2 resolution assumed the same one-decimal limit - CHANGE THIS if the CO2
-# MFC actually allows finer/coarser steps than argon.
-CO2_AIR_EQ_RESOLUTION = 0.1  # l/h
+# CO2 air-eq can be dialed in to TWO decimal places (l/h) -> resolution 0.01 l/h
+CO2_AIR_EQ_RESOLUTION = 0.01  # l/h
 
 sigma_ar_air_eq_round = AR_AIR_EQ_RESOLUTION / 2   # half-LSB rounding error
 sigma_co2_air_eq_round = CO2_AIR_EQ_RESOLUTION / 2
@@ -161,6 +160,164 @@ print(f"\nFlushing-Time without Safety in days: {flush_time/htoday:.2f} d")
 print(f"Flushing-Time with Safety in days: {flush_time_safe/htoday:.2f} d")
 
 
+
+
+
+ar_pct_list = [82, 83, 84, 84.5, 85, 85.5, 86, 87]  # %
+
+
+def analyze_mix(ar_pct, max_gas_flow=max_gas_flow):
+    """Run the full flow / rounding / error analysis for one argon percentage.
+    Returns a dict with all intermediate and final results."""
+
+    ar_conc = ar_pct / 100.0
+    co2_conc = 1 - ar_conc
+
+    sigma_ar_conc = ar_concentration_resolution / 2
+    sigma_co2_conc = sigma_ar_conc
+
+    # --- intended (nominal) real flows ------------------------------------
+    ar_flow = max_gas_flow * ar_conc
+    co2_flow = max_gas_flow * co2_conc
+
+    sigma_ar_flow = max_gas_flow * sigma_ar_conc
+    sigma_co2_flow = max_gas_flow * sigma_co2_conc
+
+    # --- air-equivalent values to dial in on the MFCs ----------------------
+    ar_flow_air_eq = ar_flow / FACTOR_ARGON
+    co2_flow_air_eq = co2_flow / FACTOR_CO2
+
+    rel_err_ar_air_eq = np.sqrt(
+        (sigma_ar_flow / ar_flow) ** 2 + (sigma_FACTOR_ARGON / FACTOR_ARGON) ** 2
+    )
+    rel_err_co2_air_eq = np.sqrt(
+        (sigma_co2_flow / co2_flow) ** 2 + (sigma_FACTOR_CO2 / FACTOR_CO2) ** 2
+    )
+    sigma_ar_flow_air_eq = ar_flow_air_eq * rel_err_ar_air_eq
+    sigma_co2_flow_air_eq = co2_flow_air_eq * rel_err_co2_air_eq
+
+    # --- values actually set on the machine (rounded to display resolution) ---
+    ar_flow_air_eq_set = round(ar_flow_air_eq / AR_AIR_EQ_RESOLUTION) * AR_AIR_EQ_RESOLUTION
+    co2_flow_air_eq_set = round(co2_flow_air_eq / CO2_AIR_EQ_RESOLUTION) * CO2_AIR_EQ_RESOLUTION
+
+    sigma_ar_air_eq_round = AR_AIR_EQ_RESOLUTION / 2
+    sigma_co2_air_eq_round = CO2_AIR_EQ_RESOLUTION / 2
+
+    # --- resulting real (true) gas flows delivered to the chamber ---------
+    ar_flow_true = ar_flow_air_eq_set * FACTOR_ARGON
+    co2_flow_true = co2_flow_air_eq_set * FACTOR_CO2
+
+    rel_err_ar_true = np.sqrt(
+        (sigma_ar_air_eq_round / ar_flow_air_eq_set) ** 2
+        + (sigma_FACTOR_ARGON / FACTOR_ARGON) ** 2
+    )
+    rel_err_co2_true = np.sqrt(
+        (sigma_co2_air_eq_round / co2_flow_air_eq_set) ** 2
+        + (sigma_FACTOR_CO2 / FACTOR_CO2) ** 2
+    )
+    sigma_ar_flow_true = ar_flow_true * rel_err_ar_true
+    sigma_co2_flow_true = co2_flow_true * rel_err_co2_true
+
+    # --- resulting real gas mix fraction -----------------------------------
+    total_flow_true = ar_flow_true + co2_flow_true
+    ar_conc_true = ar_flow_true / total_flow_true
+
+    df_dar = co2_flow_true / total_flow_true ** 2
+    df_dco2 = -ar_flow_true / total_flow_true ** 2
+    sigma_ar_conc_true = np.sqrt(
+        (df_dar * sigma_ar_flow_true) ** 2 + (df_dco2 * sigma_co2_flow_true) ** 2
+    )
+
+    deviation_pp = (ar_conc_true - ar_conc) * 100
+
+    return dict(
+        ar_pct=ar_pct,
+        ar_flow=ar_flow, co2_flow=co2_flow,
+        sigma_ar_flow=sigma_ar_flow, sigma_co2_flow=sigma_co2_flow,
+        ar_flow_air_eq=ar_flow_air_eq, co2_flow_air_eq=co2_flow_air_eq,
+        sigma_ar_flow_air_eq=sigma_ar_flow_air_eq, sigma_co2_flow_air_eq=sigma_co2_flow_air_eq,
+        ar_flow_air_eq_set=ar_flow_air_eq_set, co2_flow_air_eq_set=co2_flow_air_eq_set,
+        ar_flow_true=ar_flow_true, co2_flow_true=co2_flow_true,
+        sigma_ar_flow_true=sigma_ar_flow_true, sigma_co2_flow_true=sigma_co2_flow_true,
+        ar_conc_true=ar_conc_true, sigma_ar_conc_true=sigma_ar_conc_true,
+        deviation_pp=deviation_pp,
+    )
+
+
+results = [analyze_mix(p) for p in ar_pct_list]
+
+print("\n\n===========================================================================")
+print("Sweep over argon percentages")
+print("===========================================================================")
+
+for r in results:
+    print(f"\n--- Argon target: {r['ar_pct']:.1f} % (Total flow: {max_gas_flow:.2f} l/h) ---")
+    print(f"  Calculated flows:      Ar = {r['ar_flow']:.3f} +/- {r['sigma_ar_flow']:.3f} l/h   "
+          f"CO2 = {r['co2_flow']:.3f} +/- {r['sigma_co2_flow']:.3f} l/h")
+    print(f"  Air-eq (calculated):   Ar = {r['ar_flow_air_eq']:.3f} +/- {r['sigma_ar_flow_air_eq']:.3f} l/h   "
+          f"CO2 = {r['co2_flow_air_eq']:.3f} +/- {r['sigma_co2_flow_air_eq']:.3f} l/h")
+    print(f"  Air-eq (rounded/set):  Ar = {r['ar_flow_air_eq_set']:.2f} l/h   "
+          f"CO2 = {r['co2_flow_air_eq_set']:.2f} l/h")
+    print(f"  Real flow (from set):  Ar = {r['ar_flow_true']:.3f} +/- {r['sigma_ar_flow_true']:.3f} l/h   "
+          f"CO2 = {r['co2_flow_true']:.3f} +/- {r['sigma_co2_flow_true']:.3f} l/h")
+    print(f"  Resulting real Ar mix: {100*r['ar_conc_true']:.3f} +/- {100*r['sigma_ar_conc_true']:.3f} %   "
+          f"(deviation from target: {r['deviation_pp']:+.3f} pp)")
+
+# --- Compact summary table -------------------------------------------------
+print("\n\nSummary table")
+print("-" * 118)
+header = (f"{'Ar target %':>11} | {'Ar calc (l/h)':>16} | {'CO2 calc (l/h)':>16} | "
+          f"{'Ar set (l/h)':>13} | {'CO2 set (l/h)':>14} | {'Real Ar %':>18} | {'Dev (pp)':>9}")
+print(header)
+print("-" * 118)
+for r in results:
+    print(f"{r['ar_pct']:>11.1f} | "
+          f"{r['ar_flow_air_eq']:>9.3f}+-{r['sigma_ar_flow_air_eq']:<5.3f} | "
+          f"{r['co2_flow_air_eq']:>9.3f}+-{r['sigma_co2_flow_air_eq']:<5.3f} | "
+          f"{r['ar_flow_air_eq_set']:>13.2f} | "
+          f"{r['co2_flow_air_eq_set']:>14.2f} | "
+          f"{100*r['ar_conc_true']:>8.3f}+-{100*r['sigma_ar_conc_true']:<6.3f} | "
+          f"{r['deviation_pp']:>+9.3f}")
+
+
+
+# --- LaTeX table export -----------------------------------------------------
+def to_latex_table(results, caption="Argon/CO$_2$ gas mix sweep", label="tab:argon_sweep"):
+    lines = []
+    lines.append(r"\begin{table}[htbp]")
+    lines.append(r"\centering")
+    lines.append(r"\caption{" + caption + "}")
+    lines.append(r"\label{" + label + "}")
+    lines.append(r"\begin{tabular}{c c c c c c}")
+    lines.append(r"\toprule")
+    lines.append(r"Ar target & Ar air-eq & CO$_2$ air-eq & Ar set & CO$_2$ set & Real Ar \% \\")
+    lines.append(r"(\%) & calc. (l/h) & calc. (l/h) & (l/h) & (l/h) & (dev. from target) \\")
+    lines.append(r"\midrule")
+    for r in results:
+        row = (
+            f"{r['ar_pct']:.1f} & "
+            f"${r['ar_flow_air_eq']:.3f} \\pm {r['sigma_ar_flow_air_eq']:.3f}$ & "
+            f"${r['co2_flow_air_eq']:.3f} \\pm {r['sigma_co2_flow_air_eq']:.3f}$ & "
+            f"{r['ar_flow_air_eq_set']:.2f} & "
+            f"{r['co2_flow_air_eq_set']:.2f} & "
+            f"${100*r['ar_conc_true']:.3f} \\pm {100*r['sigma_ar_conc_true']:.3f}$ "
+            f"({r['deviation_pp']:+.3f}\\,pp) \\\\"
+        )
+        lines.append(row)
+    lines.append(r"\bottomrule")
+    lines.append(r"\end{tabular}")
+    lines.append(r"\end{table}")
+    return "\n".join(lines)
+
+
+latex_code = to_latex_table(results)
+print(latex_code)
+
+"""
+with open("argon_sweep_table.tex", "w") as f:
+    f.write(latex_code)
+"""
+"""
 days = np.array([0, 4, 18, 20, 21, 24, 27])
 ar = np.array([195, 170, 102, 93, 87, 75, 57])
 co2 = np.array([61, 60, 59, 59, 58, 56, 55])
@@ -206,3 +363,4 @@ print(f"Argon Druckverlust am Tag 47: {pressure_loss(47,a_ar,b_ar):.2f} bar/Tag"
 print(f"CO2 Druckverlust am Tag 0: {pressure_loss(0,a_co2,b_co2):.2f} bar/Tag")
 print(f"CO2 Druckverlust am Tag 27: {pressure_loss(27,a_co2,b_co2):.2f} bar/Tag")
 print(f"CO2 Druckverlust am Tag 47: {pressure_loss(47,a_co2,b_co2):.2f} bar/Tag")
+"""
