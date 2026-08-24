@@ -1,7 +1,0 @@
-# Ignore everything in this directory
-*
-# Except this file
-!.gitignore
-
-# Except some other files:
-!ba_thesis_justus_tacke.tex

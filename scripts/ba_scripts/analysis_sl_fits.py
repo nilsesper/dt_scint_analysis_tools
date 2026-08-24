@@ -1309,362 +1309,6 @@ Track ID = {idx}"""
 
     return saved_paths
 
-def fit_gaussian_hist(
-    *,
-    specific_data,
-    dataset_name,
-    plot_save_path,
-    plot_type=".png",
-    xlabel,
-    ylabel="counts",
-    filename_suffix="ALL",
-    start_idx=0,
-    scale_factor=vd_factor,
-    log_scale=False,
-    power_limits=[-4, 4],
-    bin_unit=f"$\\mu$m/ns",
-    add_info=True,
-    legend_font_size=13,
-    fig_size=(9, 8),          # slightly taller to fit residual panel
-    xlim=None,
-    hist_key="hist",
-    err_hist_key="err_hist",
-    err_hist_down_key="err_hist_down",
-    err_hist_up_key="err_hist_up",
-    edges_key="edges",
-    overflow_key="overflow",
-    underflow_key="underflow",
-    save=True,
-    verbose=True,
-    title="",
-    p0=None,
-    fit_range=None,
-    fit_color="red",
-    component_colors=("tab:orange", "tab:green"),
-    show_components=True,
-    show_residuals=True,      # NEW: toggle the residual sub-panel
-    residual_height_ratio=1,  # NEW: relative height of residual panel vs main panel (main=3)
-    max_retries=5,            # NEW: number of alternate-p0 attempts if errors/chi2 are bad
-    chi2_ndf_max= 2 ,         # NEW: refit if chi2/ndf exceeds this
-    ):
-    #from scipy.optimize import curve_fit
-
-    def gaussian(x, amplitude, mean, sigma):
-        return np.abs(amplitude) * np.exp(-0.5 * ((x - mean) / sigma) ** 2)
-
-    def double_gaussian(x, amp1, mean1, sigma1, amp2, mean2, sigma2):
-        return gaussian(x, amp1, mean1, sigma1) + gaussian(x, amp2, mean2, sigma2)
-
-    # --- read data ---
-    hist = np.array(specific_data[hist_key])[start_idx:]
-    err_hist_down = np.array(specific_data[err_hist_down_key])[start_idx:]
-    err_hist_up = np.array(specific_data[err_hist_up_key])[start_idx:]
-    edges = np.array(specific_data[edges_key])[start_idx:] * scale_factor
-    centers = hist_utils.centers_from_edges(edges)
-    overflow = specific_data[overflow_key]
-    underflow = specific_data[underflow_key]
-    lo, hi = np.amin(centers), np.amax(centers)
-    if verbose:
-        print(f"Fitting double Gaussian to {dataset_name} ({filename_suffix})...")
-
-    err_hist_sym = (err_hist_up + err_hist_down) / 2.0
-    err_hist_safe = np.where(err_hist_sym <= 0, 1.0, err_hist_sym)
-
-    if fit_range is not None:
-        mask = (centers >= fit_range[0]) & (centers <= fit_range[1])
-    else:
-        mask = np.ones_like(centers, dtype=bool)
-
-    n_params = 6
-    n_fit_pts = int(np.sum(mask))
-    ndf = max(n_fit_pts - n_params, 1)  # avoid div by zero
-
-    if p0 is None:
-        h_masked = hist[mask]
-        c_masked = centers[mask]
-        if h_masked.size and np.sum(h_masked) > 0:
-            amp0 = np.max(h_masked)
-            mean0 = np.average(c_masked, weights=h_masked)
-            spread0 = np.sqrt(np.average((c_masked - mean0) ** 2, weights=h_masked))
-        else:
-            amp0 = np.max(hist) if hist.size else 1.0
-            mean0 = np.mean(c_masked) if c_masked.size else 0.0
-            spread0 = (np.amax(centers) - np.amin(centers)) / 6
-        spread0 = spread0 if spread0 > 0 else (np.amax(centers) - np.amin(centers)) / 6
-        span = np.amax(centers) - np.amin(centers) if centers.size else 1.0
-        p0 = [
-            amp0, mean0 - 0.1 * span, spread0 * 0.7,
-            amp0 * 0.5, mean0 + 0.1 * span, spread0 * 1.5,
-        ]
-    else:
-        span = np.amax(centers) - np.amin(centers) if centers.size else 1.0
-
-    def compute_chi2(popt_):
-        """chi2 over the masked/fitted points for a given parameter set."""
-        model_vals = double_gaussian(centers[mask], *popt_)
-        resid = (hist[mask] - model_vals) / err_hist_safe[mask]
-        return float(np.sum(resid ** 2))
-    
-    def canonicalize_components(popt_, pcov_):
-            """Ensure component 1 is always the narrower (smaller sigma) component."""
-            amp1_, mean1_, sigma1_, amp2_, mean2_, sigma2_ = popt_
-            if np.abs(sigma1_) > np.abs(sigma2_):
-                # swap the two (amp, mean, sigma) triplets
-                order = [3, 4, 5, 0, 1, 2]
-                popt_ = popt_[order]
-                if pcov_ is not None:
-                    pcov_ = pcov_[np.ix_(order, order)]
-            return popt_, pcov_
-    
-    # --- first attempt ---
-    def run_fit(p0_guess):
-            try:
-                popt_, pcov_ = curve_fit(
-                    double_gaussian,
-                    centers[mask],
-                    hist[mask],
-                    p0=p0_guess,
-                    sigma=err_hist_safe[mask],
-                    absolute_sigma=True,
-                    maxfev=10000,
-                )
-                popt_, pcov_ = canonicalize_components(popt_, pcov_)
-                perr_ = np.sqrt(np.diag(pcov_))
-                chi2_ = compute_chi2(popt_)
-                chi2_ndf_ = chi2_ / ndf
-                return popt_, pcov_, perr_, chi2_ndf_
-            except (RuntimeError, ValueError):
-                return None, None, None, None
-
-    def bad_result(perr_, chi2_ndf_):
-        if perr_ is None or not np.all(np.isfinite(perr_)):
-            return True
-        if chi2_ndf_ is None or not np.isfinite(chi2_ndf_) or chi2_ndf_ > chi2_ndf_max:
-            return True
-        return False
-
-
-    popt, pcov, perr, chi2_ndf = run_fit(p0)
-
-    # --- retry with alternate starting parameters if errors are inf/nan or chi2/ndf too high ---
-    if bad_result(perr, chi2_ndf):
-        if verbose:
-            if popt is None:
-                reason = "fit did not converge"
-            elif not np.all(np.isfinite(perr)):
-                reason = "fit gave non-finite errors"
-            else:
-                reason = f"chi2/ndf too high ({chi2_ndf:.3f} > {chi2_ndf_max})"
-            print(f"  Initial fit: {reason} for {dataset_name} ({filename_suffix}); trying alternate starting parameters...")
-
-        # keep the best-so-far attempt around, in case no retry clears the threshold
-        best_popt, best_pcov, best_perr, best_chi2_ndf = popt, pcov, perr, chi2_ndf
-
-        rng = np.random.default_rng(0)
-        attempt = 0
-        while bad_result(perr, chi2_ndf) and attempt < max_retries:
-            jitter = 1 + rng.uniform(-0.3, 0.3, size=n_params)
-            alt_p0 = np.array(p0, dtype=float) * jitter
-            popt_try, pcov_try, perr_try, chi2_ndf_try = run_fit(alt_p0)
-
-            # track the best valid attempt by chi2/ndf, even if it doesn't clear the threshold
-            if perr_try is not None and np.all(np.isfinite(perr_try)) and chi2_ndf_try is not None and np.isfinite(chi2_ndf_try):
-                if best_chi2_ndf is None or not np.isfinite(best_chi2_ndf) or chi2_ndf_try < best_chi2_ndf:
-                    best_popt, best_pcov, best_perr, best_chi2_ndf = popt_try, pcov_try, perr_try, chi2_ndf_try
-
-            if not bad_result(perr_try, chi2_ndf_try):
-                popt, pcov, perr, chi2_ndf = popt_try, pcov_try, perr_try, chi2_ndf_try
-                if verbose:
-                    print(f"  Refit succeeded on attempt {attempt + 1} for {dataset_name} ({filename_suffix}) "
-                          f"(chi2/ndf = {chi2_ndf:.3f}).")
-                break
-            attempt += 1
-
-        if bad_result(perr, chi2_ndf):
-            # no attempt cleared the threshold -- fall back to the best one we saw
-            if best_popt is not None:
-                popt, pcov, perr, chi2_ndf = best_popt, best_pcov, best_perr, best_chi2_ndf
-                if verbose:
-                    print(f"  No refit attempt met chi2/ndf <= {chi2_ndf_max} for {dataset_name} ({filename_suffix}); "
-                          f"using best available (chi2/ndf = {chi2_ndf:.3f}).")
-            else:
-                if verbose:
-                    print(f"  All {max_retries} refit attempts failed outright for {dataset_name} ({filename_suffix}).")
-                popt = np.full(n_params, np.nan)
-                perr = np.full(n_params, np.nan)
-                pcov = None
-                chi2_ndf = np.nan
-
-    amp1, mean1, sigma1, amp2, mean2, sigma2 = popt
-    sigma1, sigma2 = np.abs(sigma1), np.abs(sigma2)
-    amp1_err, mean1_err, sigma1_err, amp2_err, mean2_err, sigma2_err = perr
-
-    # --- chi2 / ndf from the fitted (masked) points ---
-    chi2 = chi2_ndf * ndf if np.isfinite(chi2_ndf) else np.nan
-    chi2_ndf = chi2_ndf
-    residuals = None       # raw residuals over ALL bins (for plotting)
-    pull = None             # residuals / error, i.e. "sigma away from fit", over ALL bins
-
-    if not np.isnan(mean1):
-        fit_vals_masked = double_gaussian(centers[mask], *popt)
-        resid_masked = hist[mask] - fit_vals_masked
-        pull_masked = resid_masked / err_hist_safe[mask]
-
-        n_points = np.sum(mask)
-        ndf = n_points - n_params
-        chi2 = np.sum(pull_masked ** 2)
-        chi2_ndf = chi2 / ndf if ndf > 0 else np.nan
-
-        if verbose:
-            print(f"  chi2 / ndf = {chi2:.4g} / {ndf} = {chi2_ndf:.4g}")
-
-        # residuals/pull over the full (unmasked) range, for the residual panel
-        fit_vals_all = double_gaussian(centers, *popt)
-        residuals = hist - fit_vals_all
-        pull = residuals / err_hist_safe
-
-    if verbose and not np.isnan(mean1):
-        print(f"  component 1: amp = {amp1:.4g} +/- {amp1_err:.4g}, "
-            f"mean = {mean1:.4g} +/- {mean1_err:.4g}, sigma = {sigma1:.4g} +/- {sigma1_err:.4g}")
-        print(f"  component 2: amp = {amp2:.4g} +/- {amp2_err:.4g}, "
-            f"mean = {mean2:.4g} +/- {mean2_err:.4g}, sigma = {sigma2:.4g} +/- {sigma2_err:.4g}")
-
-    if show_residuals:
-            fig, (ax, ax_res) = plt.subplots(
-                2, 1, figsize=fig_size, sharex=True,
-                gridspec_kw={"height_ratios": [3, residual_height_ratio], "hspace": 0.05},
-            )
-    else:
-        fig, ax = plt.subplots(1, 1, figsize=fig_size)
-        ax_res = None
-
-    # --- NEW: build the hist-info string ourselves (plot_histogram won't draw it) ---
-    barwidth = np.mean(np.diff(centers))
-    barwidth_str = f"{barwidth:.3g}"
-    if bin_unit:
-        barwidth_str += f" {bin_unit}"
-    entries_total = int(np.sum(hist))
-    info_str = (
-        f"entries = {entries_total}\n"
-        f"underflow = {underflow}\n"
-        f"overflow = {overflow}\n"
-        f"total = {entries_total + overflow + underflow}\n"
-        f"bin count = {len(centers)}\n"
-        f"bin width = {barwidth_str}"
-    )
-
-    ax = hist_utils.plot_histogram(
-        ax,
-        hist=hist,
-        centers=centers,
-        err_hist_down=err_hist_down,
-        err_hist_up=err_hist_up,
-        log_scale=log_scale,
-        power_limits=power_limits,
-        add_info=False,          # <-- CHANGED: was `add_info` (or True); suppress the separate box
-        entries=entries_total,
-        overflow=overflow,
-        underflow=underflow,
-        bin_unit=bin_unit,
-    )
-
-    # --- NEW: collect everything into one legend ---
-    handles, labels = [], []
-
-    if add_info:  # only add the info entry if the caller still wants it shown
-        info_handle = Line2D([], [], linestyle="none")
-        handles.append(info_handle)
-        labels.append(info_str)
-
-    if not np.isnan(mean1):
-        x_fit = np.linspace(np.amin(centers), np.amax(centers), 500)
-        y_fit = double_gaussian(x_fit, *popt)
-        fit_label = (
-            f"Double Gaussian fit\n"
-            f"($\\chi^2$/ndf = {chi2_ndf:.3f})\n"
-            f"$\\mu_1$ = ({mean1:.2f} $\\pm$ {mean1_err:.2f}) $\\mu$m/ns\n"
-            f"$\\sigma_1$ = ({sigma1:.2f} $\\pm$ {sigma1_err:.2f}) $\\mu$m/ns\n"
-            f"$\\mu_2$ = ({mean2:.2f} $\\pm$ {mean2_err:.2f}) $\\mu$m/ns\n"
-            f"$\\sigma_2$ = ({sigma2:.2f} $\\pm$ {sigma2_err:.2f}) $\\mu$m/ns"
-        )
-        (fit_line,) = ax.plot(x_fit, y_fit, color=fit_color, linewidth=2, label=fit_label)
-        handles.append(fit_line)
-        labels.append(fit_label)
-
-        if show_components:
-            y1 = gaussian(x_fit, amp1, mean1, sigma1)
-            y2 = gaussian(x_fit, amp2, mean2, sigma2)
-            (comp1_line,) = ax.plot(x_fit, y1, color=component_colors[0], linewidth=1.5,
-                                    linestyle="--", label="component 1")
-            (comp2_line,) = ax.plot(x_fit, y2, color=component_colors[1], linewidth=1.5,
-                                    linestyle="--", label="component 2")
-            handles += [comp1_line, comp2_line]
-            labels += ["component 1", "component 2"]
-
-    if handles:
-        ax.legend(handles, labels, fontsize=legend_font_size, loc="center right")
-
-    if xlim is None:
-        ax.set_xlim(np.amin(centers), np.amax(centers))
-    elif xlim is not False:
-        ax.set_xlim(*xlim)
-
-    ax.set_ylabel(ylabel)
-    ax.set_title(title)
-    if show_residuals:
-        ax.tick_params(labelbottom=False)  
-    else:
-        ax.set_xlabel(xlabel)
-
-    # --- NEW: residual panel ---
-    if show_residuals and ax_res is not None:
-        if pull is not None:
-            ax_res.errorbar(
-                centers[::10], residuals[::10], yerr=err_hist_safe[::10], fmt="o", markersize=3,
-                color="black", ecolor="gray", elinewidth=1, capsize=2,
-            )
-        ax_res.axhline(0, color=fit_color, linewidth=1, linestyle="--")
-        ax_res.set_xlabel(xlabel)
-        ax_res.set_ylabel(f"data-fit")
-        if xlim is None:
-            ax_res.set_xlim(np.amin(centers), np.amax(centers))
-        elif xlim is not False:
-            ax_res.set_xlim(*xlim)
-
-    fig.tight_layout()
-
-    path = None
-    if save:
-        path = f"{plot_save_path}{dataset_name}_{filename_suffix}_doublegaussfit{plot_type}"
-        if verbose:
-            print(f"store double-gaussian-fit plot as {path}.")
-        fig.savefig(path)
-        if verbose:
-            print(f"Done saving fit plot as {path}\n")
-
-    if not np.isnan(amp1) and amp1 >= amp2:
-        dom_mean, dom_mean_err = mean1, mean1_err
-        dom_sigma, dom_sigma_err = sigma1, sigma1_err
-    else:
-        dom_mean, dom_mean_err = mean2, mean2_err
-        dom_sigma, dom_sigma_err = sigma2, sigma2_err
-
-    fit_results = {
-        "amplitude_1": amp1, "amplitude_1_err": amp1_err,
-        "mean_1": mean1, "mean_1_err": mean1_err,
-        "sigma_1": sigma1, "sigma_1_err": sigma1_err,
-        "amplitude_2": amp2, "amplitude_2_err": amp2_err,
-        "mean_2": mean2, "mean_2_err": mean2_err,
-        "sigma_2": sigma2, "sigma_2_err": sigma2_err,
-        "mean": dom_mean, "mean_err": dom_mean_err,
-        "sigma": dom_sigma, "sigma_err": dom_sigma_err,
-        "chi2": chi2, "ndf": ndf, "chi2_ndf": chi2_ndf,   
-        "residuals": residuals, "pull": pull,             
-        "popt": popt,
-        "pcov": pcov,
-    }
-
-    return fig, ax, path, fit_results
 
 def fit_parabola_peak(
     *,
@@ -2481,6 +2125,14 @@ def analyze_pattern_type_data(
         "tex_table": tex_table,
     }
 
+def _fmt_gas_pct(x):
+    """Format a gas percentage for plot labels/filenames: integer-valued
+    percentages render plainly ("84"), non-integer ones get 'p' instead
+    of '.' so the string is filename-safe ("84.5" -> "84p5")."""
+    x = float(x)
+    if x.is_integer():
+        return str(int(x))
+    return str(x).replace(".", "p")
 
 # Fixed U_wire -> color mapping, light to dark, so colors stay consistent
 # across every plot regardless of which subset of voltages is present in a
@@ -2516,15 +2168,16 @@ def plot_vd_by_gas_mix(
                 print(f"  skipping {dataset_name}: could not parse dataset info ({e})")
             continue
  
-        pct_ar = int(info["pct_Ar"])
-        pct_co2 = int(info["pct_CO2"])
+        pct_ar = float(info["pct_Ar"])
+        pct_co2 = float(info["pct_CO2"])
         u_wire = int(info["U_wire"])  # force int so wide/fallback parsing paths can't mismatch
-        mix_label = f"{pct_ar}/{pct_co2}"
+        mix_label = f"{_fmt_gas_pct(pct_ar)}/{_fmt_gas_pct(pct_co2)}"
  
         try:
             entries.append({
                 "dataset": dataset_name,
                 "mix": mix_label,
+                "mix_sort": (pct_ar, pct_co2),
                 "u_wire": u_wire,
                 "mean_vd": result["peak"],
                 "err_vd": result["tot_err"],
@@ -2533,6 +2186,7 @@ def plot_vd_by_gas_mix(
             entries.append({
                 "dataset": dataset_name,
                 "mix": mix_label,
+                "mix_sort": (pct_ar, pct_co2),
                 "u_wire": u_wire,
                 "mean_vd": result["v_drift"],
                 "err_vd": result["err_v_drift"],
@@ -2542,10 +2196,8 @@ def plot_vd_by_gas_mix(
         raise ValueError("No datasets could be parsed by dataset_info_fn; nothing to plot.")
  
     # --- x-axis categories: one per unique gas mix, sorted by (Ar%, CO2%) ---
-    mixes = sorted(
-        set(e["mix"] for e in entries),
-        key=lambda m: tuple(int(v) for v in m.split("/")),
-    )
+    mix_sort_key = {e["mix"]: e["mix_sort"] for e in entries}
+    mixes = sorted(mix_sort_key, key=lambda m: mix_sort_key[m])
     mix_to_x = {mix: i for i, mix in enumerate(mixes)}
  
     # --- consistent color per U_wire, from the fixed hardcoded map ---
@@ -2721,17 +2373,25 @@ def plot_super_fit_errors_vs_tan_alpha(
 
 def parse_fit_name(*, name):
     # Erwartetes Format: cosmic_<Ar>-<CO2>_<U_wire>-<U_Fieldshaper>-<U_cathode>_<rest...>
-    pattern = r"^cosmic_(\d+)-(\d+)_(\d+)-(\d+)-(\d+)"
+    # Ar/CO2 percentages may be integers ("84") or decimals written with
+    # "p" instead of "." ("84p5" -> 84.5)
+    pattern = r"^cosmic_(\d+(?:p\d+)?)-(\d+(?:p\d+)?)_(\d+)-(\d+)-(\d+)"
     match = re.match(pattern, name)
     if not match:
         raise ValueError(f"String hat nicht das erwartete Format: {name}")
 
     pct_ar, pct_co2, u_wire, u_fieldshaper, u_cathode = match.groups()
 
+    def _to_number(s):
+        """'84' -> 84 (int), '84p5' -> 84.5 (float)"""
+        if "p" in s:
+            return float(s.replace("p", "."))
+        return int(s)
+
     return {
         "name": name,
-        "pct_Ar": int(pct_ar),
-        "pct_CO2": int(pct_co2),
+        "pct_Ar": _to_number(pct_ar),
+        "pct_CO2": _to_number(pct_co2),
         "U_wire": int(u_wire),
         "U_Fieldshaper": int(u_fieldshaper),
         "U_cathode": int(u_cathode),
@@ -2810,7 +2470,7 @@ def main():
     #set parameters for the super fit analysis cuts 
     max_err_to_free_vd_superfit = 20
     max_err_x0_free_vd_superfit = 1
-    max_err_vd_free_vd_superfit = 2
+    max_err_vd_free_vd_superfit = 0.5
     max_err_tan_alpha_free_vd_superfit = 0.1
     max_chi2ndf_frree_vd_superfit = 20
     max_angle_rad = max(alpha_max for _, (_, alpha_max) in params._dt_pattern_alpha_range.items())
@@ -2823,7 +2483,11 @@ def main():
     
     list_of_fits = [
 
-
+                "cosmic_84p5-15p5_3550-1800-1200_run1_th20_cut100", 
+                "cosmic_84p5-15p5_3575-1800-1200_run1_th20_cut100", 
+                "cosmic_84p5-15p5_3600-1800-1200_run1_th20_cut100",
+                "cosmic_84p5-15p5_3625-1800-1200_run1_th20_cut100",
+                "cosmic_84p5-15p5_3650-1800-1200_run1_th20_cut100",#full
 
                 "cosmic_82-18_3550-1800-1200_run1_th20_cut100",
                 "cosmic_82-18_3575-1800-1200_run1_th20_cut100", 
@@ -2842,6 +2506,8 @@ def main():
                 "cosmic_84-16_3600-1800-1200_run1_th20_cut100", 
                 "cosmic_84-16_3575-1800-1200_run1_th20_cut100", 
                 "cosmic_84-16_3550-1800-1200_run1_th20_cut100",#full
+
+
 
                 "cosmic_85-15_3550-1800-1200_run1_th20_cut100",
                 "cosmic_85-15_3575-1800-1200_run1_th20_cut100", 
