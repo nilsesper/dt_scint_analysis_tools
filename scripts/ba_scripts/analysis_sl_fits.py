@@ -533,15 +533,11 @@ def plot_hist_general(
  
     return fig, ax, path
 
+
 def measured_alpha_hist_path(pcls_path, pct_ar, pct_co2, u_wire, suffix="w_cut"):
-    """
-    Canonical path for a measured-alpha-histogram export, keyed by gas mix
-    and wire voltage. Used by both sl_fits_analysis.py (exporting) and the
-    Garfield analysis script (importing) -- keep in sync between the two.
-    """
     return os.path.join(
         pcls_path, "measured_alpha_hists",
-        f"measured_alpha_hist_ar-{int(pct_ar)}_co2-{int(pct_co2)}_anode{int(u_wire)}V_{suffix}.npz"
+        f"measured_alpha_hist_ar-{_fmt_gas_pct(pct_ar)}_co2-{_fmt_gas_pct(pct_co2)}_anode{int(u_wire)}V_{suffix}.npz"
     )
 
 def detector_track(
@@ -2916,31 +2912,27 @@ def main():
                     
             
                     #data = super_fits_cuts[key]
-                    
                     if key == "tan_alpha_free_vd_super_fit":
                         data = np.arctan(super_fits_cuts[key])
                         speckey = "alpha"
-
-                        # export only for real (parsed) gas/voltage conditions, and only the
-                        # w_cut selection (the physically meaningful target for reweighting)
-                        if suffix == w_cut and all(isinstance(v, int) for v in (pct_ar, pct_co2, u_wire)):
-                            export_path = measured_alpha_hist_path(pcls_path, pct_ar, pct_co2, u_wire, suffix)
-                            os.makedirs(os.path.dirname(export_path), exist_ok=True)
-                            np.savez(
-                                export_path,
-                                counts=np.asarray(specific_data["hist"]),
-                                bin_edges=np.asarray(specific_data["edges"]),
-                            )
-                            print(f"exported measured alpha histogram -> {export_path}")
                     else:
                         speckey = None
                         data = super_fits_cuts[key]
-                        speckey = None
+
                     specific_data = build_hist_general(
                         data_list=data,
-                        n_bins = 300,
-                        # adjust range/binning per-quantity if needed, e.g. by checking key
+                        n_bins=300,
                     )
+
+                    if key == "tan_alpha_free_vd_super_fit" and suffix == w_cut and not any(isinstance(v, str) for v in (pct_ar, pct_co2, u_wire)):
+                        export_path = measured_alpha_hist_path(pcls_path, pct_ar, pct_co2, u_wire, suffix)
+                        os.makedirs(os.path.dirname(export_path), exist_ok=True)
+                        np.savez(
+                            export_path,
+                            counts=np.asarray(specific_data["hist"]),
+                            bin_edges=np.asarray(specific_data["edges"]),
+                        )
+                        print(f"exported measured alpha histogram -> {export_path}")
             
                     # "/" in a key (e.g. "chi2/ndf_...") isn't safe in a filename
                     safe_key = key.replace("/", "_")
