@@ -1320,6 +1320,7 @@ def fit_parabola_peak(
     scale_factor=1,
     min_bins_syst = 7,
     max_bins_syst = 18,
+    plot_type = ".png",
 
     ):
     # Draw histogram using your existing function
@@ -1333,7 +1334,7 @@ def fit_parabola_peak(
         filename_suffix=filename_suffix,
         scale_factor=scale_factor,
         save=False,          # save after adding fit
-
+        
 
     )
 
@@ -1508,7 +1509,7 @@ def fit_parabola_peak(
     ax.legend()
     plt.close(fig)
     # Save
-    path = f"{plot_save_path}{dataset_name}_{filename_suffix}_parabolafit.png"
+    path = f"{plot_save_path}{dataset_name}_{filename_suffix}_parabolafit{plot_type}"
     fig.savefig(path)
 
 
@@ -1538,7 +1539,8 @@ def muon_heatmap_from_fits(
     orient="phi",
     z_bin_width=5.0,
     x_bin_width=5.0,
-    z_margin=100.0,
+    z_margin_bottom=150.0,   
+    z_margin_top=100.0,      
     x_margin=100.0,
     n_z_eval=1000,
     save=True,
@@ -1638,8 +1640,8 @@ def muon_heatmap_from_fits(
     # -----------------------------------------------------------------
     # extrapolate every fitted track across the full chamber z-range
     # -----------------------------------------------------------------
-    z_chamber_min = min(derived_params.sl_z_min[sl] for sl in used_sls) - z_margin
-    z_chamber_max = max(derived_params.sl_z_max[sl] for sl in used_sls) + z_margin
+    z_chamber_min = min(derived_params.sl_z_min[sl] for sl in used_sls) - z_margin_bottom
+    z_chamber_max = max(derived_params.sl_z_max[sl] for sl in used_sls) + z_margin_top
     z_eval = np.linspace(z_chamber_min, z_chamber_max, n_z_eval)
  
     z_local = z_eval[None, :] - z_ref_ch[:, None]                 # (n_fits, n_z_eval)
@@ -2479,12 +2481,8 @@ def main():
     
     list_of_fits = [
 
-                "cosmic_84p5-15p5_3550-1800-1200_run1_th20_cut100", 
-                "cosmic_84p5-15p5_3575-1800-1200_run1_th20_cut100", 
-                "cosmic_84p5-15p5_3600-1800-1200_run1_th20_cut100",
-                "cosmic_84p5-15p5_3625-1800-1200_run1_th20_cut100",
-                "cosmic_84p5-15p5_3650-1800-1200_run1_th20_cut100",#full
 
+                "cosmic_85p5-14p5_3625-1800-1200_run1_th20_cut100",
                 "cosmic_82-18_3550-1800-1200_run1_th20_cut100",
                 "cosmic_82-18_3575-1800-1200_run1_th20_cut100", 
                 "cosmic_82-18_3600-1800-1200_run1_th20_cut100",
@@ -2503,11 +2501,21 @@ def main():
                 "cosmic_84-16_3575-1800-1200_run1_th20_cut100", 
                 "cosmic_84-16_3550-1800-1200_run1_th20_cut100",#full
 
-
+                "cosmic_84p5-15p5_3550-1800-1200_run1_th20_cut100", 
+                "cosmic_84p5-15p5_3575-1800-1200_run1_th20_cut100", 
+                "cosmic_84p5-15p5_3600-1800-1200_run1_th20_cut100",
+                "cosmic_84p5-15p5_3625-1800-1200_run1_th20_cut100",
+                "cosmic_84p5-15p5_3650-1800-1200_run1_th20_cut100",#full
 
                 "cosmic_85-15_3550-1800-1200_run1_th20_cut100",
                 "cosmic_85-15_3575-1800-1200_run1_th20_cut100", 
                 "cosmic_85-15_3600-1800-1200_run2_th20_cut100",#missing 3625, 3650 (not measured)
+
+                #"cosmic_85p5-14p5_3550-1800-1200_run1_th20_cut100",
+                #"cosmic_85p5-14p5_3575-1800-1200_run1_th20_cut100",
+                #"cosmic_85p5-14p5_3600-1800-1200_run1_th20_cut100",
+                
+                #"cosmic_85p5-14p5_3650-1800-1200_run1_th20_cut100",#full
 
                 "cosmic_86-14_3650-1800-1200_run1_th20_cut100", #issues with data proccessing
                 "cosmic_86-14_3625-1800-1200_run1_th20_cut100", 
@@ -2539,7 +2547,7 @@ def main():
         "data_mic0_start_2026-07-27_00-16-49_stop_2026-07-27_00-26-50", 
         "data_mic0_start_2026-07-27_04-26-52_stop_2026-07-27_04-36-53",
         "data_mic0_start_2026-07-27_08-36-55_stop_2026-07-27_08-46-56",
-        #"data_mic0_start_2026-07-27_12-46-58_stop_2026-07-27_12-56-59",
+        "data_mic0_start_2026-07-27_12-46-58_stop_2026-07-27_12-56-59",
         "data_mic0_start_2026-07-27_16-57-02_stop_2026-07-27_17-07-03", 
         "data_mic0_start_2026-07-27_21-07-05_stop_2026-07-27_21-17-06", 
         "data_mic0_start_2026-07-28_01-17-08_stop_2026-07-28_01-27-09", 
@@ -2571,13 +2579,16 @@ def main():
         list_of_fits = ramp_datasets
 
     base_path = "data_ba/"
-    plot_type = ".png"
+    plot_type = ".pdf"
 
     fig_size = (8,6)
-    #dataset_name = "cosmic_82-18_3550-1800-1200_run1_th20_cut_50"
 
     #check that datasets exist
     pcls_path = f"{base_path}pcls/"
+
+    data_path = "/net/data_cms3a-1/tacke/pcls/"
+
+
 
     # --- load previously saved analysis results so already-analyzed
     # datasets can be skipped instead of redone from scratch, AND so
@@ -2624,8 +2635,8 @@ def main():
 
         root_file_name = f"{dataset}_super_fits.root"
         pcl_file_name = f"{dataset}_super_fits.pcl"
-        root_path = Path(f"{base_path}pcls/{dataset}/{root_file_name}")
-        pcl_path = Path(f"{base_path}pcls/{dataset}/{pcl_file_name}")
+        root_path = Path(f"{data_path}{dataset}/{root_file_name}")
+        pcl_path = Path(f"{data_path}{dataset}/{pcl_file_name}")
 
         if root_path.exists() or pcl_path.exists():
             continue
@@ -2647,26 +2658,19 @@ def main():
             analysis_out[dataset_name] = analysis_out_prev[dataset_name]
             continue
 
-        
-
-        #when using pcls use this
-        #sl_patterns_file = base_path + f"pcls/{dataset_name}/" + dataset_name + "_sl_patterns.pcl"
-        #sl_fits_file = base_path + f"pcls/{dataset_name}/" + dataset_name + "_sl_fits.pcl"
-        #sl_refits_file = base_path + f"pcls/{dataset_name}/" + dataset_name + "_sl_refits.pcl"
-        #super_fits_path = base_path + f"pcls/{dataset_name}/" + dataset_name + "_super_fits.pcl"
-        #plot_save_path = base_path + f"plots/sl_fits/{dataset_name}/" 
-        #print(f"###### Importing super fits...")
-        #super_fits = data_utils.load_pickle(file = super_fits_path)
-        #print("### imported super fits data from file: " + super_fits_path)
-
+        # if using pcl
+        #sl_patterns_file = data_path + f"{dataset_name}/" + dataset_name + "_sl_patterns.pcl"
+        #sl_fits_file = data_path + f"{dataset_name}/" + dataset_name + "_sl_fits.pcl"
+        #sl_refits_file = data_path + f"{dataset_name}/" + dataset_name + "_sl_refits.pcl"
+        #super_fits_path = data_path + f"{dataset_name}/" + dataset_name + "_super_fits.pcl"
 
 
         #when using root files, use this
-        sl_patterns_file = base_path + f"pcls/{dataset_name}/" + dataset_name + "_sl_patterns.root"
-        sl_fits_file = base_path + f"pcls/{dataset_name}/" + dataset_name + "_sl_fits.root"
-        sl_refits_file = base_path + f"pcls/{dataset_name}/" + dataset_name + "_sl_refits.root"
-        super_fits_path = base_path + f"pcls/{dataset_name}/" + dataset_name + "_super_fits.root"
-        plot_save_path = base_path + f"plots/sl_fits/{dataset_name}/" 
+        sl_patterns_file = data_path + f"{dataset_name}/" + dataset_name + "_sl_patterns.root"
+        sl_fits_file = data_path + f"{dataset_name}/" + dataset_name + "_sl_fits.root"
+        sl_refits_file = data_path + f"{dataset_name}/" + dataset_name + "_sl_refits.root"
+        super_fits_path = data_path + f"{dataset_name}/" + dataset_name + "_super_fits.root"
+        plot_save_path = base_path + f"plots/sl_fits/{dataset_name}/"
 
         super_fits = uproot.open(f"{super_fits_path}:tree").arrays(library="np")
         print("### imported super fits data from file: " + super_fits_path)
@@ -2887,7 +2891,8 @@ def main():
                         ylabel=y_label,
                         title=title,
                         filename_suffix=suffix,
-                        scale_factor = vd_factor
+                        scale_factor = vd_factor,
+                        plot_type = plot_type
                     )
 
                     analysis_out[dataset_name] = fit_results

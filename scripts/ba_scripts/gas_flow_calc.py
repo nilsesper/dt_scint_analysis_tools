@@ -20,7 +20,7 @@ h = 0.013 * 4 * 3  # m  cellheight * vertical cells per SL * number of SLs
 
 #####################################
 max_gas_flow = 10  # l/h
-ar_concentration = 0.855  # fraction of argon in the gas mixture (=84.5 %)
+ar_concentration = 0.85  # fraction of argon in the gas mixture (=84.5 %)
 
 # --- Uncertainty on the argon concentration -------------------------------
 # The mixing panel only accepts the argon percentage with one decimal place

@@ -64,13 +64,15 @@ def extract_dt_hits(hits, *, silent=False, has_timestamp=False, ignore_deadtime=
     # cut away undefined wires (if wi >= n_wis in sl)
     # can happen due to bad remapping tables...
     if not silent: print("cut away undefined wires...")
+
     keep_ly = []
     for sl in params._dt_chamber["sls"].keys():
         for ly in params._dt_chamber["sls"][sl]["lys"].keys():
             temp_data_with_masked_wires = data_utils.cut_data(data=tmp_hits, conditions=[("sl","==",sl), ("ly","==",ly), ("wi",">=",params._dt_chamber["sls"][sl]["lys"][ly]["min_wi"]), ("wi","<=",params._dt_chamber["sls"][sl]["lys"][ly]["max_wi"])])
             #print(f"wi < min_wi:", data_utils.cut_data(data=tmp_hits, conditions=[("sl","==",sl), ("ly","==",ly), ("wi","<",params._dt_chamber["sls"][sl]["lys"][ly]["min_wi"])]) )
             #print(f"wi > max_wi:", data_utils.cut_data(data=tmp_hits, conditions=[("sl","==",sl), ("ly","==",ly), ("wi",">",params._dt_chamber["sls"][sl]["lys"][ly]["max_wi"])]) )
-            for wi_to_mask in params._dt_wire_mask[sl][ly]:
+            excluded_wis = set(params._dt_wire_mask[sl][ly]) | set(params._dt_dead_wires.get(sl, {}).get(ly, []))
+            for wi_to_mask in excluded_wis:
                 temp_data_with_masked_wires = data_utils.cut_data(data=temp_data_with_masked_wires, conditions=[("sl","==",sl), ("ly","==",ly), ("wi","!=",wi_to_mask)])
             keep_ly.append( temp_data_with_masked_wires )
 

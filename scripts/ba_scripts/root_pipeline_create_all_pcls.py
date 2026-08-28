@@ -176,7 +176,8 @@ def _dt_filter_block(hits_block):
                 (tmp_hits["sl"] == sl) & (tmp_hits["ly"] == ly)
                 & (tmp_hits["wi"] >= min_wi) & (tmp_hits["wi"] <= max_wi)
             )
-            for wi_to_mask in params._dt_wire_mask[sl][ly]:
+            excluded_wis = set(params._dt_wire_mask[sl][ly]) | set(params._dt_dead_wires.get(sl, {}).get(ly, []))
+            for wi_to_mask in excluded_wis:
                 this_group &= (tmp_hits["wi"] != wi_to_mask)
             keep_mask |= this_group
     tmp_hits = {k: v[keep_mask] for k, v in tmp_hits.items()}
@@ -368,7 +369,7 @@ def run_streamed_pipeline(dt_hits_root_path, dataset_folder_pcls, dataset_name, 
     sl_refits_root = dataset_folder_pcls + dataset_name + "_sl_refits.root"
     super_fits_root = dataset_folder_pcls + dataset_name + "_super_fits.root"
 
-    n_bins = 2500
+    n_bins = 5000
     edges = np.linspace(0, 5000, n_bins + 1)
     centers, hist, entries, underflow, overflow, hist_err_right, hist_err_left = \
         hist_utils.create_empty_histogram(edges=edges)
@@ -572,13 +573,28 @@ def run_streamed_pipeline(dt_hits_root_path, dataset_folder_pcls, dataset_name, 
 # =================================================================
 
 def find_input_dumpfile(base_path, dataset_name):
-    candidate = base_path + "data_tests_cuts/" + dataset_name + ".txt"
-    if os.path.exists(candidate):
-        _log(f"input dumpfile resolved to (data_tests_cuts): {candidate}")
-        return candidate
-    candidate = base_path + "data_runs/" + dataset_name + ".txt"
-    _log(f"input dumpfile resolved to (data_runs): {candidate}")
-    return candidate
+    """Check both data_tests_cuts/ and data_runs/ explicitly. Only
+    return a path if it actually exists there; raise with both
+    attempted paths listed if neither does, instead of silently
+    falling back to an unverified guess."""
+    candidate_tests_cuts = base_path + "data_tests_cuts/" + dataset_name + ".txt"
+    candidate_runs = base_path + "data_runs/" + dataset_name + ".txt"
+
+    _log(f"looking for input dumpfile: trying {candidate_tests_cuts}")
+    if os.path.exists(candidate_tests_cuts):
+        _log(f"input dumpfile resolved to (data_tests_cuts): {candidate_tests_cuts}")
+        return candidate_tests_cuts
+
+    _log(f"not found in data_tests_cuts, trying {candidate_runs}")
+    if os.path.exists(candidate_runs):
+        _log(f"input dumpfile resolved to (data_runs): {candidate_runs}")
+        return candidate_runs
+
+    raise FileNotFoundError(
+        f"Could not find dumpfile for dataset_name={dataset_name!r} in either location:\n"
+        f"  {candidate_tests_cuts}\n"
+        f"  {candidate_runs}"
+    )
 
 
 def main():
@@ -598,10 +614,9 @@ def main():
          f"chunk_size={args.chunk_size!r}, skip_conversion={args.skip_conversion}")
 
     start = time.perf_counter()
-    base_path = "data_ba/"
+    base_path = "/net/data_cms3a-1/tacke/"
     pcls_path = "pcls/"
     dataset_folder_pcls = base_path + pcls_path + args.dataset_name + "/"
-    _log(f"dataset_folder_pcls = {dataset_folder_pcls}")
 
     os.makedirs(dataset_folder_pcls, exist_ok=True)
 

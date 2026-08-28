@@ -787,7 +787,7 @@ def plot_peak_amplitude_rate_vs_uwire_and_mix(
     fig.tight_layout()
 
     if save_path is None:
-        save_path = base_path + f"plots/peak_amp_rate_vs_uwire_and_mix_{method}_comparison{plot_type}"
+        save_path = base_path + f"plots/peak_amp_norm_vs_uwire_and_mix_{method}_comparison{plot_type}"
     fig.savefig(save_path)
     if verbose:
         print(f"store plot as {save_path}.")
@@ -1240,6 +1240,7 @@ def main():
     legend_font_size = mpl.rcParams['font.size'] + 1
 
     list_of_fits = [
+                ["cosmic_85p5-14p5_3625-1800-1200_run1_th20_cut100", 420],
                 ["cosmic_84p5-15p5_3550-1800-1200_run1_th20_cut100", 409], 
                 ["cosmic_84p5-15p5_3575-1800-1200_run1_th20_cut100", 409], 
                 ["cosmic_84p5-15p5_3600-1800-1200_run1_th20_cut100", 409],
@@ -1268,6 +1269,8 @@ def main():
                 ["cosmic_85-15_3600-1800-1200_run2_th20_cut100", 413],
                 ["cosmic_85-15_3575-1800-1200_run1_th20_cut100", 411],                
                 ["cosmic_85-15_3550-1800-1200_run1_th20_cut100", 411], #no peak
+
+                
 
                 ["cosmic_86-14_3650-1800-1200_run1_th20_cut100", 430],#issues with data proccessing
                 ["cosmic_86-14_3625-1800-1200_run1_th20_cut100", 430],
@@ -1334,8 +1337,12 @@ def main():
  
     #list_of_fits = ["cosmic_82-18_3550-1800-1200_run1_th20_cut_50"]
     base_path = "data_ba/"
-    pcls_path = "pcls/" 
-    plot_type = ".png"
+    pcls_path = "pcls/"
+    # absolute path where the actual dt_hits/root/pcl input files live;
+    # everything derived from base_path (plots, analysis_out pickle) stays
+    # relative and untouched
+    data_path = "/net/data_cms3a-1/tacke/pcls/"
+    plot_type = ".pdf"
     analysis_out = {}
 
 
@@ -1368,7 +1375,7 @@ def main():
         if dataset_name in datasets_to_skip:
             continue
         file_name = f"{dataset_name}_hit_diff.pcl"
-        dataset_path = Path(f"{base_path}pcls/{dataset_name}/{file_name}")
+        dataset_path = Path(f"{data_path}{dataset_name}/{file_name}")
         if not dataset_path.exists():
             print(f"Error: Dataset '{file_name}' does not exist.")
             non_existing_hit_diff_hists.append(file_name)
@@ -1418,7 +1425,7 @@ def main():
                     u_cathode = ""
 
             # set up folder structure to find and write data
-            dataset_folder_pcls = base_path + pcls_path + dataset_name + "/"
+            dataset_folder_pcls = data_path + dataset_name + "/"
 
             #input_dumpfile = base_path + "data_runs/" + dataset_name + ".txt"
             #nodeadtime = True
@@ -1428,7 +1435,7 @@ def main():
             #dt_hit_diff_hist_file = dataset_folder_pcls + dataset_name + "_hit_diff.pcl"
             #dt_hits_file_deadtime = dataset_folder_pcls + dataset_name + "_hits_wdeadtime.pcl"
 
-            dt_hit_diff_hist_file = f"data_ba/pcls/{dataset_name}/{dataset_name}_hit_diff.pcl"
+            dt_hit_diff_hist_file = f"{data_path}{dataset_name}/{dataset_name}_hit_diff.pcl"
             plot_save_path = base_path + f"plots/photo_peak/{dataset_name}/"
 
 
@@ -1739,7 +1746,7 @@ def main():
                     dataset_info_fn=parse_fit_name,
                     value_key="A_rate",
                     err_key="A_rate_err",
-                    ylabel="Photopeak normalized amplitude",
+                    ylabel="Photopeak normalized amplitude A_photopeak/counts",
                     filename_prefix="peak_amp",
                     plot_type=plot_type,
                     fig_size=fig_size,
