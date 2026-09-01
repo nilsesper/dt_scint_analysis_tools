@@ -2511,11 +2511,11 @@ def main():
                 "cosmic_85-15_3575-1800-1200_run1_th20_cut100", 
                 "cosmic_85-15_3600-1800-1200_run2_th20_cut100",#missing 3625, 3650 (not measured)
 
-                #"cosmic_85p5-14p5_3550-1800-1200_run1_th20_cut100",
-                #"cosmic_85p5-14p5_3575-1800-1200_run1_th20_cut100",
-                #"cosmic_85p5-14p5_3600-1800-1200_run1_th20_cut100",
-                
-                #"cosmic_85p5-14p5_3650-1800-1200_run1_th20_cut100",#full
+                "cosmic_85p5-14p5_3550-1800-1200_run1_th20_cut100",
+                "cosmic_85p5-14p5_3575-1800-1200_run1_th20_cut100",
+                "cosmic_85p5-14p5_3600-1800-1200_run1_th20_cut100",
+                "cosmic_85p5-14p5_3625-1800-1200_run1_th20_cut100",
+                "cosmic_85p5-14p5_3650-1800-1200_run1_th20_cut100",#full
 
                 "cosmic_86-14_3650-1800-1200_run1_th20_cut100", #issues with data proccessing
                 "cosmic_86-14_3625-1800-1200_run1_th20_cut100", 
