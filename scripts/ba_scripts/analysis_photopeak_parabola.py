@@ -77,8 +77,8 @@ def fit_secondary_peak_parabola(
     window_growth=1.3,
     min_bins=6,
     verbose=True,
-    min_bins_syst=4,
-    max_bis_syst=20,
+    min_bins_syst=5,
+    max_bis_syst=15,
 ):
     """
     Fit a parabola (vertex form) to a FIXED window
@@ -197,7 +197,7 @@ def fit_secondary_peak_parabola(
             mu_scan = []
             bin_width = np.mean(np.diff(bins_nobg))
 
-            for n_bins in range(min_bins_syst, max_bis_syst + 1):
+            for n_bins in range(min_bins_syst , (max_bis_syst + 1)):
                 half_width_syst = n_bins * bin_width
                 mask = (
                     (bins_nobg >= mu_fit - half_width_syst) &
@@ -815,7 +815,7 @@ def plot_peak_amplitude_rate_vs_uwire_and_mix(
 
     ax_right.set_xticks(list(mix_to_x.values()))
     ax_right.set_xticklabels(list(mix_to_x.keys()))
-    ax_right.set_xlabel("Gas mixture (Ar/CO$_2$) [%]")
+    ax_right.set_xlabel("Gas mixture (Ar$_2$) [%]")
     ax_right.set_ylabel("Photopeak amplitude / events")
     ax_right.set_title("vs. gas mix, per wire voltage")
     ax_right.grid(True)
@@ -1436,7 +1436,7 @@ def main():
 
 #define parameters
     fig_size = (8, 6)
-    cell_half_width = 20500 # um 21 mm - 1mm/2 i beam thickness
+    cell_half_width = 20485 # um 21 mm - 1mm/2 i beam thickness - 100 um mylar - 50 um aluminium electrode
     err_cell_half_width = 100 # um
 
     legend_font_size = mpl.rcParams['font.size'] + 1
@@ -1445,55 +1445,51 @@ def main():
 
 
 
-                ["cosmic_84p5-15p5_3625-1800-1200_run1_th20_cut100", 409],
-                ["cosmic_84p5-15p5_3550-1800-1200_run1_th20_cut100", 409], 
-                ["cosmic_84p5-15p5_3575-1800-1200_run1_th20_cut100", 409], 
-                ["cosmic_84p5-15p5_3600-1800-1200_run1_th20_cut100", 409],
-                ["cosmic_84p5-15p5_3625-1800-1200_run1_th20_cut100", 409],
-                ["cosmic_84p5-15p5_3650-1800-1200_run1_th20_cut100", 409],
+              #["cosmic_84p5-15p5_3625-1800-1200_run1_th20", 409],
+              ["cosmic_84p5-15p5_3550-1800-1200_run1_th20", 409], 
+              ["cosmic_84p5-15p5_3575-1800-1200_run1_th20", 409], 
+              ["cosmic_84p5-15p5_3600-1800-1200_run1_th20", 409],
+              ["cosmic_84p5-15p5_3625-1800-1200_run1_th20", 409],
+              ["cosmic_84p5-15p5_3650-1800-1200_run1_th20", 409],
 
+              #["cosmic_85p5-14p5_3625-1800-1200_run1_th20", 420],
+              ["cosmic_85p5-14p5_3550-1800-1200_run1_th20", 420], 
+              ["cosmic_85p5-14p5_3575-1800-1200_run1_th20", 420], 
+              ["cosmic_85p5-14p5_3600-1800-1200_run1_th20", 420],
+              ["cosmic_85p5-14p5_3625-1800-1200_run1_th20", 420],
+              ["cosmic_85p5-14p5_3650-1800-1200_run1_th20", 420],
 
-                ["cosmic_85p5-14p5_3625-1800-1200_run1_th20_cut100", 420],
-                ["cosmic_85p5-14p5_3550-1800-1200_run1_th20_cut100", 420], 
-                ["cosmic_85p5-14p5_3575-1800-1200_run1_th20_cut100", 420], 
-                ["cosmic_85p5-14p5_3600-1800-1200_run1_th20_cut100", 420],
-                ["cosmic_85p5-14p5_3625-1800-1200_run1_th20_cut100", 420],
-                ["cosmic_85p5-14p5_3650-1800-1200_run1_th20_cut100", 420],
+              ["cosmic_82-18_3650-1800-1200_run1_th20", 391],        
+              ["cosmic_82-18_3625-1800-1200_run1_th20", 387], 
+              #["cosmic_82-18_3550-1800-1200_run1_th20", 387], no peak
+              #["cosmic_82-18_3575-1800-1200_run1_th20", 387], no peak
+              #["cosmic_82-18_3600-1800-1200_run1_th20", 387], no peak
 
-                ["cosmic_82-18_3650-1800-1200_run1_th20_cut100", 391],        
-                ["cosmic_82-18_3625-1800-1200_run1_th20_cut100", 387], 
-                #["cosmic_82-18_3550-1800-1200_run1_th20_cut100", 387], no peak
-                #["cosmic_82-18_3575-1800-1200_run1_th20_cut100", 387], no peak
-                #["cosmic_82-18_3600-1800-1200_run1_th20_cut100", 387], no peak
+              ["cosmic_83-17_3650-1800-1200_run1_th20", 400],
+              ["cosmic_83-17_3625-1800-1200_run1_th20", 400], 
+              ["cosmic_83-17_3600-1800-1200_run1_th20", 392],
+              #["cosmic_83-17_3575-1800-1200_run1_th20", 392], # no peak
+              #["cosmic_83-17_3550-1800-1200_run1_th20", 392], # no peak
 
-                ["cosmic_83-17_3650-1800-1200_run1_th20_cut100", 400],
-                ["cosmic_83-17_3625-1800-1200_run1_th20_cut100", 400], 
-                ["cosmic_83-17_3600-1800-1200_run1_th20_cut100", 392],
-                #["cosmic_83-17_3575-1800-1200_run1_th20_cut100", 392], # no peak
-                #["cosmic_83-17_3550-1800-1200_run1_th20_cut100", 392], # no peak
+              ["cosmic_84-16_3650-1800-1200_run1_th20", 405], 
+              ["cosmic_84-16_3625-1800-1200_run1_th20", 405], 
+              ["cosmic_84-16_3600-1800-1200_run1_th20", 405],
+              ["cosmic_84-16_3575-1800-1200_run1_th20", 405],
+              ["cosmic_84-16_3550-1800-1200_run1_th20", 405],
 
-                ["cosmic_84-16_3650-1800-1200_run1_th20_cut100", 405], 
-                ["cosmic_84-16_3625-1800-1200_run1_th20_cut100", 405], 
-                ["cosmic_84-16_3600-1800-1200_run1_th20_cut100", 405],
-                ["cosmic_84-16_3575-1800-1200_run1_th20_cut100", 405],
-                ["cosmic_84-16_3550-1800-1200_run1_th20_cut100", 405],
+              ["cosmic_85-15_3600-1800-1200_run2_th20", 413],
+              ["cosmic_85-15_3575-1800-1200_run1_th20", 411],                
+              ["cosmic_85-15_3550-1800-1200_run1_th20", 411], #no peak
 
+              ["cosmic_86-14_3650-1800-1200_run1_th20", 430],#issues with data proccessing
+              ["cosmic_86-14_3625-1800-1200_run1_th20", 430],
+              ["cosmic_86-14_3600-1800-1200_run1_th20", 430],
+              ["cosmic_86-14_3575-1800-1200_run1_th20", 430],
+              ["cosmic_86-14_3550-1800-1200_run1_th20",430],#full
 
-                ["cosmic_85-15_3600-1800-1200_run2_th20_cut100", 413],
-                ["cosmic_85-15_3575-1800-1200_run1_th20_cut100", 411],                
-                ["cosmic_85-15_3550-1800-1200_run1_th20_cut100", 411], #no peak
-
-                
-
-                ["cosmic_86-14_3650-1800-1200_run1_th20_cut100", 430],#issues with data proccessing
-                ["cosmic_86-14_3625-1800-1200_run1_th20_cut100", 430],
-                ["cosmic_86-14_3600-1800-1200_run1_th20_cut100", 430],
-                ["cosmic_86-14_3575-1800-1200_run1_th20_cut100", 430],
-                ["cosmic_86-14_3550-1800-1200_run1_th20_cut100",430],#full
-
-                ["cosmic_87-13_3600-1800-1200_run1_th20_cut100", 440], # stopped because of tripping
-                ["cosmic_87-13_3575-1800-1200_run1_th20_cut100", 440],
-                ["cosmic_87-13_3550-1800-1200_run1_th20_cut100", 440],
+              ["cosmic_87-13_3600-1800-1200_run1_th20", 440], # stopped because of tripping
+              ["cosmic_87-13_3575-1800-1200_run1_th20", 440],
+              ["cosmic_87-13_3550-1800-1200_run1_th20", 440],
 
 
 
@@ -1727,10 +1723,10 @@ def main():
             ax.set_xlabel("$\\Delta T_\\text{cell}$ [ns]")
 
             if not do_ramp_measurement:
-                title = f"Raw time diff hist of all cells\n{pct_ar}/{pct_co2} Ar/CO$_2$, $U_{{wire}}$ = {u_wire}V"
+                title = f"$\\Delta T_\\text{{cell}}$ hist of DT chamber\n{pct_ar}/{pct_co2} Ar/CO$_2$, $U_{{wire}}$ = {u_wire}V"
             elif do_ramp_measurement:
                 time = parse_start_time(dataset_name)
-                title = f"Raw time diff hist of all cells\nRamp measurement $t_{{\\mathrm{{start}}}}$ = {time}, $U_{{\\mathrm{{wire}}}}$ = 3600 V"
+                title = f"$\\Delta T_\\text{{cell}}$ hist of DT chamber\nRamp measurement $t_{{\\mathrm{{start}}}}$ = {time}, $U_{{\\mathrm{{wire}}}}$ = 3600 V"
 
             ax.set_title(title)
             fig.tight_layout()
@@ -1739,6 +1735,62 @@ def main():
                 print("storing histogram...")
                 fig.savefig(path)
                 print(f"Done saving hist as {path}\n")
+            plt.close(fig)
+
+            ######################
+            ##### Zoomed hist, SAME framing (x/y limits) as the peak-fit
+            ##### plot further down, but with NO fit drawn on top -- this
+            ##### is its own standalone plot/file, meant for discussing
+            ##### the shape of the spectrum at lower Delta T (e.g. the
+            ##### background/secondary-hit shape leading up to the
+            ##### photopeak) independently of the parabola fit result.
+            print("Plotting zoomed t_diff hist (no fit)...")
+
+            max_dt = 700
+            lims = [0, max_dt]
+
+            fig, ax = plt.subplots(1, 1, figsize=fig_size)
+            ax = hist_utils.plot_histogram(
+                ax, hist=hist, centers=bins,
+                err_hist_down=err_hist_down, err_hist_up=err_hist_up,
+                log_scale=False, power_limits=[-4, 4],
+            )
+            info_str = (
+                f"entries = {int(np.sum(hist))}\n"
+                f"bin count = {len(centers)}\n"
+                f"bin width = {np.mean(np.diff(bins)):.3g} ns\n"
+                f"overflow = {int(overflow)}\n"
+                f"underflow = {int(underflow)}"
+            )
+            ax.text(
+                0.97, 0.97, info_str,
+                transform=ax.transAxes,
+                ha="right", va="top",
+                fontsize=mpl.rcParams['font.size'] - 1,
+                bbox=dict(boxstyle="round", facecolor="white", edgecolor="0.7", alpha=0.85),
+            )
+
+            ax.set_xlim(left=lims[0], right=lims[1])
+            i_max_dt = int(np.argmin(np.abs(bins - max_dt)))
+            y_bottom = hist[i_max_dt]
+            y_top = 1.1 * np.amax(hist)
+            ax.set_ylim(y_bottom, y_top)
+            ax.set_xlabel("$\\Delta T_\\text{cell}$ [ns]")
+
+            if not do_ramp_measurement:
+                title = f"$\\Delta T_\\text{{cell}}$ hist of DT chamber\n{pct_ar}/{pct_co2} Ar/CO$_2$, $U_{{wire}}$ = {u_wire}V"
+            elif do_ramp_measurement:
+                time = parse_start_time(dataset_name)
+                title = f"$\\Delta T_\\text{{cell}}$ hist of DT chamber\nRamp measurement $t_{{\\mathrm{{start}}}}$ = {time}, $U_{{\\mathrm{{wire}}}}$ = 3600 V"
+            ax.set_title(title)
+
+            fig.tight_layout()
+            if save_plots:
+                path = f"{plot_save_path}{dataset_name}_t_diff_zoom_nofit{plot_type}"
+                print("storing histogram...")
+                fig.savefig(path)
+                print(f"histogram plot stored as {path}.")
+            plt.close(fig)
 
             ######################
             ##### fit peak position DIRECTLY on the RAW histogram -- no bg
@@ -1746,12 +1798,12 @@ def main():
             ##### in the region of the peak itself (NOT valley-to-valley),
             ##### see fit_secondary_peak_parabola's docstring for caveats.
             print("\nFitting photopeak directly to raw histogram (no bg subtraction)...")
-
+            fit_width = 10
             popt, pcov, fit_bins, fit_hist, err_fit_hist, fit_func, mu_val, err_mu, fit_results = fit_secondary_peak_parabola(
                 bins, hist, err_hist,
                 peak_pos=dataset_peak_position,
-                halfwidth_left_ns=20,
-                halfwidth_right_ns=20,
+                halfwidth_left_ns=fit_width,
+                halfwidth_right_ns = fit_width,
                 edge_margin_frac=0.15,
                 window_growth=1.3,
                 max_attempts=6,
@@ -1856,7 +1908,7 @@ def main():
             lims = [0, max_dt]
             ax[0].axvline(x=peak_pos, color="tab:red", linestyle="--", label="Peak position $\\mu$")
             ax[0].axvspan(xmin=peak_pos - peak_err_total, xmax=peak_pos + peak_err_total, color="tab:red", alpha=0.1)
-            ax[0].legend(loc="lower left", prop={'size': legend_font_size}, fancybox=False, framealpha=params._legend_alpha)
+            ax[0].legend(loc="upper right", prop={'size': legend_font_size}, fancybox=False, framealpha=params._legend_alpha)
             ax[0].set_xlim(left=lims[0], right=lims[1])
             i_max_dt = int(np.argmin(np.abs(bins - max_dt)))
             y_bottom = hist[i_max_dt]
@@ -1864,10 +1916,10 @@ def main():
             ax[0].set_ylim(y_bottom, y_top)
 
             if not do_ramp_measurement:
-                title = f"Photopeak fit (Parabel, raw hist)\n{pct_ar}/{pct_co2} Ar/CO$_2$, $U_{{wire}}$ = {u_wire}V"
+                title = f"$\\Delta T_\\text{{cell}}$ photopeak parabola fit\n{pct_ar}/{pct_co2} Ar/CO$_2$, $U_{{wire}}$ = {u_wire}V"
             elif do_ramp_measurement:
                 time = parse_start_time(dataset_name)
-                title = f"Photopeak fit (Parabel, raw hist)\nRamp measurement $t_{{\\mathrm{{start}}}}$ = {time}, $U_{{\\mathrm{{wire}}}}$ = 3600 V"
+                title = f"$\\Delta T_\\text{{cell}}$ photopeak parabola fit\nRamp measurement $t_{{\\mathrm{{start}}}}$ = {time}, $U_{{\\mathrm{{wire}}}}$ = 3600 V"
             ax[0].set_title(title)
 
             # --- residuals panel ---

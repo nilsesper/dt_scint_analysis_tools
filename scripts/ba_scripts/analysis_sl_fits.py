@@ -2482,50 +2482,49 @@ def main():
     list_of_fits = [
 
 
-                "cosmic_85p5-14p5_3625-1800-1200_run1_th20_cut100",
-                "cosmic_82-18_3550-1800-1200_run1_th20_cut100",
-                "cosmic_82-18_3575-1800-1200_run1_th20_cut100", 
-                "cosmic_82-18_3600-1800-1200_run1_th20_cut100",
-                "cosmic_82-18_3625-1800-1200_run1_th20_cut100", 
-                "cosmic_82-18_3650-1800-1200_run1_th20_cut100",#full
+                "cosmic_82-18_3550-1800-1200_run1_th20",
+                "cosmic_82-18_3575-1800-1200_run1_th20", 
+                "cosmic_82-18_3600-1800-1200_run1_th20",
+                "cosmic_82-18_3625-1800-1200_run1_th20", 
+                "cosmic_82-18_3650-1800-1200_run1_th20",#full
 
-                "cosmic_83-17_3650-1800-1200_run1_th20_cut100",
-                "cosmic_83-17_3625-1800-1200_run1_th20_cut100", 
-                "cosmic_83-17_3600-1800-1200_run1_th20_cut100", 
-                "cosmic_83-17_3575-1800-1200_run1_th20_cut100", 
-                "cosmic_83-17_3550-1800-1200_run1_th20_cut100",#full
+                "cosmic_83-17_3650-1800-1200_run1_th20",
+                "cosmic_83-17_3625-1800-1200_run1_th20", 
+                "cosmic_83-17_3600-1800-1200_run1_th20", 
+                "cosmic_83-17_3575-1800-1200_run1_th20", 
+                "cosmic_83-17_3550-1800-1200_run1_th20",#full
 
-                "cosmic_84-16_3650-1800-1200_run1_th20_cut100",
-                "cosmic_84-16_3625-1800-1200_run1_th20_cut100", 
-                "cosmic_84-16_3600-1800-1200_run1_th20_cut100", 
-                "cosmic_84-16_3575-1800-1200_run1_th20_cut100", 
-                "cosmic_84-16_3550-1800-1200_run1_th20_cut100",#full
+                "cosmic_84-16_3650-1800-1200_run1_th20",
+                "cosmic_84-16_3625-1800-1200_run1_th20", 
+                "cosmic_84-16_3600-1800-1200_run1_th20", 
+                "cosmic_84-16_3575-1800-1200_run1_th20", 
+                "cosmic_84-16_3550-1800-1200_run1_th20",#full
 
-                "cosmic_84p5-15p5_3550-1800-1200_run1_th20_cut100", 
-                "cosmic_84p5-15p5_3575-1800-1200_run1_th20_cut100", 
-                "cosmic_84p5-15p5_3600-1800-1200_run1_th20_cut100",
-                "cosmic_84p5-15p5_3625-1800-1200_run1_th20_cut100",
-                "cosmic_84p5-15p5_3650-1800-1200_run1_th20_cut100",#full
+                "cosmic_84p5-15p5_3550-1800-1200_run1_th20", 
+                "cosmic_84p5-15p5_3575-1800-1200_run1_th20", 
+                "cosmic_84p5-15p5_3600-1800-1200_run1_th20",
+                "cosmic_84p5-15p5_3625-1800-1200_run1_th20",
+                "cosmic_84p5-15p5_3650-1800-1200_run1_th20",#full
 
-                "cosmic_85-15_3550-1800-1200_run1_th20_cut100",
-                "cosmic_85-15_3575-1800-1200_run1_th20_cut100", 
-                "cosmic_85-15_3600-1800-1200_run2_th20_cut100",#missing 3625, 3650 (not measured)
+                "cosmic_85-15_3550-1800-1200_run1_th20",
+                "cosmic_85-15_3575-1800-1200_run1_th20", 
+                "cosmic_85-15_3600-1800-1200_run2_th20",#missing 3625, 3650 (not measured)
 
-                "cosmic_85p5-14p5_3550-1800-1200_run1_th20_cut100",
-                "cosmic_85p5-14p5_3575-1800-1200_run1_th20_cut100",
-                "cosmic_85p5-14p5_3600-1800-1200_run1_th20_cut100",
-                "cosmic_85p5-14p5_3625-1800-1200_run1_th20_cut100",
-                "cosmic_85p5-14p5_3650-1800-1200_run1_th20_cut100",#full
+                "cosmic_85p5-14p5_3550-1800-1200_run1_th20",
+                "cosmic_85p5-14p5_3575-1800-1200_run1_th20",
+                "cosmic_85p5-14p5_3600-1800-1200_run1_th20",
+                "cosmic_85p5-14p5_3625-1800-1200_run1_th20",
+                "cosmic_85p5-14p5_3650-1800-1200_run1_th20",#full
 
-                "cosmic_86-14_3650-1800-1200_run1_th20_cut100", #issues with data proccessing
-                "cosmic_86-14_3625-1800-1200_run1_th20_cut100", 
-                "cosmic_86-14_3600-1800-1200_run1_th20_cut100", 
-                "cosmic_86-14_3575-1800-1200_run1_th20_cut100", 
-                "cosmic_86-14_3550-1800-1200_run1_th20_cut100",#full
+                "cosmic_86-14_3650-1800-1200_run1_th20", 
+                "cosmic_86-14_3625-1800-1200_run1_th20", 
+                "cosmic_86-14_3600-1800-1200_run1_th20", 
+                "cosmic_86-14_3575-1800-1200_run1_th20", 
+                "cosmic_86-14_3550-1800-1200_run1_th20",#full
 
-                "cosmic_87-13_3550-1800-1200_run1_th20_cut100",
-                "cosmic_87-13_3575-1800-1200_run1_th20_cut100",
-                "cosmic_87-13_3600-1800-1200_run1_th20_cut100", # stopped because of tripping
+                "cosmic_87-13_3550-1800-1200_run1_th20",
+                "cosmic_87-13_3575-1800-1200_run1_th20",
+                "cosmic_87-13_3600-1800-1200_run1_th20", # stopped because of tripping
                 ]
     #list_of_fits = ["mb1_sxa5_cosmics_10min"]
     #list_of_fits = ["cosmic_85-15_3600-1800-1200_test4_th20"]
