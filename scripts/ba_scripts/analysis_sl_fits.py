@@ -2506,9 +2506,10 @@ def main():
                 "cosmic_84p5-15p5_3625-1800-1200_run1_th20",
                 "cosmic_84p5-15p5_3650-1800-1200_run1_th20",#full
 
-                "cosmic_85-15_3550-1800-1200_run1_th20",
-                "cosmic_85-15_3575-1800-1200_run1_th20", 
-                "cosmic_85-15_3600-1800-1200_run2_th20",#missing 3625, 3650 (not measured)
+                #"cosmic_85-15_3550-1800-1200_run1_th20",
+                #"cosmic_85-15_3575-1800-1200_run1_th20", 
+                #"cosmic_85-15_3600-1800-1200_run2_th20",#missing 3625, 3650 (not measured)
+                "cosmic_85-15_3600-1800-1200_run3_th20_cut100",
 
                 "cosmic_85p5-14p5_3550-1800-1200_run1_th20",
                 "cosmic_85p5-14p5_3575-1800-1200_run1_th20",
@@ -2527,7 +2528,7 @@ def main():
                 "cosmic_87-13_3600-1800-1200_run1_th20", # stopped because of tripping
                 ]
     #list_of_fits = ["mb1_sxa5_cosmics_10min"]
-    #list_of_fits = ["cosmic_85-15_3600-1800-1200_test4_th20"]
+    #list_of_fits = ["cosmic_85-15_3600-1800-1200_run3_th20_cut100"]
 
     ramp_datasets = [
         "data_mic0_start_2026-07-24_18-06-10_stop_2026-07-24_18-16-11",
@@ -2569,7 +2570,7 @@ def main():
         "data_mic0_start_2026-07-31_04-18-05_stop_2026-07-31_04-28-06",
         "data_mic0_start_2026-07-31_08-28-08_stop_2026-07-31_08-38-09",
     ]
-    #list_of_fits = ["cosmic_82-18_3550-1800-1200_run1_th20_cut_50"]
+    
     
         
     if do_ramp_measurement:
@@ -2975,7 +2976,7 @@ def main():
                     title=f"Hist of alpha vs vd {suffix}",
                     save_path=plot_save_path + f"vd_vs_alpha_{suffix}{plot_type}",
                 )
-
+                plt.close("all")
                 data_to_hist_2d(
                     data_x=np.rad2deg(np.arctan(super_fits_cuts["tan_alpha_free_vd_super_fit"])),
                     data_y=super_fits_cuts["x0_free_vd_super_fit"],
@@ -3078,16 +3079,7 @@ def main():
             
                 plt.close("all")
 
-        # -----------------------------------------------------------------
-        # FIX: this block used to live OUTSIDE the per-dataset loop, after
-        # it had already finished, so it referenced sl_fits_file / dataset_info
-        # / pct_ar / etc. from whatever the LAST loop iteration happened to
-        # set (or, if that iteration was skipped via `continue`, those names
-        # were never bound at all -> UnboundLocalError). It has been moved
-        # here, inside the loop, so it runs once per dataset using that
-        # dataset's own files/info, matching how do_super_fit_analysis's
-        # block above is already scoped.
-        # -----------------------------------------------------------------
+        
         if do_refit_full_analysis:
             #sl_fits = data_utils.load_pickle(file = sl_fits_file) #when using pcl files use this
 
