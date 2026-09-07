@@ -5,28 +5,23 @@
 import os
 import numpy as np
 import matplotlib.pyplot as plt
-import matplotlib.patches as pat
 import matplotlib as mpl
-from mpl_toolkits.axes_grid1 import make_axes_locatable
-import copy
 from analysis_tools.utils import dummy_gen, data_utils, dt_utils, scint_utils, timestamp_utils, geoplot_utils, muon_utils, math_utils, hist_utils, process_utils
 from analysis_tools.params import params, derived_params   #, params_justus
 
-import subprocess
-import atexit
 import sys
-import time
-from tqdm import tqdm
 from scipy.optimize import curve_fit
-from scipy.signal import find_peaks, peak_widths
 import re
 from datetime import datetime
 from matplotlib.ticker import ScalarFormatter
-
+mpl.rcParams.update({
+    'font.size': 14,
+    'axes.titlesize': 20,
+    'axes.labelsize': 18,
+    'legend.fontsize': 13,
+})
 import matplotlib.dates as mdates
-import sys
 from pathlib import Path
-import uproot
 
 # =================================================================
 # Robust secondary-peak fitting helpers
@@ -78,7 +73,8 @@ def fit_secondary_peak_parabola(
     min_bins=6,
     verbose=True,
     min_bins_syst=5,
-    max_bis_syst=15,
+    max_bins_syst=15,
+    max_chi2_ndf_syst=5.0,
 ):
     """
     Fit a parabola (vertex form) to a FIXED window
@@ -113,8 +109,15 @@ def fit_secondary_peak_parabola(
         Multiplicative factor applied to both halfwidths on each retry.
     min_bins : int, default 6
         Minimum number of bins required in the fit window.
-    (min_bins_syst, max_bis_syst, verbose: as before, used for the
-    systematic-uncertainty scan after a successful fit)
+    min_bins_syst, max_bins_syst : int
+        Range of window half-widths (in bins) scanned to estimate the
+        systematic uncertainty on the peak position.
+    max_chi2_ndf_syst : float, default 5.0
+        Systematic-scan windows whose chi2/ndf exceeds this are rejected
+        from the RMS systematic-uncertainty calculation, so a handful of
+        badly-fit windows can't dominate the systematic error.
+    verbose : bool
+        Whether to print per-window diagnostics.
     """
     win_left_ns = halfwidth_left_ns
     win_right_ns = halfwidth_right_ns
@@ -197,7 +200,7 @@ def fit_secondary_peak_parabola(
             mu_scan = []
             bin_width = np.mean(np.diff(bins_nobg))
 
-            for n_bins in range(min_bins_syst , (max_bis_syst + 1)):
+            for n_bins in range(min_bins_syst , (max_bins_syst + 1)):
                 half_width_syst = n_bins * bin_width
                 mask = (
                     (bins_nobg >= mu_fit - half_width_syst) &
@@ -235,6 +238,12 @@ def fit_secondary_peak_parabola(
                     ndf_syst = len(x_syst) - len(popt_syst)
                     chi2_ndf_syst = chi2_syst / ndf_syst if ndf_syst > 0 else np.nan
 
+                    if not np.isfinite(chi2_ndf_syst) or chi2_ndf_syst > max_chi2_ndf_syst:
+                        if verbose:
+                            print(f"n_bins={n_bins:2d}, chi2/ndf={chi2_ndf_syst:.2f}, mu={mu_syst:.5f} "
+                                  f"-- SKIPPED (chi2/ndf above max_chi2_ndf_syst={max_chi2_ndf_syst})")
+                        continue
+
                     if verbose:
                         print(f"n_bins={n_bins:2d}, chi2/ndf={chi2_ndf_syst:.2f}, mu={mu_syst:.5f}")
 
@@ -257,6 +266,10 @@ def fit_secondary_peak_parabola(
                 "pcov": pcov,
                 "peak_err_tot": tot_err,
                 "peak_err_syst": err_mu_syst,
+                "chi2_main": chi2,
+                "ndf_main": ndf,
+                "chi2_ndf_main": chi2ndf,
+                "n_syst_windows_used": len(mu_scan),
             }
 
             return popt, pcov, fit_bins, fit_hist, err_fit_hist, parabola_vertex_form, mu_fit, err_mu_fit, fit_results
@@ -295,8 +308,50 @@ _WIRE_COLOR_MAP = {
     for i, v in enumerate(_WIRE_VOLTAGES)
 }
 
+
+
+_REAL_GAS_MIX = {
+    82.0: (81.946, 0.246),
+    83.0: (82.987, 0.234),
+    84.0: (84.020, 0.222),
+    84.5: (84.457, 0.217),
+    85.0: (85.107, 0.209),
+    85.5: (85.548, 0.204),
+    86.0: (85.930, 0.199),
+    87.0: (87.017, 0.186),
+}
+
+def parse_fit_name_real_mix(*, name):
+    """
+    Same as parse_fit_name(), but returns the REAL/measured gas-mixture
+    percentage (from _REAL_GAS_MIX) instead of the nominal/target one
+    baked into the dataset name.
  
+    Raises a KeyError (with a clear message) if a dataset's target
+    pct_Ar has no entry in _REAL_GAS_MIX -- add it there if you
+    calibrate a new gas mixture, rather than silently plotting the
+    dataset at the wrong (target) position.
+    """
+    info = parse_fit_name(name=name)
+    target_ar = float(info["pct_Ar"])
  
+    if target_ar not in _REAL_GAS_MIX:
+        raise KeyError(
+            f"No real/measured gas-mix calibration found for target "
+            f"pct_Ar={target_ar} (dataset '{name}'). Add it to "
+            f"_REAL_GAS_MIX if this is a new/uncalibrated gas mixture."
+        )
+ 
+    real_ar, err_real_ar = _REAL_GAS_MIX[target_ar]
+ 
+    info = dict(info)  # don't mutate parse_fit_name()'s returned dict
+    info["pct_Ar_target"] = target_ar
+    info["pct_CO2_target"] = info["pct_CO2"]
+    info["pct_Ar"] = round(real_ar, 3)
+    info["pct_CO2"] = round(100.0 - real_ar, 3)
+    info["pct_Ar_err"] = round(err_real_ar, 3)
+    return info
+
 
 def plot_vd_by_gas_mix(
     *,
@@ -325,10 +380,8 @@ def plot_vd_by_gas_mix(
     Parameters
     ----------
     analysis_out : dict
-        {dataset_name: fit_results}. Reads "peak"/"peak_err" (as produced
-        by fit_parabola_peak / fit_gaussian_hist) if present, otherwise
-        falls back to "v_drift"/"err_v_drift" (as produced by the photopeak
-        method), so the same function works on either analysis's output.
+        {dataset_name: fit_results}. Reads "v_drift"/"err_v_drift" (as
+        produced by the photopeak method).
     base_path : str
         Used to build the default output file path
         (base_path + "plots/vd_photo_peak_comparison<plot_type>").
@@ -373,7 +426,7 @@ def plot_vd_by_gas_mix(
         u_wire = int(info["U_wire"])  # force int so wide/fallback parsing paths can't mismatch
         mix_label = f"{_fmt_gas_pct(pct_ar)}/{_fmt_gas_pct(pct_co2)}"
  
-        if "peak_pos" in result and "peak_err_tot" in result:
+        if "v_drift" in result and "err_v_drift" in result:
             mean_vd = result["v_drift"]
             err_vd = result["err_v_drift"]
 
@@ -791,7 +844,7 @@ def plot_peak_amplitude_rate_vs_uwire_and_mix(
         )
 
     ax_left.set_xlabel(r"$U_{\mathrm{wire}}$ [V]")
-    ax_left.set_ylabel("Photopeak amplitude / events")
+    ax_left.set_ylabel("Photopeak amplitude / event [counts/event]")
     ax_left.set_title("vs. wire voltage, per gas mix")
     ax_left.grid(True)
     ax_left.legend(title="Ar/CO$_2$ [%]", fancybox=False, framealpha=params._legend_alpha)
@@ -815,8 +868,8 @@ def plot_peak_amplitude_rate_vs_uwire_and_mix(
 
     ax_right.set_xticks(list(mix_to_x.values()))
     ax_right.set_xticklabels(list(mix_to_x.keys()))
-    ax_right.set_xlabel("Gas mixture (Ar$_2$) [%]")
-    ax_right.set_ylabel("Photopeak amplitude / events")
+    ax_right.set_xlabel("Gas mixture (Ar/CO$_2$) [%]")
+    ax_right.set_ylabel("Photopeak amplitude / event [counts/event]")
     ax_right.set_title("vs. gas mix, per wire voltage")
     ax_right.grid(True)
     ax_right.legend(fancybox=False, framealpha=params._legend_alpha)
@@ -936,7 +989,19 @@ def plot_peak_pos_vs_uwire_and_mix(
     mix_colormap = plt.cm.tab10
     mix_color_map = {mix: mix_colormap(i % 10) for i, mix in enumerate(mixes)}
 
-    fig, (ax_left, ax_right) = plt.subplots(1, 2, figsize=fig_size)
+     # Distinct color per gas mix for the left panel.
+    # Set3 gives a softer, publication-friendly qualitative palette.
+    mix_colormap = plt.cm.Set3
+    mix_color_map = {
+        mix: mix_colormap(i % mix_colormap.N)
+        for i, mix in enumerate(mixes)
+    }
+
+    fig, (ax_left, ax_right) = plt.subplots(
+        1, 2,
+        figsize=fig_size,
+        constrained_layout=True,
+    )
 
     # ---- left panel: peak_pos vs U_wire, one line per gas mix ----
     grouped_by_mix = {mix: [] for mix in mixes}
@@ -944,22 +1009,64 @@ def plot_peak_pos_vs_uwire_and_mix(
         grouped_by_mix[e["mix"]].append(e)
 
     for mix in mixes:
-        group = sorted(grouped_by_mix[mix], key=lambda e: e["u_wire"])
+        group = sorted(
+            grouped_by_mix[mix],
+            key=lambda e: e["u_wire"]
+        )
         if not group:
             continue
+
         x = [e["u_wire"] for e in group]
         y = [e["value"] for e in group]
         yerr = [e["err"] for e in group]
+
         ax_left.errorbar(
-            x, y, yerr=yerr, marker="o", capsize=3,
-            color=mix_color_map[mix], label=mix,
+            x,
+            y,
+            yerr=yerr,
+            marker="o",
+            markersize=5,
+            linewidth=1.8,
+            capsize=3,
+            color=mix_color_map[mix],
+            label=mix,
         )
 
     ax_left.set_xlabel(r"$U_{\mathrm{wire}}$ [V]")
     ax_left.set_ylabel(r"Peak position $\mu$ [ns]")
     ax_left.set_title("vs. wire voltage, per gas mix")
-    ax_left.grid(True)
-    ax_left.legend(title="Ar/CO$_2$ [%]", fancybox=False, framealpha=params._legend_alpha)
+    ax_left.grid(True, alpha=0.3)
+
+    # Extend the y-axis so that the data/error bars are not crowded.
+    y_values = [
+        e["value"] + e["err"]
+        for e in entries
+    ] + [
+        e["value"] - e["err"]
+        for e in entries
+    ]
+
+    y_min = min(y_values)
+    y_max = max(y_values)
+    y_margin = 0.08 * (y_max - y_min) if y_max > y_min else 1.0
+
+    ax_left.set_ylim(
+        y_min - y_margin,
+        y_max + y_margin,
+    )
+
+    # Two-row legend in the upper-right corner.
+    n_legend_cols = int(np.ceil(len(mixes) / 2))
+
+    ax_left.legend(
+        title="Ar/CO$_2$ [%]",
+        ncol=n_legend_cols,
+        loc="upper right",
+        fancybox=False,
+        framealpha=params._legend_alpha,
+        columnspacing=1.2,
+        handletextpad=0.5,
+    )
 
     # ---- right panel: peak_pos vs gas mix, one line per U_wire ----
     grouped_by_wire = {u: [] for u in unique_u_wires}
@@ -967,15 +1074,27 @@ def plot_peak_pos_vs_uwire_and_mix(
         grouped_by_wire[e["u_wire"]].append(e)
 
     for u in unique_u_wires:
-        group = sorted(grouped_by_wire[u], key=lambda e: mix_to_x[e["mix"]])
+        group = sorted(
+            grouped_by_wire[u],
+            key=lambda e: mix_to_x[e["mix"]]
+        )
         if not group:
             continue
+
         x = [mix_to_x[e["mix"]] for e in group]
         y = [e["value"] for e in group]
         yerr = [e["err"] for e in group]
+
         ax_right.errorbar(
-            x, y, yerr=yerr, marker="o", capsize=3,
-            color=wire_color_map[u], label=f"$U_{{wire}}$ = {u} V",
+            x,
+            y,
+            yerr=yerr,
+            marker="o",
+            markersize=5,
+            linewidth=1.8,
+            capsize=3,
+            color=wire_color_map[u],
+            label=f"$U_{{\\mathrm{{wire}}}}$ = {u} V",
         )
 
     ax_right.set_xticks(list(mix_to_x.values()))
@@ -983,17 +1102,31 @@ def plot_peak_pos_vs_uwire_and_mix(
     ax_right.set_xlabel("Gas mixture (Ar/CO$_2$) [%]")
     ax_right.set_ylabel(r"Peak position $\mu$ [ns]")
     ax_right.set_title("vs. gas mix, per wire voltage")
-    ax_right.grid(True)
-    ax_right.legend(fancybox=False, framealpha=params._legend_alpha)
+    ax_right.grid(True, alpha=0.3)
+
+    ax_right.legend(
+        fancybox=False,
+        framealpha=params._legend_alpha,
+    )
 
     fig.suptitle(f"Photopeak position comparison from {strmethod}")
-    fig.tight_layout()
 
     if save_path is None:
-        save_path = base_path + f"plots/peak_pos_vs_uwire_and_mix_{method}_comparison{plot_type}"
-    fig.savefig(save_path)
+        save_path = (
+            base_path
+            + f"plots/peak_pos_vs_uwire_and_mix_"
+              f"{method}_comparison{plot_type}"
+        )
+
+    fig.savefig(
+        save_path,
+        bbox_inches="tight",
+        dpi=300,
+    )
+
     if verbose:
         print(f"store plot as {save_path}.")
+
     plt.close("all")
     return fig, (ax_left, ax_right), save_path
 
@@ -1006,6 +1139,9 @@ def analyze_specific_data(
     plot_type=".png",
     save_plots=True,
     verbose=True,
+    pct_ar="",
+    pct_co2="",
+    u_wire="",
     ):
     """
     Run the full "SPECIFIC" occupancy/rate analysis for one dataset of DT
@@ -1035,6 +1171,9 @@ def analyze_specific_data(
         If True, all info/status messages are also printed to stdout.
         Regardless of this flag, every message is collected in the
         returned `log` list.
+    pct_ar, pct_co2, u_wire : optional
+        Gas mixture / wire voltage for this dataset, used only to build
+        informative plot titles. Left blank if unavailable.
 
     Returns
     -------
@@ -1069,6 +1208,8 @@ def analyze_specific_data(
 
     if save_plots:
         os.makedirs(plot_save_path, exist_ok=True)
+
+    title_info = f"{pct_ar}/{pct_co2} Ar/CO$_2$, $U_{{wire}}$ = {u_wire} V" if pct_ar != "" else dataset_name
 
     layer_labels = {
         0: "SL 1, Ly 0",
@@ -1113,6 +1254,7 @@ def analyze_specific_data(
     ax.set_yticks(list(layer_labels.keys()))
     ax.set_yticklabels(list(layer_labels.values()))
     ax.set_aspect("auto")
+    ax.set_title(f"DT chamber occupancy\n{title_info}")
     cmap = plt.get_cmap("viridis")
     formatter = ScalarFormatter(useMathText=True)
     formatter.set_powerlimits([-3, 3])
@@ -1158,6 +1300,7 @@ def analyze_specific_data(
     ax.set_yticks(list(layer_labels.keys()))
     ax.set_yticklabels(list(layer_labels.values()))
     ax.set_aspect("auto")
+    ax.set_title(f"DT chamber rate\n{title_info}")
     cmap = plt.get_cmap("viridis")
     cbar = fig.colorbar(im_obj, ax=ax, fraction=0.05, cmap=cmap)
     cbar.set_label("Rate [Hz]")
@@ -1336,6 +1479,7 @@ def analyze_specific_data(
                 ax[ly].set_xlabel("Wire")
             ax[ly].set_ylabel("Rate [Hz]")
             ax[ly].set_title(f"SL {sl}, Ly {ly}")
+        fig.suptitle(title_info)
         fig.tight_layout()
         fig.show()
         if save_plots:
@@ -1426,7 +1570,7 @@ def dataset_plots_exist(plot_save_path, dataset_name, plot_type):
 
 # ---------------------------------------------------------------
 # main function
-@mpl.rc_context({'font.family': 'sans-serif', 'font.size': 12}) #'font.sans-serif': 'Arial',
+@mpl.rc_context({'font.family': 'sans-serif'}) #'font.sans-serif': 'Arial',
 def main():
     ###################################################
     do_ramp_measurement = False
@@ -1438,8 +1582,6 @@ def main():
     fig_size = (8, 6)
     cell_half_width = 20485 # um 21 mm - 1mm/2 i beam thickness - 100 um mylar - 50 um aluminium electrode
     err_cell_half_width = 100 # um
-
-    legend_font_size = mpl.rcParams['font.size'] + 1
 
     list_of_fits = [
 
@@ -1482,15 +1624,22 @@ def main():
               #["cosmic_85-15_3575-1800-1200_run1_th20", 411],#old            
               #["cosmic_85-15_3550-1800-1200_run1_th20", 411], #no peak old
 
-              ["cosmic_85-15_3600-1800-1200_run3_th20_cut100", 420],
+              
+
+
+              ["cosmic_85-15_3550-1800-1200_run2_th20", 416],
+              ["cosmic_85-15_3575-1800-1200_run2_th20", 416],
+              ["cosmic_85-15_3600-1800-1200_run3_th20", 420],
+              ["cosmic_85-15_3625-1800-1200_run1_th20", 420],
+              ["cosmic_85-15_3650-1800-1200_run1_th20", 420],
 
 
 
-              ["cosmic_85p5-14p5_3550-1800-1200_run1_th20", 420], 
-              ["cosmic_85p5-14p5_3575-1800-1200_run1_th20", 420], 
-              ["cosmic_85p5-14p5_3600-1800-1200_run1_th20", 420],
-              ["cosmic_85p5-14p5_3625-1800-1200_run1_th20", 420],
-              ["cosmic_85p5-14p5_3650-1800-1200_run1_th20", 420],
+              ["cosmic_85p5-14p5_3550-1800-1200_run1_th20", 423], 
+              ["cosmic_85p5-14p5_3575-1800-1200_run1_th20", 423], 
+              ["cosmic_85p5-14p5_3600-1800-1200_run1_th20", 423],
+              ["cosmic_85p5-14p5_3625-1800-1200_run1_th20", 423],
+              ["cosmic_85p5-14p5_3650-1800-1200_run1_th20", 423],
 
 
               ["cosmic_86-14_3650-1800-1200_run1_th20", 430],#issues with data proccessing
@@ -1528,7 +1677,7 @@ def main():
         ["data_mic0_start_2026-07-27_00-16-49_stop_2026-07-27_00-26-50", 426],
         ["data_mic0_start_2026-07-27_04-26-52_stop_2026-07-27_04-36-53", 428],
         ["data_mic0_start_2026-07-27_08-36-55_stop_2026-07-27_08-46-56", 429],
-        ["data_mic0_start_2026-07-27_12-46-58_stop_2026-07-27_12-56-59", 405],  #not calculated
+        ["data_mic0_start_2026-07-27_12-46-58_stop_2026-07-27_12-56-59", 405],  
         ["data_mic0_start_2026-07-27_16-57-02_stop_2026-07-27_17-07-03", 430],
         ["data_mic0_start_2026-07-27_21-07-05_stop_2026-07-27_21-17-06", 431],
         ["data_mic0_start_2026-07-28_01-17-08_stop_2026-07-28_01-27-09", 432],
@@ -1628,9 +1777,9 @@ def main():
                 pct_co2 = dataset_info["pct_CO2"]
                 u_wire = dataset_info["U_wire"]
                 u_fieldshaper = dataset_info["U_Fieldshaper"]
-                u_cathode = f"-{dataset_info["U_cathode"]}"
+                u_cathode = f"-{dataset_info['U_cathode']}"
 
-            except:
+            except ValueError:
                 if dataset_name == "mb1_sxa5_cosmics_10min":
                     pct_ar = "85"
                     pct_co2 = "15"
@@ -1707,10 +1856,11 @@ def main():
                 plot_type=plot_type,
                 save_plots=save_plots,
                 verbose=True,
+                pct_ar=pct_ar,
+                pct_co2=pct_co2,
+                u_wire=u_wire,
             )
             duration_seconds = specific_results["duration_seconds"]
-            analysis_out[dataset_name] = specific_results
-
 
  
             ### hist to plot
@@ -1735,7 +1885,7 @@ def main():
             ax.set_xlabel("$\\Delta T_\\text{cell}$ [ns]")
 
             if not do_ramp_measurement:
-                title = f"$\\Delta T_\\text{{cell}}$ hist of DT chamber\n{pct_ar}/{pct_co2} Ar/CO$_2$, $U_{{wire}}$ = {u_wire}V"
+                title = f"$\\Delta T_\\text{{cell}}$ hist of DT chamber\n{pct_ar}/{pct_co2} Ar/CO$_2$, $U_{{wire}}$ = {u_wire} V"
             elif do_ramp_measurement:
                 time = parse_start_time(dataset_name)
                 title = f"$\\Delta T_\\text{{cell}}$ hist of DT chamber\nRamp measurement $t_{{\\mathrm{{start}}}}$ = {time}, $U_{{\\mathrm{{wire}}}}$ = 3600 V"
@@ -1790,7 +1940,7 @@ def main():
             ax.set_xlabel("$\\Delta T_\\text{cell}$ [ns]")
 
             if not do_ramp_measurement:
-                title = f"$\\Delta T_\\text{{cell}}$ hist of DT chamber\n{pct_ar}/{pct_co2} Ar/CO$_2$, $U_{{wire}}$ = {u_wire}V"
+                title = f"$\\Delta T_\\text{{cell}}$ hist of DT chamber\n{pct_ar}/{pct_co2} Ar/CO$_2$, $U_{{wire}}$ = {u_wire} V"
             elif do_ramp_measurement:
                 time = parse_start_time(dataset_name)
                 title = f"$\\Delta T_\\text{{cell}}$ hist of DT chamber\nRamp measurement $t_{{\\mathrm{{start}}}}$ = {time}, $U_{{\\mathrm{{wire}}}}$ = 3600 V"
@@ -1865,16 +2015,19 @@ def main():
             A_rate = fit_params["A"] / n_events
             A_rate_err = errors["A"] / n_events
 
+            # chi2/ndf of the main peak fit is already computed inside
+            # fit_secondary_peak_parabola and returned via fit_results --
+            # reuse it here instead of recomputing the identical quantity
+            chi2 = fit_results["chi2_main"]
+            ndf = fit_results["ndf_main"]
+            chi2ndf = fit_results["chi2_ndf_main"]
             fit_values = fit_func(fit_bins, *popt)
-            chi2 = np.sum((fit_hist - fit_values)**2 / err_fit_hist**2)
-            ndf = len(fit_hist) - len(popt)
-            chi2ndf = chi2 / ndf
 
-            print(f"Peak-region fit interval ΔT = ({fit_bins.min():.1f}, {fit_bins.max():.1f}) ns")
+            print(f"Peak-region fit interval \u0394T = ({fit_bins.min():.1f}, {fit_bins.max():.1f}) ns")
             for name in param_names:
-                print(f"  {name:>5} = {fit_params[name]:.6g} ± {errors[name]:.2g}")
-            print(f"  chi²/ndf = {chi2:.2f} / {ndf} = {chi2ndf:.2f}")
-            print(f"  A_rate = {A_rate:.6g} ± {A_rate_err:.2g} (counts / event)")
+                print(f"  {name:>5} = {fit_params[name]:.6g} \u00b1 {errors[name]:.2g}")
+            print(f"  chi\u00b2/ndf = {chi2:.2f} / {ndf} = {chi2ndf:.2f}")
+            print(f"  A_rate = {A_rate:.6g} \u00b1 {A_rate_err:.2g} (counts / event)")
 
             # --- estimate drift velocity ---
             v_drift = cell_half_width / peak_pos
@@ -1882,14 +2035,14 @@ def main():
                 (err_cell_half_width / peak_pos)**2 +
                 (cell_half_width * peak_err_total / peak_pos**2)**2
             )
-            print(f"v_drift = {v_drift:.4g} ± {err_v_drift:.2g} um/ns")
+            print(f"v_drift = {v_drift:.4g} \u00b1 {err_v_drift:.2g} \u00b5m/ns")
 
             fit_label = (
                 "Parabola fit\n"
                 r"$f(\Delta T)=A-c\,(\Delta T-\mu)^2$"
             )
             fit_label += f"\n$\\mu=({peak_pos:.3g}\\pm {peak_err_total:.2g})$ ns"
-            fit_label += f"\n$v_{{\\mathrm{{drift}}}}=({v_drift:.3g}\\pm {err_v_drift:.2g})$"
+            fit_label += f"\n$v_{{\\mathrm{{drift}}}}=({v_drift:.3g}\\pm {err_v_drift:.2g})$ $\\mu$m/ns"
             fit_err = err_parabola_vertex_form(fit_bins, *popt, *perr)
 
             # --- build the actual figure/axes for this plot (raw hist, log scale) ---
@@ -1916,11 +2069,11 @@ def main():
                 alpha=0.1,
             )
 
-            max_dt = 700
+            max_dt = 800
             lims = [0, max_dt]
             ax[0].axvline(x=peak_pos, color="tab:red", linestyle="--", label="Peak position $\\mu$")
             ax[0].axvspan(xmin=peak_pos - peak_err_total, xmax=peak_pos + peak_err_total, color="tab:red", alpha=0.1)
-            ax[0].legend(loc="upper right", prop={'size': legend_font_size}, fancybox=False, framealpha=params._legend_alpha)
+            ax[0].legend(loc="upper right", fancybox=False, framealpha=params._legend_alpha)
             ax[0].set_xlim(left=lims[0], right=lims[1])
             i_max_dt = int(np.argmin(np.abs(bins - max_dt)))
             y_bottom = hist[i_max_dt]
@@ -1928,7 +2081,7 @@ def main():
             ax[0].set_ylim(y_bottom, y_top)
 
             if not do_ramp_measurement:
-                title = f"$\\Delta T_\\text{{cell}}$ photopeak parabola fit\n{pct_ar}/{pct_co2} Ar/CO$_2$, $U_{{wire}}$ = {u_wire}V"
+                title = f"$\\Delta T_\\text{{cell}}$ photopeak parabola fit\n{pct_ar}/{pct_co2} Ar/CO$_2$, $U_{{wire}}$ = {u_wire} V"
             elif do_ramp_measurement:
                 time = parse_start_time(dataset_name)
                 title = f"$\\Delta T_\\text{{cell}}$ photopeak parabola fit\nRamp measurement $t_{{\\mathrm{{start}}}}$ = {time}, $U_{{\\mathrm{{wire}}}}$ = 3600 V"
@@ -2023,7 +2176,7 @@ def main():
                     dataset_info_fn=parse_fit_name,
                     value_key="A_rate",
                     err_key="A_rate_err",
-                    ylabel="Photopeak normalized amplitude A_photopeak/counts",
+                    ylabel="Photopeak amplitude / event [counts/event]",
                     filename_prefix="peak_amp",
                     plot_type=plot_type,
                     fig_size=fig_size,
@@ -2063,6 +2216,53 @@ def main():
             plot_type=plot_type,
             method="photopeak",
             strmethod="Photopeak Method",
+            )
+
+
+        fig, ax, path = plot_metric_by_gas_mix(
+                    analysis_out=analysis_out,
+                    base_path=base_path,
+                    dataset_info_fn=parse_fit_name_real_mix,
+                    value_key="peak_pos",
+                    err_key="peak_err_tot",
+                    ylabel=r"Peak position $\mu$ [ns]",
+                    filename_prefix="peak_pos_realmix",
+                    plot_type=plot_type,
+                    fig_size=fig_size,
+                    method="photopeak_realmix",
+                    strmethod="Photopeak Method (real gas mix)",
+                    )
+ 
+        fig, ax, path = plot_metric_by_gas_mix(
+                    analysis_out=analysis_out,
+                    base_path=base_path,
+                    dataset_info_fn=parse_fit_name_real_mix,
+                    value_key="A_rate",
+                    err_key="A_rate_err",
+                    ylabel="Photopeak amplitude / event [counts/event]",
+                    filename_prefix="peak_amp_realmix",
+                    plot_type=plot_type,
+                    fig_size=fig_size,
+                    method="photopeak_realmix",
+                    strmethod="Photopeak Method (real gas mix)",
+                    )
+ 
+        fig, (ax_left, ax_right), path = plot_peak_pos_vs_uwire_and_mix(
+            analysis_out=analysis_out,
+            base_path=base_path,
+            dataset_info_fn=parse_fit_name_real_mix,
+            plot_type=plot_type,
+            method="photopeak_realmix",
+            strmethod="Photopeak Method (real gas mix)",
+            )
+ 
+        fig, (ax_left, ax_right), path = plot_peak_amplitude_rate_vs_uwire_and_mix(
+            analysis_out=analysis_out,
+            base_path=base_path,
+            dataset_info_fn=parse_fit_name_real_mix,
+            plot_type=plot_type,
+            method="photopeak_realmix",
+            strmethod="Photopeak Method (real gas mix)",
             )
 
 

@@ -4,9 +4,9 @@
 # cut fits to eliminate noise
 # refit the fits with floating v_drift
 # export refits as pcl for further analysis in sl_fits_analysis.py
-
 #################################################################
 import os
+import gc
 import argparse
 from analysis_tools.utils import dummy_gen, data_utils, dt_utils, scint_utils, timestamp_utils, geoplot_utils, muon_utils, math_utils, hist_utils, process_utils
 from analysis_tools.params import params, derived_params
@@ -382,9 +382,16 @@ def plot_hist_general(
     if verbose:
         print(f"Plotting histogram for {dataset_name} ({filename_suffix})...")
  
-    fig, ax = plt.subplots(1, 1, figsize=fig_size)
- 
     do_alpha_fit = speckey is not None and fit_cos2
+
+    if do_alpha_fit:
+        fig, (ax, ax_res) = plt.subplots(
+            2, 1, figsize=(fig_size[0], fig_size[1] * 1.3), sharex=True,
+            gridspec_kw={"height_ratios": (4, 1)},
+        )
+    else:
+        fig, ax = plt.subplots(1, 1, figsize=fig_size)
+        ax_res = None
  
     # -----------------------------------------------------------------
     # histogram display: always the normal bar histogram, unchanged
@@ -454,6 +461,7 @@ def plot_hist_general(
  
                 model_vals_full = cos2_model(bins, *popt)
                 resid_full = (hist - model_vals_full) / err_hist_safe
+                resid_full_plain = hist - model_vals_full
                 chi2_full = float(np.sum(resid_full ** 2))
                 ndf_full = max(len(bins) - len(popt), 1)
                 chi2_ndf_full = chi2_full / ndf_full
@@ -506,21 +514,40 @@ def plot_hist_general(
                     first_extrap_label = None  # only label the first dashed segment
  
         ax.legend(prop={"size": legend_font_size}, fancybox=False, framealpha=params._legend_alpha)
+
+        if fit_results is not None:
+            ax_res.axhline(0, color="gray", linewidth=1)
+            ax_res.errorbar(bins, resid_full_plain, yerr=err_hist_safe, fmt="o", color="black", markersize=3, capsize=2)
+            ax_res.axvspan(fit_range[0], fit_range[1], color="gray", alpha=0.12, zorder=0)
+            ax_res.set_ylabel("Residual (data $-$ fit)")
+        else:
+            ax_res.text(0.5, 0.5, "fit failed", transform=ax_res.transAxes, ha="center", va="center")
  
     if xlim is None:
         ax.set_xlim(np.amin(bins), np.amax(bins))
+        if ax_res is not None:
+            ax_res.set_xlim(np.amin(bins), np.amax(bins))
     elif xlim is not False:
         ax.set_xlim(*xlim)
+        if ax_res is not None:
+            ax_res.set_xlim(*xlim)
  
     if speckey != None:
         xlabel = speckey
  
     ax.fit_results = fit_results
  
-    ax.set_xlabel(xlabel)
+    if ax_res is not None:
+        ax.set_xlabel("")
+        ax.tick_params(labelbottom=False)
+        ax_res.set_xlabel(xlabel)
+    else:
+        ax.set_xlabel(xlabel)
     ax.set_ylabel(ylabel)
     ax.set_title(title)
     fig.tight_layout()
+    if ax_res is not None:
+        fig.subplots_adjust(hspace=0.08)
  
     path = None
     if save:
@@ -1209,102 +1236,107 @@ Track ID = {idx}"""
         paths["ts_vs_fit_individual_fits"] = path
 
         saved_paths[idx] = paths
-        
 
-        ################################
-        ###### fine-binned histogram of x0, converted into actual chamber-frame
-        ###### x-coordinates [mm] -- with dead-cell regions (zero hits) shaded red
+    ################################
+    ###### fine-binned histogram of x0, converted into actual chamber-frame
+    ###### x-coordinates [mm] -- with dead-cell regions (zero hits) shaded red
+    ######
+    ###### OPTIMIZATION: this block does NOT depend on `idx` (it operates on
+    ###### the full `super_fits_cuts` dataset), so it used to be needlessly
+    ###### recomputed once per entry in `plot_idcs` (5 times, in main()'s
+    ###### usage). It's now computed exactly once, after the per-fit loop,
+    ###### with identical inputs/outputs.
+    ################################
 
-        x0_arr  = super_fits_cuts["x0" + fit_suffix]
-        sl1_arr = super_fits_cuts["sl1"]
-        sl3_arr = super_fits_cuts["sl3"]
-        wi3_sl1_arr = super_fits_cuts["wi3_sl1"]
-        wi3_sl3_arr = super_fits_cuts["wi3_sl3"]
+    x0_arr  = super_fits_cuts["x0" + fit_suffix]
+    sl1_arr = super_fits_cuts["sl1"]
+    sl3_arr = super_fits_cuts["sl3"]
+    wi3_sl1_arr = super_fits_cuts["wi3_sl1"]
+    wi3_sl3_arr = super_fits_cuts["wi3_sl3"]
 
-        x0_glob_arr = np.empty(len(x0_arr), dtype=np.float64)
-        for i in range(len(x0_arr)):
-            sl1_val = int(sl1_arr[i])
-            sl3_val = int(sl3_arr[i])
-            wi3_sl1 = int(wi3_sl1_arr[i])
-            wi3_sl3 = int(wi3_sl3_arr[i])
+    x0_glob_arr = np.empty(len(x0_arr), dtype=np.float64)
+    for i in range(len(x0_arr)):
+        sl1_val = int(sl1_arr[i])
+        sl3_val = int(sl3_arr[i])
+        wi3_sl1 = int(wi3_sl1_arr[i])
+        wi3_sl3 = int(wi3_sl3_arr[i])
 
-            x_sl1_top = derived_params._dt_cell_coordinates[sl1_val][3][wi3_sl1][ref_axis + 3]
-            z_sl1_top = derived_params._dt_cell_coordinates[sl1_val][3][wi3_sl1][5]
-            x_sl3_top = derived_params._dt_cell_coordinates[sl3_val][3][wi3_sl3][ref_axis + 3]
-            z_sl3_top = derived_params._dt_cell_coordinates[sl3_val][3][wi3_sl3][5]
-            x_ref_ch = x_sl1_top if z_sl1_top > z_sl3_top else x_sl3_top
+        x_sl1_top = derived_params._dt_cell_coordinates[sl1_val][3][wi3_sl1][ref_axis + 3]
+        z_sl1_top = derived_params._dt_cell_coordinates[sl1_val][3][wi3_sl1][5]
+        x_sl3_top = derived_params._dt_cell_coordinates[sl3_val][3][wi3_sl3][ref_axis + 3]
+        z_sl3_top = derived_params._dt_cell_coordinates[sl3_val][3][wi3_sl3][5]
+        x_ref_ch = x_sl1_top if z_sl1_top > z_sl3_top else x_sl3_top
 
-            x0_glob_arr[i] = x0_arr[i] + x_ref_ch
+        x0_glob_arr[i] = x0_arr[i] + x_ref_ch
 
-        # --- SL3 wire positions (layer 0, as a representative x-per-wire mapping) ---
-        sl3_wire_dict = derived_params._dt_cell_coordinates[3][0]
-        sl3_wires_sorted = sorted(sl3_wire_dict.keys())
-        sl3_x_vals = np.array([sl3_wire_dict[wi][ref_axis + 3] for wi in sl3_wires_sorted])
-        x_lo, x_hi = np.amin(sl3_x_vals), np.amax(sl3_x_vals)
+    # --- SL3 wire positions (layer 0, as a representative x-per-wire mapping) ---
+    sl3_wire_dict = derived_params._dt_cell_coordinates[3][0]
+    sl3_wires_sorted = sorted(sl3_wire_dict.keys())
+    sl3_x_vals = np.array([sl3_wire_dict[wi][ref_axis + 3] for wi in sl3_wires_sorted])
+    x_lo, x_hi = np.amin(sl3_x_vals), np.amax(sl3_x_vals)
 
-        # --- per-cell counts: nearest-wire assignment of every x0_glob value,
-        # used ONLY to find dead cells, not for the plotted histogram itself ---
-        cell_edges = np.empty(len(sl3_x_vals) + 1)
-        cell_edges[1:-1] = (sl3_x_vals[:-1] + sl3_x_vals[1:]) / 2.0
-        cell_edges[0] = sl3_x_vals[0] - (cell_edges[1] - sl3_x_vals[0])
-        cell_edges[-1] = sl3_x_vals[-1] + (sl3_x_vals[-1] - cell_edges[-2])
+    # --- per-cell counts: nearest-wire assignment of every x0_glob value,
+    # used ONLY to find dead cells, not for the plotted histogram itself ---
+    cell_edges = np.empty(len(sl3_x_vals) + 1)
+    cell_edges[1:-1] = (sl3_x_vals[:-1] + sl3_x_vals[1:]) / 2.0
+    cell_edges[0] = sl3_x_vals[0] - (cell_edges[1] - sl3_x_vals[0])
+    cell_edges[-1] = sl3_x_vals[-1] + (sl3_x_vals[-1] - cell_edges[-2])
 
-        cell_hit_counts, _ = np.histogram(x0_glob_arr, bins=cell_edges)
-        dead_cell_mask = cell_hit_counts == 0
-        n_dead = int(np.sum(dead_cell_mask))
+    cell_hit_counts, _ = np.histogram(x0_glob_arr, bins=cell_edges)
+    dead_cell_mask = cell_hit_counts == 0
+    n_dead = int(np.sum(dead_cell_mask))
 
-        # --- fine-binned histogram (unchanged from before) ---
-        x0_glob_hist_data = build_hist_general(
-            data_list=x0_glob_arr,
-            n_bins=500,
-            edge_min=x_lo - 20,
-            edge_max=x_hi + 20,
-            verbose=False,
+    # --- fine-binned histogram (unchanged from before) ---
+    x0_glob_hist_data = build_hist_general(
+        data_list=x0_glob_arr,
+        n_bins=500,
+        edge_min=x_lo - 20,
+        edge_max=x_hi + 20,
+        verbose=False,
+    )
+
+    filename_suffix_x0g = f"x0_globframe_{suffix}"
+
+    fig_x0g, ax_x0g, _ = plot_hist_general(
+        specific_data=x0_glob_hist_data,
+        dataset_name=dataset_name,
+        plot_save_path=plot_save_path,
+        xlabel="$x_0$ [mm] (chamber frame)",
+        ylabel="counts",
+        filename_suffix=filename_suffix_x0g,
+        plot_type=plot_type,
+        title=f"Fitted track $x_0$ position in chamber frame, {suffix}",
+        xlim=(x_lo - 20, x_hi + 20),
+        save=False,          # save after adding the dead-cell shading
+    )
+
+    path_x0g = f"{plot_save_path}{dataset_name}_{filename_suffix_x0g}{plot_type}"
+
+    # --- shade dead-cell x-ranges in red ---
+    dead_indices = np.where(dead_cell_mask)[0]
+    first_label = True
+    for idx in dead_indices:
+        lo, hi = cell_edges[idx], cell_edges[idx + 1]
+        ax_x0g.axvspan(
+            lo, hi, color="red", alpha=0.25, zorder=0,
+            label="dead cell (0 fits)" if first_label else None,
         )
+        first_label = False
 
-        filename_suffix_x0g = f"x0_globframe_{suffix}"
+    if n_dead > 0:
+        ax_x0g.legend(loc="upper right", fontsize=10)
 
-        fig_x0g, ax_x0g, _ = plot_hist_general(
-            specific_data=x0_glob_hist_data,
-            dataset_name=dataset_name,
-            plot_save_path=plot_save_path,
-            xlabel="$x_0$ [mm] (chamber frame)",
-            ylabel="counts",
-            filename_suffix=filename_suffix_x0g,
-            plot_type=plot_type,
-            title=f"Fitted track $x_0$ position in chamber frame, {suffix}",
-            xlim=(x_lo - 20, x_hi + 20),
-            save=False,          # save after adding the dead-cell shading
-        )
+    fig_x0g.tight_layout()
+    fig_x0g.savefig(path_x0g)   # save unconditionally now, path is always valid
+    plt.close(fig_x0g)
 
-        path_x0g = f"{plot_save_path}{dataset_name}_{filename_suffix_x0g}{plot_type}"
-
-        # --- shade dead-cell x-ranges in red ---
-        dead_indices = np.where(dead_cell_mask)[0]
-        first_label = True
-        for idx in dead_indices:
-            lo, hi = cell_edges[idx], cell_edges[idx + 1]
-            ax_x0g.axvspan(
-                lo, hi, color="red", alpha=0.25, zorder=0,
-                label="dead cell (0 fits)" if first_label else None,
-            )
-            first_label = False
-
-        if n_dead > 0:
-            ax_x0g.legend(loc="upper right", fontsize=10)
-
-        fig_x0g.tight_layout()
-        fig_x0g.savefig(path_x0g)   # save unconditionally now, path is always valid
-        plt.close(fig_x0g)
-
-        saved_paths["rate_plots"] = {
-            #"top_ref_wire_counts": path_top_ref,
-            "x0_globframe_hist": path_x0g,
-            "n_dead_cells": n_dead,
-        }
+    saved_paths["rate_plots"] = {
+        #"top_ref_wire_counts": path_top_ref,
+        "x0_globframe_hist": path_x0g,
+        "n_dead_cells": n_dead,
+    }
 
     return saved_paths
-
 
 def fit_parabola_peak(
     *,
@@ -1315,13 +1347,13 @@ def fit_parabola_peak(
     ylabel="counts",
     title="",
     filename_suffix="ALL",
-    fit_half_width=5,
-    fit_half_range = 1,
+    fit_half_width=5,       # now: number of bins on each side of the peak bin for the MAIN fit
+    fit_half_range=1,       # kept in signature; not used internally (see note below)
     scale_factor=1,
-    min_bins_syst = 7,
-    max_bins_syst = 18,
-    plot_type = ".png",
-
+    min_bins_syst=7,
+    max_bins_syst=18,
+    max_chi2_ndf_syst=5.0,
+    plot_type=".png",
     ):
     # Draw histogram using your existing function
     fig, ax, path = plot_hist_general(
@@ -1334,8 +1366,6 @@ def fit_parabola_peak(
         filename_suffix=filename_suffix,
         scale_factor=scale_factor,
         save=False,          # save after adding fit
-        
-
     )
 
     # Read histogram
@@ -1349,46 +1379,29 @@ def fit_parabola_peak(
     edges = np.asarray(specific_data["edges"]) * scale_factor
     centers = hist_utils.centers_from_edges(edges)
 
-    # Maximum bin
-    peak_fraction = 0.80
-    n_consecutive = 4
-
+    # -----------------------------------------
+    # Main fit window: bins around the peak bin
+    # -----------------------------------------
     imax = np.argmax(hist)
-    threshold = peak_fraction * hist[imax]
 
-    # Search left
-    lo = imax
-    count = 0
-    while lo > 0:
-        lo -= 1
-        if hist[lo] < threshold:
-            count += 1
-            if count >= n_consecutive:
-                lo += n_consecutive - 1  # last bin above threshold
-                break
-        else:
-            count = 0
+    lo = max(imax - fit_half_width, 0)
+    hi = min(imax + fit_half_width, len(hist) - 1)
 
-    # Search right
-    hi = imax
-    count = 0
-    while hi < len(hist) - 1:
-        hi += 1
-        if hist[hi] < threshold:
-            count += 1
-            if count >= n_consecutive:
-                hi -= n_consecutive - 1  # last bin above threshold
-                break
-        else:
-            count = 0
+    x = centers[lo:hi + 1]
+    y = hist[lo:hi + 1]
+    sigma = err[lo:hi + 1]
 
-    x = centers[lo:hi+1]
-    y = hist[lo:hi+1]
-    sigma = err[lo:hi+1]
+    n_bins_used = hi - lo + 1
+    fit_window_text = (
+        f"Main fit window: bins [{lo}, {hi}] "
+        f"({n_bins_used} bins total, fit_half_width={fit_half_width} bins each side of peak bin {imax}), "
+        f"x range [{x[0]:.4f}, {x[-1]:.4f}]"
+    )
+    print(fit_window_text)
 
     # Parabola
     def parabola(x, a, b, c):
-        return a*x**2 + b*x + c
+        return a * x**2 + b * x + c
 
     popt, pcov = curve_fit(
         parabola,
@@ -1400,25 +1413,38 @@ def fit_parabola_peak(
 
     a, b, c = popt
 
-    peak = -b/(2*a)
+    if a >= 0:
+        raise ValueError(
+            f"Main parabola fit for {dataset_name} ({filename_suffix}) opens upward "
+            f"(a={a:.4g} >= 0), so -b/(2a) is a minimum, not a peak. The fit window "
+            f"(fit_half_width={fit_half_width} bins around peak bin {imax}, x range "
+            f"[{x[0]:.4f}, {x[-1]:.4f}]) is likely too wide or off-center. "
+            "Adjust fit_half_width or inspect the histogram."
+        )
+
+    peak = -b / (2 * a)
 
     # error propagation
-    da = b/(2*a**2)
-    db = -1/(2*a)
+    da = b / (2 * a**2)
+    db = -1 / (2 * a)
 
     peak_err = np.sqrt(
-        da**2 * pcov[0,0]
-        + db**2 * pcov[1,1]
-        + 2*da*db*pcov[0,1]
+        da**2 * pcov[0, 0]
+        + db**2 * pcov[1, 1]
+        + 2 * da * db * pcov[0, 1]
     )
 
-
+    fit_main = parabola(x, *popt)
+    chi2_main = np.sum(((y - fit_main) / sigma) ** 2)
+    ndf_main = len(x) - len(popt)
+    chi2_ndf_main = chi2_main / ndf_main if ndf_main > 0 else np.nan
+    print(f"Main fit: chi2/ndf = {chi2_main:.4g} / {ndf_main} = {chi2_ndf_main:.4g}")
 
     # -----------------------------------------
     # Systematic uncertainty from fit window
     # -----------------------------------------
-
     mu_scan = []
+    syst_scan_lines = []
 
     bin_width = np.mean(np.diff(centers))
 
@@ -1430,7 +1456,7 @@ def fit_parabola_peak(
             (centers >= peak - half_width) &
             (centers <= peak + half_width)
         )
-        #print(mask)
+
         x_syst = centers[mask]
         y_syst = hist[mask]
         err_syst = err[mask]
@@ -1453,8 +1479,7 @@ def fit_parabola_peak(
             if a_syst >= 0:
                 continue
 
-            mu_syst = -b_syst / (2*a_syst)
-
+            mu_syst = -b_syst / (2 * a_syst)
 
             # Best-fit values
             fit = parabola(x_syst, *popt_syst)
@@ -1468,52 +1493,79 @@ def fit_parabola_peak(
             # Reduced chi-square
             chi2_ndf = chi2 / ndf if ndf > 0 else np.nan
 
-            print(f"n_bins={n_bins:2d}, chi2/ndf={chi2_ndf:.2f}, mu={mu_syst:.5f}")
-            print(chi2_ndf)
+            # Reject poorly-constrained / badly-fit windows so a handful of
+            # low-quality fits can't dominate the RMS systematic
+            if not np.isfinite(chi2_ndf) or chi2_ndf > max_chi2_ndf_syst:
+                print(
+                    f"n_bins={n_bins:2d}, half_width={half_width:.4f}, "
+                    f"chi2/ndf={chi2_ndf:.2f}, mu={mu_syst:.5f} "
+                    f"-- SKIPPED (chi2/ndf above max_chi2_ndf_syst={max_chi2_ndf_syst})"
+                )
+                continue
+
+            line = (
+                f"n_bins={n_bins:2d}, half_width={half_width:.4f}, "
+                f"chi2/ndf={chi2_ndf:.2f}, mu={mu_syst:.5f}"
+            )
+            print(line)
+            syst_scan_lines.append(line)
             mu_scan.append(mu_syst)
 
         except RuntimeError:
             continue
 
+    syst_scan_text = "\n".join(syst_scan_lines) if syst_scan_lines else "No successful systematic-scan fits."
 
-
-    # systematic uncertainty
-    if len(mu_scan) > 1:
-        syst_err = np.std(mu_scan, ddof=1)
-    else:
-        syst_err = 0.0
-
+    half_width_min = min_bins_syst * bin_width
+    half_width_max = max_bins_syst * bin_width
+    syst_scan_summary = (
+        f"Systematic scan used n_bins = {min_bins_syst} to {max_bins_syst} "
+        f"(half-width {half_width_min:.4f} to {half_width_max:.4f} in x-units, "
+        f"bin_width={bin_width:.4f}); {len(mu_scan)} of "
+        f"{max_bins_syst - min_bins_syst + 1} windows gave a valid fit."
+    )
+    print(syst_scan_summary)
 
     # -----------------------------------------
-    # Calculate systematic uncertainty
+    # Systematic uncertainty (RMS of scanned peak positions)
     # -----------------------------------------
     if len(mu_scan) > 1:
         mu_scan = np.array(mu_scan)
-
-        # Option 1: rms
-        err_mu_syst = np.sqrt(np.mean((np.asarray(mu_scan)-peak)**2))
-
-        # Option 2: half the full range (more conservative)
-        # err_mu_syst = 0.5 * (np.max(mu_scan) - np.min(mu_scan))
-
+        syst_err = np.sqrt(np.mean((mu_scan - peak) ** 2))
     else:
-        err_mu_syst = 0.0
+        syst_err = 0.0
 
     # Plot fit
     xx = np.linspace(x[0], x[-1], 200)
     ax.plot(xx, parabola(xx, *popt), "r-", lw=2,
-            label=f"Parabola\nPeak = {peak:.3f} ± {peak_err:.3f}")
+            label=f"Parabola\nPeak (stat.) = {peak:.3f} $\\pm$ {peak_err:.3f} $\\mu$m/ns\nPeak (stat.+syst.) = {peak:.3f} $\\pm$ {np.sqrt(peak_err**2 + syst_err**2):.3f} $\\mu$m/ns\n$\\chi^2/N_{{df}}={chi2_ndf_main:.2f}$")
 
     ax.axvline(peak, color="red", ls="--", alpha=0.7)
 
     ax.legend()
+
+    xlabel_text = ax.get_xlabel()
+    pos = ax.get_position()
+    fig_w, fig_h = fig.get_size_inches()
+    fig.set_size_inches(fig_w, fig_h * 1.3)
+    ax.set_position([pos.x0, 0.37, pos.width, 0.56])
+    ax.set_xlabel("")
+    ax.tick_params(labelbottom=False)
+
+    ax_res = fig.add_axes([pos.x0, 0.12, pos.width, 0.2], sharex=ax)
+    residuals_main = y - parabola(x, *popt)
+    ax_res.axhline(0, color="gray", linewidth=1)
+    ax_res.errorbar(x, residuals_main, yerr=sigma, fmt="o", color="black", markersize=4, capsize=2)
+    ax_res.set_ylabel(f"Residual (data $-$ fit) [{ylabel}]")
+    ax_res.set_xlabel(xlabel_text)
+    ax_res.set_xlim(ax.get_xlim())
+
     plt.close(fig)
     # Save
     path = f"{plot_save_path}{dataset_name}_{filename_suffix}_parabolafit{plot_type}"
     fig.savefig(path)
 
-
-    tot_err = np.sqrt(peak_err**2 + err_mu_syst**2)
+    tot_err = np.sqrt(peak_err**2 + syst_err**2)
     print(peak_err)
     print(tot_err)
 
@@ -1523,12 +1575,15 @@ def fit_parabola_peak(
         "popt": popt,
         "pcov": pcov,
         "tot_err": tot_err,
-        "syst_err": err_mu_syst,
+        "syst_err": syst_err,
+        "chi2_ndf_main": chi2_ndf_main,
+        "n_syst_windows_used": len(mu_scan),
+        "fit_window_text": fit_window_text,
+        "syst_scan_text": syst_scan_text,
+        "syst_scan_summary": syst_scan_summary,
     }
 
     return fig, ax, path, fit_results
-
-
 def muon_heatmap_from_fits(
     *,
     fits_cuts,
@@ -1548,6 +1603,7 @@ def muon_heatmap_from_fits(
     dataset_info = "",
     masked_cell_color="orange",
     dead_cell_color="tab:red",
+    heatmap_chunk_size=2000,
 ):
     """
     Build an x-z occupancy heatmap of incoming muons directly from fitted
@@ -1573,6 +1629,15 @@ def muon_heatmap_from_fits(
     Masked (known dead/low-occupancy) wires are read directly from
     params._dt_wire_mask -- {sl: {ly: [wire_ids]}} -- and shaded red on
     top of the chamber geometry.
+
+    OPTIMIZATION: the (n_fits, n_z_eval) track array (and the two raveled
+    (n_fits * n_z_eval,) arrays built from it) is no longer built for all
+    fits at once. Instead, fits are processed in chunks of
+    `heatmap_chunk_size`, each chunk's small histogram is computed and
+    added into the running total `hist2d`, and the chunk's arrays are
+    dropped before the next chunk starts. This produces the exact same
+    `hist2d` as building everything at once, but peak memory now scales
+    with `heatmap_chunk_size * n_z_eval` instead of `n_fits * n_z_eval`.
  
     Parameters
     ----------
@@ -1598,9 +1663,14 @@ def muon_heatmap_from_fits(
     n_z_eval : int
         Number of z points each track is evaluated at when extrapolated
         across the chamber (higher = smoother heatmap, slower/more
-        memory: n_fits * n_z_eval floats).
+        memory per chunk).
     save : bool
         If False, the figure is built but not written to disk.
+    heatmap_chunk_size : int
+        Number of fits processed per chunk when building the 2D
+        histogram. Lower uses less peak memory but does (slightly) more
+        Python-level looping overhead; higher is faster but uses more
+        memory. Does not change the resulting histogram.
  
     Returns
     -------
@@ -1638,30 +1708,42 @@ def muon_heatmap_from_fits(
     z_ref_ch = np.where(use_sl1, z_sl1_top, z_sl3_top)
  
     # -----------------------------------------------------------------
-    # extrapolate every fitted track across the full chamber z-range
+    # chamber extent + bin edges (unchanged)
     # -----------------------------------------------------------------
     z_chamber_min = min(derived_params.sl_z_min[sl] for sl in used_sls) - z_margin_bottom
     z_chamber_max = max(derived_params.sl_z_max[sl] for sl in used_sls) + z_margin_top
     z_eval = np.linspace(z_chamber_min, z_chamber_max, n_z_eval)
- 
-    z_local = z_eval[None, :] - z_ref_ch[:, None]                 # (n_fits, n_z_eval)
-    track_local = derived_params.f_x_muon(z=z_local, x0=x0_arr[:, None], tan_alpha=tan_alpha_arr[:, None])
-    track_glob = track_local + x_ref_ch[:, None]
- 
-    all_x = track_glob.ravel()
-    all_z = np.broadcast_to(z_eval, (n_fits, n_z_eval)).ravel()
- 
-    # -----------------------------------------------------------------
-    # x-z occupancy heatmap over all extrapolated fitted tracks
-    # -----------------------------------------------------------------
+
     sl_x_coord = (min(derived_params.sl_x_min[sl] for sl in used_sls),
                   max(derived_params.sl_x_max[sl] for sl in used_sls))
     x_edges = np.arange(sl_x_coord[0] - x_margin, sl_x_coord[1] + x_margin, x_bin_width)
     z_edges = np.arange(z_chamber_min, z_chamber_max, z_bin_width)
     x_bins = (x_edges[:-1] + x_edges[1:]) / 2.0
     z_bins = (z_edges[:-1] + z_edges[1:]) / 2.0
- 
-    hist2d, _, _ = np.histogram2d(x=all_z, y=all_x, bins=(z_edges, x_edges))
+
+    # -----------------------------------------------------------------
+    # x-z occupancy heatmap over all extrapolated fitted tracks, built
+    # in chunks (see OPTIMIZATION note above) instead of materializing
+    # every fit's full track array at once
+    # -----------------------------------------------------------------
+    hist2d = np.zeros((len(z_edges) - 1, len(x_edges) - 1), dtype=np.float64)
+
+    for start in range(0, n_fits, heatmap_chunk_size):
+        end = min(start + heatmap_chunk_size, n_fits)
+
+        z_local_chunk = z_eval[None, :] - z_ref_ch[start:end, None]
+        track_local_chunk = derived_params.f_x_muon(
+            z=z_local_chunk, x0=x0_arr[start:end, None], tan_alpha=tan_alpha_arr[start:end, None]
+        )
+        track_glob_chunk = track_local_chunk + x_ref_ch[start:end, None]
+
+        all_x_chunk = track_glob_chunk.ravel()
+        all_z_chunk = np.broadcast_to(z_eval, track_glob_chunk.shape).ravel()
+
+        h_chunk, _, _ = np.histogram2d(x=all_z_chunk, y=all_x_chunk, bins=(z_edges, x_edges))
+        hist2d += h_chunk
+
+        del z_local_chunk, track_local_chunk, track_glob_chunk, all_x_chunk, all_z_chunk
  
 # pass 0: base chamber cell grid (all cells, neutral outline)
     dt_cell_data_base = dt_utils._chamber_data()
@@ -1716,7 +1798,7 @@ def muon_heatmap_from_fits(
     formatter = ScalarFormatter(useMathText=True)
     formatter.set_powerlimits([-3, 3])
     cbar = fig.colorbar(im_obj, ax=ax, fraction=0.05, format=formatter)
-    cbar.set_label("Track-crossing density\n(extrapolated fits)")
+    cbar.set_label("Track crossings per bin\n(extrapolated fits)")
 
     legend_entries = {"Chamber geometry": mpatches.Patch(edgecolor="white", facecolor="none")}
     if n_dead > 0:
@@ -2044,7 +2126,7 @@ def analyze_pattern_type_data(
         ax.set_xticklabels(pattern_labels)
         ax.set_xlabel("Pattern type")
         ax.set_ylabel("Rate [Hz]")
-        ax.set_title(f"{add_title_info}: {_sl_display(sl)} pattern type rates\nfor {pct_ar}/{pct_co2} Ar/CO$_2$, $U_{{\\mathrm{{wire}}}} = {u_wire}$, {suffix}")
+        ax.set_title(f"{add_title_info}: {_sl_display(sl)} pattern type rates\nfor {pct_ar}/{pct_co2} Ar/CO$_2$, $U_{{\\mathrm{{wire}}}} = {u_wire}$ V, {suffix}")
         info_str = f"entries = {n_entries[sl]}"
         ax = hist_utils.add_infobox(ax=ax, info_str=info_str, info_loc="upper right")
         fig.tight_layout()
@@ -2074,7 +2156,7 @@ def analyze_pattern_type_data(
     ax.set_ylabel("Rate [Hz]")
     ax.set_title(
     f"pattern type rate comparison\nfor {pct_ar}/{pct_co2} Ar/CO$_2$, "
-    f"$U_{{\\mathrm{{wire}}}} = {u_wire}$, {suffix}"
+    f"$U_{{\\mathrm{{wire}}}} = {u_wire}$ V, {suffix}"
 )
     ax.legend()
     fig.tight_layout()
@@ -2268,10 +2350,10 @@ def plot_vd_by_gas_mix(
 # quantity key -> (column suffix appended to "_free_vd_super_fit", y-axis label, log-y)
 _QUANTITIES = [
     #("tan_alpha",     r"$\tan\alpha$",              False),
-    ("err_vd",        r"$\sigma(v_d)$",             True),
-    ("err_t0",        r"$\sigma(t_0)$",              True),
+    ("err_vd",        r"$\sigma(v_d)$ [TU]",             True),
+    ("err_t0",        r"$\sigma(t_0)$ [TU]",              True),
     ("err_tan_alpha", r"$\sigma(\tan\alpha)$",       True),
-    ("err_x0",        r"$\sigma(x_0)$",              True),
+    ("err_x0",        r"$\sigma(x_0)$ [mm]",              True),
 ]
 
 def plot_super_fit_errors_vs_tan_alpha(
@@ -2353,7 +2435,7 @@ def plot_super_fit_errors_vs_tan_alpha(
 
     title = (
         f"SUPER fit diagnostics vs tan_alpha\n"
-        f"for {pct_ar}/{pct_co2} Ar/CO$_2$, $U_{{\\mathrm{{wire}}}} = {u_wire}$"
+        f"for {pct_ar}/{pct_co2} Ar/CO$_2$, $U_{{\\mathrm{{wire}}}} = {u_wire}$ V"
     )
     if strmethod:
         title += f" ({strmethod})"
@@ -2412,7 +2494,7 @@ def parse_start_time(dataset_name: str) -> datetime:
 def data_to_hist_2d (*, data_x, data_y, x_label, y_label, title, colorbar_label = "counts", save_path = None, n_bins = 80):
     plt.figure()
     plt.hist2d(data_x, data_y, bins=n_bins, cmap='viridis')
-    plt.colorbar(label='Anzahl Einträge')
+    plt.colorbar(label=colorbar_label)
     plt.xlabel(x_label)
     plt.ylabel(y_label)
     plt.title(title)
@@ -2457,7 +2539,7 @@ def main():
 
 
 
-    do_only_vd_peak_fit = False # when set to true, only the gaussian fit of the photopeak is performed, no super-fit analysis
+    do_only_vd_peak_fit = False # when set to true, only the parabola fit of the photopeak is performed, no super-fit analysis
     do_ramp_measurement = False
     do_refit_full_analysis = False
     do_super_fit_analysis = True
@@ -2467,7 +2549,7 @@ def main():
 
     #set parameters for the super fit analysis cuts 
     max_err_to_free_vd_superfit = 20
-    max_err_x0_free_vd_superfit = 1
+    max_err_x0_free_vd_superfit = 2
     max_err_vd_free_vd_superfit = 0.5
     max_err_tan_alpha_free_vd_superfit = 0.1
     max_chi2ndf_frree_vd_superfit = 20
@@ -2509,7 +2591,12 @@ def main():
                 #"cosmic_85-15_3550-1800-1200_run1_th20",
                 #"cosmic_85-15_3575-1800-1200_run1_th20", 
                 #"cosmic_85-15_3600-1800-1200_run2_th20",#missing 3625, 3650 (not measured)
-                "cosmic_85-15_3600-1800-1200_run3_th20_cut100",
+
+                "cosmic_85-15_3550-1800-1200_run2_th20",
+                "cosmic_85-15_3575-1800-1200_run2_th20",
+                "cosmic_85-15_3600-1800-1200_run3_th20",
+                "cosmic_85-15_3625-1800-1200_run1_th20",
+                "cosmic_85-15_3650-1800-1200_run1_th20",
 
                 "cosmic_85p5-14p5_3550-1800-1200_run1_th20",
                 "cosmic_85p5-14p5_3575-1800-1200_run1_th20",
@@ -2590,9 +2677,9 @@ def main():
 
 
 
-    # --- load previously saved analysis results so already-analyzed
-    # datasets can be skipped instead of redone from scratch, AND so
-    # results accumulate across runs ---
+    # --- load previously saved analysis results only so already-analyzed
+    # datasets can be skipped (and their stored fit_results reused) without
+    # redoing the fit from scratch ---
     analysis_pkl_name = (
         "analysis_out_track_fit_ramp.pcl" if do_ramp_measurement
         else "analysis_out_track_fit.pcl"
@@ -2603,9 +2690,13 @@ def main():
     else:
         analysis_out_prev = {}
 
-    # seed this run's results with everything already stored, so datasets
-    # not touched this run are carried forward instead of dropped
-    analysis_out = dict(analysis_out_prev)
+    # start fresh each run: analysis_out only ever gets entries for datasets
+    # in THIS run's list_of_fits (either freshly fitted, or copied from
+    # analysis_out_prev when skipped). The pickle is then overwritten with
+    # exactly this dict, so datasets no longer in list_of_fits (e.g. old,
+    # renamed, or since-removed dataset names) don't linger as stale/
+    # duplicate entries in the saved file.
+    analysis_out = {}
 
     datasets_to_skip = set()
     if skip_existing_datasets:
@@ -2709,20 +2800,20 @@ def main():
         # Format:[              key,      Plot title,                             factor,     Unit of measurement,  xlabel, ylabel, gas_mix, U_wire]
         
         
-        good_super_fit_keys = [["t0_sl1", "T0 distribution of cosmic muons in SL1", 1, "TS", "T0 [TS]", "counts"], 
-                            ['t0_sl3', "T0 distribution of cosmic muons in SL3", 1, "TS", "T0 [TS]", "counts"], 
+        good_super_fit_keys = [["t0_sl1", "T0 distribution of cosmic muons in SL1", 1, "TU", "T0 [TU]", "counts"], 
+                            ['t0_sl3', "T0 distribution of cosmic muons in SL3", 1, "TU", "T0 [TU]", "counts"], 
                             ["x0_free_vd_super_fit", "x0 distribution of muon super fits", 1, "mm", "x0 [mm]", "counts"], 
                             ['tan_alpha_free_vd_super_fit', "tan alpha distribution of cosmic muon super fits", 1, "", "tan alpha", "counts"], 
-                            ['vd_free_vd_super_fit', "electron drift velocity distribution from fits", vd_factor, "um/ns", "v_drift [um/ns]", "counts"], 
+                            ['vd_free_vd_super_fit', "electron drift velocity distribution from fits", vd_factor, "$\\mu$m/ns", "v_drift [$\\mu$m/ns]", "counts"], 
                             ['chi2/ndf_free_vd_super_fit', "chi2/ndf distribution from fits", 1, "", "chi2/ndf", "counts"], 
-                            ['dt0_free_vd_super_fit', "drift time distribution of wire 0", 1, "TS", "dt1 [TU]", "counts"],
-                            ['dt1_free_vd_super_fit', "drift time distribution of wire 1", 1, "TS", "dt1 [TU]", "counts"], 
-                            ['dt2_free_vd_super_fit', "drift time distribution of wire 2", 1, "TS", "dt1 [TU]", "counts"], 
-                            ['dt3_free_vd_super_fit', "drift time distribution of wire 3", 1, "TS", "dt1 [TU]", "counts"], 
-                            ['dt4_free_vd_super_fit', "drift time distribution of wire 4", 1, "TS", "dt1 [TU]", "counts"],  
-                            ['dt5_free_vd_super_fit', "drift time distribution of wire 5", 1, "TS", "dt1 [TU]", "counts"], 
-                            ['dt6_free_vd_super_fit', "drift time distribution of wire 6", 1, "TS", "dt1 [TU]", "counts"],  
-                            ['dt7_free_vd_super_fit', "drift time distribution of wire 7", 1, "TS", "dt1 [TU]", "counts"], 
+                            ['dt0_free_vd_super_fit', "drift time distribution of wire 0", 1, "TU", "dt0 [TU]", "counts"],
+                            ['dt1_free_vd_super_fit', "drift time distribution of wire 1", 1, "TU", "dt1 [TU]", "counts"], 
+                            ['dt2_free_vd_super_fit', "drift time distribution of wire 2", 1, "TU", "dt2 [TU]", "counts"], 
+                            ['dt3_free_vd_super_fit', "drift time distribution of wire 3", 1, "TU", "dt3 [TU]", "counts"], 
+                            ['dt4_free_vd_super_fit', "drift time distribution of wire 4", 1, "TU", "dt4 [TU]", "counts"],  
+                            ['dt5_free_vd_super_fit', "drift time distribution of wire 5", 1, "TU", "dt5 [TU]", "counts"], 
+                            ['dt6_free_vd_super_fit', "drift time distribution of wire 6", 1, "TU", "dt6 [TU]", "counts"],  
+                            ['dt7_free_vd_super_fit', "drift time distribution of wire 7", 1, "TU", "dt7 [TU]", "counts"], 
                             ]
         goood_fit_keys = ["tan_alpha"]
 
@@ -2837,18 +2928,18 @@ def main():
                         silent=True,
                     )
                     suffix = w_cut
-                    # gauss fit of drift velocity
+                    # parabola fit of drift velocity
 
-                    print("fitting gaussian to cut drift velocity")
+                    print("fitting parabola to cut drift velocity")
                     key = 'vd_free_vd_super_fit'
 
                     if not do_ramp_measurement:
-                        title = f"Gaussian fit to drift velocity histogram\n{pct_ar}/{pct_co2} Ar/CO2 U_wire = {u_wire} {suffix}"
+                        title = f"Parabola fit to drift velocity histogram\n{pct_ar}/{pct_co2} Ar/CO2, U_wire = {u_wire} V, {suffix}"
                     if do_ramp_measurement:
-                        title = f"Gaussian fit to drift velocity histogram\nRamp measurement U_wire = 3600V"
+                        title = f"Parabola fit to drift velocity histogram\nRamp measurement U_wire = 3600 V"
                     factor = vd_factor
-                    unit = "um/ns"
-                    x_label = f"drift velocity in [{unit}]"
+                    unit = r"$\mu\mathrm{m}/\mathrm{ns}$"
+                    x_label = f"Drift velocity $v_d$ [{unit}]"
                     y_label = "counts"
                     
             
@@ -2909,7 +3000,7 @@ def main():
                 #hist of all interesting hist metrics
                 for j in range(len(good_super_fit_keys)):
                     key = good_super_fit_keys[j][0]
-                    title =good_super_fit_keys[j][1] + f"\n{pct_ar}/{pct_co2} Ar/CO2 U_wire = {u_wire} {suffix}"
+                    title =good_super_fit_keys[j][1] + f"\n{pct_ar}/{pct_co2} Ar/CO2, U_wire = {u_wire} V, {suffix}"
                     factor = good_super_fit_keys[j][2]
                     unit = good_super_fit_keys[j][3]
                     x_label = good_super_fit_keys[j][4]
@@ -2919,7 +3010,7 @@ def main():
                     #data = super_fits_cuts[key]
                     if key == "tan_alpha_free_vd_super_fit":
                         data = np.arctan(super_fits_cuts[key])
-                        speckey = "alpha"
+                        speckey = "alpha [rad]"
                     else:
                         speckey = None
                         data = super_fits_cuts[key]
@@ -2954,34 +3045,55 @@ def main():
                         plot_type = plot_type,
                         speckey = speckey,
                     )
+
+                    if key == "tan_alpha_free_vd_super_fit":
+                        fig_nofit, ax_nofit, path_nofit = plot_hist_general(
+                            specific_data=specific_data,
+                            dataset_name=dataset_name,
+                            plot_save_path=plot_save_path,
+                            filename_suffix=safe_key + "_" + suffix + "_nofit",
+                            scale_factor = factor,
+                            title = title,
+                            xlabel = x_label,
+                            ylabel = y_label,
+                            plot_type = plot_type,
+                            speckey = speckey,
+                            fit_cos2 = False,
+                        )
             
                 plt.close("all")
                 # done with all hists
                 # beginning hist2d plots 
 
+                # OPTIMIZATION: this alpha-in-degrees array was previously
+                # recomputed identically 10 times per dataset (3 explicit
+                # calls below + 8 inside the dt{k} loop). Cache it once and
+                # reuse it -- values are byte-for-byte identical.
+                alpha_deg_arr = np.rad2deg(np.arctan(super_fits_cuts["tan_alpha_free_vd_super_fit"]))
+
                 data_to_hist_2d(
                     data_x=super_fits_cuts["x0_free_vd_super_fit"],
                     data_y=super_fits_cuts['vd_free_vd_super_fit'] * vd_factor,
-                    x_label="x0",
-                    y_label="v_d",
-                    title=f"Hist of x_0 and v_d {no_cut}",
+                    x_label="x0 [mm]",
+                    y_label=r"v_d [$\mu$m/ns]",
+                    title=f"Hist of x_0 and v_d {suffix}",
                     save_path=plot_save_path + f"vd_vs_x0_{suffix}{plot_type}",
                 )
 
                 data_to_hist_2d(
-                    data_x=np.rad2deg(np.arctan(super_fits_cuts["tan_alpha_free_vd_super_fit"])),
+                    data_x=alpha_deg_arr,
                     data_y=super_fits_cuts['vd_free_vd_super_fit'] * vd_factor,
-                    x_label="alpha",
-                    y_label="v_d",
+                    x_label="alpha [deg]",
+                    y_label=r"v_d [$\mu$m/ns]",
                     title=f"Hist of alpha vs vd {suffix}",
                     save_path=plot_save_path + f"vd_vs_alpha_{suffix}{plot_type}",
                 )
                 plt.close("all")
                 data_to_hist_2d(
-                    data_x=np.rad2deg(np.arctan(super_fits_cuts["tan_alpha_free_vd_super_fit"])),
+                    data_x=alpha_deg_arr,
                     data_y=super_fits_cuts["x0_free_vd_super_fit"],
-                    x_label="alpha",
-                    y_label="x_0",
+                    x_label="alpha [deg]",
+                    y_label="x_0 [mm]",
                     title=f"Hist of alpha vs x_0 {suffix}",
                     save_path=plot_save_path + f"x0_vs_tanalpha_{suffix}{plot_type}",
                 )
@@ -2998,7 +3110,7 @@ def main():
                     data_x=super_fits_cuts["err_vd_free_vd_super_fit"] * vd_factor,
                     data_y=super_fits_cuts["vd_free_vd_super_fit"] * vd_factor,
                     x_label=f"err_vd [$\\mu$m/ns]",
-                    y_label=f"vd [\\mu$m/ns]",
+                    y_label=f"vd [$\\mu$m/ns]",
                     title=f"Hist of vd vs err vd {suffix}",
                     save_path=plot_save_path + f"vd_vs_err_vd_{suffix}{plot_type}",
                 )
@@ -3014,7 +3126,7 @@ def main():
 
                 for k in range(8):
                     data_to_hist_2d(
-                        data_x=np.rad2deg(np.arctan(super_fits_cuts["tan_alpha_free_vd_super_fit"])),
+                        data_x=alpha_deg_arr,
                         data_y=super_fits_cuts[f"dt{k}_free_vd_super_fit"] * derived_params._ts_unit,
                         x_label="alpha [deg]",
                         y_label=f"dt_{k} [ns]",
@@ -3120,7 +3232,7 @@ def main():
                     suffix = w_cut 
                 # for key in goood_fit_keys:...
                 key = "tan_alpha"
-                title = f"Distribution of tan($\\alpha$) \n{pct_ar}/{pct_co2} Ar/CO2 U_wire = {u_wire} {w_cut}"
+                title = f"Distribution of tan($\\alpha$) \n{pct_ar}/{pct_co2} Ar/CO2, U_wire = {u_wire} V, {suffix}"
                 factor = 1
                 unit = ""
                 x_label = "tan(alpha)"
@@ -3155,12 +3267,12 @@ def main():
 
                 title = (
                     f"Distribution of $\\alpha$\n"
-                    f"{pct_ar}/{pct_co2} Ar/CO2 U_wire = {u_wire} {suffix}"
+                    f"{pct_ar}/{pct_co2} Ar/CO2, U_wire = {u_wire} V, {suffix}"
                 )
 
                 factor = 180 / np.pi      # falls du Grad darstellen möchtest
                 unit = "°"
-                x_label = r"tan($\alpha$)"
+                x_label = r"$\alpha$ [deg]"
                 y_label = "Counts"
 
                 data = np.arctan(sl_fits_cuts[key])
@@ -3195,6 +3307,25 @@ def main():
                 )
 
                 plt.close("all")
+
+        # -------------------------------------------------------------
+        # OPTIMIZATION: explicitly drop this dataset's big in-memory
+        # arrays (raw uproot arrays, cut copies, standalone-fit arrays)
+        # and any lingering matplotlib figures before moving on to the
+        # next dataset, instead of relying on Python's refcounting +
+        # garbage collector to eventually reclaim them. On its own this
+        # doesn't reduce a single dataset's peak usage, but it prevents
+        # one dataset's several-hundred-MB-to-GB arrays from still being
+        # alive (however briefly) while the next dataset's are loaded.
+        # -------------------------------------------------------------
+        plt.close("all")
+        for _name in ("super_fits", "super_fits_cuts", "uncut",
+                      "sl_fits", "sl_refits", "sl_fits_cuts"):
+            try:
+                exec(f"del {_name}")
+            except NameError:
+                pass
+        gc.collect()
 
     if do_ramp_measurement:
         data_utils.store_pickle(analysis_out, f"{pcls_path}analysis_out_track_fit_ramp.pcl")
@@ -3242,8 +3373,10 @@ def main():
         print(f"Exponential fit parameters: a = {a_fit:.4g} ± {err_a_fit:.2g}, "
             f"b = {b_fit:.4g} ± {err_b_fit:.2g}, c = {c_fit:.4g} ± {err_c_fit:.2g}")
 
-        plt.figure(figsize=(10, 5))
-        plt.errorbar(
+        fig, (ax0, ax1) = plt.subplots(
+            2, 1, figsize=(10, 7), sharex=True, gridspec_kw={"height_ratios": (4, 1)},
+        )
+        ax0.errorbar(
             times, values, yerr=errors,
             fmt="o", capsize=4, markersize=6,
             label=r"$U_{\mathrm{wire}} = 3600\,\mathrm{V}$",
@@ -3260,22 +3393,30 @@ def main():
         print(f"b_fit = {b_fit:.4g} ± {err_b_fit:.2g} day^-1, "f"b_expected = {b_expected:.4g} day^-1, pull = {pull_b:.2f} sigma")
 
 
-        plt.plot(exp_fit_times, exp_fit_data, "-", label=r"$\mathrm{Exponential\ fit}$")
+        ax0.plot(exp_fit_times, exp_fit_data, "-", label=r"$\mathrm{Exponential\ fit}$")
 
         exp_fit_data_expected = exp(t_fit_shifted, a_fit, b_expected, c_fit)
-        plt.plot(exp_fit_times, exp_fit_data_expected, "--", color="gray", label=fr"Expected ($b={b_expected:.3g}\,\mathrm{{day}}^{{-1}}$, $\tau={1/b_expected:.2f}$ d)")
+        ax0.plot(exp_fit_times, exp_fit_data_expected, "--", color="gray", label=fr"Expected ($b={b_expected:.3g}\,\mathrm{{day}}^{{-1}}$, $\tau={1/b_expected:.2f}$ d)")
 
-        ax = plt.gca()
-        ax.xaxis.set_major_formatter(mdates.DateFormatter("%m-%d\n%H:%M"))
-        plt.gcf().autofmt_xdate()
+        ax0.xaxis.set_major_formatter(mdates.DateFormatter("%m-%d\n%H:%M"))
 
-        plt.xlabel("Start time")
-        plt.ylabel(r"$v_d$ [$\mu$m/ns]")
-        plt.title(r"Drift velocity over time ($U_{\mathrm{wire}}=3600$ V) Track-fit method")
-        plt.grid(True)
-        plt.legend()
-        plt.tight_layout()
-        plt.savefig(f"{base_path}plots/ramp_analysis_track_fit{plot_type}")
+        ax0.set_ylabel(r"$v_d$ [$\mu$m/ns]")
+        ax0.set_title(r"Drift velocity over time ($U_{\mathrm{wire}}=3600$ V) Track-fit method")
+        ax0.grid(True)
+        ax0.legend()
+
+        values_arr = np.asarray(values)
+        errors_arr = np.asarray(errors)
+        residuals_ramp = values_arr - exp(t_shifted, *popt)
+        ax1.axhline(0, color="gray", linewidth=1)
+        ax1.errorbar(times, residuals_ramp, yerr=errors_arr, fmt="o", color="black", markersize=5, capsize=3)
+        ax1.set_ylabel(r"Residual (data $-$ fit) [$\mu$m/ns]")
+        ax1.set_xlabel("Start time")
+        ax1.grid(True, alpha=0.3)
+
+        fig.autofmt_xdate()
+        fig.tight_layout()
+        fig.savefig(f"{base_path}plots/ramp_analysis_track_fit{plot_type}")
 
     if not do_ramp_measurement:
 

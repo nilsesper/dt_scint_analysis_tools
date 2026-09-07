@@ -2713,7 +2713,8 @@ def main(save_plots=True):
 
     base_path = "data_ba/"
     pcls_path = "pcls/"
-    pcls_file_path = f"{base_path}{pcls_path}"
+
+    pcls_file_path = "/net/data_cms3a-1/tacke/pcls/"
     plot_save_path = base_path + "plots/compare/"
 
     if save_plots:
@@ -2721,10 +2722,10 @@ def main(save_plots=True):
 
 
     analysis_out_photopeak = data_utils.load_pickle(
-        f"{pcls_file_path}analysis_out_photo_peak_data.pcl"
+        f"{base_path}{pcls_path}analysis_out_photo_peak_data.pcl"
     )
     analysis_out_track_fit = data_utils.load_pickle(
-        f"{pcls_file_path}analysis_out_track_fit.pcl"
+        f"{base_path}{pcls_path}analysis_out_track_fit.pcl"
     )
 
     analysis_out_photopeak_ramp = data_utils.load_pickle(
