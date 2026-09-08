@@ -21,6 +21,9 @@ import re
 from datetime import datetime
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
+
+
+
 import sys
 from pathlib import Path
 import matplotlib.cm as cm
@@ -366,9 +369,10 @@ def plot_hist_general(
         "A_err", "chi2", "ndf", "chi2_ndf", "chi2_ndf_full_range",
         "popt", "pcov", "fit_range".
     """
-    # --- title normalization: "tan alpha"/"tan_alpha" (any spacing/case) -> "alpha" ---
-    title = re.sub(r"tan[\s_]*alpha", "alpha", title, flags=re.IGNORECASE)
- 
+
+    for variant in ("tan alpha", "tan_alpha", "Tan alpha", "Tan_alpha",
+                    "Tan Alpha", "Tan_Alpha", "TAN ALPHA", "TAN_ALPHA"):
+        title = title.replace(variant, r"$\tan\alpha$")
     # read data
     hist = np.array(specific_data[hist_key])[start_idx:]
     err_hist_down = np.array(specific_data[err_hist_down_key])[start_idx:]
@@ -1014,11 +1018,7 @@ Track ID = {idx}"""
 
         ################################
         ###### standalone SL1/SL3 fit tracks in chamber coordinates
-        ###### (computed here so both the zoomed plot and plot 5 can use them)
 
-        # each standalone SL fit is drawn using ITS OWN top wire (among its
-        # own 4 layers) as the local-frame reference in chamber coordinates --
-        # same convention as plot 3 above, just restricted to one SL's cells
         top_wire_idx_sl1 = int(np.argmax(z_arr_ch[0:4]))
         x_ref_ch_sl1 = x_cell_ch[0:4][top_wire_idx_sl1]
         z_ref_ch_sl1 = z_arr_ch[0:4][top_wire_idx_sl1]
@@ -1096,7 +1096,7 @@ Track ID = {idx}"""
 
             ax_zoom.set_xlabel("$x$ [mm]")
             ax_zoom.set_ylabel("$z$ [mm]")
-            ax_zoom.set_title(f"DT chamber ($\\phi$ view) -- Zoomed track fit, {suffix}")
+            ax_zoom.set_title(f"DT chamber ($\\phi$ view)\nZoomed track fit")
             ax_zoom.legend(
                 prop={"size": 14}, fancybox=False, framealpha=params._legend_alpha, loc="center right",
             )
@@ -1146,7 +1146,7 @@ Track ID = {idx}"""
         paths["detector_track_individual_fits"] = path
 
         ################################
-        ###### plot 5b (NEW): zoomed version of plot 5
+        ###### plot 5b (zoom)
 
         paths["detector_track_individual_fits_zoom"] = None
         if zoom:
@@ -1185,7 +1185,7 @@ Track ID = {idx}"""
 
             ax_zoom2.set_xlabel("$x$ [mm]")
             ax_zoom2.set_ylabel("$z$ [mm]")
-            ax_zoom2.set_title(f"DT chamber ($\\phi$ view) -- Zoomed, super vs. standalone SL{sl1}/SL{sl2} fits, {suffix}")
+            ax_zoom2.set_title(f"DT chamber ($\\phi$ view)Zoomed\nsuper and standalone SL{sl1}/SL{sl2} fits")
             ax_zoom2.legend(prop={"size": 12}, fancybox=False, framealpha=params._legend_alpha, loc="center right")
             fig_zoom2.tight_layout()
 
@@ -1347,8 +1347,8 @@ def fit_parabola_peak(
     ylabel="counts",
     title="",
     filename_suffix="ALL",
-    fit_half_width=5,       # now: number of bins on each side of the peak bin for the MAIN fit
-    fit_half_range=1,       # kept in signature; not used internally (see note below)
+    fit_half_width=5,       
+    fit_half_range=1,       
     scale_factor=1,
     min_bins_syst=7,
     max_bins_syst=18,
@@ -1791,7 +1791,7 @@ def muon_heatmap_from_fits(
     ax = geoplot_utils.chamber_ax(ax=ax, orient=orient, cell_data=dt_cell_data_base, wire=False, transparent=True)
     ax = geoplot_utils.chamber_ax(ax=ax, orient=orient, cell_data=dt_cell_data_dead, wire=False, transparent=True)
     ax = geoplot_utils.chamber_ax(ax=ax, orient=orient, cell_data=dt_cell_data_masked, wire=False, transparent=True)
-    ax.set_title(f"DT tracks (reconstructed from fits), {cut_suff}", fontsize=20)
+    ax.set_title(f"DT tracks (reconstructed from fits)", fontsize=20)
     ax.set_ylabel("$z$ [mm]")
     ax.set_xlabel("$x$ [mm]")
 
@@ -2126,7 +2126,7 @@ def analyze_pattern_type_data(
         ax.set_xticklabels(pattern_labels)
         ax.set_xlabel("Pattern type")
         ax.set_ylabel("Rate [Hz]")
-        ax.set_title(f"{add_title_info}: {_sl_display(sl)} pattern type rates\nfor {pct_ar}/{pct_co2} Ar/CO$_2$, $U_{{\\mathrm{{wire}}}} = {u_wire}$ V, {suffix}")
+        ax.set_title(f"{add_title_info}: {_sl_display(sl)} pattern type rates\nfor {pct_ar}/{pct_co2} Ar/CO$_2$, $U_{{\\mathrm{{wire}}}} = {u_wire}$ V")
         info_str = f"entries = {n_entries[sl]}"
         ax = hist_utils.add_infobox(ax=ax, info_str=info_str, info_loc="upper right")
         fig.tight_layout()
@@ -2156,7 +2156,7 @@ def analyze_pattern_type_data(
     ax.set_ylabel("Rate [Hz]")
     ax.set_title(
     f"pattern type rate comparison\nfor {pct_ar}/{pct_co2} Ar/CO$_2$, "
-    f"$U_{{\\mathrm{{wire}}}} = {u_wire}$ V, {suffix}"
+    f"$U_{{\\mathrm{{wire}}}} = {u_wire}$ V"
 )
     ax.legend()
     fig.tight_layout()
@@ -2225,7 +2225,6 @@ _WIRE_COLOR_MAP = {
     v: _WIRE_COLORMAP(0.3 + 0.7 * i / (len(_WIRE_VOLTAGES) - 1))
     for i, v in enumerate(_WIRE_VOLTAGES)
 }
-
 def plot_vd_by_gas_mix(
     *,
     analysis_out,
@@ -2242,22 +2241,26 @@ def plot_vd_by_gas_mix(
     entries = []
     for dataset_name, result in analysis_out.items():
         try:
-            info = dataset_info_fn(name = dataset_name)   # FIXED: was calling stray `dataset_info` kwarg
+            info = dataset_info_fn(name = dataset_name)
         except Exception as e:
             if verbose:
                 print(f"  skipping {dataset_name}: could not parse dataset info ({e})")
             continue
- 
+
         pct_ar = float(info["pct_Ar"])
         pct_co2 = float(info["pct_CO2"])
-        u_wire = int(info["U_wire"])  # force int so wide/fallback parsing paths can't mismatch
-        mix_label = f"{_fmt_gas_pct(pct_ar)}/{_fmt_gas_pct(pct_co2)}"
- 
+        u_wire = int(info["U_wire"])
+        # _fmt_gas_pct may return a filename-safe "p"-separated string
+        # (e.g. "84p5") depending on which version is bound at call time --
+        # normalize any stray "p" back to "." for display here.
+        mix_label = f"{_fmt_gas_pct(pct_ar)}/{_fmt_gas_pct(pct_co2)}".replace("p", ".")
+
         try:
             entries.append({
                 "dataset": dataset_name,
                 "mix": mix_label,
                 "mix_sort": (pct_ar, pct_co2),
+                "pct_ar": pct_ar,
                 "u_wire": u_wire,
                 "mean_vd": result["peak"],
                 "err_vd": result["tot_err"],
@@ -2267,20 +2270,33 @@ def plot_vd_by_gas_mix(
                 "dataset": dataset_name,
                 "mix": mix_label,
                 "mix_sort": (pct_ar, pct_co2),
+                "pct_ar": pct_ar,
                 "u_wire": u_wire,
                 "mean_vd": result["v_drift"],
                 "err_vd": result["err_v_drift"],
             })
- 
+
     if not entries:
         raise ValueError("No datasets could be parsed by dataset_info_fn; nothing to plot.")
- 
-    # --- x-axis categories: one per unique gas mix, sorted by (Ar%, CO2%) ---
+
+    # --- x-axis positions: use the actual Ar% as the x-coordinate instead of
+    # a uniform categorical index. Two mixes 1 pct apart in Ar are then
+    # twice as far apart on the axis as two mixes 0.5 pct apart, matching
+    # the real spacing of the measured mixtures (82, 83, 84, 84.5, 85,
+    # 85.5, 86, 87). ---
     mix_sort_key = {e["mix"]: e["mix_sort"] for e in entries}
+    mix_to_pct_ar = {e["mix"]: e["pct_ar"] for e in entries}
     mixes = sorted(mix_sort_key, key=lambda m: mix_sort_key[m])
-    mix_to_x = {mix: i for i, mix in enumerate(mixes)}
- 
-    # --- consistent color per U_wire, from the fixed hardcoded map ---
+    mix_to_x = {mix: mix_to_pct_ar[mix] for mix in mixes}
+
+    # smallest gap between neighboring mixes on this continuous axis, used
+    # to size the bar groups so adjacent groups never overlap
+    sorted_x = sorted(mix_to_x.values())
+    min_gap = min(
+        (b - a for a, b in zip(sorted_x[:-1], sorted_x[1:]) if b > a),
+        default=1.0,
+    )
+
     unique_u_wires = sorted(set(e["u_wire"] for e in entries))
     unmapped = [u for u in unique_u_wires if u not in _WIRE_COLOR_MAP]
     if unmapped:
@@ -2290,24 +2306,25 @@ def plot_vd_by_gas_mix(
             f"module (currently defined for {_WIRE_VOLTAGES})."
         )
     wire_color_map = {u: _WIRE_COLOR_MAP[u] for u in unique_u_wires}
- 
-    # --- group entries by mix, sort each group by wire voltage for a stable bar order ---
+
     grouped = {mix: [] for mix in mixes}
     for e in entries:
         grouped[e["mix"]].append(e)
     for mix in grouped:
         grouped[mix].sort(key=lambda e: (e["u_wire"], e["dataset"]))
- 
+
     fig, ax = plt.subplots(1, 1, figsize=fig_size)
- 
+
     max_group_size = max(len(v) for v in grouped.values())
-    group_width = 0.8
+    # group width is now a fraction of the SMALLEST gap on the axis (0.5 pct
+    # in the typical dataset), not a fixed 0.8 categorical unit -- otherwise
+    # bars from neighboring 0.5-pct-apart groups would overlap
+    group_width = 0.8 * min_gap
     bar_width = group_width / max_group_size
- 
+
     for mix, group_entries in grouped.items():
         x0 = mix_to_x[mix]
         n = len(group_entries)
-        # center this group's bars even if it has fewer entries than the widest group
         offsets = (np.arange(n) - (n - 1) / 2) * bar_width
         for e, offset in zip(group_entries, offsets):
             color = wire_color_map[e["u_wire"]]
@@ -2316,36 +2333,31 @@ def plot_vd_by_gas_mix(
                 x0 + offset, e["mean_vd"], yerr=e["err_vd"],
                 fmt="none", ecolor="black", capsize=3,
             )
- 
+
     ax.set_xticks(list(mix_to_x.values()))
-    ax.set_xticklabels(list(mix_to_x.keys()))
-    ax.set_xlabel("Gas mixture (Ar/CO2) [%]")
+    ax.set_xticklabels(list(mix_to_x.keys()), rotation=40, ha="right")
+    ax.set_xlabel("Gas mixture (Ar/CO$_2$) [%]")
     ax.set_ylabel(r"$v_d$ [$\mu$m/ns]")
-    ax.set_title(f"Comparison of gas mixtures and drift velocities from {strmethod}")
+    ax.set_title(f"Comparison of gas mixtures\n$v_d$ from {strmethod}")
     ax.grid(True, axis="y")
- 
-    # y-axis scaled to the actual data range (incl. error bars) with a fixed
-    # margin, rather than the default bar-chart baseline-at-0 behavior
+
     y_lo = min(e["mean_vd"] - e["err_vd"] for e in entries)
     y_hi = max(e["mean_vd"] + e["err_vd"] for e in entries)
     ax.set_ylim(y_lo - y_margin, y_hi + y_margin)
- 
-    # legend: one entry per U_wire value, deduplicated
+
     legend_handles = [plt.Rectangle((0, 0), 1, 1, color=wire_color_map[u]) for u in unique_u_wires]
     legend_labels = [f"$U_{{wire}}$ = {u} V" for u in unique_u_wires]
     ax.legend(legend_handles, legend_labels)
- 
+
     fig.tight_layout()
- 
+
     if save_path is None:
         save_path = base_path + f"plots/vd_{method}_comparison{plot_type}"
     fig.savefig(save_path)
     if verbose:
         print(f"store plot as {save_path}.")
- 
+
     return fig, ax, save_path
-
-
 
 # quantity key -> (column suffix appended to "_free_vd_super_fit", y-axis label, log-y)
 _QUANTITIES = [
@@ -2434,7 +2446,7 @@ def plot_super_fit_errors_vs_tan_alpha(
             ax.legend(loc="upper left", fontsize=8)
 
     title = (
-        f"SUPER fit diagnostics vs tan_alpha\n"
+        f"SUPER fit diagnostics vs $\\tan\\alpha$\n"
         f"for {pct_ar}/{pct_co2} Ar/CO$_2$, $U_{{\\mathrm{{wire}}}} = {u_wire}$ V"
     )
     if strmethod:
@@ -2452,9 +2464,7 @@ def plot_super_fit_errors_vs_tan_alpha(
 
 
 def parse_fit_name(*, name):
-    # Erwartetes Format: cosmic_<Ar>-<CO2>_<U_wire>-<U_Fieldshaper>-<U_cathode>_<rest...>
-    # Ar/CO2 percentages may be integers ("84") or decimals written with
-    # "p" instead of "." ("84p5" -> 84.5)
+
     pattern = r"^cosmic_(\d+(?:p\d+)?)-(\d+(?:p\d+)?)_(\d+)-(\d+)-(\d+)"
     match = re.match(pattern, name)
     if not match:
@@ -2531,9 +2541,17 @@ def get_dataset_marker_path(*, plot_save_path, dataset_name, plot_type,
     return f"{plot_save_path}{dataset_name}_super_fit_PAT_TYPE_COMPARISON_no_cut{plot_type}"
 
 
-# -------------------------------------------------------------------------------------------------------
-# main function
-@mpl.rc_context({'font.family': 'sans-serif', 'font.size': 12}) #'font.sans-serif': 'Arial',
+
+@mpl.rc_context({
+    'font.family': 'sans-serif',
+    'font.size': 12,
+    'axes.titlesize': 17,
+    'axes.labelsize': 15,
+    'legend.fontsize': 13,
+    'xtick.labelsize': 12,
+    'ytick.labelsize': 12,
+    'figure.titlesize': 18,
+})
 def main():
     
 
@@ -2800,22 +2818,22 @@ def main():
         # Format:[              key,      Plot title,                             factor,     Unit of measurement,  xlabel, ylabel, gas_mix, U_wire]
         
         
-        good_super_fit_keys = [["t0_sl1", "T0 distribution of cosmic muons in SL1", 1, "TU", "T0 [TU]", "counts"], 
-                            ['t0_sl3', "T0 distribution of cosmic muons in SL3", 1, "TU", "T0 [TU]", "counts"], 
-                            ["x0_free_vd_super_fit", "x0 distribution of muon super fits", 1, "mm", "x0 [mm]", "counts"], 
-                            ['tan_alpha_free_vd_super_fit', "tan alpha distribution of cosmic muon super fits", 1, "", "tan alpha", "counts"], 
-                            ['vd_free_vd_super_fit', "electron drift velocity distribution from fits", vd_factor, "$\\mu$m/ns", "v_drift [$\\mu$m/ns]", "counts"], 
-                            ['chi2/ndf_free_vd_super_fit', "chi2/ndf distribution from fits", 1, "", "chi2/ndf", "counts"], 
-                            ['dt0_free_vd_super_fit', "drift time distribution of wire 0", 1, "TU", "dt0 [TU]", "counts"],
-                            ['dt1_free_vd_super_fit', "drift time distribution of wire 1", 1, "TU", "dt1 [TU]", "counts"], 
-                            ['dt2_free_vd_super_fit', "drift time distribution of wire 2", 1, "TU", "dt2 [TU]", "counts"], 
-                            ['dt3_free_vd_super_fit', "drift time distribution of wire 3", 1, "TU", "dt3 [TU]", "counts"], 
-                            ['dt4_free_vd_super_fit', "drift time distribution of wire 4", 1, "TU", "dt4 [TU]", "counts"],  
-                            ['dt5_free_vd_super_fit', "drift time distribution of wire 5", 1, "TU", "dt5 [TU]", "counts"], 
-                            ['dt6_free_vd_super_fit', "drift time distribution of wire 6", 1, "TU", "dt6 [TU]", "counts"],  
-                            ['dt7_free_vd_super_fit', "drift time distribution of wire 7", 1, "TU", "dt7 [TU]", "counts"], 
-                            ]
-        goood_fit_keys = ["tan_alpha"]
+        good_super_fit_keys = [
+                    ["t0_sl1", "$T_0$ distribution of cosmic muons in SL1", 1, "TU", "$T_0$ [TU]", "counts"],
+                    ["t0_sl3", "$T_0$ distribution of cosmic muons in SL3", 1, "TU", "$T_0$ [TU]", "counts"],
+                    ["x0_free_vd_super_fit", "$x_0$ distribution of muon super fits", 1, "mm", "$x_0$ [mm]", "counts"],
+                    ["tan_alpha_free_vd_super_fit", "$\\tan\\alpha$ distribution of cosmic muon super fits", 1, "", "$\\tan\\alpha$", "counts"],
+                    ["vd_free_vd_super_fit", "Electron drift velocity distribution from fits", vd_factor, "$\\mu\\mathrm{m}/\\mathrm{ns}$", "$v_{\\mathrm{drift}}$ [$\\mu\\mathrm{m}/\\mathrm{ns}$]", "counts"],
+                    ["chi2/ndf_free_vd_super_fit", "$\\chi^2/N_{df}$ distribution from fits", 1, "", "$\\chi^2/N_{df}$", "counts"],
+                    ["dt0_free_vd_super_fit", "Drift time distribution of wire 0", 1, "TU", "$dt_0$ [TU]", "counts"],
+                    ["dt1_free_vd_super_fit", "Drift time distribution of wire 1", 1, "TU", "$dt_1$ [TU]", "counts"],
+                    ["dt2_free_vd_super_fit", "Drift time distribution of wire 2", 1, "TU", "$dt_2$ [TU]", "counts"],
+                    ["dt3_free_vd_super_fit", "Drift time distribution of wire 3", 1, "TU", "$dt_3$ [TU]", "counts"],
+                    ["dt4_free_vd_super_fit", "Drift time distribution of wire 4", 1, "TU", "$dt_4$ [TU]", "counts"],
+                    ["dt5_free_vd_super_fit", "Drift time distribution of wire 5", 1, "TU", "$dt_5$ [TU]", "counts"],
+                    ["dt6_free_vd_super_fit", "Drift time distribution of wire 6", 1, "TU", "$dt_6$ [TU]", "counts"],
+                    ["dt7_free_vd_super_fit", "Drift time distribution of wire 7", 1, "TU", "$dt_7$ [TU]", "counts"],
+                ]
 
 
         #print(super_fits.keys())
@@ -2934,9 +2952,15 @@ def main():
                     key = 'vd_free_vd_super_fit'
 
                     if not do_ramp_measurement:
-                        title = f"Parabola fit to drift velocity histogram\n{pct_ar}/{pct_co2} Ar/CO2, U_wire = {u_wire} V, {suffix}"
+                        title = (
+                            f"Parabola fit to drift velocity histogram\n"
+                            f"{pct_ar}/{pct_co2} Ar/CO$_2$, $U_{{\\mathrm{{wire}}}} = {u_wire}\\,\\mathrm{{V}}$, {suffix}"
+                        )
                     if do_ramp_measurement:
-                        title = f"Parabola fit to drift velocity histogram\nRamp measurement U_wire = 3600 V"
+                        title = (
+                            f"Parabola fit to drift velocity histogram\n"
+                            f"Ramp measurement $U_{{\\mathrm{{wire}}}} = 3600\\,\\mathrm{{V}}$"
+                        )
                     factor = vd_factor
                     unit = r"$\mu\mathrm{m}/\mathrm{ns}$"
                     x_label = f"Drift velocity $v_d$ [{unit}]"
@@ -3000,7 +3024,7 @@ def main():
                 #hist of all interesting hist metrics
                 for j in range(len(good_super_fit_keys)):
                     key = good_super_fit_keys[j][0]
-                    title =good_super_fit_keys[j][1] + f"\n{pct_ar}/{pct_co2} Ar/CO2, U_wire = {u_wire} V, {suffix}"
+                    title = good_super_fit_keys[j][1] + f"\n{pct_ar}/{pct_co2} Ar/CO$_2$, $U_{{\\mathrm{{wire}}}} = {u_wire}\\,\\mathrm{{V}}$, {suffix}"
                     factor = good_super_fit_keys[j][2]
                     unit = good_super_fit_keys[j][3]
                     x_label = good_super_fit_keys[j][4]
@@ -3074,53 +3098,53 @@ def main():
                 data_to_hist_2d(
                     data_x=super_fits_cuts["x0_free_vd_super_fit"],
                     data_y=super_fits_cuts['vd_free_vd_super_fit'] * vd_factor,
-                    x_label="x0 [mm]",
-                    y_label=r"v_d [$\mu$m/ns]",
-                    title=f"Hist of x_0 and v_d {suffix}",
+                    x_label="$x_0$ [mm]",
+                    y_label=r"$v_d$ [$\mu\mathrm{m}/\mathrm{ns}$]",
+                    title=f"Hist of $x_0$ and $v_d$ {suffix}",
                     save_path=plot_save_path + f"vd_vs_x0_{suffix}{plot_type}",
                 )
 
                 data_to_hist_2d(
                     data_x=alpha_deg_arr,
                     data_y=super_fits_cuts['vd_free_vd_super_fit'] * vd_factor,
-                    x_label="alpha [deg]",
-                    y_label=r"v_d [$\mu$m/ns]",
-                    title=f"Hist of alpha vs vd {suffix}",
+                    x_label=r"$\alpha$ [deg]",
+                    y_label=r"$v_d$ [$\mu\mathrm{m}/\mathrm{ns}$]",
+                    title=f"Hist of $\\alpha$ vs $v_d$ {suffix}",
                     save_path=plot_save_path + f"vd_vs_alpha_{suffix}{plot_type}",
                 )
                 plt.close("all")
                 data_to_hist_2d(
                     data_x=alpha_deg_arr,
                     data_y=super_fits_cuts["x0_free_vd_super_fit"],
-                    x_label="alpha [deg]",
-                    y_label="x_0 [mm]",
-                    title=f"Hist of alpha vs x_0 {suffix}",
+                    x_label=r"$\alpha$ [deg]",
+                    y_label="$x_0$ [mm]",
+                    title=f"Hist of $\\alpha$ vs $x_0$ {suffix}",
                     save_path=plot_save_path + f"x0_vs_tanalpha_{suffix}{plot_type}",
                 )
 
                 data_to_hist_2d(
                     data_x=super_fits_cuts["x0_free_vd_super_fit"],
                     data_y=super_fits_cuts["dt0_free_vd_super_fit"] * derived_params._ts_unit,
-                    x_label="x_0[mm]",
-                    y_label="dt_0 [ns]",
-                    title=f"Hist of x_0 vs dt_0 {suffix}",
+                    x_label="$x_0$ [mm]",
+                    y_label="$dt_0$ [ns]",
+                    title=f"Hist of $x_0$ vs $dt_0$ {suffix}",
                     save_path=plot_save_path + f"dt_0_vs_x0_{suffix}{plot_type}",
                 )
                 data_to_hist_2d(
                     data_x=super_fits_cuts["err_vd_free_vd_super_fit"] * vd_factor,
                     data_y=super_fits_cuts["vd_free_vd_super_fit"] * vd_factor,
-                    x_label=f"err_vd [$\\mu$m/ns]",
-                    y_label=f"vd [$\\mu$m/ns]",
-                    title=f"Hist of vd vs err vd {suffix}",
+                    x_label=r"$\sigma(v_d)$ [$\mu\mathrm{m}/\mathrm{ns}$]",
+                    y_label=r"$v_d$ [$\mu\mathrm{m}/\mathrm{ns}$]",
+                    title=f"Hist of $v_d$ vs $\\sigma(v_d)$ {suffix}",
                     save_path=plot_save_path + f"vd_vs_err_vd_{suffix}{plot_type}",
                 )
 
                 data_to_hist_2d(
                     data_x=super_fits_cuts["err_vd_free_vd_super_fit"] * vd_factor,
                     data_y=super_fits_cuts["err_tan_alpha_free_vd_super_fit"],
-                    x_label=f"err_vd [$\\mu$m/ns]",
-                    y_label=f"err tan ($\\alpha$)",
-                    title=f"Hist of err_tan_alpha vs err_vd {suffix}",
+                    x_label=r"$\sigma(v_d)$ [$\mu\mathrm{m}/\mathrm{ns}$]",
+                    y_label=r"$\sigma(\tan\alpha)$",
+                    title=f"Hist of $\\sigma(\\tan\\alpha)$ vs $\\sigma(v_d)$ {suffix}",
                     save_path=plot_save_path + f"err_tan_alpha_vs_err_vd_{suffix}{plot_type}",
                 )
 
@@ -3128,12 +3152,11 @@ def main():
                     data_to_hist_2d(
                         data_x=alpha_deg_arr,
                         data_y=super_fits_cuts[f"dt{k}_free_vd_super_fit"] * derived_params._ts_unit,
-                        x_label="alpha [deg]",
-                        y_label=f"dt_{k} [ns]",
-                        title=f"Hist of dt_{k} vs alpha {suffix}",
+                        x_label=r"$\alpha$ [deg]",
+                        y_label=f"$dt_{{{k}}}$ [ns]",
+                        title=f"Hist of $dt_{{{k}}}$ vs $\\alpha$ {suffix}",
                         save_path=plot_save_path + f"dt{k}_vs_alpha_{suffix}{plot_type}",
-                    )
-
+                )
 
 
                 detector_track(super_fits_cuts = super_fits_cuts,
@@ -3150,9 +3173,9 @@ def main():
                 )
 
 
-                print(len(super_fits_cuts["muon_ts"]))
-                print(len(super_fits_cuts["pat_type_sl1"]))   # should match the line above
-                print(np.unique(super_fits_cuts["muon_ts"])[:10])
+                #print(len(super_fits_cuts["muon_ts"]))
+                #print(len(super_fits_cuts["pat_type_sl1"]))   # should match the line above
+                #print(np.unique(super_fits_cuts["muon_ts"])[:10])
 
                 results = analyze_pattern_type_data(
                     data=super_fits_cuts,
@@ -3232,7 +3255,7 @@ def main():
                     suffix = w_cut 
                 # for key in goood_fit_keys:...
                 key = "tan_alpha"
-                title = f"Distribution of tan($\\alpha$) \n{pct_ar}/{pct_co2} Ar/CO2, U_wire = {u_wire} V, {suffix}"
+                title = f"Distribution of tan($\\alpha$) \n{pct_ar}/{pct_co2} Ar/CO$_2$, $U_{{\\mathrm{{wire}}}} = {u_wire}\\,\\mathrm{{V}}$, {suffix}"
                 factor = 1
                 unit = ""
                 x_label = "tan(alpha)"
@@ -3267,7 +3290,7 @@ def main():
 
                 title = (
                     f"Distribution of $\\alpha$\n"
-                    f"{pct_ar}/{pct_co2} Ar/CO2, U_wire = {u_wire} V, {suffix}"
+                    f"{pct_ar}/{pct_co2} Ar/CO$_2$, $U_{{\\mathrm{{wire}}}} = {u_wire}\\,\\mathrm{{V}}$, {suffix}"
                 )
 
                 factor = 180 / np.pi      # falls du Grad darstellen möchtest
@@ -3308,16 +3331,7 @@ def main():
 
                 plt.close("all")
 
-        # -------------------------------------------------------------
-        # OPTIMIZATION: explicitly drop this dataset's big in-memory
-        # arrays (raw uproot arrays, cut copies, standalone-fit arrays)
-        # and any lingering matplotlib figures before moving on to the
-        # next dataset, instead of relying on Python's refcounting +
-        # garbage collector to eventually reclaim them. On its own this
-        # doesn't reduce a single dataset's peak usage, but it prevents
-        # one dataset's several-hundred-MB-to-GB arrays from still being
-        # alive (however briefly) while the next dataset's are loaded.
-        # -------------------------------------------------------------
+
         plt.close("all")
         for _name in ("super_fits", "super_fits_cuts", "uncut",
                       "sl_fits", "sl_refits", "sl_fits_cuts"):
@@ -3400,8 +3414,8 @@ def main():
 
         ax0.xaxis.set_major_formatter(mdates.DateFormatter("%m-%d\n%H:%M"))
 
-        ax0.set_ylabel(r"$v_d$ [$\mu$m/ns]")
-        ax0.set_title(r"Drift velocity over time ($U_{\mathrm{wire}}=3600$ V) Track-fit method")
+        ax0.set_ylabel(r"$v_d$ [$\mu\mathrm{m}/\mathrm{ns}$]")
+        ax0.set_title(r"Drift velocity over time ($U_{\mathrm{wire}}=3600\,\mathrm{V}$) Track-fit method")
         ax0.grid(True)
         ax0.legend()
 

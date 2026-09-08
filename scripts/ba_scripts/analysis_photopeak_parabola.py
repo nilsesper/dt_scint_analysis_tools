@@ -24,18 +24,10 @@ import matplotlib.dates as mdates
 from pathlib import Path
 
 # =================================================================
-# Robust secondary-peak fitting helpers
-# (Parabola fit around the peak region, no valley-to-valley logic
-#  -- see fit_secondary_peak_parabola for details / caveats)
-# =================================================================
+
 
 def parabola_vertex_form(x, A, mu, c):
-    """Downward-opening parabola in vertex form: y = A - c*(x-mu)^2, with
-    peak amplitude A at position mu and curvature c (c > 0 for a real
-    peak). Fitting directly in this form -- with mu as its own bounded
-    parameter -- is what keeps the fit from "running away": unlike the
-    a2*x^2+a1*x+a0 form, mu can no longer land far outside the fit window
-    just because a1/a2 happened to extrapolate there."""
+    """parabola in vertex form."""
     return A - c * (x - mu) ** 2
 
 
@@ -51,10 +43,7 @@ def err_parabola_vertex_form(x, A, mu, c, err_A, err_mu, err_c):
     )
 
 def _fmt_gas_pct_display(x):
-    """Format a gas percentage for on-plot labels (ticks/legend): integer
-    percentages render plainly ("84"), non-integer ones keep a real
-    decimal point ("84.5") instead of the filename-safe 'p' substitute
-    used by _fmt_gas_pct."""
+    """format gas percentage for displays"""
     x = float(x)
     if x.is_integer():
         return str(int(x))
@@ -74,19 +63,10 @@ def fit_secondary_peak_parabola(
     verbose=True,
     min_bins_syst=5,
     max_bins_syst=15,
-    max_chi2_ndf_syst=5.0,
+    max_chi2_ndf_syst=8.0,
 ):
     """
-    Fit a parabola (vertex form) to a FIXED window
-    [peak_pos - halfwidth_left_ns, peak_pos + halfwidth_right_ns]
-    around a hardcoded peak position.
-
-    No automatic peak search, no local width/amplitude estimate: the
-    window is chosen purely from `peak_pos` and the two `halfwidth_*_ns`
-    values you pass in. If `peak_pos` is wrong or the window doesn't
-    actually contain a peak, the fit will fail via the existing c<=0 /
-    A<=0 / edge-margin checks below -- there is no independent
-    verification that a peak actually exists at that location.
+    Fits parabola to photopeak near given, hardcoded peak pos and returs monitoring data
 
     peak_pos : float
         Hardcoded peak position (ns). The fit window is centered here.
@@ -112,7 +92,7 @@ def fit_secondary_peak_parabola(
     min_bins_syst, max_bins_syst : int
         Range of window half-widths (in bins) scanned to estimate the
         systematic uncertainty on the peak position.
-    max_chi2_ndf_syst : float, default 5.0
+    max_chi2_ndf_syst : float, default 8.0
         Systematic-scan windows whose chi2/ndf exceeds this are rejected
         from the RMS systematic-uncertainty calculation, so a handful of
         badly-fit windows can't dominate the systematic error.
@@ -194,9 +174,9 @@ def fit_secondary_peak_parabola(
                       f"[halfwidth_left={win_left_ns:.1f} ns, halfwidth_right={win_right_ns:.1f} ns], "
                       f"mu = {mu_fit:.2f} +- {err_mu_fit:.2g} ns, chi2/ndf = {chi2:.1f}/{ndf} = {chi2ndf:.2f}")
 
-            # -----------------------------------------
+
             # Systematic uncertainty from fit window
-            # -----------------------------------------
+
             mu_scan = []
             bin_width = np.mean(np.diff(bins_nobg))
 
@@ -296,10 +276,7 @@ def _fmt_gas_pct(x):
         return str(int(x))
     return str(x).replace(".", "p")
 
-# Fixed U_wire -> color mapping, light to dark, so colors stay consistent
-# across every plot regardless of which subset of voltages is present in a
-# given `analysis_out`. Sampled from a sequential colormap (light = low
-# voltage, dark = high voltage). Extend this dict if you add more voltages.
+
 _WIRE_VOLTAGES = [3550, 3575, 3600, 3625, 3650]
 _WIRE_COLORMAP = plt.cm.Reds  # light -> dark as voltage increases
 _WIRE_COLOR_MAP = {
@@ -323,14 +300,7 @@ _REAL_GAS_MIX = {
 
 def parse_fit_name_real_mix(*, name):
     """
-    Same as parse_fit_name(), but returns the REAL/measured gas-mixture
-    percentage (from _REAL_GAS_MIX) instead of the nominal/target one
-    baked into the dataset name.
- 
-    Raises a KeyError (with a clear message) if a dataset's target
-    pct_Ar has no entry in _REAL_GAS_MIX -- add it there if you
-    calibrate a new gas mixture, rather than silently plotting the
-    dataset at the wrong (target) position.
+    parses dataset name and matches real gas mixture. the offset comes from the gas panel only having one decimal
     """
     info = parse_fit_name(name=name)
     target_ar = float(info["pct_Ar"])
@@ -369,14 +339,6 @@ def plot_vd_by_gas_mix(
     """
     Bar-chart comparison of fitted drift velocities, grouped by gas mixture.
  
-    Replaces the errorbar-per-dataset scatter plot: instead of one point per
-    dataset scattered along an Ar-concentration x-axis, every dataset
-    sharing the same (pct_Ar, pct_CO2) gas mixture is grouped into one
-    x-axis category, and one bar is drawn per measurement within that group
-    (colored consistently by U_wire across groups, using a fixed hardcoded
-    color per voltage) -- mirroring the grouped-bar comparison plot used
-    elsewhere for pattern-type rates.
- 
     Parameters
     ----------
     analysis_out : dict
@@ -411,7 +373,7 @@ def plot_vd_by_gas_mix(
     -------
     fig, ax, path
     """
-    # --- collect (mix, u_wire, mean_vd, err_vd) per dataset ---
+
     entries = []
     for dataset_name, result in analysis_out.items():
         try:
@@ -424,7 +386,7 @@ def plot_vd_by_gas_mix(
         pct_ar = float(info["pct_Ar"])
         pct_co2 = float(info["pct_CO2"])
         u_wire = int(info["U_wire"])  # force int so wide/fallback parsing paths can't mismatch
-        mix_label = f"{_fmt_gas_pct(pct_ar)}/{_fmt_gas_pct(pct_co2)}"
+        mix_label = f"{_fmt_gas_pct_display(pct_ar)}/{_fmt_gas_pct_display(pct_co2)}"
  
         if "v_drift" in result and "err_v_drift" in result:
             mean_vd = result["v_drift"]
@@ -450,7 +412,8 @@ def plot_vd_by_gas_mix(
     # --- x-axis categories: one per unique gas mix, sorted by (Ar%, CO2%) ---
     mix_sort_key = {e["mix"]: e["mix_sort"] for e in entries}
     mixes = sorted(mix_sort_key, key=lambda m: mix_sort_key[m])
-    mix_to_x = {mix: i for i, mix in enumerate(mixes)}
+
+    mix_to_x = {mix: mix_sort_key[mix][0] for mix in mixes}
  
     # --- consistent color per U_wire, from the fixed hardcoded map ---
     unique_u_wires = sorted(set(e["u_wire"] for e in entries))
@@ -473,7 +436,14 @@ def plot_vd_by_gas_mix(
     fig, ax = plt.subplots(1, 1, figsize=fig_size)
  
     max_group_size = max(len(v) for v in grouped.values())
-    group_width = 0.8
+    group_width = 0.4  
+    unique_pct_ar = sorted(set(v for v in mix_to_x.values()))
+    ar_gaps = np.diff(unique_pct_ar)
+    if len(ar_gaps) > 0 and np.min(ar_gaps) < group_width:
+        if verbose:
+            print(f"  WARNING: smallest gap between adjacent pct_Ar values "
+                  f"({np.min(ar_gaps):.3g}) is smaller than group_width "
+                  f"({group_width}); bars from neighboring mixes may overlap.")
     bar_width = group_width / max_group_size
  
     for mix, group_entries in grouped.items():
@@ -491,7 +461,7 @@ def plot_vd_by_gas_mix(
  
     ax.set_xticks(list(mix_to_x.values()))
     ax.set_xticklabels(list(mix_to_x.keys()))
-    ax.set_xlabel("Gas mixture (Ar/CO2) [%]")
+    ax.set_xlabel("Gas mixture (Ar/CO$_2$) [%]")
     ax.set_ylabel(r"$v_d$ [$\mu$m/ns]")
     ax.set_title(f"Comparison of gas mixtures and drift velocities from {strmethod}")
     ax.grid(True, axis="y")
@@ -502,7 +472,7 @@ def plot_vd_by_gas_mix(
     y_hi = max(e["mean_vd"] + e["err_vd"] for e in entries)
     ax.set_ylim(y_lo - y_margin, y_hi + y_margin)
  
-    # legend: one entry per U_wire value, deduplicated
+    # legend: 
     legend_handles = [plt.Rectangle((0, 0), 1, 1, color=wire_color_map[u]) for u in unique_u_wires]
     legend_labels = [f"$U_{{wire}}$ = {u} V" for u in unique_u_wires]
     ax.legend(legend_handles, legend_labels)
@@ -538,16 +508,7 @@ def plot_metric_by_gas_mix(
     group_width=0.4,
     ):
     """
-    Generic bar-chart comparison of a scalar fit quantity (e.g. peak
-    position, peak amplitude, v_drift), grouped by gas mixture and
-    colored by U_wire -- shared implementation behind
-    plot_vd_by_gas_mix / plot_peak_pos_by_gas_mix / plot_peak_amplitude_by_gas_mix.
-
-    The x-axis is placed on a true numeric grid: each mix sits at its
-    actual pct_Ar value (equidistant in real % Ar, e.g. 0.5 % steps),
-    instead of one evenly-spaced category per unique mix regardless of
-    its real gas-composition distance from its neighbors. Assumes
-    pct_CO2 = 100 - pct_Ar, so pct_Ar alone fixes the x-position.
+    a given metric to some other metric
 
     Parameters
     ----------
@@ -656,7 +617,7 @@ def plot_metric_by_gas_mix(
     sorted_mixes = sorted(mix_to_x, key=lambda m: mix_to_x[m])
     ax.set_xticks([mix_to_x[m] for m in sorted_mixes])
     ax.set_xticklabels(sorted_mixes, rotation=45, ha="right")
-    ax.set_xlabel("Gas mixture (Ar/CO2) [%]")
+    ax.set_xlabel("Gas mixture (Ar/CO$_2$) [%]")
     ax.set_ylabel(ylabel)
     ax.set_title(f"Comparison of gas mixtures\n{ylabel.split(' [')[0].lower()} from {strmethod}")
     ax.grid(True, axis="y")
@@ -796,7 +757,7 @@ def plot_peak_amplitude_rate_vs_uwire_and_mix(
 
         entries.append({
             "dataset": dataset_name,
-            "mix": f"{_fmt_gas_pct(pct_ar)}/{_fmt_gas_pct(pct_co2)}",
+            "mix": f"{_fmt_gas_pct_display(pct_ar)}/{_fmt_gas_pct_display(pct_co2)}",
             "mix_sort": (pct_ar, pct_co2),
             "u_wire": u_wire,
             "value": result["A_rate"],
@@ -808,7 +769,8 @@ def plot_peak_amplitude_rate_vs_uwire_and_mix(
 
     mix_sort_key = {e["mix"]: e["mix_sort"] for e in entries}
     mixes = sorted(mix_sort_key, key=lambda m: mix_sort_key[m])
-    mix_to_x = {mix: i for i, mix in enumerate(mixes)}
+
+    mix_to_x = {mix: mix_sort_key[mix][0] for mix in mixes}
 
     unique_u_wires = sorted(set(e["u_wire"] for e in entries))
     unmapped = [u for u in unique_u_wires if u not in _WIRE_COLOR_MAP]
@@ -844,8 +806,8 @@ def plot_peak_amplitude_rate_vs_uwire_and_mix(
         )
 
     ax_left.set_xlabel(r"$U_{\mathrm{wire}}$ [V]")
-    ax_left.set_ylabel("Photopeak amplitude / event [counts/event]")
-    ax_left.set_title("vs. wire voltage, per gas mix")
+    ax_left.set_ylabel("Normalized amplitude [$A_{\\mathrm{fit}}$/event]")
+    ax_left.set_title(r"vs. $U_{\mathrm{wire}}$, per gas mix")
     ax_left.grid(True)
     ax_left.legend(title="Ar/CO$_2$ [%]", fancybox=False, framealpha=params._legend_alpha)
 
@@ -869,8 +831,8 @@ def plot_peak_amplitude_rate_vs_uwire_and_mix(
     ax_right.set_xticks(list(mix_to_x.values()))
     ax_right.set_xticklabels(list(mix_to_x.keys()))
     ax_right.set_xlabel("Gas mixture (Ar/CO$_2$) [%]")
-    ax_right.set_ylabel("Photopeak amplitude / event [counts/event]")
-    ax_right.set_title("vs. gas mix, per wire voltage")
+    ax_right.set_ylabel="Normalized amplitude [$A_{\\mathrm{fit}}$/event]",
+    ax_right.set_title(r"vs. gas mix, per $U_{\mathrm{wire}}$")
     ax_right.grid(True)
     ax_right.legend(fancybox=False, framealpha=params._legend_alpha)
 
@@ -884,7 +846,6 @@ def plot_peak_amplitude_rate_vs_uwire_and_mix(
         print(f"store plot as {save_path}.")
     plt.close("all")
     return fig, (ax_left, ax_right), save_path
-
 
 def plot_peak_pos_vs_uwire_and_mix(
     *,
@@ -961,7 +922,7 @@ def plot_peak_pos_vs_uwire_and_mix(
 
         entries.append({
             "dataset": dataset_name,
-            "mix": f"{_fmt_gas_pct(pct_ar)}/{_fmt_gas_pct(pct_co2)}",
+            "mix": f"{_fmt_gas_pct_display(pct_ar)}/{_fmt_gas_pct_display(pct_co2)}",
             "mix_sort": (pct_ar, pct_co2),
             "u_wire": u_wire,
             "value": result["peak_pos"],
@@ -973,7 +934,8 @@ def plot_peak_pos_vs_uwire_and_mix(
 
     mix_sort_key = {e["mix"]: e["mix_sort"] for e in entries}
     mixes = sorted(mix_sort_key, key=lambda m: mix_sort_key[m])
-    mix_to_x = {mix: i for i, mix in enumerate(mixes)}
+
+    mix_to_x = {mix: mix_sort_key[mix][0] for mix in mixes}
 
     unique_u_wires = sorted(set(e["u_wire"] for e in entries))
     unmapped = [u for u in unique_u_wires if u not in _WIRE_COLOR_MAP]
@@ -984,16 +946,13 @@ def plot_peak_pos_vs_uwire_and_mix(
         )
     wire_color_map = {u: _WIRE_COLOR_MAP[u] for u in unique_u_wires}
 
-    # distinct color per gas mix for the left panel, independent of the
-    # fixed voltage color map (different axis being compared there)
+    # Distinct color per gas mix for the left panel, independent of the
+    # fixed voltage color map (different axis being compared there).
+    # tab10 is used instead of Set3 because Set3 includes a yellow that
+    # is hard to read against the white background / error bars.
     mix_colormap = plt.cm.tab10
-    mix_color_map = {mix: mix_colormap(i % 10) for i, mix in enumerate(mixes)}
-
-     # Distinct color per gas mix for the left panel.
-    # Set3 gives a softer, publication-friendly qualitative palette.
-    mix_colormap = plt.cm.Set3
     mix_color_map = {
-        mix: mix_colormap(i % mix_colormap.N)
+        mix: mix_colormap(i % 10)
         for i, mix in enumerate(mixes)
     }
 
@@ -1034,7 +993,7 @@ def plot_peak_pos_vs_uwire_and_mix(
 
     ax_left.set_xlabel(r"$U_{\mathrm{wire}}$ [V]")
     ax_left.set_ylabel(r"Peak position $\mu$ [ns]")
-    ax_left.set_title("vs. wire voltage, per gas mix")
+    ax_left.set_title(r"vs. $U_{\mathrm{wire}}$, per gas mix")
     ax_left.grid(True, alpha=0.3)
 
     # Extend the y-axis so that the data/error bars are not crowded.
@@ -1055,13 +1014,13 @@ def plot_peak_pos_vs_uwire_and_mix(
         y_max + y_margin,
     )
 
-    # Two-row legend in the upper-right corner.
-    n_legend_cols = int(np.ceil(len(mixes) / 2))
-
+    # Two-column legend, tucked into the bottom-left corner where the
+    # data doesn't reach (the lowest curves only populate the
+    # bottom-right of this panel), so it doesn't cover any points.
     ax_left.legend(
         title="Ar/CO$_2$ [%]",
-        ncol=n_legend_cols,
-        loc="upper right",
+        ncol=2,
+        loc="lower left",
         fancybox=False,
         framealpha=params._legend_alpha,
         columnspacing=1.2,
@@ -1101,7 +1060,7 @@ def plot_peak_pos_vs_uwire_and_mix(
     ax_right.set_xticklabels(list(mix_to_x.keys()))
     ax_right.set_xlabel("Gas mixture (Ar/CO$_2$) [%]")
     ax_right.set_ylabel(r"Peak position $\mu$ [ns]")
-    ax_right.set_title("vs. gas mix, per wire voltage")
+    ax_right.set_title(r"vs. gas mix, per $U_{\mathrm{wire}}$")
     ax_right.grid(True, alpha=0.3)
 
     ax_right.legend(
@@ -1259,7 +1218,7 @@ def analyze_specific_data(
     formatter = ScalarFormatter(useMathText=True)
     formatter.set_powerlimits([-3, 3])
     cbar = fig.colorbar(im_obj, ax=ax, fraction=0.05, cmap=cmap, format=formatter)
-    cbar.set_label("Count")
+    cbar.set_label("Counts")
     entries = int(cell_hits)
     info_str = f"entries = {entries}"
     ax = hist_utils.add_infobox(ax=ax, info_str=info_str, info_loc="bottom left")
@@ -1618,14 +1577,7 @@ def main():
               ["cosmic_84p5-15p5_3625-1800-1200_run1_th20", 413],
               ["cosmic_84p5-15p5_3650-1800-1200_run1_th20", 413],
 
-
-
-              #["cosmic_85-15_3600-1800-1200_run2_th20", 413],#old
-              #["cosmic_85-15_3575-1800-1200_run1_th20", 411],#old            
-              #["cosmic_85-15_3550-1800-1200_run1_th20", 411], #no peak old
-
-              
-
+    
 
               ["cosmic_85-15_3550-1800-1200_run2_th20", 416],
               ["cosmic_85-15_3575-1800-1200_run2_th20", 416],
@@ -1655,9 +1607,44 @@ def main():
 
 
                 ]
-    
 
-    #list_of_fits = [["cosmic_85-15_3600-1800-1200_run3_th20_cut100", 420]]
+
+    th_scan = [
+            #["cosmic_85-15_3550-1800-1200_run9_th15", 420], # 15mV
+            #["cosmic_85-15_3575-1800-1200_run9_th15", 420],
+            ["cosmic_85-15_3600-1800-1200_run9_th15", 420],
+            #["cosmic_85-15_3625-1800-1200_run9_th15", 420],
+            #["cosmic_85-15_3650-1800-1200_run9_th15", 420],
+
+
+            ["cosmic_85-15_3550-1800-1200_run2_th20", 416], # 20mV
+            ["cosmic_85-15_3575-1800-1200_run2_th20", 416],
+            ["cosmic_85-15_3600-1800-1200_run3_th20", 420],
+            ["cosmic_85-15_3625-1800-1200_run1_th20", 420],
+            ["cosmic_85-15_3650-1800-1200_run1_th20", 420],
+
+
+
+
+            #["cosmic_85-15_3550-1800-1200_run9_th25", 420], # 25mV
+            #["cosmic_85-15_3575-1800-1200_run9_th25", 420],
+            #["cosmic_85-15_3600-1800-1200_run9_th25", 420],
+            #["cosmic_85-15_3625-1800-1200_run9_th25", 420],
+            #["cosmic_85-15_3650-1800-1200_run9_th25", 420],
+
+            #["cosmic_85-15_3550-1800-1200_run9_th30", 420], # 30mV
+            #["cosmic_85-15_3575-1800-1200_run9_th30", 420],
+            #["cosmic_85-15_3600-1800-1200_run9_th30", 420],
+            #["cosmic_85-15_3625-1800-1200_run9_th30", 420],
+            #["cosmic_85-15_3650-1800-1200_run9_th30", 420],
+
+               
+               
+
+
+               ]
+
+    #list_of_fits = [["cosmic_85p5-14p5_3550-1800-1200_run1_th20", 423]]
     #list_of_fits = ["mb1_sxa5_cosmics_10min"]
 
     ramp_datasets = [
@@ -1900,12 +1887,7 @@ def main():
             plt.close(fig)
 
             ######################
-            ##### Zoomed hist, SAME framing (x/y limits) as the peak-fit
-            ##### plot further down, but with NO fit drawn on top -- this
-            ##### is its own standalone plot/file, meant for discussing
-            ##### the shape of the spectrum at lower Delta T (e.g. the
-            ##### background/secondary-hit shape leading up to the
-            ##### photopeak) independently of the parabola fit result.
+            ##### Zoomed hist
             print("Plotting zoomed t_diff hist (no fit)...")
 
             max_dt = 700
@@ -2069,7 +2051,7 @@ def main():
                 alpha=0.1,
             )
 
-            max_dt = 800
+            max_dt = 950
             lims = [0, max_dt]
             ax[0].axvline(x=peak_pos, color="tab:red", linestyle="--", label="Peak position $\\mu$")
             ax[0].axvspan(xmin=peak_pos - peak_err_total, xmax=peak_pos + peak_err_total, color="tab:red", alpha=0.1)
@@ -2142,6 +2124,7 @@ def main():
     if not do_ramp_measurement:
         analysis_out = data_utils.load_pickle(f"{base_path}{pcls_path}analysis_out_photo_peak_data.pcl")
 
+        """
         fig, ax, path = plot_metric_by_gas_mix(
                     analysis_out=analysis_out,
                     base_path=base_path,
@@ -2155,7 +2138,7 @@ def main():
                     method="photopeak",
                     strmethod="Photopeak Method",
                     )
-
+"""
         fig, ax, path = plot_metric_by_gas_mix(
                     analysis_out=analysis_out,
                     base_path=base_path,
@@ -2169,14 +2152,14 @@ def main():
                     method="photopeak",
                     strmethod="Photopeak Method",
                     )
-
+            
         fig, ax, path = plot_metric_by_gas_mix(
                     analysis_out=analysis_out,
                     base_path=base_path,
                     dataset_info_fn=parse_fit_name,
                     value_key="A_rate",
                     err_key="A_rate_err",
-                    ylabel="Photopeak amplitude / event [counts/event]",
+                    ylabel="Normalized amplitude [$A_\text{fit}$/events]",
                     filename_prefix="peak_amp",
                     plot_type=plot_type,
                     fig_size=fig_size,
@@ -2239,7 +2222,7 @@ def main():
                     dataset_info_fn=parse_fit_name_real_mix,
                     value_key="A_rate",
                     err_key="A_rate_err",
-                    ylabel="Photopeak amplitude / event [counts/event]",
+                    ylabel="Normalized amplitude [$A_\text{fit}$/events]",
                     filename_prefix="peak_amp_realmix",
                     plot_type=plot_type,
                     fig_size=fig_size,

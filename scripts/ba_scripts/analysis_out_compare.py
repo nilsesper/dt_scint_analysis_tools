@@ -129,6 +129,22 @@ _WIRE_COLOR_MAP_SIM_TF = {
 _MIX_CMAP = plt.cm.tab10
 
 
+def _gas_mix_x_positions(entries, mix_key="mix", sort_key="mix_sort"):
+    """
+    Map each gas-mix label to an x-position equal to its actual Ar%, so
+    two mixes 1 pct apart in Ar sit twice as far apart on the axis as
+    two mixes 0.5 pct apart apart 
+    """
+    mix_sort_key = {e[mix_key]: e[sort_key] for e in entries}
+    mixes = sorted(mix_sort_key, key=lambda m: mix_sort_key[m])
+    mix_to_x = {mix: mix_sort_key[mix][0] for mix in mixes}  # x = pct_Ar
+    sorted_x = sorted(mix_to_x.values())
+    min_gap = min(
+        (b - a for a, b in zip(sorted_x[:-1], sorted_x[1:]) if b > a),
+        default=1.0,
+    )
+    return mixes, mix_to_x, min_gap
+
 def _fmt_gas_pct(x):
     """Format a gas percentage for display: integer-valued percentages
     render plainly ("84"), non-integer ones keep one decimal point
@@ -828,9 +844,7 @@ def plot_vd_comparison_bars_by_gas_mix(
     if not entries:
         raise ValueError("No entries to plot.")
 
-    mix_sort_key = {e["mix"]: e["mix_sort"] for e in entries}
-    mixes = sorted(mix_sort_key, key=lambda m: mix_sort_key[m])
-    mix_to_x = {mix: i for i, mix in enumerate(mixes)}
+    mixes, mix_to_x, min_gap = _gas_mix_x_positions(entries)
 
     grouped = {mix: [] for mix in mixes}
     for e in entries:
@@ -843,7 +857,7 @@ def plot_vd_comparison_bars_by_gas_mix(
     ax.grid(True, axis="y")
     # each dataset contributes 2 bars (photopeak, trackfit)
     max_group_size = max(len(v) for v in grouped.values()) * 2
-    group_width = 0.85
+    group_width = 0.85 * min_gap
     bar_width = group_width / max_group_size
 
     for mix, group_entries in grouped.items():
@@ -868,7 +882,7 @@ def plot_vd_comparison_bars_by_gas_mix(
 
     ax.set_xticks(list(mix_to_x.values()))
     ax.set_xticklabels(list(mix_to_x.keys()))
-    ax.set_xlabel("Gas mixture (Ar/CO2) [%]")
+    ax.set_xlabel("Gas mixture (Ar/CO$_2$) [%]")
     ax.set_ylabel(r"$v_d$ [$\mu$m/ns]")
     ax.set_title("Drift velocity comparison: Photopeak vs. Track-fit method")
 
@@ -954,9 +968,7 @@ def plot_vd_comparison_bars_sim_vs_measurement(
     meas_cmap = _CMAP_PHOTOPEAK if measurement_label == "photopeak" else _CMAP_TRACKFIT
     meas_title = "Photopeak method" if measurement_label == "photopeak" else "Track-fit method"
 
-    mix_sort_key = {e["mix"]: e["mix_sort"] for e in entries}
-    mixes = sorted(mix_sort_key, key=lambda m: mix_sort_key[m])
-    mix_to_x = {mix: i for i, mix in enumerate(mixes)}
+    mixes, mix_to_x, min_gap = _gas_mix_x_positions(entries)
 
     grouped = {mix: [] for mix in mixes}
     for e in entries:
@@ -968,7 +980,7 @@ def plot_vd_comparison_bars_sim_vs_measurement(
     ax.grid(True, axis="y")
     # each dataset contributes 2 bars (simulation, measurement)
     max_group_size = max(len(v) for v in grouped.values()) * 2
-    group_width = 0.85
+    group_width = 0.85 * min_gap
     bar_width = group_width / max_group_size
 
     for mix, group_entries in grouped.items():
@@ -992,7 +1004,7 @@ def plot_vd_comparison_bars_sim_vs_measurement(
 
     ax.set_xticks(list(mix_to_x.values()))
     ax.set_xticklabels(list(mix_to_x.keys()))
-    ax.set_xlabel("Gas mixture (Ar/CO2) [%]")
+    ax.set_xlabel("Gas mixture (Ar/CO$_2$) [%]")
     ax.set_ylabel(r"$v_d$ [$\mu$m/ns]")
     ax.set_title(f"Drift velocity comparison: Simulation vs. {meas_title}")
 
@@ -1074,10 +1086,15 @@ def plot_vd_comparison_bars_sim_pp_vs_tf(
         raise ValueError("No entries to plot.")
 
     mixes = sorted(
-        set(e["mix"] for e in entries),
-        key=lambda m: tuple(int(v) for v in m.split("/")),
+    set(e["mix"] for e in entries),
+    key=lambda m: tuple(int(v) for v in m.split("/")),
     )
-    mix_to_x = {mix: i for i, mix in enumerate(mixes)}
+    mix_to_x = {mix: int(mix.split("/")[0]) for mix in mixes}
+    sorted_x = sorted(mix_to_x.values())
+    min_gap = min(
+        (b - a for a, b in zip(sorted_x[:-1], sorted_x[1:]) if b > a),
+        default=1.0,
+    )
 
     grouped = {mix: [] for mix in mixes}
     for e in entries:
@@ -1089,7 +1106,7 @@ def plot_vd_comparison_bars_sim_pp_vs_tf(
     ax.grid(True, axis="y")
     # each dataset contributes 2 bars (pp, tf)
     max_group_size = max(len(v) for v in grouped.values()) * 2
-    group_width = 0.85
+    group_width = 0.85 * min_gap
     bar_width = group_width / max_group_size
 
     for mix, group_entries in grouped.items():
@@ -1112,10 +1129,10 @@ def plot_vd_comparison_bars_sim_pp_vs_tf(
                         fmt="none", ecolor="black", capsize=2)
 
     ax.set_xticks(list(mix_to_x.values()))
-    ax.set_xticklabels(list(mix_to_x.keys()))
-    ax.set_xlabel("Gas mixture (Ar/CO2) [%]")
+    ax.set_xticklabels(list(mix_to_x.keys()), rotation=40, ha="right")
+    ax.set_xlabel("Gas mixture (Ar/CO$_2$) [%]")
     ax.set_ylabel(r"$v_d$ [$\mu$m/ns]")
-    ax.set_title("Simulation drift velocity: photopeak-style vs. track-fit-style estimate")
+    ax.set_title("Simulation drift velocity: photopeak vs. track-fit estimate")
 
 
     y_lo = min(min(e["vd_pp"] - e["err_vd_pp"],
@@ -1129,11 +1146,11 @@ def plot_vd_comparison_bars_sim_pp_vs_tf(
     for u in unique_u_wires:
         legend_handles.append(plt.Rectangle((0, 0), 1, 1,
                                color=_wire_color(u, _WIRE_COLOR_MAP_SIM_PP, _CMAP_SIM_PP)))
-        legend_labels.append(f"Sim (photopeak-style), $U_{{wire}}$={u} V")
+        legend_labels.append(f"Sim (photopeak), $U_{{wire}}$={u} V")
     for u in unique_u_wires:
         legend_handles.append(plt.Rectangle((0, 0), 1, 1,
                                color=_wire_color(u, _WIRE_COLOR_MAP_SIM_TF, _CMAP_SIM_TF)))
-        legend_labels.append(f"Sim (track-fit-style), $U_{{wire}}$={u} V")
+        legend_labels.append(f"Sim (track-fit), $U_{{wire}}$={u} V")
     ax.legend(legend_handles, legend_labels, ncol=2, fontsize=9,
               fancybox=False, framealpha=params._legend_alpha)
 
@@ -1226,7 +1243,6 @@ def plot_vd_vs_uwire_both_methods(
     return fig, ax, save_path
 
 
-
 def plot_method_difference_by_gas_mix(
     *,
     entries,
@@ -1253,9 +1269,7 @@ def plot_method_difference_by_gas_mix(
     if not entries:
         raise ValueError("No entries to plot.")
 
-    mix_sort_key = {e["mix"]: e["mix_sort"] for e in entries}
-    mixes = sorted(mix_sort_key, key=lambda m: mix_sort_key[m])
-    mix_to_x = {mix: i for i, mix in enumerate(mixes)}
+    mixes, mix_to_x, min_gap = _gas_mix_x_positions(entries)
 
     grouped = {mix: [] for mix in mixes}
     for e in entries:
@@ -1266,7 +1280,7 @@ def plot_method_difference_by_gas_mix(
     fig, ax = plt.subplots(1, 1, figsize=fig_size)
     ax.grid(True, axis="y")
     max_group_size = max(len(v) for v in grouped.values())
-    group_width = 0.8
+    group_width = 0.8 * min_gap
     bar_width = group_width / max_group_size
 
     for mix, group_entries in grouped.items():
@@ -1283,8 +1297,8 @@ def plot_method_difference_by_gas_mix(
                label="perfect agreement")
 
     ax.set_xticks(list(mix_to_x.values()))
-    ax.set_xticklabels(list(mix_to_x.keys()))
-    ax.set_xlabel("Gas mixture (Ar/CO2) [%]")
+    ax.set_xticklabels(list(mix_to_x.keys()), rotation=40, ha="right")
+    ax.set_xlabel("Gas mixture (Ar/CO$_2$) [%]")
     ax.set_ylabel(r"$v_{d,\mathrm{photopeak}} - v_{d,\mathrm{track\!-\!fit}}$ [$\mu$m/ns]")
     ax.set_title("Method difference (photopeak $-$ track-fit)")
 
@@ -1308,7 +1322,6 @@ def plot_method_difference_by_gas_mix(
 
     plt.close("all")
     return fig, ax, save_path
-
 
 def plot_method_ratio_by_gas_mix(
     *,
@@ -1352,9 +1365,7 @@ def plot_method_ratio_by_gas_mix(
     if not plot_entries:
         raise ValueError("No entries with a finite ratio to plot.")
 
-    mix_sort_key = {e["mix"]: e["mix_sort"] for e in plot_entries}
-    mixes = sorted(mix_sort_key, key=lambda m: mix_sort_key[m])
-    mix_to_x = {mix: i for i, mix in enumerate(mixes)}
+    mixes, mix_to_x, min_gap = _gas_mix_x_positions(plot_entries)
 
     grouped = {mix: [] for mix in mixes}
     for e in plot_entries:
@@ -1365,7 +1376,7 @@ def plot_method_ratio_by_gas_mix(
     fig, ax = plt.subplots(1, 1, figsize=fig_size)
     ax.grid(True, axis="y")
     max_group_size = max(len(v) for v in grouped.values())
-    group_width = 0.8
+    group_width = 0.8 * min_gap
     bar_width = group_width / max_group_size
 
     for mix, group_entries in grouped.items():
@@ -1401,8 +1412,8 @@ def plot_method_ratio_by_gas_mix(
                   f"bar(s) out of view: {clipped}")
 
     ax.set_xticks(list(mix_to_x.values()))
-    ax.set_xticklabels(list(mix_to_x.keys()))
-    ax.set_xlabel("Gas mixture (Ar/CO2) [%]")
+    ax.set_xticklabels(list(mix_to_x.keys()), rotation=40, ha="right")
+    ax.set_xlabel("Gas mixture (Ar/CO$_2$) [%]")
     ax.set_ylabel(r"$v_{d,\mathrm{photopeak}} \, / \, v_{d,\mathrm{track\!-\!fit}}$")
     ax.set_title("Method ratio (photopeak $/$ track-fit)")
 
@@ -1428,7 +1439,6 @@ def plot_method_ratio_by_gas_mix(
 
     plt.close("all")
     return fig, ax, save_path, const, err_const, chi2, ndof
-
 # pull dist
 def plot_pull_distribution(
     *,
@@ -1541,9 +1551,7 @@ def plot_vd_difference_sim_vs_measurement(
 
     meas_title = "Photopeak method" if measurement_label == "photopeak" else "Track-fit method"
 
-    mix_sort_key = {e["mix"]: e["mix_sort"] for e in entries}
-    mixes = sorted(mix_sort_key, key=lambda m: mix_sort_key[m])
-    mix_to_x = {mix: i for i, mix in enumerate(mixes)}
+    mixes, mix_to_x, min_gap = _gas_mix_x_positions(entries)
 
     grouped = {mix: [] for mix in mixes}
     for e in entries:
@@ -1554,7 +1562,7 @@ def plot_vd_difference_sim_vs_measurement(
     fig, ax = plt.subplots(1, 1, figsize=fig_size)
     ax.grid(True, axis="y")
     max_group_size = max(len(v) for v in grouped.values())
-    group_width = 0.8
+    group_width = 0.8 * min_gap
     bar_width = group_width / max_group_size
 
     for mix, group_entries in grouped.items():
@@ -1571,8 +1579,8 @@ def plot_vd_difference_sim_vs_measurement(
                label="perfect agreement")
 
     ax.set_xticks(list(mix_to_x.values()))
-    ax.set_xticklabels(list(mix_to_x.keys()))
-    ax.set_xlabel("Gas mixture (Ar/CO2) [%]")
+    ax.set_xticklabels(list(mix_to_x.keys()), rotation=40, ha="right")
+    ax.set_xlabel("Gas mixture (Ar/CO$_2$) [%]")
     ax.set_ylabel(r"$v_{d,\mathrm{sim}} - v_{d,\mathrm{meas}}$ [$\mu$m/ns]")
     ax.set_title(f"Simulation $-$ Experiment difference ({meas_title})")
 
@@ -1596,7 +1604,6 @@ def plot_vd_difference_sim_vs_measurement(
 
     plt.close("all")
     return fig, ax, save_path
-
 
 def plot_vd_ratio_sim_vs_measurement(
     *,
@@ -1650,9 +1657,7 @@ def plot_vd_ratio_sim_vs_measurement(
 
     meas_title = "Photopeak method" if measurement_label == "photopeak" else "Track-fit method"
 
-    mix_sort_key = {e["mix"]: e["mix_sort"] for e in plot_entries}
-    mixes = sorted(mix_sort_key, key=lambda m: mix_sort_key[m])
-    mix_to_x = {mix: i for i, mix in enumerate(mixes)}
+    mixes, mix_to_x, min_gap = _gas_mix_x_positions(plot_entries)
 
     grouped = {mix: [] for mix in mixes}
     for e in plot_entries:
@@ -1663,7 +1668,7 @@ def plot_vd_ratio_sim_vs_measurement(
     fig, ax = plt.subplots(1, 1, figsize=fig_size)
     ax.grid(True, axis="y")
     max_group_size = max(len(v) for v in grouped.values())
-    group_width = 0.8
+    group_width = 0.8* min_gap
     bar_width = group_width / max_group_size
 
     for mix, group_entries in grouped.items():
@@ -1689,18 +1694,12 @@ def plot_vd_ratio_sim_vs_measurement(
         print(f"  constant fit to sim/{measurement_label} ratio: "
               f"{const:.4f} +/- {err_const:.4f} (chi2/ndof = {chi2:.2f}/{ndof})")
 
-    y_lo, y_hi = 1 - y_half_range, 1 + y_half_range
-    ax.set_ylim(y_lo, y_hi)
-    if verbose:
-        clipped = [e["measurement_dataset"] for e in plot_entries
-                   if e["ratio"] - e["err_ratio"] < y_lo or e["ratio"] + e["err_ratio"] > y_hi]
-        if clipped:
-            print(f"  warning: y_half_range={y_half_range} clips {len(clipped)} bar(s)/error "
-                  f"bar(s) out of view: {clipped}")
+    y_hi = 1.1 * max(e["ratio"] + e["err_ratio"] for e in plot_entries)
+    ax.set_ylim(0, y_hi)
 
     ax.set_xticks(list(mix_to_x.values()))
-    ax.set_xticklabels(list(mix_to_x.keys()))
-    ax.set_xlabel("Gas mixture (Ar/CO2) [%]")
+    ax.set_xticklabels(list(mix_to_x.keys()), rotation=40, ha="right")
+    ax.set_xlabel("Gas mixture (Ar/CO$_2$) [%]")
     ax.set_ylabel(r"$v_{d,\mathrm{sim}} \, / \, v_{d,\mathrm{meas}}$")
     ax.set_title(f"Simulation $/$ Experiment ratio ({meas_title})")
 
@@ -1727,8 +1726,6 @@ def plot_vd_ratio_sim_vs_measurement(
     plt.close("all")
     return fig, ax, save_path, const, err_const, chi2, ndof
 
-
-#both methods ramp measurement
 
 def plot_ramp_comparison(
     *,
@@ -1815,8 +1812,8 @@ def plot_rate_comparison_bars_by_gas_mix(
     mix_sort_key = {e["mix"]: e["mix_sort"] for e in entries}
     mixes = sorted(mix_sort_key, key=lambda m: mix_sort_key[m])
     mix_to_x = {mix: i for i, mix in enumerate(mixes)}
-
     grouped = {mix: [] for mix in mixes}
+
     for e in entries:
         grouped[e["mix"]].append(e)
     for mix in grouped:
@@ -1849,7 +1846,7 @@ def plot_rate_comparison_bars_by_gas_mix(
 
     ax.set_xticks(list(mix_to_x.values()))
     ax.set_xticklabels(list(mix_to_x.keys()))
-    ax.set_xlabel("Gas mixture (Ar/CO2) [%]")
+    ax.set_xlabel("Gas mixture (Ar/CO$_2$) [%]")
     ax.set_ylabel("Chamber rate [Hz]")
     ax.set_title("Chamber rate comparison: Photopeak (cell rate) vs. Track-fit (muon rate)")
 
@@ -1932,7 +1929,7 @@ def plot_rate_vs_uwire_both_methods(
 
     ax.set_xlabel(r"$U_{\mathrm{wire}}$ [V]")
     ax.set_ylabel("Chamber rate [Hz]")
-    ax.set_title("Chamber rate vs. wire voltage -- both methods")
+    ax.set_title(r"Chamber rate vs. $U_{\mathrm{wire}}$ -- both methods")
 
     ax.legend(title="Ar/CO$_2$ [%] (method)", fontsize=9, ncol=2,
               fancybox=False, framealpha=params._legend_alpha)
@@ -2070,9 +2067,7 @@ def plot_rate_bars_by_gas_mix(
     if not entries:
         raise ValueError("No entries to plot.")
 
-    mix_sort_key = {e["mix"]: e["mix_sort"] for e in entries}
-    mixes = sorted(mix_sort_key, key=lambda m: mix_sort_key[m])
-    mix_to_x = {mix: i for i, mix in enumerate(mixes)}
+    mixes, mix_to_x, min_gap = _gas_mix_x_positions(entries)
 
     grouped = {mix: [] for mix in mixes}
     for e in entries:
@@ -2083,7 +2078,7 @@ def plot_rate_bars_by_gas_mix(
     fig, ax = plt.subplots(1, 1, figsize=fig_size)
     ax.grid(True, axis="y")
     max_group_size = max(len(v) for v in grouped.values())
-    group_width = 0.8
+    group_width = 0.8 * min_gap
     bar_width = group_width / max_group_size
 
     for mix, group_entries in grouped.items():
@@ -2097,8 +2092,8 @@ def plot_rate_bars_by_gas_mix(
                         fmt="none", ecolor="black", capsize=3)
 
     ax.set_xticks(list(mix_to_x.values()))
-    ax.set_xticklabels(list(mix_to_x.keys()))
-    ax.set_xlabel("Gas mixture (Ar/CO2) [%]")
+    ax.set_xticklabels(list(mix_to_x.keys()), rotation=40, ha="right")
+    ax.set_xlabel("Gas mixture (Ar/CO$_2$) [%]")
     ax.set_ylabel(rate_label)
     title = "Rate vs. gas mixture, colored by wire voltage"
     if method_label:
@@ -2177,7 +2172,7 @@ def plot_rate_vs_uwire_trend(
 
     ax.set_xlabel(r"$U_{\mathrm{wire}}$ [V]")
     ax.set_ylabel(rate_label)
-    title = "Rate vs. wire voltage, per gas mixture"
+    title = r"Rate vs. $U_{\mathrm{wire}}$, per gas mixture"
     if method_label:
         title += f" ({method_label})"
     ax.set_title(title)
@@ -2239,7 +2234,7 @@ def plot_rate_heatmap(
     ax.set_yticks(range(len(mixes)))
     ax.set_yticklabels(mixes)
     ax.set_xlabel(r"$U_{\mathrm{wire}}$ [V]")
-    ax.set_ylabel("Gas mixture (Ar/CO2) [%]")
+    ax.set_ylabel("Gas mixture (Ar/CO$_2$) [%]")
     title = "Rate vs. gas mixture & wire voltage"
     if method_label:
         title += f" ({method_label})"
@@ -2481,9 +2476,7 @@ def plot_vd_bars_by_gas_mix_single_method(
     cmap = _CMAP_PHOTOPEAK if method_label == "photopeak" else _CMAP_TRACKFIT
     method_title = "Photopeak method" if method_label == "photopeak" else "Track-fit method"
 
-    mix_sort_key = {e["mix"]: e["mix_sort"] for e in entries}
-    mixes = sorted(mix_sort_key, key=lambda m: mix_sort_key[m])
-    mix_to_x = {mix: i for i, mix in enumerate(mixes)}
+    mixes, mix_to_x, min_gap = _gas_mix_x_positions(entries)
 
     grouped = {mix: [] for mix in mixes}
     for e in entries:
@@ -2494,7 +2487,7 @@ def plot_vd_bars_by_gas_mix_single_method(
     fig, ax = plt.subplots(1, 1, figsize=fig_size)
     ax.grid(True, axis="y")
     max_group_size = max(len(v) for v in grouped.values())
-    group_width = 0.8
+    group_width = 0.8 * min_gap
     bar_width = group_width / max_group_size
 
     for mix, group_entries in grouped.items():
@@ -2508,8 +2501,8 @@ def plot_vd_bars_by_gas_mix_single_method(
                         fmt="none", ecolor="black", capsize=3)
 
     ax.set_xticks(list(mix_to_x.values()))
-    ax.set_xticklabels(list(mix_to_x.keys()))
-    ax.set_xlabel("Gas mixture (Ar/CO2) [%]")
+    ax.set_xticklabels(list(mix_to_x.keys()), rotation=40, ha="right")
+    ax.set_xlabel("Gas mixture (Ar/CO$_2$) [%]")
     ax.set_ylabel(r"$v_d$ [$\mu$m/ns]")
     ax.set_title(f"Drift velocity vs. gas mixture, colored by wire voltage ({method_title})")
 
@@ -2534,8 +2527,6 @@ def plot_vd_bars_by_gas_mix_single_method(
         print(f"store plot as {save_path}.")
     plt.close("all")
     return fig, ax, save_path
-
-
 #tex table
 
 def make_comparison_tex_table(*, entries, float_precision=3):
@@ -2571,7 +2562,7 @@ def make_sim_summary_tex_table(*, analysis_out_sim, sim_info_fn=parse_sim_name, 
     """
     LaTeX table summarizing the simulation's own results, per dataset:
     gas mixture, wire voltage, and both drift-velocity estimates
-    (v_drift_pp = photopeak-style, v_drift_tf = track-fit-style).
+    (v_drift_pp = photopeak, v_drift_tf = track-fit).
 
     Returns
     -------
@@ -2706,9 +2697,18 @@ def save_tex_table(*, tex_table, path, verbose=True):
 
 # main function
 # =================================================================
-@mpl.rc_context({'font.family': 'sans-serif', 'font.size': 12})
+@mpl.rc_context({
+    'font.family': 'sans-serif',
+    'font.size': 12,
+    'axes.titlesize': 17,
+    'axes.labelsize': 15,
+    'legend.fontsize': 13,
+    'xtick.labelsize': 12,
+    'ytick.labelsize': 12,
+    'figure.titlesize': 18,
+})
 def main(save_plots=True):
-    plot_type = ".png"
+    plot_type = ".pdf"
     fig_size = (8, 6)
 
     base_path = "data_ba/"
@@ -2736,7 +2736,7 @@ def main(save_plots=True):
     )
 
     analysis_out_sim = data_utils.load_pickle(
-        f"{pcls_file_path}analysis_out_simulation.pcl"
+        f"{base_path}{pcls_path}analysis_out_simulation.pcl"
     )
 
     # ---- cosmic gas-mix scan comparison ----
@@ -2837,7 +2837,7 @@ def main(save_plots=True):
             path=plot_save_path + f"vd_comparison_table_sim_vs_{measurement_label}.tex",
         )
 
-    # ---- simulation-internal comparison: photopeak-style vs. track-fit-
+    # ---- simulation-internal comparison: photopeak- vs. track-fit-
     # style drift velocity, both from analysis_out_sim (no measurement data) ----
     sim_pp_vs_tf_entries = build_sim_pp_vs_tf_entries(
         analysis_out_sim=analysis_out_sim, sim_info_fn=parse_sim_name,
