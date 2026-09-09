@@ -1445,21 +1445,26 @@ def fit_parabola_peak(
     # -----------------------------------------
     mu_scan = []
     syst_scan_lines = []
-
+    
     bin_width = np.mean(np.diff(centers))
+    peak_idx = np.argmin(np.abs(centers - peak))
 
     for n_bins in range(min_bins_syst, max_bins_syst + 1):
 
-        half_width = n_bins * bin_width
+        lo_syst = peak_idx - n_bins
+        hi_syst = peak_idx + n_bins + 1  # exclusive upper bound for slicing
 
-        mask = (
-            (centers >= peak - half_width) &
-            (centers <= peak + half_width)
-        )
+        if lo_syst < 0 or hi_syst > len(centers):
+            print(
+                f"n_bins={n_bins:2d} -- SKIPPED (window runs outside histogram range)"
+            )
+            continue
 
-        x_syst = centers[mask]
-        y_syst = hist[mask]
-        err_syst = err[mask]
+        x_syst = centers[lo_syst:hi_syst]
+        y_syst = hist[lo_syst:hi_syst]
+        err_syst = err[lo_syst:hi_syst]
+
+        half_width = n_bins * bin_width  # kept for logging only
 
         if len(x_syst) < 3:
             continue
@@ -1584,6 +1589,10 @@ def fit_parabola_peak(
     }
 
     return fig, ax, path, fit_results
+
+
+
+
 def muon_heatmap_from_fits(
     *,
     fits_cuts,
