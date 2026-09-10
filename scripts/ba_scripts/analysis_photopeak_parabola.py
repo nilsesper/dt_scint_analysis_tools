@@ -829,6 +829,12 @@ def plot_peak_amplitude_rate_vs_uwire_and_mix(
         )
 
     ax_right.set_xticks(list(mix_to_x.values()))
+    ax_right.set_xticklabels(
+        list(mix_to_x.keys()),
+        rotation=45,
+        ha="right",
+    )
+    ax_right.set_xlabel("Gas mixture (Ar/CO$_2$) [%]")
     ax_right.set_xticklabels(list(mix_to_x.keys()))
     ax_right.set_xlabel("Gas mixture (Ar/CO$_2$) [%]")
     ax_right.set_ylabel="Normalized amplitude [$A_{\\mathrm{fit}}$/event]",
@@ -1057,6 +1063,12 @@ def plot_peak_pos_vs_uwire_and_mix(
         )
 
     ax_right.set_xticks(list(mix_to_x.values()))
+    ax_right.set_xticklabels(
+        list(mix_to_x.keys()),
+        rotation=45,
+        ha="right",
+    )
+    ax_right.set_xlabel("Gas mixture (Ar/CO$_2$) [%]")
     ax_right.set_xticklabels(list(mix_to_x.keys()))
     ax_right.set_xlabel("Gas mixture (Ar/CO$_2$) [%]")
     ax_right.set_ylabel(r"Peak position $\mu$ [ns]")
@@ -2029,8 +2041,8 @@ def main():
                 "Parabola fit\n"
                 r"$f(\Delta T)=A-c\,(\Delta T-\mu)^2$"
             )
-            fit_label += f"\n$\\mu=({peak_pos:.3g}\\pm {peak_err_total:.2g})$ ns"
-            fit_label += f"\n$v_{{\\mathrm{{drift}}}}=({v_drift:.3g}\\pm {err_v_drift:.2g})$ $\\mu$m/ns"
+            fit_label += f"\n$\\mu=({peak_pos:.2f}\\pm {peak_err_total:.2f})$ ns"
+            fit_label += f"\n$v_{{\\mathrm{{drift}}}}=({v_drift:.2f}\\pm {err_v_drift:.2f})$ $\\mu$m/ns"
             fit_err = err_parabola_vertex_form(fit_bins, *popt, *perr)
 
             # --- build the actual figure/axes for this plot (raw hist, log scale) ---
@@ -2130,21 +2142,7 @@ def main():
     if not do_ramp_measurement:
         analysis_out = data_utils.load_pickle(f"{base_path}{pcls_path}analysis_out_photo_peak_data.pcl")
 
-        """
-        fig, ax, path = plot_metric_by_gas_mix(
-                    analysis_out=analysis_out,
-                    base_path=base_path,
-                    dataset_info_fn=parse_fit_name,
-                    value_key="v_drift",
-                    err_key="err_v_drift",
-                    ylabel=r"$v_d$ [$\mu$m/ns]",
-                    filename_prefix="vd",
-                    plot_type=plot_type,
-                    fig_size=fig_size,
-                    method="photopeak",
-                    strmethod="Photopeak Method",
-                    )
-"""
+
         fig, ax, path = plot_metric_by_gas_mix(
                     analysis_out=analysis_out,
                     base_path=base_path,
