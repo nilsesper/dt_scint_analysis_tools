@@ -292,6 +292,150 @@ def get_rate_trackfit(*, dataset_name, result):
         "above get_rate_photopeak) to populate this."
     )
 
+def build_peak_pos_vs_amplitude_entries(
+    *,
+    analysis_out_photopeak,
+    dataset_info_fn=parse_fit_name,
+    verbose=True,
+    ):
+    """
+    One entry per photopeak dataset with both the fitted peak position
+    and the normalized amplitude, so the two can be plotted against each
+    other -- e.g. to check whether a shifting peak position tracks a
+    change in signal amplitude (gas-mix or wire-voltage dependent gain
+    effects would show up as a mix/U_wire-dependent trend here).
+
+    Returns
+    -------
+    entries : list[dict]
+        Each entry: {"dataset": str, "mix": str, "mix_sort": tuple,
+                      "u_wire": int,
+                      "peak_pos": float, "err_peak_pos": float,
+                      "amplitude": float, "err_amplitude": float}
+    """
+    entries = []
+    for dataset_name, result in analysis_out_photopeak.items():
+        try:
+            info = dataset_info_fn(name=dataset_name)
+        except Exception as e:
+            if verbose:
+                print(f"  skipping {dataset_name}: could not parse dataset info ({e})")
+            continue
+        if "peak_pos" not in result or "peak_err_tot" not in result:
+            if verbose:
+                print(f"  skipping {dataset_name}: missing 'peak_pos'/'peak_err_tot'")
+            continue
+        if "A_rate" not in result or "A_rate_err" not in result:
+            if verbose:
+                print(f"  skipping {dataset_name}: missing 'A_rate'/'A_rate_err'")
+            continue
+
+        pct_ar = float(info["pct_Ar"])
+        pct_co2 = float(info["pct_CO2"])
+        entries.append({
+            "dataset": dataset_name,
+            "mix": f"{_fmt_gas_pct(pct_ar)}/{_fmt_gas_pct(pct_co2)}",
+            "mix_sort": (pct_ar, pct_co2),
+            "u_wire": int(info["U_wire"]),
+            "peak_pos": float(result["peak_pos"]), "err_peak_pos": float(result["peak_err_tot"]),
+            "amplitude": float(result["A_rate"]), "err_amplitude": float(result["A_rate_err"]),
+        })
+
+    if verbose:
+        print(f"{len(entries)} photopeak dataset(s) with both peak position and normalized amplitude.")
+    return entries
+
+def plot_peak_pos_vs_amplitude(
+    *,
+    entries,
+    base_path,
+    plot_type=".png",
+    fig_size=(9, 7),
+    save_path=None,
+    verbose=True,
+    ):
+    """
+    Scatter plot: photopeak normalized amplitude (x) vs. peak position
+    (y), with error bars in both directions, colored by U_wire. Points
+    belonging to the same gas mixture are connected with a dashed line
+    (ordered by U_wire, not by x, so the line traces the actual
+    measurement sequence even if amplitude isn't strictly monotonic in
+    wire voltage), in that mix's own tab10 color. Instead of a separate
+    marker-shape legend, the gas-mix label is written directly to the
+    left of that mix's rightmost (highest-amplitude) point -- avoids a
+    large marker-shape legend competing for space, and reads the mix
+    straight off the plot without covering the point itself.
+
+    Returns
+    -------
+    fig, ax, path
+    """
+    if not entries:
+        raise ValueError("No entries to plot.")
+
+    mix_sort_key = {e["mix"]: e["mix_sort"] for e in entries}
+    mixes = sorted(mix_sort_key, key=lambda m: mix_sort_key[m])
+    mix_line_color_map = {mix: _MIX_CMAP(i % 10) for i, mix in enumerate(mixes)}
+
+    grouped = {mix: [] for mix in mixes}
+    for e in entries:
+        grouped[e["mix"]].append(e)
+
+    fig, ax = plt.subplots(1, 1, figsize=fig_size)
+    ax.grid(True, alpha=0.3)
+
+    # ---- dashed connecting line per mix, ordered by U_wire, + label ----
+    for mix in mixes:
+        group = sorted(grouped[mix], key=lambda e: e["u_wire"])
+        color = mix_line_color_map[mix]
+        if len(group) >= 2:
+            xs = [e["amplitude"] for e in group]
+            ys = [e["peak_pos"] for e in group]
+            ax.plot(xs, ys, linestyle="--", linewidth=1.0,
+                    color=color, alpha=0.6, zorder=1)
+
+        # label to the left of the rightmost (highest-amplitude) point
+        rightmost = max(group, key=lambda e: e["amplitude"])
+        ax.annotate(
+            f"Ar/CO$_2$: {mix}", xy=(rightmost["amplitude"], rightmost["peak_pos"]),
+            xytext=(-8, 10), textcoords="offset points",
+            ha="right", va="center", fontsize=9, color=color,
+            fontweight="bold", zorder=4,
+        )
+    # ---- scatter, colored by U_wire, uniform marker ----
+    for e in entries:
+        color = _wire_color(e["u_wire"], _WIRE_COLOR_MAP_PHOTOPEAK, _CMAP_PHOTOPEAK)
+        ax.errorbar(
+            e["amplitude"], e["peak_pos"],
+            xerr=e["err_amplitude"], yerr=e["err_peak_pos"],
+            fmt="o", color=color, markersize=7, capsize=3,
+            markeredgecolor="black", markeredgewidth=0.5, zorder=3,
+        )
+
+    ax.set_xlabel(r"Normalized amplitude [$A_{\mathrm{fit}}$/event]")
+    ax.set_ylabel(r"Peak position $\mu$ [ns]")
+    ax.set_title("Photopeak: peak position vs. normalized amplitude")
+
+    unique_u_wires = sorted(set(e["u_wire"] for e in entries))
+    color_handles = [plt.Line2D([0], [0], marker="o", linestyle="",
+                      markerfacecolor=_wire_color(u, _WIRE_COLOR_MAP_PHOTOPEAK, _CMAP_PHOTOPEAK),
+                      markeredgecolor="black", markersize=7)
+                      for u in unique_u_wires]
+    color_labels = [f"$U_{{wire}}$ = {u} V" for u in unique_u_wires]
+    ax.legend(color_handles, color_labels, title="Wire voltage (color)", loc="lower right",
+              fontsize=9, fancybox=False, framealpha=params._legend_alpha)
+
+    fig.tight_layout()
+
+    if save_path is None:
+        save_path = base_path + f"plots/compare/peak_pos_vs_amplitude{plot_type}"
+    os.makedirs(os.path.dirname(save_path), exist_ok=True)
+    fig.savefig(save_path)
+    if verbose:
+        print(f"store plot as {save_path}.")
+
+    plt.close("all")
+    return fig, ax, save_path
 
 
 def build_comparison_entries(
@@ -2531,32 +2675,28 @@ def plot_vd_bars_by_gas_mix_single_method(
 
 def make_comparison_tex_table(*, entries, float_precision=3):
     """
-    LaTeX table listing, per dataset, both methods' drift velocities, the
-    difference, and the pull -- mirrors the tex-table style already used
-    by analyze_pattern_type_data() in sl_fits_analysis.py.
-
-    Returns
-    -------
-    tex_table : str
+    LaTeX table listing, per (gas mix, U_wire) point, both methods'
+    drift velocities and the ratio between them. Dataset-name column is
+    dropped since it's redundant with mix/U_wire (and only adds noise
+    like "cosmic_" / "1800-1200" / "run1_th20").
     """
     fp = float_precision
     lines = [
-        r"\begin{tabular}{|l|c|c|c|c|c|}",
+        r"\begin{tabular}{|c|c|c|c|c|}",
         r"    \hline",
-        r"    Dataset & Mix & $U_{\mathrm{wire}}$ [V] & $v_{d,\mathrm{pp}}$ [$\mu$m/ns] "
-        r"& $v_{d,\mathrm{tf}}$ [$\mu$m/ns] & pull \\ \hline",
+        r"    Mix & $U_{\mathrm{wire}}$ [V] & $v_{d,\mathrm{pp}}$ [$\mu$m/ns] "
+        r"& $v_{d,\mathrm{tf}}$ [$\mu$m/ns] & ratio (pp/tf) \\ \hline",
     ]
     for e in sorted(entries, key=lambda e: (e["mix_sort"], e["u_wire"])):
         lines.append(
-            f"    {e['dataset'].replace('_', r'\\_')} & {e['mix']} & {e['u_wire']} & "
+            f"    {e['mix']} & {e['u_wire']} & "
             f"${np.round(e['vd_photopeak'], fp):.{fp}f} \\pm {np.round(e['err_vd_photopeak'], fp):.{fp}f}$ & "
             f"${np.round(e['vd_trackfit'], fp):.{fp}f} \\pm {np.round(e['err_vd_trackfit'], fp):.{fp}f}$ & "
-            f"${np.round(e['pull'], 2):.2f}$ \\\\"
+            f"${np.round(e['ratio'], 4):.4f} \\pm {np.round(e['err_ratio'], 4):.4f}$ \\\\"
         )
     lines.append(r"    \hline")
     lines.append(r"\end{tabular}")
     return "\n".join(lines)
-
 
 def make_sim_summary_tex_table(*, analysis_out_sim, sim_info_fn=parse_sim_name, float_precision=3):
     """
@@ -2639,6 +2779,27 @@ def make_sim_pp_vs_tf_tex_table(*, entries, float_precision=3):
     lines.append(r"\end{tabular}")
     return "\n".join(lines)
 
+
+def make_vd_single_method_tex_table(*, entries, method_label, float_precision=3):
+    """LaTeX table for ONE method's drift velocities: mix, U_wire, vd +- err.
+    `entries` is the output of build_vd_entries_single_method()."""
+    if method_label not in ("photopeak", "trackfit"):
+        raise ValueError(f"method_label must be 'photopeak' or 'trackfit', got {method_label!r}")
+    fp = float_precision
+    vd_symbol = "pp" if method_label == "photopeak" else "tf"
+    lines = [
+        r"\begin{tabular}{|c|c|c|}",
+        r"    \hline",
+        rf"    Mix & $U_{{\mathrm{{wire}}}}$ [V] & $v_{{d,\mathrm{{{vd_symbol}}}}}$ [$\mu$m/ns] \\ \hline",
+    ]
+    for e in sorted(entries, key=lambda e: (e["mix_sort"], e["u_wire"])):
+        lines.append(
+            f"    {e['mix']} & {e['u_wire']} & "
+            f"${np.round(e['vd'], fp):.{fp}f} \\pm {np.round(e['err_vd'], fp):.{fp}f}$ \\\\"
+        )
+    lines.append(r"    \hline")
+    lines.append(r"\end{tabular}")
+    return "\n".join(lines)
 
 def make_sim_vs_measurement_tex_table(*, entries, measurement_label, float_precision=3):
     """
@@ -3108,6 +3269,7 @@ def main(save_plots=True):
         with open(tex_path, "w") as f:
             f.write(tex_table)
         print(f"store tex table as {tex_path}.")
+        
     else:
         print("No overlapping cosmic-scan datasets found between the two methods; "
               "skipping gas-mix comparison plots.")
@@ -3126,6 +3288,9 @@ def main(save_plots=True):
             entries=vd_entries_single, base_path=base_path,
             method_label=method, plot_type=plot_type,
         )
+        single_table = make_vd_single_method_tex_table(entries=vd_entries_single, method_label=method)
+        print(single_table)
+        save_tex_table(tex_table=single_table, path=plot_save_path + f"vd_table_{method}.tex")
 
     # ---- simulation vs. measurement drift-velocity comparison (matched by
     # gas mix + U_wire, not dataset name -- see build_sim_vs_measurement_vd_entries) ----
@@ -3365,6 +3530,23 @@ def main(save_plots=True):
         )
     except ValueError as e:
         print(f"Skipping vd vs uwire/mix (track-fit) plot: {e}")
+
+
+
+    try:
+        pp_vs_amp_entries = build_peak_pos_vs_amplitude_entries(
+            analysis_out_photopeak=analysis_out_photopeak, dataset_info_fn=parse_fit_name,
+        )
+        if pp_vs_amp_entries:
+            plot_peak_pos_vs_amplitude(
+                entries=pp_vs_amp_entries, base_path=base_path, plot_type=plot_type,
+            )
+        else:
+            print("No photopeak datasets with both peak position and amplitude; skipping.")
+    except ValueError as e:
+        print(f"Skipping peak position vs amplitude plot: {e}")
+
+
 
     try:
         plot_metric_vs_uwire_and_mix(
