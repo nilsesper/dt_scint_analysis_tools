@@ -1421,7 +1421,7 @@ _dt_wire_mask = { # sl: ly: [wire_ids]
 """
 _dt_wire_mask = { # sl: ly: [wire_ids]
     1: {
-        0: [38], #38is noisy in one dataset
+        0: [38], #38is noisy 
         1: [],
         2: [],
         3: [12],

@@ -3039,11 +3039,15 @@ def main():
                     x_label = good_super_fit_keys[j][4]
                     y_label = good_super_fit_keys[j][5]
                     
-            
-                    #data = super_fits_cuts[key]
+
+
+
                     if key == "tan_alpha_free_vd_super_fit":
-                        data = np.arctan(super_fits_cuts[key])
-                        speckey = "alpha [rad]"
+                            # this branch now genuinely plots alpha, so relabel title/xlabel to match
+                            data = np.arctan(super_fits_cuts[key])
+                            speckey = "alpha [rad]"
+                            title = title.replace(r"$\tan\alpha$", r"$\alpha$")
+                            x_label = r"$\alpha$ [rad]"
                     else:
                         speckey = None
                         data = super_fits_cuts[key]
@@ -3080,19 +3084,24 @@ def main():
                     )
 
                     if key == "tan_alpha_free_vd_super_fit":
-                        fig_nofit, ax_nofit, path_nofit = plot_hist_general(
-                            specific_data=specific_data,
-                            dataset_name=dataset_name,
-                            plot_save_path=plot_save_path,
-                            filename_suffix=safe_key + "_" + suffix + "_nofit",
-                            scale_factor = factor,
-                            title = title,
-                            xlabel = x_label,
-                            ylabel = y_label,
-                            plot_type = plot_type,
-                            speckey = speckey,
-                            fit_cos2 = False,
-                        )
+                            raw_data = super_fits_cuts[key]
+                            raw_title = (
+                                r"$\tan\alpha$ distribution of cosmic muon super fits"
+                                f"\n{pct_ar}/{pct_co2} Ar/CO$_2$, $U_{{\\mathrm{{wire}}}} = {u_wire}\\,\\mathrm{{V}}$, {suffix}"
+                            )
+                            raw_specific_data = build_hist_general(data_list=raw_data, n_bins=300)
+                            fig_raw, ax_raw, path_raw = plot_hist_general(
+                                specific_data=raw_specific_data,
+                                dataset_name=dataset_name,
+                                plot_save_path=plot_save_path,
+                                filename_suffix="tan_alpha_" + suffix,
+                                scale_factor=1,
+                                title=raw_title,
+                                xlabel=r"$\tan\alpha$",
+                                ylabel=y_label,
+                                plot_type=plot_type,
+                                speckey=None,   # no cos^2 fit on tan_alpha itself
+                            )
             
                 plt.close("all")
                 # done with all hists

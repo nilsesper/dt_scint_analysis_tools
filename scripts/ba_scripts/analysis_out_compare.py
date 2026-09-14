@@ -11,7 +11,7 @@ from mpl_toolkits.axes_grid1 import make_axes_locatable
 import copy
 from analysis_tools.utils import dummy_gen, data_utils, dt_utils, scint_utils, timestamp_utils, geoplot_utils, muon_utils, math_utils, hist_utils, process_utils
 from analysis_tools.params import params, derived_params   #, params_justus
-
+from scipy.odr import ODR, Model, RealData
 import subprocess
 import atexit
 import sys
@@ -127,6 +127,24 @@ _WIRE_COLOR_MAP_SIM_TF = {
     for i, v in enumerate(_WIRE_VOLTAGES)
 }
 _MIX_CMAP = plt.cm.tab10
+
+
+
+
+_REAL_AR_LOOKUP = {
+    # nominal target Ar% -> (real Ar%, err_real_Ar% [percentage points])
+    82:   (81.946, 0.246),
+    83:   (82.987, 0.234),
+    84:   (84.020, 0.222),
+    84.5: (84.457, 0.217),
+    85:   (85.107, 0.209),
+    85.5: (85.548, 0.204),
+    86:   (85.930, 0.199),
+    87:   (87.017, 0.186),
+}
+
+
+
 
 
 def _gas_mix_x_positions(entries, mix_key="mix", sort_key="mix_sort"):
@@ -292,6 +310,7 @@ def get_rate_trackfit(*, dataset_name, result):
         "above get_rate_photopeak) to populate this."
     )
 
+
 def build_peak_pos_vs_amplitude_entries(
     *,
     analysis_out_photopeak,
@@ -299,11 +318,12 @@ def build_peak_pos_vs_amplitude_entries(
     verbose=True,
     ):
     """
-    One entry per photopeak dataset with both the fitted peak position
-    and the normalized amplitude, so the two can be plotted against each
-    other -- e.g. to check whether a shifting peak position tracks a
-    change in signal amplitude (gas-mix or wire-voltage dependent gain
-    effects would show up as a mix/U_wire-dependent trend here).
+    One entry per photopeak dataset with the fitted peak position, the
+    normalized amplitude, and the derived drift velocity -- so the same
+    entries can feed the peak-position-vs-amplitude scatter plot, the
+    single-method vd bar plot, and the extended photopeak table, without
+    building three separate entry lists from the same underlying
+    analysis_out dict.
 
     Returns
     -------
@@ -311,7 +331,8 @@ def build_peak_pos_vs_amplitude_entries(
         Each entry: {"dataset": str, "mix": str, "mix_sort": tuple,
                       "u_wire": int,
                       "peak_pos": float, "err_peak_pos": float,
-                      "amplitude": float, "err_amplitude": float}
+                      "amplitude": float, "err_amplitude": float,
+                      "vd": float, "err_vd": float}
     """
     entries = []
     for dataset_name, result in analysis_out_photopeak.items():
@@ -329,6 +350,12 @@ def build_peak_pos_vs_amplitude_entries(
             if verbose:
                 print(f"  skipping {dataset_name}: missing 'A_rate'/'A_rate_err'")
             continue
+        try:
+            vd, err_vd = get_vd_photopeak(dataset_name=dataset_name, result=result)
+        except KeyError as e:
+            if verbose:
+                print(f"  skipping {dataset_name}: {e}")
+            continue
 
         pct_ar = float(info["pct_Ar"])
         pct_co2 = float(info["pct_CO2"])
@@ -339,11 +366,13 @@ def build_peak_pos_vs_amplitude_entries(
             "u_wire": int(info["U_wire"]),
             "peak_pos": float(result["peak_pos"]), "err_peak_pos": float(result["peak_err_tot"]),
             "amplitude": float(result["A_rate"]), "err_amplitude": float(result["A_rate_err"]),
+            "vd": vd, "err_vd": err_vd,
         })
 
     if verbose:
-        print(f"{len(entries)} photopeak dataset(s) with both peak position and normalized amplitude.")
+        print(f"{len(entries)} photopeak dataset(s) with peak position, amplitude, and vd.")
     return entries
+
 
 def plot_peak_pos_vs_amplitude(
     *,
@@ -2137,6 +2166,296 @@ def plot_ramp_rate_comparison(
     return fig, ax, save_path
 
 
+# odr_fit_peak pos vs gasmix real mix
+def fit_peak_pos_vs_ar_odr_at_uwire(
+    *,
+    analysis_out_photopeak,
+    u_wire,
+    real_ar_lookup=_REAL_AR_LOOKUP,
+    dataset_info_fn=parse_fit_name,
+    verbose=True,
+    ):
+    """
+    Errors-in-variables analogue of fit_peak_pos_vs_ar_at_uwire(): fits
+    mu(c) = intercept + slope*c at a fixed wire voltage using the REAL Ar%
+    (from real_ar_lookup) and BOTH its uncertainty (sigma_c) and the
+    photopeak fit uncertainty (sigma_mu), via orthogonal distance
+    regression (scipy.odr). This is the recommended fit for quoting
+    S_gas, since ignoring sigma_c (as a plain curve_fit on nominal Ar%
+    does) understates the true slope uncertainty -- see the discussion
+    on OLS vs. ODR in the analysis plan.
+
+    Datasets whose nominal pct_Ar has no entry in real_ar_lookup are
+    skipped (with a warning), since there is then no way to know their
+    real concentration or its uncertainty.
+
+    Returns
+    -------
+    result : dict or None
+        Same shape as fit_peak_pos_vs_ar_at_uwire()'s return, plus a
+        "real_ar" / "err_real_ar" pair of arrays instead of "pct_ar", and
+        an "odr_info" field holding the raw scipy.odr Output object
+        (out.stopreason etc., useful for convergence diagnostics).
+        None if fewer than 2 usable datasets are found at this voltage.
+    """
+    real_ar, err_real_ar, peak_pos, err_peak_pos = [], [], [], []
+    for dataset_name, result_dict in analysis_out_photopeak.items():
+        try:
+            info = dataset_info_fn(name=dataset_name)
+        except Exception as e:
+            if verbose:
+                print(f"  skipping {dataset_name}: could not parse dataset info ({e})")
+            continue
+        if int(info["U_wire"]) != int(u_wire):
+            continue
+        if "peak_pos" not in result_dict or "peak_err_tot" not in result_dict:
+            if verbose:
+                print(f"  skipping {dataset_name}: missing 'peak_pos'/'peak_err_tot'")
+            continue
+        nominal_c = info["pct_Ar"]
+        if nominal_c not in real_ar_lookup:
+            if verbose:
+                print(f"  skipping {dataset_name}: no real-Ar% lookup entry for "
+                      f"nominal pct_Ar={nominal_c}")
+            continue
+        c_real, sigma_c = real_ar_lookup[nominal_c]
+        real_ar.append(c_real)
+        err_real_ar.append(sigma_c)
+        peak_pos.append(float(result_dict["peak_pos"]))
+        err_peak_pos.append(float(result_dict["peak_err_tot"]))
+
+    real_ar = np.asarray(real_ar)
+    err_real_ar = np.asarray(err_real_ar)
+    peak_pos = np.asarray(peak_pos)
+    err_peak_pos = np.asarray(err_peak_pos)
+    n_points = real_ar.size
+
+    if n_points < 2:
+        if verbose:
+            print(f"  U_wire={u_wire} V: only {n_points} usable dataset(s); "
+                  "need at least 2 to fit a line, skipping.")
+        return None
+
+    def _line(beta, c):
+        return beta[0] + beta[1] * c
+
+    odr_data = RealData(real_ar, peak_pos, sx=err_real_ar, sy=err_peak_pos)
+    odr = ODR(odr_data, Model(_line), beta0=[peak_pos.mean(), 10.0])
+    out = odr.run()
+    intercept, slope = out.beta
+    err_intercept, err_slope = out.sd_beta
+
+    resid = peak_pos - _line(out.beta, real_ar)
+    chi2 = np.sum((resid / err_peak_pos) ** 2)
+    ndof = n_points - 2
+
+    if verbose:
+        ndof_str = f"{ndof}" if ndof > 0 else "0"
+        print(f"  U_wire={u_wire} V (ODR, real Ar%): fit to {n_points} point(s): "
+              f"slope = {slope:.4f} +/- {err_slope:.4f} ns/%Ar, "
+              f"intercept = {intercept:.4f} +/- {err_intercept:.4f} ns, "
+              f"chi2/ndof = {chi2:.2f}/{ndof_str}")
+
+    return {
+        "u_wire": int(u_wire), "n_points": n_points,
+        "slope": slope, "err_slope": err_slope,
+        "intercept": intercept, "err_intercept": err_intercept,
+        "chi2": chi2, "ndof": ndof,
+        "real_ar": real_ar, "err_real_ar": err_real_ar,
+        "peak_pos": peak_pos, "err_peak_pos": err_peak_pos,
+        "odr_info": out,
+    }
+
+
+
+def fit_response_vs_ar_odr_at_uwire(
+    *,
+    analysis_out,
+    u_wire,
+    getter,
+    real_ar_lookup=_REAL_AR_LOOKUP,
+    dataset_info_fn=parse_fit_name,
+    beta0_slope=10.0,
+    verbose=True,
+    ):
+    """
+    Errors-in-variables (ODR) linear fit of a detector-response observable
+    y(c) = intercept + slope*c vs. the REAL Ar% (with its uncertainty
+    sigma_c from real_ar_lookup), at a fixed wire voltage. Generalizes
+    fit_peak_pos_vs_ar_odr_at_uwire() to any (value, error) pair read via
+    a `getter` callable with the same signature as get_vd_photopeak /
+    get_vd_trackfit: getter(dataset_name=..., result=...) -> (value, err).
+
+    Use getter=get_vd_trackfit with analysis_out=analysis_out_track_fit
+    for the track-fit drift-velocity sensitivity, or
+    getter=get_vd_photopeak with analysis_out=analysis_out_photopeak for
+    the photopeak drift-velocity sensitivity (as opposed to
+    fit_peak_pos_vs_ar_odr_at_uwire(), which fits the peak POSITION
+    directly).
+
+    beta0_slope : float, default 10.0
+        Initial guess for the slope, passed to ODR's optimizer. Track-fit
+        drift velocity DECREASES with Ar% (unlike peak position, which
+        increases), so pass a negative starting guess, e.g. -1.0, when
+        fitting v_drift.
+
+    Returns
+    -------
+    result : dict or None
+        {
+            "u_wire": int, "n_points": int,
+            "slope": float, "err_slope": float,
+            "intercept": float, "err_intercept": float,
+            "chi2": float, "ndof": int,
+            "real_ar": np.ndarray, "err_real_ar": np.ndarray,
+            "y": np.ndarray, "err_y": np.ndarray,
+            "odr_info": scipy.odr.Output,
+        }
+        or None if fewer than 2 usable datasets are found at this voltage.
+    """
+    real_ar, err_real_ar, y_vals, err_y_vals = [], [], [], []
+    for dataset_name, result_dict in analysis_out.items():
+        try:
+            info = dataset_info_fn(name=dataset_name)
+        except Exception as e:
+            if verbose:
+                print(f"  skipping {dataset_name}: could not parse dataset info ({e})")
+            continue
+        if int(info["U_wire"]) != int(u_wire):
+            continue
+        nominal_c = info["pct_Ar"]
+        if nominal_c not in real_ar_lookup:
+            if verbose:
+                print(f"  skipping {dataset_name}: no real-Ar% lookup entry for "
+                      f"nominal pct_Ar={nominal_c}")
+            continue
+        try:
+            y, err_y = getter(dataset_name=dataset_name, result=result_dict)
+        except KeyError as e:
+            if verbose:
+                print(f"  skipping {dataset_name}: {e}")
+            continue
+        c_real, sigma_c = real_ar_lookup[nominal_c]
+        real_ar.append(c_real)
+        err_real_ar.append(sigma_c)
+        y_vals.append(y)
+        err_y_vals.append(err_y)
+
+    real_ar = np.asarray(real_ar)
+    err_real_ar = np.asarray(err_real_ar)
+    y_vals = np.asarray(y_vals)
+    err_y_vals = np.asarray(err_y_vals)
+    n_points = real_ar.size
+
+    if n_points < 2:
+        if verbose:
+            print(f"  U_wire={u_wire} V: only {n_points} usable dataset(s); "
+                  "need at least 2 to fit a line, skipping.")
+        return None
+
+    def _line(beta, c):
+        return beta[0] + beta[1] * c
+
+    odr_data = RealData(real_ar, y_vals, sx=err_real_ar, sy=err_y_vals)
+    odr = ODR(odr_data, Model(_line), beta0=[y_vals.mean(), beta0_slope])
+    out = odr.run()
+    intercept, slope = out.beta
+    err_intercept, err_slope = out.sd_beta
+
+    resid = y_vals - _line(out.beta, real_ar)
+    chi2 = np.sum((resid / err_y_vals) ** 2)
+    ndof = n_points - 2
+
+    if verbose:
+        ndof_str = f"{ndof}" if ndof > 0 else "0"
+        print(f"  U_wire={u_wire} V (ODR, real Ar%): fit to {n_points} point(s): "
+              f"slope = {slope:.4f} +/- {err_slope:.4f}, "
+              f"intercept = {intercept:.4f} +/- {err_intercept:.4f}, "
+              f"chi2/ndof = {chi2:.2f}/{ndof_str}")
+
+    return {
+        "u_wire": int(u_wire), "n_points": n_points,
+        "slope": slope, "err_slope": err_slope,
+        "intercept": intercept, "err_intercept": err_intercept,
+        "chi2": chi2, "ndof": ndof,
+        "real_ar": real_ar, "err_real_ar": err_real_ar,
+        "y": y_vals, "err_y": err_y_vals,
+        "odr_info": out,
+    }
+
+
+
+#threshold calc
+def anomaly_threshold(*, sigma_baseline, S_gas, err_S_gas, k=3.0):
+    """
+    Delta_c_min = k * sigma_baseline / |S_gas|, propagated for the
+    uncertainty on S_gas only (sigma_baseline is treated here as a fixed
+    input -- see build_anomaly_thresholds_by_uwire() for how it's
+    estimated and its own caveats).
+    """
+    thr = k * sigma_baseline / abs(S_gas)
+    err_thr = thr * (err_S_gas / abs(S_gas))
+    return thr, err_thr
+
+#build thresholds
+def build_anomaly_thresholds_by_uwire(
+    *,
+    gas_response_fits,
+    err_key="err_peak_pos",   # <-- new: was hardcoded to "err_peak_pos" before
+    real_ar_lookup=_REAL_AR_LOOKUP,
+    k_values=(1, 2, 3),
+    verbose=True,
+    ):
+    sigma_c_used = float(np.mean([err for (_, err) in real_ar_lookup.values()]))
+
+    thresholds = {}
+    for u_wire, fit in gas_response_fits.items():
+        sigma_baseline_proxy = float(np.median(fit[err_key]))   # <-- uses err_key now
+        entry = {"sigma_baseline_proxy": sigma_baseline_proxy, "sigma_c_used": sigma_c_used}
+        for k in k_values:
+            diff_thr, diff_err = anomaly_threshold(
+                sigma_baseline=sigma_baseline_proxy,
+                S_gas=fit["slope"], err_S_gas=fit["err_slope"], k=k,
+            )
+            abs_thr = float(np.sqrt(diff_thr ** 2 + sigma_c_used ** 2))
+            abs_err = diff_thr / abs_thr * diff_err if abs_thr > 0 else 0.0
+            entry[k] = {"differential": (diff_thr, diff_err), "absolute": (abs_thr, abs_err)}
+        thresholds[u_wire] = entry
+
+        if verbose:
+            print(f"  U_wire={u_wire} V: sigma_baseline(proxy)={sigma_baseline_proxy:.4f} -> "
+                  + ", ".join(f"{k}sig: diff={entry[k]['differential'][0]:.4f}pp, "
+                              f"abs={entry[k]['absolute'][0]:.4f}pp" for k in k_values))
+
+    return thresholds
+
+
+
+def make_anomaly_threshold_tex_table(*, thresholds, k=3.0, float_precision=3):
+    """LaTeX table of the k-sigma anomaly threshold (differential and
+    absolute) per wire voltage, from build_anomaly_thresholds_by_uwire()."""
+    if not thresholds:
+        raise ValueError("No anomaly thresholds to tabulate.")
+    fp = float_precision
+    lines = [
+        r"\begin{tabular}{|c|c|c|c|}",
+        r"    \hline",
+        rf"    $U_{{\mathrm{{wire}}}}$ [V] & $\sigma_{{\mathrm{{baseline}}}}$ [ns] "
+        rf"& $\Delta c_{{\mathrm{{Ar}},\mathrm{{min}}}}$ (rel.) [pp] "
+        rf"& $\Delta c_{{\mathrm{{Ar}},\mathrm{{min}}}}$ (abs.) [pp] \\ \hline",
+    ]
+    for u_wire in sorted(thresholds):
+        t = thresholds[u_wire]
+        diff_thr, diff_err = t[k]["differential"]
+        abs_thr, abs_err = t[k]["absolute"]
+        lines.append(
+            f"    {u_wire} & {t['sigma_baseline_proxy']:.{fp}f} & "
+            f"${diff_thr:.{fp}f} \\pm {diff_err:.{fp}f}$ & "
+            f"${abs_thr:.{fp}f} \\pm {abs_err:.{fp}f}$ \\\\"
+        )
+    lines.append(r"    \hline")
+    lines.append(r"\end{tabular}")
+    return "\n".join(lines)
 
 def build_rate_entries_single_method(
     *,
@@ -2673,30 +2992,36 @@ def plot_vd_bars_by_gas_mix_single_method(
     return fig, ax, save_path
 #tex table
 
+
+
+
 def make_comparison_tex_table(*, entries, float_precision=3):
     """
     LaTeX table listing, per (gas mix, U_wire) point, both methods'
-    drift velocities and the ratio between them. Dataset-name column is
-    dropped since it's redundant with mix/U_wire (and only adds noise
-    like "cosmic_" / "1800-1200" / "run1_th20").
+    drift velocities, their difference, and the ratio between them.
+    Dataset-name column is dropped since it's redundant with mix/U_wire
+    (and only adds noise like "cosmic_" / "1800-1200" / "run1_th20").
     """
     fp = float_precision
     lines = [
-        r"\begin{tabular}{|c|c|c|c|c|}",
+        r"\begin{tabular}{|c|c|c|c|c|c|}",
         r"    \hline",
         r"    Mix & $U_{\mathrm{wire}}$ [V] & $v_{d,\mathrm{pp}}$ [$\mu$m/ns] "
-        r"& $v_{d,\mathrm{tf}}$ [$\mu$m/ns] & ratio (pp/tf) \\ \hline",
+        r"& $v_{d,\mathrm{tf}}$ [$\mu$m/ns] & diff ($v_{d,\mathrm{pp}}-v_{d,\mathrm{tf}}$) [$\mu$m/ns] "
+        r"& ratio (pp/tf) \\ \hline",
     ]
     for e in sorted(entries, key=lambda e: (e["mix_sort"], e["u_wire"])):
         lines.append(
             f"    {e['mix']} & {e['u_wire']} & "
             f"${np.round(e['vd_photopeak'], fp):.{fp}f} \\pm {np.round(e['err_vd_photopeak'], fp):.{fp}f}$ & "
             f"${np.round(e['vd_trackfit'], fp):.{fp}f} \\pm {np.round(e['err_vd_trackfit'], fp):.{fp}f}$ & "
+            f"${np.round(e['diff'], fp):.{fp}f} \\pm {np.round(e['err_diff'], fp):.{fp}f}$ & "
             f"${np.round(e['ratio'], 4):.4f} \\pm {np.round(e['err_ratio'], 4):.4f}$ \\\\"
         )
     lines.append(r"    \hline")
     lines.append(r"\end{tabular}")
     return "\n".join(lines)
+
 
 def make_sim_summary_tex_table(*, analysis_out_sim, sim_info_fn=parse_sim_name, float_precision=3):
     """
@@ -2779,27 +3104,51 @@ def make_sim_pp_vs_tf_tex_table(*, entries, float_precision=3):
     lines.append(r"\end{tabular}")
     return "\n".join(lines)
 
-
 def make_vd_single_method_tex_table(*, entries, method_label, float_precision=3):
     """LaTeX table for ONE method's drift velocities: mix, U_wire, vd +- err.
-    `entries` is the output of build_vd_entries_single_method()."""
+    For photopeak, additionally includes peak position and normalized
+    amplitude with their errors. `entries` is the output of
+    build_vd_entries_single_method() for track-fit, or of
+    build_peak_pos_vs_amplitude_entries() for photopeak (the latter
+    already carries "peak_pos"/"err_peak_pos" and
+    "amplitude"/"err_amplitude" alongside "vd"/"err_vd")."""
     if method_label not in ("photopeak", "trackfit"):
         raise ValueError(f"method_label must be 'photopeak' or 'trackfit', got {method_label!r}")
     fp = float_precision
     vd_symbol = "pp" if method_label == "photopeak" else "tf"
-    lines = [
-        r"\begin{tabular}{|c|c|c|}",
-        r"    \hline",
-        rf"    Mix & $U_{{\mathrm{{wire}}}}$ [V] & $v_{{d,\mathrm{{{vd_symbol}}}}}$ [$\mu$m/ns] \\ \hline",
-    ]
-    for e in sorted(entries, key=lambda e: (e["mix_sort"], e["u_wire"])):
-        lines.append(
-            f"    {e['mix']} & {e['u_wire']} & "
-            f"${np.round(e['vd'], fp):.{fp}f} \\pm {np.round(e['err_vd'], fp):.{fp}f}$ \\\\"
-        )
+
+    if method_label == "photopeak":
+        def _fmt_amp(value, err):
+            return f"${value * 1e4:.2f} \\pm {err * 1e4:.3f}$"
+        lines = [
+            r"\begin{tabular}{|c|c|c|c|c|}",
+            r"    \hline",
+            rf"    Mix & $U_{{\mathrm{{wire}}}}$ [V] & $v_{{d,\mathrm{{{vd_symbol}}}}}$ [$\mu$m/ns] "
+            r"& Peak position $\mu$ [ns] & Norm. amplitude $A_{\mathrm{fit}}/N$ [$10^{-4}$] \\ \hline",
+        ]
+        for e in sorted(entries, key=lambda e: (e["mix_sort"], e["u_wire"])):
+            lines.append(
+                f"    {e['mix']} & {e['u_wire']} & "
+                f"${np.round(e['vd'], fp):.{fp}f} \\pm {np.round(e['err_vd'], fp):.{fp}f}$ & "
+                f"${np.round(e['peak_pos'], fp):.{fp}f} \\pm {np.round(e['err_peak_pos'], fp):.{fp}f}$ & "
+                f"{_fmt_amp(e['amplitude'], e['err_amplitude'])} \\\\"
+            )
+    else:
+        lines = [
+            r"\begin{tabular}{|c|c|c|}",
+            r"    \hline",
+            rf"    Mix & $U_{{\mathrm{{wire}}}}$ [V] & $v_{{d,\mathrm{{{vd_symbol}}}}}$ [$\mu$m/ns] \\ \hline",
+        ]
+        for e in sorted(entries, key=lambda e: (e["mix_sort"], e["u_wire"])):
+            lines.append(
+                f"    {e['mix']} & {e['u_wire']} & "
+                f"${np.round(e['vd'], fp):.{fp}f} \\pm {np.round(e['err_vd'], fp):.{fp}f}$ \\\\"
+            )
+
     lines.append(r"    \hline")
     lines.append(r"\end{tabular}")
     return "\n".join(lines)
+
 
 def make_sim_vs_measurement_tex_table(*, entries, measurement_label, float_precision=3):
     """
@@ -3031,6 +3380,150 @@ def plot_metric_vs_uwire_and_mix(
     return fig, (ax_left, ax_right), save_path
 
 
+def fit_peak_pos_vs_ar_at_uwire(
+    *,
+    analysis_out_photopeak,
+    u_wire,
+    dataset_info_fn=parse_fit_name,
+    verbose=True,
+    ):
+    """
+    Weighted linear fit of the photopeak position mu vs. (nominal) Ar
+    percentage, using every photopeak dataset available at the given
+    wire voltage `u_wire` -- whatever number of points that happens to
+    be, no fixed count assumed.
+
+    Fits mu(c) = intercept + slope * c by weighted least squares
+    (weights = 1/peak_err_tot^2) via scipy.optimize.curve_fit, the same
+    fitting routine already used elsewhere in this file.
+
+    Parameters
+    ----------
+    analysis_out_photopeak : dict
+        {dataset_name: fit_results} from the photopeak analysis pickle.
+    u_wire : int
+        Wire voltage [V] to select datasets for (must match the parsed
+        "U_wire" exactly).
+    dataset_info_fn : callable, default parse_fit_name
+        Parser for the dataset name, must return a dict with "pct_Ar"
+        and "U_wire".
+    verbose : bool, default True
+        Print how many points were used and the fit result.
+
+    Returns
+    -------
+    result : dict or None
+        {
+            "u_wire": int, "n_points": int,
+            "slope": float, "err_slope": float,           # ns per %Ar
+            "intercept": float, "err_intercept": float,   # ns, at c=0
+            "chi2": float, "ndof": int,
+            "pct_ar": np.ndarray, "peak_pos": np.ndarray,
+            "err_peak_pos": np.ndarray,
+        }
+        or None if fewer than 2 datasets are available at this voltage
+        (a line can't be fit to 0 or 1 points).
+    """
+    pct_ar, peak_pos, err_peak_pos = [], [], []
+    for dataset_name, result_dict in analysis_out_photopeak.items():
+        try:
+            info = dataset_info_fn(name=dataset_name)
+        except Exception as e:
+            if verbose:
+                print(f"  skipping {dataset_name}: could not parse dataset info ({e})")
+            continue
+        if int(info["U_wire"]) != int(u_wire):
+            continue
+        if "peak_pos" not in result_dict or "peak_err_tot" not in result_dict:
+            if verbose:
+                print(f"  skipping {dataset_name}: missing 'peak_pos'/'peak_err_tot'")
+            continue
+        pct_ar.append(float(info["pct_Ar"]))
+        peak_pos.append(float(result_dict["peak_pos"]))
+        err_peak_pos.append(float(result_dict["peak_err_tot"]))
+
+    pct_ar = np.asarray(pct_ar)
+    peak_pos = np.asarray(peak_pos)
+    err_peak_pos = np.asarray(err_peak_pos)
+    n_points = pct_ar.size
+
+    if n_points < 2:
+        if verbose:
+            print(f"  U_wire={u_wire} V: only {n_points} photopeak dataset(s) found; "
+                  "need at least 2 to fit a line, skipping.")
+        return None
+
+    def _line(c, intercept, slope):
+        return intercept + slope * c
+
+    popt, pcov = curve_fit(
+        _line, pct_ar, peak_pos, sigma=err_peak_pos,
+        absolute_sigma=True, p0=[peak_pos.mean(), 0.0],
+    )
+    intercept, slope = popt
+    err_intercept, err_slope = np.sqrt(np.diag(pcov))
+
+    resid = peak_pos - _line(pct_ar, *popt)
+    chi2 = np.sum((resid / err_peak_pos) ** 2)
+    ndof = n_points - 2
+
+    if verbose:
+        ndof_str = f"{ndof}" if ndof > 0 else "0"
+        print(f"  U_wire={u_wire} V: fit to {n_points} point(s): "
+              f"slope = {slope:.4f} +/- {err_slope:.4f} ns/%Ar, "
+              f"intercept = {intercept:.4f} +/- {err_intercept:.4f} ns, "
+              f"chi2/ndof = {chi2:.2f}/{ndof_str}")
+
+    return {
+        "u_wire": int(u_wire),
+        "n_points": n_points,
+        "slope": slope, "err_slope": err_slope,
+        "intercept": intercept, "err_intercept": err_intercept,
+        "chi2": chi2, "ndof": ndof,
+        "pct_ar": pct_ar, "peak_pos": peak_pos, "err_peak_pos": err_peak_pos,
+    }
+
+
+
+def make_gas_sensitivity_tex_table(*, gas_response_fits, float_precision=4):
+    """
+    LaTeX table listing, per wire voltage, the linear fit of photopeak
+    position vs. Ar% (from fit_peak_pos_vs_ar_at_uwire()): number of
+    points used, slope (dmu/dc), intercept, and chi2/ndof.
+
+    Parameters
+    ----------
+    gas_response_fits : dict
+        {u_wire: fit_result_dict}, i.e. the dict built by calling
+        fit_peak_pos_vs_ar_at_uwire() per voltage and keeping only the
+        non-None results (see the calling loop in main()).
+
+    Returns
+    -------
+    tex_table : str
+    """
+    if not gas_response_fits:
+        raise ValueError("No gas-response fits to tabulate.")
+
+    fp = float_precision
+    lines = [
+        r"\begin{tabular}{|c|c|c|c|c|}",
+        r"    \hline",
+        r"    $U_{\mathrm{wire}}$ [V] & N points & slope $d\mu/dc_{\mathrm{Ar}}$ [ns/\%Ar] "
+        r"& intercept [ns] & $\chi^2$/ndof \\ \hline",
+    ]
+    for u_wire in sorted(gas_response_fits):
+        fit = gas_response_fits[u_wire]
+        ndof_str = f"{fit['ndof']}" if fit["ndof"] > 0 else "0"
+        lines.append(
+            f"    {u_wire} & {fit['n_points']} & "
+            f"${np.round(fit['slope'], fp):.{fp}f} \\pm {np.round(fit['err_slope'], fp):.{fp}f}$ & "
+            f"${np.round(fit['intercept'], fp):.{fp}f} \\pm {np.round(fit['err_intercept'], fp):.{fp}f}$ & "
+            f"${fit['chi2']:.2f}/{ndof_str}$ \\\\"
+        )
+    lines.append(r"    \hline")
+    lines.append(r"\end{tabular}")
+    return "\n".join(lines)
 
 
 def plot_metric_by_gas_mix(
@@ -3274,13 +3767,78 @@ def main(save_plots=True):
         print("No overlapping cosmic-scan datasets found between the two methods; "
               "skipping gas-mix comparison plots.")
 
+
+
+
+    gas_response_fits = {}
+    for u_wire in _WIRE_VOLTAGES:
+        fit_result = fit_peak_pos_vs_ar_odr_at_uwire(
+            analysis_out_photopeak=analysis_out_photopeak,
+            u_wire=u_wire,
+        )
+        if fit_result is not None:
+            gas_response_fits[u_wire] = fit_result
+
+    if gas_response_fits:
+        gas_sensitivity_tex_table = make_gas_sensitivity_tex_table(gas_response_fits=gas_response_fits)
+        print(gas_sensitivity_tex_table)
+        save_tex_table(tex_table=gas_sensitivity_tex_table,
+                        path=plot_save_path + "gas_sensitivity_by_uwire.tex")
+
+        anomaly_thresholds = build_anomaly_thresholds_by_uwire(gas_response_fits=gas_response_fits)
+        for k in (1, 2, 3):
+            table = make_anomaly_threshold_tex_table(thresholds=anomaly_thresholds, k=k)
+            print(table)
+            save_tex_table(tex_table=table, path=plot_save_path + f"anomaly_threshold_{k}sigma.tex")
+
+
+    # ---- same anomaly-detection chain, but for track-fit drift velocity ----
+    trackfit_response_fits = {}
+    for u_wire in _WIRE_VOLTAGES:
+        fit_result = fit_response_vs_ar_odr_at_uwire(
+            analysis_out=analysis_out_track_fit,
+            u_wire=u_wire,
+            getter=get_vd_trackfit,
+            beta0_slope=-1.0,   # v_drift decreases with Ar%, unlike peak position
+        )
+        if fit_result is not None:
+            trackfit_response_fits[u_wire] = fit_result
+
+    if trackfit_response_fits:
+        trackfit_sensitivity_table = make_gas_sensitivity_tex_table(
+            gas_response_fits=trackfit_response_fits,
+        )
+        print(trackfit_sensitivity_table)
+        save_tex_table(
+            tex_table=trackfit_sensitivity_table,
+            path=plot_save_path + "gas_sensitivity_trackfit_by_uwire.tex",
+        )
+
+        trackfit_anomaly_thresholds = build_anomaly_thresholds_by_uwire(
+            gas_response_fits=trackfit_response_fits, err_key="err_y",
+        )
+        for k in (1, 2, 3):
+            table = make_anomaly_threshold_tex_table(thresholds=trackfit_anomaly_thresholds, k=k)
+            print(table)
+            save_tex_table(
+                tex_table=table,
+                path=plot_save_path + f"anomaly_threshold_trackfit_{k}sigma.tex",
+            )
+
+
+
+
     # ---- vd bar chart, plotted individually per method (doesn't require
     # the dataset to be present in the other method's dict) ----
     for method in ("photopeak", "trackfit"):
-        analysis_out_this = analysis_out_photopeak if method == "photopeak" else analysis_out_track_fit
-        vd_entries_single = build_vd_entries_single_method(
-            analysis_out=analysis_out_this, method=method, dataset_info_fn=parse_fit_name,
-        )
+        if method == "photopeak":
+            vd_entries_single = build_peak_pos_vs_amplitude_entries(
+                analysis_out_photopeak=analysis_out_photopeak, dataset_info_fn=parse_fit_name,
+            )
+        else:
+            vd_entries_single = build_vd_entries_single_method(
+                analysis_out=analysis_out_track_fit, method=method, dataset_info_fn=parse_fit_name,
+            )
         if not vd_entries_single:
             print(f"No datasets with a valid vd for method={method!r}; skipping.")
             continue
@@ -3291,7 +3849,6 @@ def main(save_plots=True):
         single_table = make_vd_single_method_tex_table(entries=vd_entries_single, method_label=method)
         print(single_table)
         save_tex_table(tex_table=single_table, path=plot_save_path + f"vd_table_{method}.tex")
-
     # ---- simulation vs. measurement drift-velocity comparison (matched by
     # gas mix + U_wire, not dataset name -- see build_sim_vs_measurement_vd_entries) ----
     sim_vs_measurement_specs = [
