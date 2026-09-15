@@ -503,9 +503,9 @@ def plot_hist_general(
                 "alpha_rad": r"$A\cos^2(\alpha)$",
             }[fit_cos2_x_kind]
             fit_label = (
-                f"{model_str} fit (central range)\n"
+                f"{model_str} fit\n"
                 f"$A = {fit_results['A']:.3g} \\pm {fit_results['A_err']:.3g}$\n"
-                f"$\\chi^2/N_{{df}} = {fit_results['chi2_ndf']:.2f}$ (fit range only)"
+                f"$\\chi^2/N_{{df}} = {fit_results['chi2_ndf']:.2f}$ (fit range)"
             )
             ax.plot(x_full[mid_mask], y_full[mid_mask], color=fit_cos2_color, linewidth=2,
                      label=fit_label, zorder=4)
@@ -517,7 +517,7 @@ def plot_hist_general(
                              linestyle="--", label=first_extrap_label, zorder=4)
                     first_extrap_label = None  # only label the first dashed segment
  
-        ax.legend(prop={"size": legend_font_size}, fancybox=False, framealpha=params._legend_alpha)
+        ax.legend(prop={"size": legend_font_size}, fancybox=False, framealpha=params._legend_alpha, loc="upper left")
 
         if fit_results is not None:
             ax_res.axhline(0, color="gray", linewidth=1)
