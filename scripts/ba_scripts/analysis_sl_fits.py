@@ -2551,6 +2551,214 @@ def get_dataset_marker_path(*, plot_save_path, dataset_name, plot_type,
 
 
 
+
+def _sum_nested_counts(cell_counts):
+    """Sum every leaf of the nested {sl: {ly: {wi: count}}} dict stored
+    in *_cell_counts.pcl."""
+    total = 0
+    for sl_dict in cell_counts.values():
+        for ly_dict in sl_dict.values():
+            total += sum(ly_dict.values())
+    return total
+
+
+def gather_dataset_info(*, list_of_fits, data_path, verbose=True):
+    """
+    Collect per-dataset summary numbers directly from the per-dataset
+    ROOT/pickle outputs produced by root_streaming_pipeline_v3.py (which
+    runs per-dataset, on a different machine). This does NOT rerun any
+    fitting -- it only opens already-produced files and counts/sums
+    entries, so it's cheap and safe to call for every dataset regardless
+    of skip_existing_datasets.
+
+    Missing files for a dataset are logged and that dataset is skipped
+    (not raised), so one incomplete dataset doesn't kill the whole table.
+
+    Returns
+    -------
+    list of dict, one per successfully-read dataset:
+        dataset, pct_Ar, pct_CO2, U_wire,
+        duration_seconds, n_hits, n_patterns,
+        n_fits_precut, n_fits_postcut, fits_ratio,
+        n_super_fits_precut, n_super_fits_postcut, super_fits_ratio
+    """
+    rows = []
+    for dataset_name in list_of_fits:
+        dataset_dir = data_path + f"{dataset_name}/"
+        cell_counts_file = dataset_dir + dataset_name + "_cell_counts.pcl"
+        sl_patterns_file = dataset_dir + dataset_name + "_sl_patterns.root"
+        sl_fits_file = dataset_dir + dataset_name + "_sl_fits.root"
+        super_fits_file = dataset_dir + dataset_name + "_super_fits.root"
+
+        missing = [p for p in (cell_counts_file, sl_patterns_file, sl_fits_file, super_fits_file)
+                   if not os.path.exists(p)]
+        if missing:
+            if verbose:
+                print(f"  [dataset_info] skipping {dataset_name}: missing {missing}")
+            continue
+
+        try:
+            info = parse_fit_name(name=dataset_name)
+        except ValueError:
+            if verbose:
+                print(f"  [dataset_info] skipping {dataset_name}: name doesn't match parse_fit_name pattern")
+            continue
+
+        cell_counts_data = data_utils.load_pickle(cell_counts_file)
+        duration_seconds = cell_counts_data["duration_seconds"]
+        n_hits = _sum_nested_counts(cell_counts_data["cell_counts"])
+
+        pattern_sl_arr = uproot.open(f"{sl_patterns_file}:tree").arrays(["sl"], library="np")["sl"]
+        n_patterns = len(pattern_sl_arr)
+        n_patterns_sl1 = int(np.sum(pattern_sl_arr == 1))
+        n_patterns_sl3 = int(np.sum(pattern_sl_arr == 3))
+        max_super_patterns = min(n_patterns_sl1, n_patterns_sl3)
+
+        sl_fits_arrs = uproot.open(f"{sl_fits_file}:tree").arrays(["impossible"], library="np")
+        n_fits_precut = len(sl_fits_arrs["impossible"])
+        n_fits_postcut = int(np.sum(sl_fits_arrs["impossible"] == 0))
+        fits_ratio = n_fits_postcut / n_fits_precut if n_fits_precut > 0 else np.nan
+
+        super_fits_arrs = uproot.open(f"{super_fits_file}:tree").arrays(
+            ["impossible_free_vd_super_fit"], library="np"
+        )
+        n_super_fits_precut = len(super_fits_arrs["impossible_free_vd_super_fit"])
+        n_super_patterns = n_super_fits_precut  # proxy: one fit attempt per super pattern
+        super_pattern_ratio = (n_super_patterns / max_super_patterns if max_super_patterns > 0 else np.nan
+        )
+        n_super_fits_postcut = int(np.sum(super_fits_arrs["impossible_free_vd_super_fit"] == 0))
+        super_fits_ratio = (
+            n_super_fits_postcut / n_super_fits_precut if n_super_fits_precut > 0 else np.nan
+        )
+
+        rows.append({
+            "dataset": dataset_name,
+            "pct_Ar": info["pct_Ar"], "pct_CO2": info["pct_CO2"], "U_wire": info["U_wire"],
+            "duration_seconds": duration_seconds, "n_hits": n_hits, "n_patterns": n_patterns,
+            "n_fits_precut": n_fits_precut, "n_fits_postcut": n_fits_postcut, "fits_ratio": fits_ratio,
+            "n_super_patterns": n_super_patterns, "super_pattern_ratio": super_pattern_ratio,
+            "n_super_fits_precut": n_super_fits_precut, "n_super_fits_postcut": n_super_fits_postcut,
+            "super_fits_ratio": super_fits_ratio,
+        })
+
+        if verbose:
+            print(f"  [dataset_info] {dataset_name}: duration={duration_seconds:.1f}s, n_hits={n_hits}, "
+                  f"n_patterns={n_patterns}, fits {n_fits_postcut}/{n_fits_precut} ({fits_ratio:.3f}), "
+                  f"super_fits {n_super_fits_postcut}/{n_super_fits_precut} ({super_fits_ratio:.3f})")
+
+    return rows
+
+
+_INFO_TABLE_COLUMNS = [
+    ("U_wire",               "$U_{\\mathrm{wire}}$ [V]",             "{:d}"),
+    ("duration_seconds",     "Duration [s]",                          "{:.1f}"),
+    ("n_hits",                "$N_{\\mathrm{hits}}$",                 "{:d}"),
+    ("n_patterns",             "$N_{\\mathrm{patterns}}$",            "{:d}"),
+    ("n_fits_precut",         "$N_{\\mathrm{fits}}$ (pre-cut)",       "{:d}"),
+    ("n_fits_postcut",        "$N_{\\mathrm{fits}}$ (post-cut)",      "{:d}"),
+    ("fits_ratio",             "fit ratio",                           "{:.3f}"),
+    ("super_pattern_ratio",    "$N_{\\mathrm{super\\,patt.}}/N_{\\mathrm{patt.\\,pairable}}$", "{:.3f}"),
+    ("n_super_fits_precut",   "$N_{\\mathrm{super\\,fits}}$ (pre-cut)",  "{:d}"),
+    ("n_super_fits_postcut",  "$N_{\\mathrm{super\\,fits}}$ (post-cut)", "{:d}"),
+]
+_ALLOWED_U_WIRES = {3550, 3575, 3600, 3625, 3650}
+
+
+def _fmt_val(val, fmt):
+    if val is None or (isinstance(val, float) and not np.isfinite(val)):
+        return "--"
+    return fmt.format(val)
+
+
+def _mix_label(pct_ar, pct_co2):
+    """'82/18' style label matching the thesis table format, not the raw
+    dataset name."""
+    def _fmt(x):
+        return str(int(x)) if float(x).is_integer() else str(x)
+    return f"{_fmt(pct_ar)}/{_fmt(pct_co2)}"
+
+def _rows_to_tex_table(rows, *, show_mix_column):
+    """Emits ONLY \resizebox{...}{tabular}...; no \begin{table}, no
+    \caption, no \label -- those live in the thesis .tex file that
+    \input's this one, same convention as vd_table_photopeak.tex etc."""
+    columns = list(_INFO_TABLE_COLUMNS)
+    header_cells = (["Mix"] if show_mix_column else []) + [label for _, label, _ in columns]
+    col_spec = "|" + "c|" * len(header_cells)
+
+    lines = [
+        "\\resizebox{\\textwidth}{!}{%",
+        f"\\begin{{tabular}}{{{col_spec}}}", "\\hline",
+        " & ".join(header_cells) + " \\\\ \\hline",
+    ]
+    for row in rows:
+        cells = []
+        if show_mix_column:
+            cells.append(_mix_label(row["pct_Ar"], row["pct_CO2"]))
+        for key, _, fmt in columns:
+            cells.append(_fmt_val(row.get(key), fmt))
+        lines.append(" & ".join(cells) + " \\\\")
+    lines += ["\\hline", "\\end{tabular}", "}"]
+    return "\n".join(lines)
+
+
+
+def write_dataset_info_tables(*, list_of_fits, data_path, out_dir, verbose=True):
+    """
+    Gather per-dataset info (gather_dataset_info), restrict to
+    U_wire in {3550, 3575, 3600, 3625, 3650}, and write:
+      - one LaTeX table per gas mixture, sorted by U_wire
+      - one combined LaTeX table, sorted by (pct_Ar, pct_CO2, U_wire)
+    into `out_dir` (created if missing).
+    """
+    os.makedirs(out_dir, exist_ok=True)
+    rows = gather_dataset_info(list_of_fits=list_of_fits, data_path=data_path, verbose=verbose)
+
+    n_before = len(rows)
+    rows = [r for r in rows if r["U_wire"] in _ALLOWED_U_WIRES]
+    if verbose:
+        print(f"  [dataset_info] kept {len(rows)}/{n_before} datasets with "
+              f"U_wire in {sorted(_ALLOWED_U_WIRES)}")
+
+    if not rows:
+        print("  [dataset_info] no datasets left after U_wire filter; no tables written.")
+        return {}
+
+    saved_paths = {}
+    mixtures = sorted(set((r["pct_Ar"], r["pct_CO2"]) for r in rows))
+    for pct_ar, pct_co2 in mixtures:
+        mix_rows = sorted(
+            (r for r in rows if r["pct_Ar"] == pct_ar and r["pct_CO2"] == pct_co2),
+            key=lambda r: r["U_wire"],
+        )
+        tex = _rows_to_tex_table(
+            mix_rows,
+            
+            show_mix_column=False,
+        )
+        mix_str = f"ar-{_fmt_gas_pct(pct_ar)}_co2-{_fmt_gas_pct(pct_co2)}"
+        path = f"{out_dir}dataset_info_{mix_str}.tex"
+        with open(path, "w") as f:
+            f.write(tex)
+        saved_paths[mix_str] = path
+        if verbose:
+            print(f"  [dataset_info] wrote {path}")
+
+    all_rows_sorted = sorted(rows, key=lambda r: (r["pct_Ar"], r["pct_CO2"], r["U_wire"]))
+    tex_all = _rows_to_tex_table(
+        all_rows_sorted, show_mix_column=True,
+    )
+    path_all = f"{out_dir}dataset_info_ALL.tex"
+    with open(path_all, "w") as f:
+        f.write(tex_all)
+    saved_paths["ALL"] = path_all
+    if verbose:
+        print(f"  [dataset_info] wrote {path_all}")
+
+    return saved_paths
+
+
+
+
 @mpl.rc_context({
     'font.family': 'sans-serif',
     'font.size': 12,
@@ -2615,9 +2823,7 @@ def main():
                 "cosmic_84p5-15p5_3625-1800-1200_run1_th20",
                 "cosmic_84p5-15p5_3650-1800-1200_run1_th20",#full
 
-                #"cosmic_85-15_3550-1800-1200_run1_th20",
-                #"cosmic_85-15_3575-1800-1200_run1_th20", 
-                #"cosmic_85-15_3600-1800-1200_run2_th20",#missing 3625, 3650 (not measured)
+
 
                 "cosmic_85-15_3550-1800-1200_run2_th20",
                 "cosmic_85-15_3575-1800-1200_run2_th20",
@@ -2766,6 +2972,15 @@ def main():
         sys.exit(1)  # Stop the entire script
 
     print("All datasets found. Continuing...")
+
+
+    write_dataset_info_tables(
+        list_of_fits=list_of_fits,
+        data_path=data_path,
+        out_dir=base_path + "plots/data_info/",
+    )
+
+
     for dataset_idx in range(len(list_of_fits)):
 
         dataset_name = list_of_fits[dataset_idx]
