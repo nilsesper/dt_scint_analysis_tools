@@ -30,6 +30,19 @@ import uproot
 
 
 
+# literature drift-velocity values (um/ns) for Ar/CO2 mixtures at U_wire=3600V,
+
+_LITERATURE_VD_3600V = {
+    82: (58.2, None, ""),
+    83: (56.8, None, ""),
+    84: (55.4, None, ""),
+    85: (54.5, None, ""),
+    86: (53.1, None, ""),
+    87: (51.5, None, ""),
+}
+
+
+
 def parse_fit_name(*, name):
     # Erwartetes Format: cosmic_<Ar>-<CO2>_<U_wire>-<U_Fieldshaper>-<U_cathode>_<rest...>
     # Ar/CO2 percentages may be integers ("84") or decimals written with
@@ -73,6 +86,9 @@ def parse_start_time(dataset_name: str) -> datetime:
             return datetime.strptime(match.group(1), "%Y-%m-%d_%H-%M-%S")
 
 
+
+
+
 def parse_sim_name(*, name):
     # Expected format: ar-<Ar%>_co2-<CO2%>_anode<U_wire>V
     # (matches dataset_key = f"ar-{ar_pct:.1f}_co2-{co2_pct:.1f}_anode{anode_voltage_V:.0f}V"
@@ -84,12 +100,67 @@ def parse_sim_name(*, name):
 
     pct_ar, pct_co2, u_wire = match.groups()
 
+    def _to_number(s):
+        """'84' -> 84 (int), '84.5' -> 84.5 (float)"""
+        f = float(s)
+        return int(f) if f.is_integer() else f
+
     return {
         "name": name,
-        "pct_Ar": int(round(float(pct_ar))),
-        "pct_CO2": int(round(float(pct_co2))),
+        "pct_Ar": _to_number(pct_ar),
+        "pct_CO2": _to_number(pct_co2),
         "U_wire": int(round(float(u_wire))),
     }
+
+
+def _fmt_paren_uncertainty(value, err, decimals):
+    """Format value +/- err as 'value(err_digits)', e.g. 53.199(4) for
+    value=53.199, err=0.004, decimals=3 -- matches the siunitx
+    S[table-format=X.Y(Z)] convention used in the thesis tables."""
+    err_digits = int(round(err * 10 ** decimals)) if err is not None and np.isfinite(err) else 0
+    return f"{value:.{decimals}f}({err_digits})"
+
+
+def make_sim_vs_literature_tex_table_siunitx(*, entries, sim_decimals=3):
+    """
+    LaTeX table (siunitx S-column style, matching the thesis
+    measurement-vs-literature table) comparing simulated drift velocity to
+    literature values, at a fixed U_wire. `entries` is the output of
+    build_sim_vs_literature_entries(); rows are sorted by descending Ar%
+    (matching the 87/13 -> 82/18 order used elsewhere in the thesis).
+    """
+    if not entries:
+        raise ValueError("No entries to tabulate.")
+
+    lines = [
+        r"\begin{table}[htbp]",
+        r"    \centering",
+        r"    \begin{tabular}{",
+        r"        c",
+        r"        S[table-format=2.1]",
+        rf"        S[table-format=2.{sim_decimals}(2)]",
+        r"        S[table-format=4.0]",
+        r"        S[table-format=1.3]",
+        r"    }",
+        r"        \toprule",
+        r"        \shortstack{\gls{ar}/\gls{co2}\\mixture (\si{\percent})} &",
+        r"        \shortstack{Literature $v_d$\\(\si{\micro\meter\per\nano\second})} &",
+        r"        \shortstack{Simulated $v_d$\\(\si{\micro\meter\per\nano\second})} &",
+        r"        \shortstack{$U_{\mathrm{wire}}$\\(\si{\volt})} &",
+        r"        \shortstack{Ratio\\sim./lit.} \\",
+        r"        ",
+        r"        \midrule",
+    ]
+    for e in sorted(entries, key=lambda e: -e["pct_ar"]):
+        sim_str = _fmt_paren_uncertainty(e["vd_sim"], e["err_vd_sim"], sim_decimals)
+        lines.append(
+            f"        {e['mix']} & {e['vd_lit']:.1f} & {sim_str} & "
+            f"{e['u_wire']} & {e['ratio']:.3f} \\\\"
+        )
+    lines.append(r"        \bottomrule")
+    lines.append(r"    \end{tabular}")
+    lines.append(r"\end{table}")
+    return "\n".join(lines)
 
 
 
@@ -638,13 +709,10 @@ def build_sim_vs_measurement_vd_entries(
     the parsed (pct_Ar, pct_CO2, U_wire) tuple instead of set intersection
     over raw names (contrast with build_comparison_entries()).
 
-    NOTE: sim_info_fn (parse_sim_name) always returns INTEGER pct_Ar/
-    pct_CO2 (rounded), since the simulation only runs at integer gas
-    mixtures. Measurement dataset names can have decimal mixtures
-    ("cosmic_84p5-15p5_..." -> pct_Ar=84.5), so matching is done on the
-    ROUNDED measurement mix -- a decimal-mix measurement is matched to
-    its nearest integer-mix simulation point. The entry's own "mix" label
-    still shows the measurement's real (possibly decimal) value.
+    NOTE: Simulation and measurement mixes are matched EXACTLY on
+    (pct_Ar, pct_CO2, U_wire) -- not rounded. Simulation currently only
+    covers integer mixes, so decimal-mix measurements (e.g. "84.5/15.5")
+    are skipped until a matching decimal-mix simulation dataset exists.
 
     Parameters
     ----------
@@ -709,10 +777,16 @@ def build_sim_vs_measurement_vd_entries(
         pct_co2 = float(info["pct_CO2"])
         u_wire = int(info["U_wire"])
 
-        # sim datasets are always integer-mix, so match on the ROUNDED
-        # measurement mix; a decimal-mix measurement matches its nearest
-        # integer-mix simulation point.
-        key = (round(pct_ar), round(pct_co2), u_wire)
+        # Match sim and measurement on the EXACT gas mix (not rounded).
+        # Simulation datasets are currently only produced at integer mixes,
+        # so a .5 measurement simply has no match yet and is skipped here
+        # (counted in n_unmatched) -- it is NOT rounded to a neighboring
+        # integer sim point, which would incorrectly reuse that neighbor's
+        # simulated value (and, worse, plot it twice: once for its own exact
+        # match and once for the .5 measurement). Once .5-mix simulation
+        # datasets exist, they will parse to the same (pct_Ar, pct_CO2) float
+        # pair and match automatically -- no change needed here.
+        key = (pct_ar, pct_co2, u_wire)
         if key not in sim_by_key:
             n_unmatched += 1
             continue
@@ -978,6 +1052,143 @@ def build_ramp_rate_comparison_entries(
     entries.sort(key=lambda e: e["time"])
     return entries
 
+
+
+
+def build_sim_vs_literature_entries(
+    *,
+    analysis_out_sim,
+    sim_vd_key,
+    literature_lookup=_LITERATURE_VD_3600V,
+    sim_info_fn=parse_sim_name,
+    u_wire=3600,
+    verbose=True,
+    ):
+    """
+    Match simulation datasets at a fixed U_wire (default 3600 V) against a
+    literature lookup keyed by nominal pct_Ar, mirroring
+    build_sim_vs_measurement_vd_entries() but against hardcoded reference
+    values instead of another analysis_out dict.
+
+    Returns
+    -------
+    entries : list[dict]
+        Each entry:
+        {
+            "sim_dataset": str, "mix": "Ar/CO2" string, "pct_ar": int,
+            "u_wire": int, "source": str,
+            "vd_sim": float, "err_vd_sim": float,
+            "vd_lit": float, "err_vd_lit": float or None,
+            "diff": float, "err_diff": float, "pull": float,
+            "ratio": float, "err_ratio": float,
+        }
+    """
+    entries = []
+    n_no_lit = 0
+    n_missing_vd = 0
+    for name, result in analysis_out_sim.items():
+        try:
+            info = sim_info_fn(name=name)
+        except Exception as e:
+            if verbose:
+                print(f"  skipping sim dataset {name}: could not parse dataset info ({e})")
+            continue
+        if int(info["U_wire"]) != int(u_wire):
+            continue
+
+        pct_ar = info["pct_Ar"]
+        lit_entry = literature_lookup.get(pct_ar)
+        if lit_entry is None or lit_entry[0] is None:
+            n_no_lit += 1
+            continue
+        vd_lit, err_vd_lit, source = lit_entry
+
+        try:
+            vd_sim, err_sim = get_vd_sim(dataset_name=name, result=result, key=sim_vd_key)
+        except KeyError as e:
+            n_missing_vd += 1
+            if verbose:
+                print(f"  skipping {name}: {e}")
+            continue
+
+        diff = vd_sim - vd_lit
+        err_diff = np.sqrt(err_sim ** 2 + (err_vd_lit or 0.0) ** 2)
+        pull = diff / err_diff if err_diff > 0 else np.nan
+        ratio, err_ratio = _ratio_and_err(num=vd_sim, err_num=err_sim, den=vd_lit, err_den=(err_vd_lit or 0.0))
+
+        entries.append({
+            "sim_dataset": name,
+            "mix": f"{info['pct_Ar']}/{info['pct_CO2']}",
+            "pct_ar": pct_ar,
+            "u_wire": int(info["U_wire"]),
+            "source": source,
+            "vd_sim": vd_sim, "err_vd_sim": err_sim,
+            "vd_lit": vd_lit, "err_vd_lit": err_vd_lit,
+            "diff": diff, "err_diff": err_diff, "pull": pull,
+            "ratio": ratio, "err_ratio": err_ratio,
+        })
+
+    if verbose:
+        print(f"{len(entries)} dataset(s) at U_wire={u_wire} V matched to literature "
+              f"('{sim_vd_key}').")
+        if n_no_lit:
+            print(f"  {n_no_lit} dataset(s) at U_wire={u_wire} V had no literature value.")
+        if n_missing_vd:
+            print(f"  {n_missing_vd} matched dataset(s) skipped: missing '{sim_vd_key}' in sim result.")
+
+    return entries
+
+
+def _fmt_paren_uncertainty(value, err, decimals):
+    """Format value +/- err as 'value(err_digits)', e.g. 53.199(4) for
+    value=53.199, err=0.004, decimals=3 -- matches the siunitx
+    S[table-format=X.Y(Z)] convention."""
+    err_digits = int(round(err * 10 ** decimals)) if err is not None and np.isfinite(err) else 0
+    return f"{value:.{decimals}f}({err_digits})"
+
+
+
+
+
+def make_sim_vs_literature_tex_table_siunitx(*, entries, sim_decimals=3):
+    """
+    LaTeX tabular (siunitx S-column style) comparing simulated drift
+    velocity to literature values, at a fixed U_wire. Emits ONLY the
+    tabular environment -- no \begin{table}, \centering, \caption, or
+    \label -- since those live in the thesis .tex file that \input's
+    this one (same convention as write_dataset_info_tables() etc.).
+    `entries` is the output of build_sim_vs_literature_entries(); rows
+    sorted by descending Ar%.
+    """
+    if not entries:
+        raise ValueError("No entries to tabulate.")
+
+    lines = [
+        r"\begin{tabular}{",
+        r"        c",
+        r"        S[table-format=2.1]",
+        rf"        S[table-format=2.{sim_decimals}(2)]",
+        r"        S[table-format=4.0]",
+        r"        S[table-format=1.3]",
+        r"    }",
+        r"        \toprule",
+        r"        \shortstack{\gls{ar}/\gls{co2}\\mixture (\si{\percent})} &",
+        r"        \shortstack{Literature $v_d$\\(\si{\micro\meter\per\nano\second})} &",
+        r"        \shortstack{Simulated $v_d$\\(\si{\micro\meter\per\nano\second})} &",
+        r"        \shortstack{$U_{\mathrm{wire}}$\\(\si{\volt})} &",
+        r"        \shortstack{Ratio\\sim./lit.} \\",
+        r"        ",
+        r"        \midrule",
+    ]
+    for e in sorted(entries, key=lambda e: -e["pct_ar"]):
+        sim_str = _fmt_paren_uncertainty(e["vd_sim"], e["err_vd_sim"], sim_decimals)
+        lines.append(
+            f"        {e['mix']} & {e['vd_lit']:.1f} & {sim_str} & "
+            f"{e['u_wire']} & {e['ratio']:.3f} \\\\"
+        )
+    lines.append(r"        \bottomrule")
+    lines.append(r"\end{tabular}")
+    return "\n".join(lines)
 
 def plot_vd_comparison_bars_by_gas_mix(
     *,
@@ -3918,19 +4129,23 @@ def main(save_plots=True):
         print("No simulation datasets with both 'v_drift_pp' and 'v_drift_tf'; "
               "skipping sim pp-vs-tf comparison plot and table.")
 
-    # ---- simulation summary table (all sim datasets, independent of any
-    # measurement matching) ----
-    try:
-        sim_summary_tex_table = make_sim_summary_tex_table(
-            analysis_out_sim=analysis_out_sim, sim_info_fn=parse_sim_name,
+    # ---- simulation vs. literature, U_wire=3600 V only, one table per method ----
+    for method_label, sim_vd_key in [("pp", "v_drift_pp"), ("tf", "v_drift_tf")]:
+        lit_entries = build_sim_vs_literature_entries(
+            analysis_out_sim=analysis_out_sim,
+            sim_vd_key=sim_vd_key,
+            u_wire=3600,
         )
-        print(sim_summary_tex_table)
+        if not lit_entries:
+            print(f"No simulation datasets at U_wire=3600 V with a literature match "
+                  f"for method={method_label!r}; skipping literature table.")
+            continue
+        lit_tex_table = make_sim_vs_literature_tex_table_siunitx(entries=lit_entries)
+        print(lit_tex_table)
         save_tex_table(
-            tex_table=sim_summary_tex_table,
-            path=plot_save_path + "vd_sim_summary_table.tex",
+            tex_table=lit_tex_table,
+            path=plot_save_path + f"vd_vs_literature_3600V_{method_label}.tex",
         )
-    except ValueError as e:
-        print(f"Skipping simulation summary table: {e}")
 
     # ---- ramp measurement comparison ----
     ramp_entries = build_ramp_comparison_entries(
@@ -4141,6 +4356,85 @@ def main(save_plots=True):
         color_map=_WIRE_COLOR_MAP_PHOTOPEAK,
         save_path=plot_save_path + f"peak_pos_by_gas_mix_photopeak{plot_type}",
     )
+
+
+
+
+    # ---- simulation peak position (pp-style, from the secondary hit
+    # spectrum parabola fit) vs U_wire and gas mix -- analogue of the
+    # measured photopeak position plot above, but reading straight out of
+    # analysis_out_sim/parse_sim_name instead of the measurement pickle ----
+    try:
+        plot_metric_vs_uwire_and_mix(
+            analysis_out=analysis_out_sim,
+            base_path=base_path,
+            dataset_info_fn=parse_sim_name,
+            value_key="secondary_peak_pos",
+            err_key="secondary_peak_pos_err",
+            ylabel=r"Peak position $\mu$ [ns]",
+            filename_prefix="peak_pos_sim",
+            plot_type=plot_type,
+            method="sim_pp",
+            strmethod="Simulation (photopeak-style)",
+            color_map=_WIRE_COLOR_MAP_SIM_PP,
+            save_path=plot_save_path + f"peak_pos_vs_uwire_and_mix_sim_pp_comparison{plot_type}",
+        )
+        fig, ax, path = plot_metric_by_gas_mix(
+            analysis_out=analysis_out_sim,
+            base_path=base_path,
+            dataset_info_fn=parse_sim_name,
+            value_key="secondary_peak_pos",
+            err_key="secondary_peak_pos_err",
+            ylabel=r"Peak position $\mu$ [ns]",
+            filename_prefix="peak_pos_sim",
+            plot_type=plot_type,
+            fig_size=fig_size,
+            method="sim_pp",
+            strmethod="Simulation (photopeak-style)",
+            color_map=_WIRE_COLOR_MAP_SIM_PP,
+            save_path=plot_save_path + f"peak_pos_by_gas_mix_sim_pp{plot_type}",
+    )
+    except ValueError as e:
+        print(f"Skipping simulation peak position plot: {e}")
+
+
+    fig, ax, path = plot_metric_by_gas_mix(
+        analysis_out=analysis_out_sim,
+        base_path=base_path,
+        dataset_info_fn=parse_sim_name,
+        value_key="v_drift_pp",
+        err_key="v_drift_pp_err",
+        ylabel=r"$v_d$ [$\mu$m/ns]",
+        filename_prefix="vd_sim",
+        plot_type=plot_type,
+        fig_size=fig_size,
+        method="sim_pp",
+        strmethod="Simulation (photopeak-style)",
+        color_map=_WIRE_COLOR_MAP_SIM_PP,
+        save_path=plot_save_path + f"vd_by_gas_mix_sim_pp{plot_type}",
+    )
+
+    fig, ax, path = plot_metric_by_gas_mix(
+        analysis_out=analysis_out_sim,
+        base_path=base_path,
+        dataset_info_fn=parse_sim_name,
+        value_key="v_drift_tf",
+        err_key="v_drift_tf_err",
+        ylabel=r"$v_d$ [$\mu$m/ns]",
+        filename_prefix="vd_sim",
+        plot_type=plot_type,
+        fig_size=fig_size,
+        method="sim_tf",
+        strmethod="Simulation (track-fit-style)",
+        color_map=_WIRE_COLOR_MAP_SIM_TF,
+        save_path=plot_save_path + f"vd_by_gas_mix_sim_tf{plot_type}",
+    )
+
+    
+
+    
+
+
 
     #print(analysis_out_track_fit["cosmic_82-18_3550-1800-1200_run1_th20"].keys())
     return
