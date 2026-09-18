@@ -1,34 +1,12 @@
 #################################################################
-### ROOT-STREAMING PIPELINE v3
-### Same logic as v2 (chunked Phase 0 + Phase 1+, TTree fix), with
-### much more logging so you can tell what a running job is doing and
-### how far it's gotten, especially useful under condor where you can't
-### attach a debugger and only see stdout/stderr after the fact.
-#################################################################
+# This script reads in the raw DT .txt file. the data is converted to raw hits in chunks of 500.000 lines/events.
+#After all hits are processed, patterns are found in the data in bunches of 200mb.
+#From the patterns, single SL, fixed drift velocity fits are performed to find muon tracks in the detector
+#The muon fits from both phi SLs are then connected via selection criteria.
+#The found super patterns can be fitted with a free drift velocity super fit resulting in a drift velocity distribution.
+#In addition the time difference between consecutive hits in every cell is calculated and saved as a hist. 
+#The hists of all cells are added together to form a delta t spectrum for the entire detector.
 #
-# WHAT'S NEW vs. v2 (logging only -- no algorithmic changes):
-#
-# 1. A single _log() helper used everywhere: prints with an
-#    elapsed-time-since-start prefix and flush=True on every call. Your
-#    earlier "nothing prints for ages" issue was output buffering when
-#    stdout is redirected to a file (as condor does) -- flush=True on
-#    every print sidesteps that regardless of whether PYTHONUNBUFFERED
-#    is set in the job environment, so this works even if that
-#    environment variable doesn't make it through your condor setup.
-#
-# 2. Phase 0 now logs every block (not just every 10th), each with the
-#    block's hit count, running total, elapsed time, and blocks/sec.
-#
-# 3. Phase 1+ now logs, PER CHUNK: hits in, hits after dead-time cut,
-#    patterns found, fits found, fits surviving the chi2/impossible cut,
-#    refits found, super-patterns found, super-fits found, and the
-#    wall-clock time that chunk took. Running totals across all chunks
-#    are printed too, and a final summary at the end.
-#
-# 4. main() logs every configuration value at startup (dataset name,
-#    block/chunk sizes, resolved file paths) before any real work
-#    starts, so a job that dies early still tells you what it was
-#    trying to do.
 #
 #################################################################
 

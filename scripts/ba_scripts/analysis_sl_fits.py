@@ -1543,7 +1543,7 @@ def fit_parabola_peak(
     # Plot fit
     xx = np.linspace(x[0], x[-1], 200)
     ax.plot(xx, parabola(xx, *popt), "r-", lw=2,
-            label=f"Parabola\nPeak (stat.) = {peak:.3f} $\\pm$ {peak_err:.3f} $\\mu$m/ns\nPeak (stat.+syst.) = {peak:.3f} $\\pm$ {np.sqrt(peak_err**2 + syst_err**2):.3f} $\\mu$m/ns\n$\\chi^2/N_{{df}}={chi2_ndf_main:.2f}$")
+            label=f"Parabola\nPeak = {peak:.3f} $\\pm$ {np.sqrt(peak_err**2 + syst_err**2):.3f} $\\mu$m/ns\n$\\chi^2/N_{{df}}={chi2_ndf_main:.2f}$")
 
     ax.axvline(peak, color="red", ls="--", alpha=0.7)
 
