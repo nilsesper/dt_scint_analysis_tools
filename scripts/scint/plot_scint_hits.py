@@ -12,7 +12,7 @@ import copy
 import argparse
 from matplotlib.ticker import ScalarFormatter
 
-from analysis_tools.utils import dummy_gen, data_utils, dt_utils, scint_utils, timestamp_utils, geoplot_utils, muon_utils, math_utils, hist_utils, process_utils
+from analysis_tools.utils import data_utils, dt_utils, scint_utils, timestamp_utils, geoplot_utils, muon_utils, math_utils, hist_utils, process_utils
 from analysis_tools.params import params, derived_params
 
 # ---------------------------------------------------------------

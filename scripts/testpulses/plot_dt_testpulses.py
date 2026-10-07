@@ -13,16 +13,8 @@ from datetime import datetime
 import json
 import argparse
 
-from analysis_tools.utils import dummy_gen, data_utils, dt_utils, scint_utils, timestamp_utils, geoplot_utils, muon_utils, math_utils, hist_utils, process_utils
+from analysis_tools.utils import data_utils, dt_utils, scint_utils, timestamp_utils, geoplot_utils, muon_utils, math_utils, hist_utils, process_utils
 from analysis_tools.params import params, derived_params
-
-# get REPO_PATH from bash env
-if "REPO_PATH" not in os.environ:
-    raise Exception(f"REPO_PATH is not in bash environment. Please source env.sh before executing this script!")
-REPO_PATH = os.environ["REPO_PATH"]
-pcl_path = REPO_PATH+"/data_files"
-dumpfile_path = REPO_PATH+"/dumpfiles"
-calib_path = REPO_PATH+"/calibration_files"
 
 # ---------------------------------------------------------------
 

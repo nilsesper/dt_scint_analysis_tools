@@ -17,16 +17,8 @@ import json
 import argparse
 import matplotlib.patches as mpatches
 
-from analysis_tools.utils import dummy_gen, data_utils, dt_utils, scint_utils, timestamp_utils, geoplot_utils, muon_utils, math_utils, hist_utils, process_utils
+from analysis_tools.utils import data_utils, dt_utils, scint_utils, timestamp_utils, geoplot_utils, muon_utils, math_utils, hist_utils, process_utils
 from analysis_tools.params import params, derived_params
-
-# get REPO_PATH from bash env
-if "REPO_PATH" not in os.environ:
-    raise Exception(f"REPO_PATH is not in bash environment. Please source env.sh before executing this script!")
-REPO_PATH = os.environ["REPO_PATH"]
-pcl_path = REPO_PATH+"/data_files"
-dumpfile_path = REPO_PATH+"/dumpfiles"
-calib_path = REPO_PATH+"/calibration_files"
 
 # ---------------------------------------------------------------
 
@@ -51,6 +43,12 @@ def main():
         help     = "calculate timing calibration file from inputfile",
     )
     parser.add_argument(
+        "--calib_dir",
+        type     = str,
+        default  = ".",
+        help     = "output directory for the calibration json files written with --create_calib (default: current directory)",
+    )
+    parser.add_argument(
         "--validationfile",
         type     = str,
         help     = "validation dumpfile path (with recorded testpulses), if given create comparison plots to inputfile",
@@ -63,6 +61,7 @@ def main():
     # ---
     args = parser.parse_args()
     tp_dumpfile_name = args.inputfile
+    calib_path = args.calib_dir
     if args.validationfile:
         tp_validationfile_name = args.validationfile
 
@@ -213,6 +212,7 @@ def main():
             }
             # store json
             if dump:
+                os.makedirs(calib_path, exist_ok=True)
                 timestamp_str = datetime.now().strftime("%d-%m-%Y_%H-%M-%S")
                 json_filepath = calib_path+f"/tp_calib_{params._ro_ch_labels[ro_ch]}_{timestamp_str}.json"
                 with open(json_filepath, 'w') as file_obj:

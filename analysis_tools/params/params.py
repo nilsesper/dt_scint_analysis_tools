@@ -57,8 +57,8 @@ _dumpfile_hits_to_skip = 50000 #50000
 ### timestamp conversion
 _lhc_tdc_count = 32 # max value of TDC + 1  (i.e. conversion factor: _lhc_tdc_count TDC = 1 BX)
 _lhc_bunch_count = 3564 # max value of BX + 1 (i.e. conversion factor: _lhc_bunch_count BX = 1 ORBIT)
-_lhc_orbit_count = 65536 # 2^16, max value of ORBIT + 1
-#_lhc_orbit_count = 2**26 # = 67108864 = 2^26, max value of ORBIT + 1
+#_lhc_orbit_count = 65536 # 2^16, max value of ORBIT + 1
+_lhc_orbit_count = 2**26 # = 67108864 = 2^26, max value of ORBIT + 1
 _ts_type = np.float64 # data type of timestamp field in hits
 _ts_float_type = np.float64 # for fitting, ts type as float
 
@@ -1419,31 +1419,29 @@ _dt_wire_mask = { # sl: ly: [wire_ids]
 
 }
 """
+#----- justus:
+# _dt_wire_mask = { # sl: ly: [wire_ids]
+#     1: {
+#         0: [38], #38is noisy 
+#         1: [],
+#         2: [],
+#         3: [12],
+#     },
+#     2: { # here everything marked is noisy
+#         0: [19],
+#         1: [4, 56],
+#         2: [],
+#         3: [4, 16, 17],
+#     },
+#     3: {
+#         0: [],        
+#         1: [],        
+#         2: [],        
+#         3: [],
+#     }
+# }
+#----- nils:
 _dt_wire_mask = { # sl: ly: [wire_ids]
-    1: {
-        0: [38], #38is noisy 
-        1: [],
-        2: [],
-        3: [12],
-    },
-    2: { # here everything marked is noisy
-        0: [19],
-        1: [4, 56],
-        2: [],
-        3: [4, 16, 17],
-    },
-    3: {
-        0: [],        
-        1: [],        
-        2: [],        
-        3: [],
-    }
-
-}
-
-
-
-_dt_dead_wires = { # sl: ly: [wire_ids] these wires are dead, no signal is expected from them, they are masked in the analysis
     1: {
         0: [],
         1: [],
@@ -1457,9 +1455,29 @@ _dt_dead_wires = { # sl: ly: [wire_ids] these wires are dead, no signal is expec
         3: [],
     },
     3: {
-        0: [10],        #10 is dead wire
-        1: [32, 41],        #41 is dead wire
-        2: [26],        #26 is dead wire
+        0: [],        
+        1: [],        
+        2: [],        
+        3: [],
+    }
+}
+_dt_dead_wires = { # sl: ly: [wire_ids] these wires are dead, no signal is expected from them, they are masked in the analysis
+    1: {
+        0: [],
+        1: [49],
+        2: [],
+        3: [12],
+    },
+    2: {
+        0: [2,5,13,35,50,51],
+        1: [4,5,44,45,57],
+        2: [],
+        3: [],
+    },
+    3: {
+        0: [10],
+        1: [41,49],
+        2: [26],
         3: [],
     }
 
@@ -1641,14 +1659,21 @@ scint_ref_pos = (
     scint_edge_to_sl2_edge[1]+(cmssw_sl2_pos[1]-cmssw_sl2_ly1_pos[1]),
     scint_edge_to_sl1_edge[2]-scint_size[2]+(cmssw_sl1_pos[2]-cmssw_sl1_ly1_pos[2])
 )
-print(f"scint_ref_pos = {scint_ref_pos}")
+#print(f"scint_ref_pos = {scint_ref_pos}")
 
 ### hardware setup
 ## dt mapping: {ro_ch: obdt_mapping}
+#------- justus:
+# _dt_mapping = {
+#     14: _obdt_phi_1_fe_mapping, # obdt1_phi: dt sl1 (phi)
+#     28: _obdt_phi_2_fe_mapping, # obdt2_phi: dt sl3 (phi)
+#     26: _obdt_theta_1_fe_mapping, # obdt3_theta: dt sl2 (theta)
+# }
+#------- nils:
 _dt_mapping = {
-    14: _obdt_phi_1_fe_mapping, # obdt1_phi: dt sl1 (phi)
-    28: _obdt_phi_2_fe_mapping, # obdt2_phi: dt sl3 (phi)
-    26: _obdt_theta_1_fe_mapping, # obdt3_theta: dt sl2 (theta)
+     8: _obdt_phi_1_fe_mapping, # obdt1_phi: dt sl1 (phi)
+    10: _obdt_phi_2_fe_mapping, # obdt2_phi: dt sl3 (phi)
+    14: _obdt_theta_1_fe_mapping, # obdt3_theta: dt sl2 (theta)
 }
 ## scintillator mapping: {ro_ch: mezzanine_mapping}
 # coincidence strips = 2 sipm coincidence hits
@@ -1664,8 +1689,11 @@ _raw_scint_mapping = {
 
 # ro_ch labels
 _ro_ch_labels = {
-    26: "ob1",
-    28: "ob2",
+    # 26: "ob1",
+    # 28: "ob2",
+    # 14: "ob3",
+    8: "ob1",
+    10: "ob2",
     14: "ob3",
     #27: "mez1",
     #25: "mez2",

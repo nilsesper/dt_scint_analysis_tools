@@ -1,87 +1,7 @@
-________________________________________________________________________________________________________
-
-# DT workflow
-
-## Cosmic track simulation
-Cosmic muons have muon_id >= 1.
-
-Generate:
-python scripts/sim/gen_cosmic_tracks.py --cosmic_muons_file data_files/sim_muons_fulldt.pcl
-
-Plot:
-python scripts/sim/plot_cosmic_tracks.py --show_plots --cosmic_muons_file data_files/sim_muons_fulldt.pcl
-
-## Cosmic tracks -> Simulated DT hits
-
-python scripts/sim/cosmic_tracks_to_dt_hits.py --cosmic_muons_file data_files/sim_muons_fulldt.pcl --dt_hits_file data_files/sim_muons_dt_hits.pcl
-
-One can add noise and mis-calibration to the timestamps:
-...
-
-One can add more features to the hits:
-Seconday hits (2nd hit in same cell in given time interval after 1st hit with given probability):
-...
-Noise hits (Poisson distributed with given rate):
-...
-
-## Dumpfile -> DT hits
-Also apply dead time to DT hits of same channel.
-Data has muon_id = 0.
-
-python scripts/dt/dumpfile_to_dt_hits.py --input_dumpfile ~/masterarbeit/zynq_read-out_software/output/dt_cosm_7.txt --dt_hits_file data_files/dt_cosm_7_hits.pcl
-
-Plot:
-python scripts/dt/plot_dt_hits.py --show_plots --dt_hits_file data_files/ddt_cosm_7_hits.pcl
-
-### DT hits, apply timing calibration
-Apply testpulse-derived timing calibration to hit timestamps.
-
-python scripts/dt/dt_hits_timing_correction.py --dt_hits_file thesis_data_files/dt_data_run/dt_hits_nodeadtime.pcl --dt_tp_corrections_file thesis_data_files/dt_testpulse_run/dt_tp_corrections.pcl --corr_dt_hits_file thesis_data_files/dt_data_run/dt_hits_nodeadtime_corr.pcl
-
-## DT hits -> SL patterns
-For data can apply testpulse timing correction file.
-Do not write argument if no correction is asked (e.g. for simulation).
-
-python scripts/dt/dt_hits_to_sl_patterns.py --dt_hits_file data_files/dt_cosm_7_hits.pcl --sl_patterns_file data_files/dt_cosm_7_patterns.pcl
-
-For simulation (to match only hits of similar muon_id):
-python scripts/dt/dt_hits_to_sl_patterns.py --dt_hits_file data_files/sim_muons_dt_hits.pcl --sl_patterns_file data_files/sim_muons_sl_fits_realmuons_noparambounds.pcl --simulation_only_muon_patterns
-
-Plot:
-python scripts/dt/plot_sl_patterns.py --show_plots --sl_patterns_file data_files/dt_cosm_7_patterns.pcl
-Plot for simulation:
-python scripts/dt/plot_sl_patterns.py --show_plots --sl_patterns_file data_files/sim_muons_sl_patterns_realmuons.pcl --simulation
-
-## SL patterns -> SL fits
-
-python scripts/dt/sl_patterns_to_sl_fits.py --sl_patterns_file data_files/dt_cosm_7_patterns.pcl --sl_fits_file data_files/dt_cosm_7_fits.pcl
-
-Apply cuts to reject bad or unphysical fits:
-python scripts/general/apply_cuts.py --input_data_file data_files/sim_muons_sl_fits_realmuons_parambounds.pcl --cut_data_file data_files/sim_muons_sl_fits_realmuons_parambounds_aftercuts.pcl --cuts "chi2/ndf,<,1;x0,<=,21;x0,>=,-21;dt0,>=,0;dt0,<=,params._dt_max_drift_time;dt1,>=,0;dt1,<=,params._dt_max_drift_time;dt2,>=,0;dt2,<=,params._dt_max_drift_time;dt3,>=,0;dt3,<=,params._dt_max_drift_time"
-
-Plot:
-python scripts/dt/plot_sl_fits.py --show_plots --sl_fits_file data_files/dt_cosm_7_fits.pcl
-Plot for simulation:
-python scripts/dt/plot_sl_fits.py --show_plots --sl_fits_file data_files/sim_muons_sl_fits_realmuons_noparambounds.pcl --simulation
-
-## SL fits -> SL fit groups (per SL)
-
-python scripts/dt/sl_fits_to_sl_fit_groups.py --sl_fits_file data_files/combined_2_sl_fits_slaligned_aftercuts.pcl --sl_fit_groups_file data_files/combined_2_sl_fit_groups.pcl
-
-Plot:
-...
-
-## SL fit groups (per SL) -> DT muons
-
-python scripts/dt/sl_fit_groups_to_dt_muons.py --sl_fits_file thesis_data_files/dt_data_run/sl_fits_aftercuts.pcl --sl_fit_groups_file thesis_data_files/dt_data_run/sl_fit_groups.pcl --dt_muons_file thesis_data_files/dt_data_run/dt_muons.pcl
-
-Plot:
-python scripts/dt/plot_dt_muons.py --show_plots --dt_muons_file data_files/dt_cosm_7_dt_muons.pcl
-Plot for simulation:
-python scripts/dt/plot_dt_muons.py --show_plots --dt_muons_file data_files/sim_muons_dt_muons.pcl --simulation
-
-
-________________________________________________________________________________________________________
+> Note: the DT chain, the DT simulation and the DT plots run on ROOT files, see [dt_root/README.md](dt_root/README.md).
+> This file describes the parts which still work on .pcl files: scintillator, DT-scintillator correlation and testpulses.
+> They have not been ported to ROOT files yet. The DT steps named below ("DT hits -> SL patterns" etc.) refer to the
+> ROOT workflow; its files can not be read directly by the scripts in `scripts/combined/`.
 
 # Scintillator workflow
 
@@ -144,3 +64,17 @@ python scripts/combined/correlate_dt_muons_and_scint_areas.py --dt_muons_file da
 
 ________________________________________________________________________________________________________
 
+________________________________________________________________________________________________________
+
+# Testpulse workflow
+
+## DT timing calibration
+Creates the timing corrections per wire (`DT_CORRECTIONS.pcl`) used by `scripts/dt_root/dt_hits_timing_correction.py`.
+
+python scripts/testpulses/dt_testpulses.py --inputfile /path/to/testpulse_dumpfile.txt --dt_tp_timing_file /path/to/dt_tp_timing.pcl --dt_tp_corrections_file /path/to/DT_CORRECTIONS.pcl
+
+Plot:
+python scripts/testpulses/plot_dt_testpulses.py --help
+
+## Scintillator timing calibration
+python scripts/testpulses/scint_calib_testpulses.py --inputfile /path/to/testpulse_dumpfile.txt --create_calib --calib_dir /path/to/calibration_files
