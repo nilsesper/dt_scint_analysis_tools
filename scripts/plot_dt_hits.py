@@ -7,7 +7,7 @@
 # (histograms of the single branches: plot_histograms.py)
 #
 # example:
-#   python scripts/dt_root/plot_dt_hits.py --input_file out/run_dt_hits.root --store_plots plots/dt_hits \
+#   python scripts/dt_root/plot_dt_hits.py --dt_hits_file out/run_dt_hits.root --store_plots plots/dt_hits \
 #          --hit_diff_hist_file out/run_hit_diff_hist.root
 #################################################################
 
@@ -55,7 +55,7 @@ def _plot_chamber_matrix(values, colorbar_label, title):
 @mpl.rc_context({'font.family': 'sans-serif', 'font.size': 20})
 def main(argv=None):
     parser = argparse.ArgumentParser(description="Occupancy and rate plots of dt hits.")
-    parser.add_argument("--input_file", type=str, required=True, help="input file path: dt hits (.root)")
+    parser.add_argument("--dt_hits_file", type=str, required=True, help="input file path: dt hits (.root)")
     parser.add_argument("--hit_diff_hist_file", type=str, default=None,
                         help="optional input file path: hit time difference histogram from dt_hits_to_hit_diff_hist.py (.root)")
     parser.add_argument("--low_fraction", type=float, default=0.5, help="cells below this fraction of the mean count are listed as low occupancy")
@@ -68,12 +68,12 @@ def main(argv=None):
     out = dict(store_plots=args.store_plots, show_plots=args.show_plots, file_format=args.format)
 
     ### count hits per cell
-    log(f"###### Counting hits per cell in {args.input_file}...")
-    cell_counts, ts_min, ts_max, n_hits = dt_pipeline_utils.count_dt_cells(args.input_file, step_size=_step_size(args.step_size))
+    log(f"###### Counting hits per cell in {args.dt_hits_file}...")
+    cell_counts, ts_min, ts_max, n_hits = dt_pipeline_utils.count_dt_cells(args.dt_hits_file, step_size=_step_size(args.step_size))
     if n_hits == 0:
-        raise RuntimeError(f"No dt hits in {args.input_file}.")
+        raise RuntimeError(f"No dt hits in {args.dt_hits_file}.")
     duration_seconds = plot_utils.TS_UNIT_NS * 1e-9 * float(ts_max - ts_min)
-    log(f"{n_hits} dt hits, measurement duration = {duration_seconds} s")
+    log(f"{n_hits:,} dt hits, measurement duration = {duration_seconds} s")
     cell_rates = {sl: {ly: {wi: c / duration_seconds for wi, c in cell_counts[sl][ly].items()} for ly in cell_counts[sl]} for sl in cell_counts}
 
     ### occupancy and rate maps
@@ -86,7 +86,7 @@ def main(argv=None):
     all_counts = [cell_counts[sl][ly][wi] for sl in range(1, 4) for ly in range(4) for wi in _wires(sl, ly)]
     n_cells, total_count = len(all_counts), int(np.sum(all_counts))
     mean_count = total_count / n_cells
-    log(f"total count all cells: {total_count} +- {np.sqrt(total_count):.1f}")
+    log(f"total count all cells: {total_count:,} +- {np.sqrt(total_count):.1f}")
     log(f"mean count all cells: {mean_count:.2f} +- {np.sqrt(total_count) / n_cells:.2f}")
     log(f"mean rate all cells: {mean_count / duration_seconds:.3f} +- {np.sqrt(total_count) / n_cells / duration_seconds:.3f} Hz")
     log(f"cells below {args.low_fraction} x mean or above {args.high_fraction} x mean:")
@@ -100,7 +100,7 @@ def main(argv=None):
                     (low_cells if kind == "low " else high_cells).append((sl, ly, wi))
                     readout = derived_params._dt_inverted_remap_table.get(sl, {}).get(ly, {}).get(wi)
                     readout_str = f" (ro_ch={readout['ro_ch']:2}, ch={readout['ch']:3})" if readout is not None else ""
-                    log(f"  {kind} occupancy in sl={sl:1}, ly={ly:1}, wi={wi:2}{readout_str}: {count} hits, {count / duration_seconds:.2f} Hz")
+                    log(f"  {kind} occupancy in sl={sl:1}, ly={ly:1}, wi={wi:2}{readout_str}: {count:,} hits, {count / duration_seconds:.2f} Hz")
     log("as cell list for --mark_cells of the other plotting scripts:")
     log("  low:  " + ",".join(f"{sl}:{ly}:{wi}" for sl, ly, wi in low_cells))
     log("  high: " + ",".join(f"{sl}:{ly}:{wi}" for sl, ly, wi in high_cells))

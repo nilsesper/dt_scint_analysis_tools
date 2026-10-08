@@ -344,9 +344,9 @@ def plot_histogram(ax, hist, centers, *, err_hist=None, err_hist_down=None, err_
         if bin_unit != None:
             barwidth_str += f" {bin_unit}"
         if bool_plus_label == False:
-            info_str = f"entries = {entries}\nunderflow = {underflow}\noverflow = {overflow}\ntotal = {entries+overflow+underflow}\nbin count = {len(centers)}\nbin width = {barwidth_str}"
+            info_str = f"entries = {entries:,}\nunderflow = {underflow:,}\noverflow = {overflow:,}\ntotal = {entries+overflow+underflow:,}\nbin count = {len(centers):,}\nbin width = {barwidth_str}"
         elif bool_plus_label == True:
-            info_str = f"entries = {entries}\nunderflow = {underflow}\noverflow = {overflow}\ntotal = {entries+overflow+underflow}\nbin count = {len(centers)}\nbin width = {barwidth_str}\n{pluslabel}"
+            info_str = f"entries = {entries:,}\nunderflow = {underflow:,}\noverflow = {overflow:,}\ntotal = {entries+overflow+underflow:,}\nbin count = {len(centers):,}\nbin width = {barwidth_str}\n{pluslabel}"
         #ax.text(0.99, 0.99, info_str, horizontalalignment='right', verticalalignment='top', transform=ax.transAxes, fontsize=8, bbox=dict(facecolor='white', edgecolor='lightgray', alpha=0.7))
         ax = add_infobox(ax, info_str=info_str, info_font_size=info_font_size, info_loc=info_loc)
     # set y label

@@ -7,7 +7,7 @@
 # (histograms of the single branches: plot_histograms.py, single super fits: singleplot_super_fit.py)
 #
 # example:
-#   python scripts/dt_root/plot_super_fits.py --input_file out/run_super_fits_cut.root --store_plots plots/super_fits
+#   python scripts/dt_root/plot_super_fits.py --super_fits_file out/run_super_fits_cut.root --store_plots plots/super_fits
 #################################################################
 
 import argparse
@@ -28,7 +28,7 @@ from analysis_tools.params import params, derived_params
 @mpl.rc_context({'font.family': 'sans-serif', 'font.size': 20})
 def main(argv=None):
     parser = argparse.ArgumentParser(description="Fit quality of super fits and comparison with their sl fits.")
-    parser.add_argument("--input_file", type=str, required=True, help="input file path: super fits (.root)")
+    parser.add_argument("--super_fits_file", type=str, required=True, help="input file path: super fits (.root)")
     parser.add_argument("--suffix", type=str, default=dt_pipeline_utils.DEFAULT_SUPER_FIT_SUFFIX, help="suffix of the super fit result branches")
     parser.add_argument("--cuts", type=str, default=None,
                         help="cuts applied before plotting, format \"key1,operator1,value1;key2,operator2,value2;...\" "
@@ -43,21 +43,21 @@ def main(argv=None):
     phi_sls = [sl for sl in params._dt_chamber["sls"].keys() if params._dt_chamber["sls"][sl]["orient"] == "phi"]
 
     ### data import (only the needed branches)
-    root_utils.check_input_file(args.input_file)
-    if "t0" + sfx not in root_utils.list_branches(args.input_file):
-        raise KeyError(f"No super fit results with suffix \"{sfx}\" in {args.input_file}.")
+    root_utils.check_input_file(args.super_fits_file)
+    if "t0" + sfx not in root_utils.list_branches(args.super_fits_file):
+        raise KeyError(f"No super fit results with suffix \"{sfx}\" in {args.super_fits_file}.")
     cuts = dt_pipeline_utils.parse_cuts(args.cuts) if args.cuts is not None else [("impossible" + sfx, "==", 0)]
     keys = [k + sfx for k in ["t0", "x0", "tan_alpha", "vd", "err_vd", "ref_x", "ref_z", "ts_residual"]] + [f"dt{j}{sfx}" for j in range(8)] + [f"err_ts{j}" for j in range(8)]
     for sl in phi_sls:
         keys += [f"t0_sl{sl}", f"x0_sl{sl}", f"tan_alpha_sl{sl}", f"wi3_sl{sl}"]
     keys = sorted(set(keys) | {c[0] for c in cuts})
-    log(f"###### Importing super fits from {args.input_file}...")
-    fits = root_utils.read_branches(args.input_file, keys)
+    log(f"###### Importing super fits from {args.super_fits_file}...")
+    fits = root_utils.read_branches(args.super_fits_file, keys)
     n_all = root_utils.length(fits)
     fits = data_utils.cut_data(data=fits, conditions=cuts, silent=True)
     n_fits = root_utils.length(fits)
     cut_title = "cuts: " + ", ".join(f"{c[0]} {c[1]} {c[2]:g}" for c in cuts)
-    log(f"{cut_title}: {n_fits} / {n_all} super fits selected")
+    log(f"{cut_title}: {n_fits:,} / {n_all:,} super fits selected")
     if n_fits == 0:
         raise RuntimeError("No super fits pass the cuts, nothing to plot.")
 

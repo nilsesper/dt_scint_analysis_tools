@@ -26,7 +26,7 @@ import analysis_tools.params.derived_params as derived_params
 def extract_dt_hits(hits, *, silent=False, has_timestamp=False, ignore_deadtime=False):
     tmp_hits = copy.deepcopy(hits)
     n_hits = len(tmp_hits["ch"])
-    if not silent: print(f"Extract DT hits from {n_hits} total hits...")
+    if not silent: print(f"Extract DT hits from {n_hits:,} total hits...")
     # calculate mask to apply to cut away all hits not belonging to dt chamber (wrong ro_ch or invalid ch)
     dt_mask = np.full(n_hits, False, dtype=np.bool)
     for ro_ch in derived_params._dt_ro_chs:
@@ -37,8 +37,8 @@ def extract_dt_hits(hits, *, silent=False, has_timestamp=False, ignore_deadtime=
     for k in tmp_hits.keys():
         tmp_hits[k] = tmp_hits[k][dt_mask]
     n_dt_hits = len(tmp_hits["ch"])
-    if not silent: print(f"Cut flow: {n_dt_hits}/{n_hits} = {n_dt_hits/n_hits}")
-    if not silent: print(f"Found {n_dt_hits} DT hits. Adding DT specific keys...")
+    if not silent: print(f"Cut flow: {n_dt_hits:,}/{n_hits:,} = {n_dt_hits/n_hits}")
+    if not silent: print(f"Found {n_dt_hits:,} DT hits. Adding DT specific keys...")
     # add specific dt keys
     tmp_hits |= {k: np.full(n_dt_hits, 0, dtype=v) for k,v in params._dt_mapping_keys.items()} | {k: np.full(n_dt_hits, 0, dtype=v) for k,v in params._dt_other_keys.items() if ((not has_timestamp) or k != "ts")}
     for i in tqdm(range(n_dt_hits), disable=silent):
@@ -137,7 +137,7 @@ def hits_from_muons(muons, *, silent=False, noise_ampl=0, sys_miscalib_ampl=0):
     dt_hit_list = []
     n_muons = len(muons["x0"])
     lat_dict = {True: 1, False: -1} # laterality dict: -1: left of wire (l), +1: right of wire (r)
-    if not silent: print(f"Calculating DT hits by {n_muons} muons...")
+    if not silent: print(f"Calculating DT hits by {n_muons:,} muons...")
     # simulate constant time offset (miscalib)
     miscalib_map = _empty_dt_chamber_map(content=0)
     if sys_miscalib_ampl > 0:
@@ -192,7 +192,7 @@ def hits_from_muons(muons, *, silent=False, noise_ampl=0, sys_miscalib_ampl=0):
     # convert dt_hit_list to proper format object dt_hits
     n_hits = len(dt_hit_list)
     # map sl,ly,wi to all other keys of dt -> map back to obdt channels & oc,bx,tdc timestamp
-    if not silent: print(f"Adding all keys to calculated {n_hits} DT hits...")
+    if not silent: print(f"Adding all keys to calculated {n_hits:,} DT hits...")
     dt_hits = {k: np.full(n_hits, 0, dtype=v) for k,v in params._htg_keys.items()} | {k: np.full(n_hits, 0, dtype=v) for k,v in params._dt_mapping_keys.items()} | {k: np.full(n_hits, 0, dtype=v) for k,v in params._dt_other_keys.items()} 
     for i in range(n_hits):
         # copy existing keys
@@ -220,7 +220,7 @@ def hits_from_muons(muons, *, silent=False, noise_ampl=0, sys_miscalib_ampl=0):
 def apply_timing_calibration(hits, *, dt_tp_corrections, silent=False):
     n_hits = len(hits["ch"])
     corr_hits = copy.deepcopy(hits)
-    if not silent: print(f"Applying testpulse timing correction to {n_hits} DT hits...")
+    if not silent: print(f"Applying testpulse timing correction to {n_hits:,} DT hits...")
     for i in tqdm(range(n_hits), disable=silent):
             sl = hits["sl"][i]
             ly = hits["ly"][i]
@@ -410,7 +410,7 @@ def _find_patterns_in_sl(sl, this_sl_hits, *, dt_sl_patterns=params._dt_sl_patte
 ### turn the list of found patterns into the sl pattern object, sorted by the wire of ly=3
 def _assemble_sl_patterns(pattern_list, *, silent=True):
     n_patterns = len(pattern_list)
-    if not silent: print(f"Found {n_patterns} DT superlayer patterns.")
+    if not silent: print(f"Found {n_patterns:,} DT superlayer patterns.")
     sl_patterns = {k: np.full(n_patterns, 0, dtype=v) for k, v in params._sl_pattern_keys.items()}
     for i in range(n_patterns):
         sl_patterns["sl"][i] = pattern_list[i][0]
@@ -447,7 +447,7 @@ def _find_patterns_in_sl_job(job):
 # pool: an open multiprocessing.Pool to use (else one is created for this call if n_proc > 1)
 def find_sl_patterns(hits, *, dt_sl_patterns=params._dt_sl_patterns, silent=False, verbose=False, simulation_only_muon_patterns=False, fit_vd=False, n_proc=1, pool=None, min_hits_per_piece=2000):
     n_hits = len(hits["ch"])
-    if not silent: print(f"Extract DT superlayer patterns from {n_hits} total hits...")
+    if not silent: print(f"Extract DT superlayer patterns from {n_hits:,} total hits...")
     kwargs = {"dt_sl_patterns": dt_sl_patterns, "silent": True, "verbose": verbose, "simulation_only_muon_patterns": simulation_only_muon_patterns, "fit_vd": fit_vd}
     delta_ts_max = _sl_patterns_ts_window(fit_vd)
     parallel = (n_proc > 1 or pool is not None) and not verbose
@@ -491,7 +491,7 @@ def find_sl_patterns(hits, *, dt_sl_patterns=params._dt_sl_patterns, silent=Fals
 def fit_sl_patterns(patterns, *, silent=False, verbose=False, fit_vd=False, suffix=""):
     sl_fits = _fast_dict_copy(patterns)
     n_patterns = len(patterns["sl"])
-    if not silent: print(f"Performing SL pattern fits for {n_patterns} patterns...")
+    if not silent: print(f"Performing SL pattern fits for {n_patterns:,} patterns...")
     sl_fits |= {k + suffix: np.full(n_patterns, 0, dtype=v) for k, v in params._sl_fit_keys.items()} | {
         k + suffix: np.full(n_patterns, 0, dtype=v) for k, v in params._sl_fit_other_keys.items()
     }
@@ -825,7 +825,7 @@ def build_phi_super_patterns(sl_fits, *, silent=False, verbose=False,
     if not silent:
         print(f"matching cut flow: within tgroup_tolerance = {counter_tgroup}, "
               f"within tan_alpha_tolerance = {counter_tan_alpha}, within xproj_tolerance = {counter_xproj}")
-        print(f"built {n_super} phi super patterns (out of {min(n1, n2)} possible pairs)")
+        print(f"built {n_super:,} phi super patterns (out of {min(n1, n2):,} possible pairs)")
 
     # ---- 4) assemble output dict
     fit_result_keys = list(params._sl_fit_keys.keys())  # t0, x0, tan_alpha, chi2/ndf, dt0..dt3, vd, err_*, corr_*
@@ -897,7 +897,7 @@ def fit_super_sl_patterns(super_patterns, *,
 
     n_patterns = len(super_patterns["ts0"])
     if not silent:
-        print(f"Performing super SL pattern fits for {n_patterns} super patterns ...")
+        print(f"Performing super SL pattern fits for {n_patterns:,} super patterns ...")
 
     result_dtypes = {
         "impossible": np.int64, "lat_id1": np.int64, "lat_id2": np.int64,
@@ -1295,7 +1295,7 @@ def reco_muons_from_super_fits(super_fits, theta_fits, *, suffix="", tgroup_tole
         for k in out_keys.keys():
             reco_muons[k][i] = reco_muon_list[i][k]
     if not silent:
-        print(f"Reconstructed {n_reco_muons} muons from {n_super} super fits and {n_theta} theta sl fits "
+        print(f"Reconstructed {n_reco_muons:,} muons from {n_super:,} super fits and {n_theta:,} theta sl fits "
               f"({len(matches)} matched in time, {counter_no_cell} dropped because of an unknown theta cell).")
     return reco_muons
 

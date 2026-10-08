@@ -41,12 +41,12 @@ def main(argv=None):
     n_muons = np.random.poisson(lam=muon_rate * t_sim)
     inter_arrival_times = np.random.exponential(1.0 / muon_rate, n_muons)  # in timestamp units
     ts = args.t_start + np.cumsum(inter_arrival_times)
-    log(f"###### Generating {n_muons} cosmic muon tracks over {args.duration_s:g} s = {t_sim} TU on {muon_area:.2f} m^2...")
+    log(f"###### Generating {n_muons:,} cosmic muon tracks over {args.duration_s:g} s = {t_sim:,} TU on {muon_area:.2f} m^2...")
     cosmic_muons = muon_utils.generate_cosmic_muons(
         n=n_muons, ts=ts, xrange=xrange, yrange=yrange, z0=z0, phirange=[0, 2 * np.pi], thetarange=[0, np.pi / 2], theta_weight=params.cosmic_muon_theta_weight,
     )
     root_utils.write_tree(args.cosmic_muons_file, cosmic_muons)
-    log(f"###### Stored {n_muons} cosmic muon tracks in {args.cosmic_muons_file}")
+    log(f"###### Stored {n_muons:,} cosmic muon tracks in {args.cosmic_muons_file}")
 
 if __name__ == "__main__":
     main()

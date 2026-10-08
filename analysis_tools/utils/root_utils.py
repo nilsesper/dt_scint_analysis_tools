@@ -38,11 +38,12 @@ DEFAULT_STEP_SIZE = "200 MB"
 _START = time.perf_counter()
 
 # colours of the log lines: time in cyan, step description (text in square brackets at the start of a message,
-# e.g. "[dt hits -> cell counts]") in yellow.
+# e.g. "[dt hits -> cell counts]") in yellow, progress counters ("chunk 3 / 10", "block 3 / 10") in magenta.
 # Colours are used when the output goes to a terminal. Set the environment variable DT_SCINT_COLOR=1 to force
 # them (e.g. for batch logs which are viewed with a colour-aware tool) or DT_SCINT_COLOR=0 to switch them off.
-_CYAN, _YELLOW, _RESET = "\033[36m", "\033[33m", "\033[0m"
+_CYAN, _YELLOW, _MAGENTA, _RESET = "\033[36m", "\033[33m", "\033[35m", "\033[0m"
 _STEP_PATTERN = re.compile(r"^(\s*)(\[[^\]]+\])")
+_PROGRESS_PATTERN = re.compile(r"\b(?:chunk|block) [\d,]+ ?/ ?[\d,]+")
 
 def _use_color():
     setting = os.environ.get("DT_SCINT_COLOR", "").strip().lower()
@@ -59,6 +60,7 @@ def log(msg):
     if _use_color():
         prefix = f"{_CYAN}{prefix}{_RESET}"
         msg = _STEP_PATTERN.sub(lambda m: f"{m.group(1)}{_YELLOW}{m.group(2)}{_RESET}", msg, count=1)
+        msg = _PROGRESS_PATTERN.sub(lambda m: f"{_MAGENTA}{m.group(0)}{_RESET}", msg)
     print(f"{prefix} {msg}", flush=True)
 
 ### number of rows of a data dict
@@ -305,7 +307,7 @@ def read_rows(path, rows, tree=None):
         n = t.num_entries
         bad = [r for r in rows if r < 0 or r >= n]
         if len(bad) > 0:
-            raise IndexError(f"Rows {bad} are outside of tree \"{tree}\" of {path}, which has {n} rows.")
+            raise IndexError(f"Rows {bad} are outside of tree \"{tree}\" of {path}, which has {n:,} rows.")
         pieces = [_clean(t.arrays(entry_start=r, entry_stop=r + 1, library="np")) for r in rows]
     if len(pieces) == 0:
         return {}

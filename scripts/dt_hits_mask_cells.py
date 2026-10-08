@@ -40,8 +40,8 @@ def main(argv=None):
             n_in += len(mask)
             n_out += int(mask.sum())
             writer.write({k: v[mask] for k, v in chunk.items()})
-            log(f"    chunk {i_chunk} / {n_chunks_total}: {int(mask.sum())} of {len(mask)} hits kept")
-    log(f"###### Removed the hits of {len(cells)} cells: {n_out} / {n_in} hits kept, stored in {args.masked_dt_hits_file}")
+            log(f"    chunk {i_chunk:,} / {n_chunks_total:,}: {int(mask.sum()):,} of {len(mask):,} hits kept")
+    log(f"###### Removed the hits of {len(cells):,} cells: {n_out:,} / {n_in:,} hits kept, stored in {args.masked_dt_hits_file}")
 
 if __name__ == "__main__":
     main()

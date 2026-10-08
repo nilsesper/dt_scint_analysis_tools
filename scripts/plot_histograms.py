@@ -60,7 +60,7 @@ def main(argv=None):
     prefix = args.prefix if args.prefix is not None else os.path.splitext(os.path.basename(args.input_file))[0]
     available = root_utils.list_branches(args.input_file, tree)
     n_rows_file = root_utils.n_entries(args.input_file, tree)
-    log(f"###### {args.input_file}: tree \"{tree}\", {n_rows_file} rows, {len(available)} branches")
+    log(f"###### {args.input_file}: tree \"{tree}\", {n_rows_file:,} rows, {len(available):,} branches")
     if n_rows_file == 0:
         raise RuntimeError("The tree is empty, nothing to plot.")
 
@@ -82,7 +82,7 @@ def main(argv=None):
         cut_data = root_utils.read_branches(args.input_file, sorted({c[0] for c in cuts}), tree)
         cut_data["__row"] = np.arange(n_rows_file)
         mask = np.isin(np.arange(n_rows_file), data_utils.cut_data(data=cut_data, conditions=cuts, silent=True)["__row"])
-        log(f"###### cuts {cuts}: {int(mask.sum())} / {n_rows_file} rows selected")
+        log(f"###### cuts {cuts}: {int(mask.sum()):,} / {n_rows_file:,} rows selected")
         if not mask.any():
             raise RuntimeError("No rows pass the cuts, nothing to plot.")
 
@@ -120,13 +120,13 @@ def main(argv=None):
             xlabel = plot_utils.key_label(key) if name == key else name
             if split_column is None:
                 _, _, entries, underflow, overflow = plot_utils.draw_histogram(ax, values[finite], edges, xlabel=xlabel, log_scale=args.log_scale)
-                log(f"hist: {name}: n_data={len(values)}, entries={entries}, underflow={underflow}, overflow={overflow}, not finite={n_not_finite}, n_bins={len(edges) - 1}")
+                log(f"hist: {name}: n_data={len(values):,}, entries={entries:,}, underflow={underflow:,}, overflow={overflow:,}, not finite={n_not_finite:,}, n_bins={len(edges) - 1}")
             else:
                 top = 0
                 for value in split_values:
                     selected = values[finite & (split_column == value)]
                     hist, _ = np.histogram(selected, bins=edges)
-                    ax.stairs(hist, edges, linewidth=2, label=f"{plot_utils.key_label(args.split_by)} = {value:g} ({len(selected)} rows)")
+                    ax.stairs(hist, edges, linewidth=2, label=f"{plot_utils.key_label(args.split_by)} = {value:g} ({len(selected):,} rows)")
                     top = max(top, hist.max() if len(hist) > 0 else 0)
                 if args.log_scale:
                     ax.set_yscale("log")
@@ -136,7 +136,7 @@ def main(argv=None):
                 ax.set_xlabel(xlabel)
                 ax.set_ylabel("Counts")
                 ax.legend(prop={"size": 14}, fancybox=False)
-                log(f"hist: {name} split by {args.split_by}: n_data={len(values)}, not finite={n_not_finite}, n_bins={len(edges) - 1}")
+                log(f"hist: {name} split by {args.split_by}: n_data={len(values):,}, not finite={n_not_finite:,}, n_bins={len(edges) - 1}")
             if len(cuts) > 0:
                 ax.set_title("cuts: " + ", ".join(f"{c[0]} {c[1]} {c[2]:g}" for c in cuts), fontsize=12)
             fig.tight_layout()
@@ -144,7 +144,7 @@ def main(argv=None):
             plot_utils.finish_figure(fig, f"{prefix}_{plot_utils.safe_name(name)}{suffix}", store_plots=args.store_plots, show_plots=args.show_plots, file_format=args.format)
             n_plots += 1
 
-    log(f"###### {n_plots} histograms made")
+    log(f"###### {n_plots:,} histograms made")
     for reason, names in skipped.items():
         if len(names) > 0:
             log(f"skipped ({reason}): {', '.join(names)}")

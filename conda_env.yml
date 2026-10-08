@@ -1,0 +1,7 @@
+name: dt_scint_at
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - pip:
+      

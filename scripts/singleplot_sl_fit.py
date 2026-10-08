@@ -7,7 +7,7 @@
 # Fits are selected by their row in the file (--rows), or the first fits passing --cuts are taken (--n_fits).
 #
 # examples:
-#   python scripts/dt_root/singleplot_sl_fit.py --input_file out/run_sl_fits.root --rows 500,600,700 --store_plots plots/single_fits
+#   python scripts/dt_root/singleplot_sl_fit.py --sl_fits_file out/run_sl_fits.root --rows 500,600,700 --store_plots plots/single_fits
 #################################################################
 
 import argparse
@@ -31,13 +31,13 @@ def _select_rows(input_file, cuts, n_fits):
     cut_data = root_utils.read_branches(input_file, sorted({c[0] for c in cuts}))
     cut_data["__row"] = np.arange(root_utils.length(cut_data))
     rows = data_utils.cut_data(data=cut_data, conditions=cuts, silent=True)["__row"]
-    log(f"{len(rows)} fits pass the cuts {cuts}, taking the first {min(n_fits, len(rows))}")
+    log(f"{len(rows):,} fits pass the cuts {cuts}, taking the first {min(n_fits, len(rows)):,}")
     return [int(r) for r in rows[:n_fits]]
 
 @mpl.rc_context({'font.family': 'sans-serif', 'font.size': 20})
 def main(argv=None):
     parser = argparse.ArgumentParser(description="Event display and fit residuals of single sl fits.")
-    parser.add_argument("--input_file", type=str, required=True, help="input file path: sl fits (.root)")
+    parser.add_argument("--sl_fits_file", type=str, required=True, help="input file path: sl fits (.root)")
     parser.add_argument("--rows", type=str, default=None, help="rows of the fits to plot, separated by \",\"")
     parser.add_argument("--n_fits", type=int, default=5, help="if --rows is not given: number of fits to plot (the first ones passing --cuts)")
     parser.add_argument("--cuts", type=str, default=None,
@@ -51,17 +51,17 @@ def main(argv=None):
     sfx = args.suffix
 
     ### which fits
-    root_utils.check_input_file(args.input_file)
+    root_utils.check_input_file(args.sl_fits_file)
     if args.rows is not None:
         rows = [int(s) for s in args.rows.split(",") if s.strip() != ""]
     else:
         cuts = dt_pipeline_utils.parse_cuts(args.cuts) if args.cuts is not None else [("impossible" + sfx, "==", 0)]
-        rows = _select_rows(args.input_file, cuts, args.n_fits)
+        rows = _select_rows(args.sl_fits_file, cuts, args.n_fits)
     if len(rows) == 0:
         raise RuntimeError("No fits selected, nothing to plot.")
-    sl_fits = root_utils.read_rows(args.input_file, rows)
+    sl_fits = root_utils.read_rows(args.sl_fits_file, rows)
     if "t0" + sfx not in sl_fits:
-        raise KeyError(f"No fit results with suffix \"{sfx}\" in {args.input_file}.")
+        raise KeyError(f"No fit results with suffix \"{sfx}\" in {args.sl_fits_file}.")
 
     for i, row in enumerate(rows):
         fit = {k: sl_fits[k][i] for k in sl_fits.keys()}

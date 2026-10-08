@@ -7,7 +7,7 @@
 # (histograms of the single branches: plot_histograms.py)
 #
 # example:
-#   python scripts/dt_root/plot_dt_muons.py --input_file out/run_dt_muons.root --store_plots plots/dt_muons
+#   python scripts/dt_root/plot_dt_muons.py --dt_muons_file out/run_dt_muons.root --store_plots plots/dt_muons
 #################################################################
 
 import argparse
@@ -44,7 +44,7 @@ def _colorbar(fig, ax, im_obj, label):
 @mpl.rc_context({'font.family': 'sans-serif', 'font.size': 16})
 def main(argv=None):
     parser = argparse.ArgumentParser(description="Track maps, projections, 3d view and timing plots of dt muons.")
-    parser.add_argument("--input_file", type=str, required=True, help="input file path: dt muons (.root)")
+    parser.add_argument("--dt_muons_file", type=str, required=True, help="input file path: dt muons (.root)")
     parser.add_argument("--cuts", type=str, default=None, help="cuts applied before plotting, format \"key1,operator1,value1;key2,operator2,value2;...\"")
     parser.add_argument("--mark_cells", type=str, default=None,
                         help="cells to mark in the maps (e.g. dead or noisy ones) as \"sl:ly:wi,sl:ly:wi,...\", or \"none\" "
@@ -71,12 +71,12 @@ def main(argv=None):
 
     ### data import
     cuts = dt_pipeline_utils.parse_cuts(args.cuts)
-    log(f"###### Importing dt muons from {args.input_file}...")
-    dt_muons = root_utils.read_branches(args.input_file, sorted(set(MUON_KEYS) | {c[0] for c in cuts}))
+    log(f"###### Importing dt muons from {args.dt_muons_file}...")
+    dt_muons = root_utils.read_branches(args.dt_muons_file, sorted(set(MUON_KEYS) | {c[0] for c in cuts}))
     n_all = root_utils.length(dt_muons)
     if len(cuts) > 0:
         dt_muons = data_utils.cut_data(data=dt_muons, conditions=cuts, silent=True)
-        log(f"cuts {cuts}: {root_utils.length(dt_muons)} / {n_all} muons selected")
+        log(f"cuts {cuts}: {root_utils.length(dt_muons):,} / {n_all:,} muons selected")
     dt_muons = {k: dt_muons[k] for k in MUON_KEYS}
     n_dt_muons = root_utils.length(dt_muons)
     if n_dt_muons == 0:
@@ -85,7 +85,7 @@ def main(argv=None):
     ### measurement duration and muon rate
     duration = plot_utils.TS_UNIT_NS * 1e-9 * float(np.amax(dt_muons["ts"]) - np.amin(dt_muons["ts"]))
     log(f"measurement duration = {duration} s")
-    log(f"dt muon count: {n_dt_muons}")
+    log(f"dt muon count: {n_dt_muons:,}")
     if duration > 0:
         log(f"dt muon rate: {n_dt_muons / duration:.3f} +- {np.sqrt(n_dt_muons) / duration:.3f} Hz")
 
@@ -115,7 +115,7 @@ def main(argv=None):
         ax.legend(prop={"size": 12}, loc="upper left", fancybox=False, framealpha=params._legend_alpha)
         _colorbar(fig, ax, im_obj, "Counts")
         entries = int(np.sum(pos_muons_hist2d))
-        info_str = f"entries = {entries}\nnot shown = {n_dt_muons - entries}\ntotal = {n_dt_muons}\nbin width = {args.xy_bin_width:g} mm $\\times$ {args.xy_bin_width:g} mm"
+        info_str = f"entries = {entries:,}\nnot shown = {n_dt_muons - entries:,}\ntotal = {n_dt_muons:,}\nbin width = {args.xy_bin_width:g} mm $\\times$ {args.xy_bin_width:g} mm"
         hist_utils.add_infobox(ax=ax, info_str=info_str, info_loc="bottom left")
         fig.tight_layout()
         plot_utils.finish_figure(fig, f"dt_muons_xy_sl{sl}", **out)
@@ -144,7 +144,7 @@ def main(argv=None):
         fig, ax = plt.subplots(1, 1, figsize=(14, 4.5))
         im_obj = ax.imshow(X=pos_muons_hist2d, origin="lower", extent=[x_edges[0], x_edges[-1], z_edges[0], z_edges[-1]], aspect="auto")
         ax = geoplot_utils.chamber_ax(ax=ax, orient=orient, cell_data=marked_cell_data, wire=False, transparent=True)
-        ax.set_title(f"DT tracks, ${slice_name[0]}$-$z$ projection ({n_dt_muons} tracks)")
+        ax.set_title(f"DT tracks, ${slice_name[0]}$-$z$ projection ({n_dt_muons:,} tracks)")
         ax.set_xlabel(f"${slice_name[0]}$ [mm]")
         ax.set_ylabel("$z$ [mm]")
         other = "y" if slice_name == "xz" else "x"
@@ -186,7 +186,7 @@ def main(argv=None):
     x_span = sl_x_coord_all(1) - sl_x_coord_all(0) + 400
     y_span = sl_y_coord_all(1) - sl_y_coord_all(0) + 400
     ax.set_box_aspect((x_span, y_span, 0.45 * max(x_span, y_span)))  # z is stretched, the chamber is flat
-    ax.set_title(f"DT tracks ({n_3d} of {n_dt_muons} shown, $z$ axis stretched)")
+    ax.set_title(f"DT tracks ({n_3d:,} of {n_dt_muons:,} shown, $z$ axis stretched)")
     legend_entries = {
         "Phi superlayers (SL 1, SL 3)": pat.Patch(edgecolor="tab:blue", facecolor="none"),
         "Theta superlayer (SL 2)": pat.Patch(edgecolor="tab:orange", facecolor="none"),

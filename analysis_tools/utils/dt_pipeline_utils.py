@@ -133,6 +133,7 @@ def _read_raw_blocks(file_name, block_n_lines, n_lines_to_skip):
 
 ### lookup tables for the mapping of readout channel and channel to the dt cell: {key: array[ro_ch, ch]}
 # and for the cells which are kept (inside the chamber, not masked, not dead): array[sl, ly, wi]
+# and for all cells inside the chamber (also masked and dead ones, used for testpulse runs): array[sl, ly, wi]
 _DT_TABLES = None
 def _dt_tables():
     global _DT_TABLES
@@ -147,15 +148,17 @@ def _dt_tables():
                 for k in params._dt_mapping_keys.keys():
                     mapping[k][ro_ch, ch] = cell[k]
         keep_cell = np.zeros((256, 256, 256), dtype=bool)
+        in_chamber = np.zeros((256, 256, 256), dtype=bool)
         for sl in params._dt_chamber["sls"].keys():
             for ly in params._dt_chamber["sls"][sl]["lys"].keys():
                 min_wi = params._dt_chamber["sls"][sl]["lys"][ly]["min_wi"]
                 max_wi = params._dt_chamber["sls"][sl]["lys"][ly]["max_wi"]
                 keep_cell[sl, ly, min_wi:max_wi + 1] = True
+                in_chamber[sl, ly, min_wi:max_wi + 1] = True
                 excluded_wis = set(params._dt_wire_mask[sl][ly]) | set(params._dt_dead_wires.get(sl, {}).get(ly, []))
                 for wi in excluded_wis:
                     keep_cell[sl, ly, wi] = False
-        _DT_TABLES = (mapped, has_cell, mapping, keep_cell)
+        _DT_TABLES = (mapped, has_cell, mapping, keep_cell, in_chamber)
     return _DT_TABLES
 
 ### convert one block of dumpfile lines (bytes) into dt hits
@@ -166,7 +169,8 @@ def _dt_tables():
 # the dt hits carry two helper columns which the caller turns into the final timestamp (see _finish_block):
 #   "_ts_base": timestamp from tdc, bx and orbit number, "_n_overflow": orbit counter overflows inside this block
 #   up to this hit
-def _convert_block(block_bytes):
+# all_cells: keep also masked and dead cells (testpulse runs: every cell of the chamber is calibrated)
+def _convert_block(block_bytes, all_cells=False):
     raw = np.array(block_bytes.split(), dtype=np.uint64)
     n_raw = len(raw)
     if n_raw == 0:
@@ -184,10 +188,10 @@ def _convert_block(block_bytes):
                + hits["oc"].astype(np.uint64) * np.uint64(derived_params._orbit_to_timestamp))
     first_oc, last_oc, n_overflow_block = int(oc[0]), int(oc[-1]), int(n_overflow[-1])
     # dt channels only, with the cell they belong to
-    mapped, has_cell, mapping, keep_cell = _dt_tables()
+    mapped, has_cell, mapping, keep_cell, in_chamber = _dt_tables()
     ro_ch, ch = hits["ro_ch"].astype(np.intp), hits["ch"].astype(np.intp)
     sl, ly, wi = mapping["sl"][ro_ch, ch], mapping["ly"][ro_ch, ch], mapping["wi"][ro_ch, ch]
-    keep = mapped[ro_ch, ch] & has_cell[ro_ch, ch] & keep_cell[sl, ly, wi]
+    keep = mapped[ro_ch, ch] & has_cell[ro_ch, ch] & (in_chamber if all_cells else keep_cell)[sl, ly, wi]
     n_dt = int(keep.sum())
     if n_dt == 0:
         return None, n_raw, first_oc, last_oc, n_overflow_block
@@ -225,60 +229,84 @@ def _finish_block(result, state):
     state.last_oc = last_oc
     return dt_hits, n_raw
 
+### read a raw dumpfile block by block and yield the dt hits of every block with their final timestamps
+# yields (dt hits or None, number of raw hits, block number, number of blocks), in the order of the file
+# n_proc > 1: the blocks are converted on several processes; the result is the same as on one process
+# all_cells: keep also masked and dead cells (testpulse runs)
+def _iterate_dumpfile(input_dumpfile, *, n_lines_to_skip, block_n_lines, n_proc, all_cells=False, label="dumpfile -> dt hits"):
+    root_utils.check_input_file(input_dumpfile)
+    n_lines = _count_lines(input_dumpfile)
+    n_blocks = int(np.ceil(max(0, n_lines - n_lines_to_skip) / block_n_lines))
+    log(f"[{label}] {n_lines:,} lines in the dumpfile ({os.path.getsize(input_dumpfile) / 1e6:.1f} MB), "
+        f"{n_lines_to_skip:,} skipped -> {n_blocks:,} blocks of {block_n_lines:,} lines, n_proc={n_proc}")
+    ts_state = _TimestampState()
+    blocks = _read_raw_blocks(input_dumpfile, block_n_lines, n_lines_to_skip)
+    i_block = 0
+    with _optional_pool(n_proc) as pool:
+        if pool is None:
+            results = (_convert_block(block, all_cells) for block in blocks)
+        else:
+            # keep at most 2 * n_proc blocks in work at a time, hand out the results in the order of the file
+            def _ordered():
+                pending = collections.deque()
+                for block in blocks:
+                    pending.append(pool.apply_async(_convert_block, (block, all_cells)))
+                    if len(pending) >= 2 * n_proc:
+                        yield pending.popleft().get()
+                while pending:
+                    yield pending.popleft().get()
+            results = _ordered()
+        for result in results:
+            i_block += 1
+            dt_block, n_raw = _finish_block(result, ts_state)
+            yield dt_block, n_raw, i_block, n_blocks
+    if ts_state.oc_overflow > 0:
+        log(f"[{label}] orbit counter overflows found: {ts_state.oc_overflow:,}")
+
 ### convert a raw dumpfile (.txt) into a ROOT file holding only the dt hits (tree "dt_hits")
 # decodes the data words, adds the timestamp, keeps only dt channels, adds the chamber mapping
 # (sl, ly, wi) and removes masked / dead wires
+# dt_tp_corrections_file (optional): testpulse timing calibration (.root or .pcl, see dumpfile_to_dt_tp_corrections),
+#   applied to every hit: ts -> ts + ts_corr(sl, ly, wi), err_ts -> sqrt(err_ts^2 + err_ts_corr^2), oc / bx / tdc recalculated
+#   (same result as converting first and then running apply_timing_correction)
 # n_proc > 1: the blocks are converted on several processes and written in the order of the file; the result
 #   is the same as on one process
-def convert_dumpfile_to_dt_hits(input_dumpfile, dt_hits_file, *, n_lines_to_skip=999, block_n_lines=500_000, n_proc=1):
+def convert_dumpfile_to_dt_hits(input_dumpfile, dt_hits_file, *, n_lines_to_skip=999, block_n_lines=500_000, n_proc=1,
+                                dt_tp_corrections_file=None):
     root_utils.check_input_file(input_dumpfile)
-    log(f"[dumpfile -> dt hits] START \"{input_dumpfile}\" -> \"{dt_hits_file}\"")
-    log(f"[dumpfile -> dt hits] block_n_lines={block_n_lines}, n_lines_to_skip={n_lines_to_skip}, n_proc={n_proc}, "
-        f"input size {os.path.getsize(input_dumpfile) / 1e6:.1f} MB")
-    n_lines = _count_lines(input_dumpfile)
-    n_blocks = int(np.ceil(max(0, n_lines - n_lines_to_skip) / block_n_lines))
-    log(f"[dumpfile -> dt hits] {n_lines} lines in the dumpfile -> {n_blocks} blocks")
-    ts_state = _TimestampState()
+    label = "dumpfile -> dt hits"
+    log(f"[{label}] START \"{input_dumpfile}\" -> \"{dt_hits_file}\"")
+    tables = None
+    if dt_tp_corrections_file is not None:
+        tables = timing_correction_tables_from_file(dt_tp_corrections_file, label=label)
+        log(f"[{label}] testpulse timing corrections from \"{dt_tp_corrections_file}\" are applied to the hits")
+    else:
+        log(f"[{label}] no testpulse timing corrections given, timestamps are not corrected")
     writer = root_utils.TreeWriter(dt_hits_file, root_utils.DT_HITS_TREE)
     totals = {"raw": 0, "blocks": 0}
+    missing_cells = set()
     t_start = time.perf_counter()
-
-    def _write(result):
-        dt_block, n_raw = _finish_block(result, ts_state)
+    for dt_block, n_raw, i_block, n_blocks in _iterate_dumpfile(input_dumpfile, n_lines_to_skip=n_lines_to_skip,
+                                                                block_n_lines=block_n_lines, n_proc=n_proc, label=label):
         totals["blocks"] += 1
         totals["raw"] += n_raw
         n_dt = 0
         if dt_block is not None:
             n_dt = root_utils.length(dt_block)
+            if tables is not None:
+                dt_block = _apply_timing_calibration_chunk(dt_block, *tables, missing_cells=missing_cells)
             writer.write(dt_block)
         elapsed = time.perf_counter() - t_start
-        log(f"[dumpfile -> dt hits] block {totals['blocks']} / {n_blocks}: {n_raw} raw hits -> {n_dt} dt hits "
-            f"({100 * n_dt / max(1, n_raw):.1f}%) | totals: {totals['raw']} raw, {writer.n_written} dt | "
-            f"{totals['raw'] / max(elapsed, 1e-9):.0f} raw hits/s")
-
-    blocks = _read_raw_blocks(input_dumpfile, block_n_lines, n_lines_to_skip)
-    with _optional_pool(n_proc) as pool:
-        if pool is None:
-            for block in blocks:
-                _write(_convert_block(block))
-        else:
-            # keep at most 2 * n_proc blocks in work at a time, write the results in the order of the file
-            pending = collections.deque()
-            for block in blocks:
-                pending.append(pool.apply_async(_convert_block, (block,)))
-                if len(pending) >= 2 * n_proc:
-                    _write(pending.popleft().get())
-            while pending:
-                _write(pending.popleft().get())
+        log(f"[{label}] block {i_block:,} / {n_blocks:,}: {n_raw:,} raw hits -> {n_dt:,} dt hits "
+            f"({100 * n_dt / max(1, n_raw):.1f}%) | totals: {totals['raw']:,} raw, {writer.n_written:,} dt | "
+            f"{totals['raw'] / max(elapsed, 1e-9):,.0f} raw hits/s")
     writer.close()
-    if ts_state.oc_overflow > 0:
-        log(f"[dumpfile -> dt hits] orbit counter overflows found: {ts_state.oc_overflow}")
-    log(f"[dumpfile -> dt hits] DONE. {totals['blocks']} blocks, {totals['raw']} raw hits read, {writer.n_written} dt hits written, "
-        f"took {time.perf_counter() - t_start:.1f}s")
+    _warn_missing_corrections(missing_cells, label)
+    log(f"[{label}] DONE. {totals['blocks']:,} blocks, {totals['raw']:,} raw hits read, {writer.n_written:,} dt hits written"
+        f"{' (timing corrected)' if tables is not None else ''}, took {time.perf_counter() - t_start:.1f}s")
     if writer.n_written == 0:
         raise RuntimeError(f"No dt hits found in {input_dumpfile} -- check n_lines_to_skip / bit masks / channel mapping in params.py.")
     return writer.n_written
-
 
 def _apply_individual_dead_time_chunk(hits_chunk):
     """Dead-time cut applied to ONE CHUNK only -- state resets at every chunk boundary (no carry-over).
@@ -349,6 +377,7 @@ def _fold_histogram_chunk(hits_chunk, running):
 # -----------------------------------------
 
 ### build lookup arrays [sl][ly][wi] from a testpulse correction object {sl: {ly: {wi: {"ts_corr", "err_ts_corr"}}}}
+# cells without correction are NaN
 def _timing_correction_tables(dt_tp_corrections):
     ts_corr = np.full((256, 256, 256), np.nan, dtype=np.float64)
     err_ts_corr = np.full((256, 256, 256), np.nan, dtype=np.float64)
@@ -359,17 +388,73 @@ def _timing_correction_tables(dt_tp_corrections):
                 err_ts_corr[int(sl), int(ly), int(wi)] = corr["err_ts_corr"]
     return ts_corr, err_ts_corr
 
+### read a testpulse timing calibration file into {sl: {ly: {wi: {"ts_corr", "err_ts_corr"}}}}
+# .root: tree "tree" with one row per cell (branches sl, ly, wi, ts_corr, err_ts_corr), made by dumpfile_to_dt_tp_corrections
+# .pcl:  the nested dict itself (format of the old testpulse script)
+def load_tp_corrections(dt_tp_corrections_file):
+    root_utils.check_input_file(dt_tp_corrections_file)
+    if dt_tp_corrections_file.endswith(".pcl"):
+        return data_utils.load_pickle(file=dt_tp_corrections_file, silent=True)
+    rows = root_utils.read_branches(dt_tp_corrections_file, ["sl", "ly", "wi", "ts_corr", "err_ts_corr"], root_utils.DEFAULT_TREE)
+    dt_tp_corrections = {}
+    for sl, ly, wi, corr, err_corr in zip(rows["sl"], rows["ly"], rows["wi"], rows["ts_corr"], rows["err_ts_corr"]):
+        dt_tp_corrections.setdefault(int(sl), {}).setdefault(int(ly), {})[int(wi)] = {"ts_corr": float(corr), "err_ts_corr": float(err_corr)}
+    return dt_tp_corrections
+
+### is this object a testpulse correction dict {sl: {ly: {wi: {"ts_corr", "err_ts_corr"}}}} ?
+def is_tp_corrections_dict(obj):
+    try:
+        sl_value = next(iter(obj.values()))
+        cell = next(iter(next(iter(sl_value.values())).values()))
+        return isinstance(cell, dict) and "ts_corr" in cell and "err_ts_corr" in cell
+    except (AttributeError, StopIteration, TypeError):
+        return False
+
+### write a testpulse correction dict {sl: {ly: {wi: {"ts_corr", "err_ts_corr"}}}} (e.g. an old .pcl) as calibration ROOT file
+# (tree "tree", one row per cell: sl, ly, wi, ts_corr, err_ts_corr; can be used like the output of dumpfile_to_dt_tp_corrections)
+def store_tp_corrections_root(dt_tp_corrections, dt_tp_corrections_file):
+    cells = sorted((int(sl), int(ly), int(wi)) for sl, lys in dt_tp_corrections.items() for ly, wis in lys.items() for wi in wis.keys())
+    rows = {"sl": np.array([c[0] for c in cells], dtype=np.int32), "ly": np.array([c[1] for c in cells], dtype=np.int32),
+            "wi": np.array([c[2] for c in cells], dtype=np.int32)}
+    rows["ts_corr"] = np.array([dt_tp_corrections[sl][ly][wi]["ts_corr"] for sl, ly, wi in cells], dtype=np.float64)
+    rows["err_ts_corr"] = np.array([dt_tp_corrections[sl][ly][wi]["err_ts_corr"] for sl, ly, wi in cells], dtype=np.float64)
+    root_utils.write_tree(dt_tp_corrections_file, rows, tree=root_utils.DEFAULT_TREE)
+    return len(cells)
+
+### lookup tables (ts_corr, err_ts_corr) [sl, ly, wi] from a calibration file, with a short report
+def timing_correction_tables_from_file(dt_tp_corrections_file, *, label="timing correction"):
+    tables = _timing_correction_tables(load_tp_corrections(dt_tp_corrections_file))
+    n_cells = int(np.sum(~np.isnan(tables[0])))
+    if n_cells == 0:
+        raise RuntimeError(f"No timing corrections found in {dt_tp_corrections_file}.")
+    _, _, _, _, in_chamber = _dt_tables()
+    n_chamber_missing = int(np.sum(in_chamber & np.isnan(tables[0])))
+    log(f"[{label}] timing corrections for {n_cells:,} cells, between {np.nanmin(tables[0]):.2f} and {np.nanmax(tables[0]):.2f} ts units"
+        + (f"; {n_chamber_missing} cells of the chamber have no correction (left uncorrected)" if n_chamber_missing > 0 else ""))
+    return tables
+
+def _warn_missing_corrections(missing_cells, label):
+    if len(missing_cells) > 0:
+        cells = sorted(missing_cells)
+        log(f"[{label}] WARNING: hits of {len(cells):,} cells (sl, ly, wi) without timing correction were left uncorrected: "
+            f"{cells[:10]}{' ...' if len(cells) > 10 else ''}")
+
 ### apply the testpulse timing calibration to one chunk of dt hits
 # same result as dt_utils.apply_timing_calibration, without the loop over hits:
 #   ts_corrected = ts + ts_corr(sl, ly, wi),  err_ts_corrected = sqrt(err_ts^2 + err_ts_corr^2),
 #   oc / bx / tdc are recalculated from the corrected timestamp
-def _apply_timing_calibration_chunk(hits, ts_corr_table, err_ts_corr_table):
+# cells without correction: the hits are left as they are and the cells are added to missing_cells
+#   (if missing_cells is None, a KeyError is raised instead)
+def _apply_timing_calibration_chunk(hits, ts_corr_table, err_ts_corr_table, *, missing_cells=None):
     sl, ly, wi = hits["sl"].astype(np.intp), hits["ly"].astype(np.intp), hits["wi"].astype(np.intp)
     corr, err_corr = ts_corr_table[sl, ly, wi], err_ts_corr_table[sl, ly, wi]
     missing = np.isnan(corr)
     if np.any(missing):
-        cells = sorted({(int(a), int(b), int(c)) for a, b, c in zip(sl[missing], ly[missing], wi[missing])})
-        raise KeyError(f"No timing correction for {len(cells)} cells (sl, ly, wi), first ones: {cells[:10]}")
+        cells = {(int(a), int(b), int(c)) for a, b, c in zip(sl[missing], ly[missing], wi[missing])}
+        if missing_cells is None:
+            raise KeyError(f"No timing correction for {len(cells):,} cells (sl, ly, wi), first ones: {sorted(cells)[:10]}")
+        missing_cells |= cells
+        corr, err_corr = np.where(missing, 0.0, corr), np.where(missing, 0.0, err_corr)
     corr_hits = dict(hits)
     ts = np.asarray(hits["ts"], dtype=np.float64) + corr
     corr_hits["ts"] = ts.astype(hits["ts"].dtype)
@@ -380,24 +465,188 @@ def _apply_timing_calibration_chunk(hits, ts_corr_table, err_ts_corr_table):
     corr_hits["tdc"] = ((ts_int % derived_params._bx_to_timestamp) // np.uint64(derived_params._tdc_to_timestamp)).astype(hits["tdc"].dtype)
     return corr_hits
 
-### apply the testpulse timing calibration (one time offset per wire) to the dt hits
-# dt_tp_corrections_file: .pcl file made by the testpulse scripts, {sl: {ly: {wi: {"ts_corr", "err_ts_corr"}}}}
+### apply the testpulse timing calibration (one time offset per wire) to an existing dt hits file
+# dt_tp_corrections_file: .root made by dumpfile_to_dt_tp_corrections, or .pcl of the old testpulse script
+# (the same correction can be applied directly when converting the dumpfile, see convert_dumpfile_to_dt_hits)
 def apply_timing_correction(dt_hits_file, dt_tp_corrections_file, corr_dt_hits_file, *, step_size=root_utils.DEFAULT_STEP_SIZE):
     root_utils.check_input_file(dt_hits_file)
-    root_utils.check_input_file(dt_tp_corrections_file)
-    log(f"[dt hits -> corrected dt hits] START \"{dt_hits_file}\" + \"{dt_tp_corrections_file}\" -> \"{corr_dt_hits_file}\"")
-    dt_tp_corrections = data_utils.load_pickle(file=dt_tp_corrections_file, silent=True)
-    ts_corr_table, err_ts_corr_table = _timing_correction_tables(dt_tp_corrections)
+    label = "dt hits -> corrected dt hits"
+    log(f"[{label}] START \"{dt_hits_file}\" + \"{dt_tp_corrections_file}\" -> \"{corr_dt_hits_file}\"")
+    ts_corr_table, err_ts_corr_table = timing_correction_tables_from_file(dt_tp_corrections_file, label=label)
     n_hits = 0
+    missing_cells = set()
     n_chunks_total = root_utils.n_steps(dt_hits_file, root_utils.DT_HITS_TREE, step_size=step_size)
     with root_utils.TreeWriter(corr_dt_hits_file, root_utils.DT_HITS_TREE) as writer:
         for i_chunk, (_, chunk) in enumerate(root_utils.iterate_tree(dt_hits_file, root_utils.DT_HITS_TREE, step_size=step_size), start=1):
             n_hits += root_utils.length(chunk)
-            writer.write(_apply_timing_calibration_chunk(chunk, ts_corr_table, err_ts_corr_table))
-            log(f"    chunk {i_chunk} / {n_chunks_total}: {root_utils.length(chunk)} hits corrected")
-    log(f"[dt hits -> corrected dt hits] DONE. {n_hits} hits, corrections between "
-        f"{np.nanmin(ts_corr_table):.2f} and {np.nanmax(ts_corr_table):.2f} ts units")
+            writer.write(_apply_timing_calibration_chunk(chunk, ts_corr_table, err_ts_corr_table, missing_cells=missing_cells))
+            log(f"    chunk {i_chunk:,} / {n_chunks_total:,}: {root_utils.length(chunk):,} hits corrected")
+    _warn_missing_corrections(missing_cells, label)
+    log(f"[{label}] DONE. {n_hits:,} hits")
     return n_hits
+
+# -----------------------------------------
+# stage: testpulse dumpfile -> timing calibration of all dt cells
+# -----------------------------------------
+
+### first peak of the testpulse timing of one cell
+# values, counts: occupied ts_orbit values (integers, sorted) and their number of hits
+# same method as dt_utils.analyze_testpulses_per_wire: histogram with bins of 1 ts unit, peaks = groups of neighbouring
+# bins with at least rel_thres * (highest bin); the first peak (lowest time) is the direct testpulse response, the
+# later ones come from ringing of the testpulse circuit. Peak position = weighted mean of the bin centres.
+# returns (mean, err, number of hits in the peak, first bin, last bin) or None
+def _first_tp_peak(values, counts, rel_thres):
+    if len(values) == 0:
+        return None
+    hist = np.zeros(int(values[-1] - values[0]) + 1, dtype=np.int64)
+    hist[(values - values[0]).astype(np.intp)] = counts
+    above = hist >= np.amax(hist) * rel_thres
+    start = int(np.argmax(above))
+    stop = start + (int(np.argmin(above[start:])) if not above[start:].all() else len(above) - start)
+    hist_peak = hist[start:stop].astype(np.float64)
+    centers_peak = values[0] + np.arange(start, stop, dtype=np.float64)
+    mean, err = hist_utils.weighted_mean_peak_position(hist=hist_peak, centers=centers_peak, err_hist=np.sqrt(hist_peak),
+                                                       err_centers=np.full(len(hist_peak), 1 / np.sqrt(12)))
+    return mean, err, int(hist_peak.sum()), int(centers_peak[0]), int(centers_peak[-1])
+
+### all cells of the chamber: list of (sl, ly, wi)
+def _chamber_cells():
+    return [(sl, ly, wi) for sl in params._dt_chamber["sls"].keys() for ly in params._dt_chamber["sls"][sl]["lys"].keys()
+            for wi in range(params._dt_chamber["sls"][sl]["lys"][ly]["min_wi"], params._dt_chamber["sls"][sl]["lys"][ly]["max_wi"] + 1)]
+
+### analyse a dumpfile recorded with testpulses on all channels and calculate the timing correction of every dt cell
+# 1. dumpfile -> dt hits of ALL cells of the chamber (masked and dead ones included, no dead time cut)
+# 2. per cell: histogram of the time inside the orbit, ts_orbit = tdc + 32 * bx (bins of 1 ts unit), position of the
+#    first peak (see _first_tp_peak)
+# 3. correct_for_offsets: subtract the known testpulse delay of the frontend connector (params._tp_time_offset,
+#    uncertainty params._tp_time_offset_err), e.g. the longer theta testpulse latency and old cables
+# 4. corrections, applied later with a plus sign (ts_corrected = ts + ts_corr):
+#    alignment "chamber": ts_corr = <mean over all valid cells of the chamber> - tp_ts_mean   (default, needs aligned testpulses of all SLs)
+#    alignment "sl":      ts_corr = <mean over all valid cells of the SL> - tp_ts_mean        (a time offset between the SLs remains)
+#    err_ts_corr = uncertainty of tp_ts_mean; cells without a testpulse peak get ts_corr = err_ts_corr = 0 (valid = 0)
+#    the mean is taken over the cells which are not masked / dead (params._dt_wire_mask / _dt_dead_wires), but these
+#    cells get a correction as well if they respond to the testpulses (branch masked = 1)
+# Same result as the old script (dt_utils.analyze_testpulses_per_wire + calculate_*_tp_corrections), except that the
+# old script dropped the masked / dead cells (ts_corr = 0 for them).
+# output (.root): tree "tree" with one row per cell, tree "summary", and TH2D maps per SL (x = wire, y = layer) of the
+#   corrections and testpulse times + TH1D of ts_orbit per SL (all hits)
+# output (.pcl): only the correction dict {sl: {ly: {wi: {"ts_corr", "err_ts_corr"}}}} (format of the old script)
+# dt_tp_hits_file (optional): the testpulse dt hits (.root, tree "dt_hits") with the extra branch ts_orbit
+def dumpfile_to_dt_tp_corrections(input_dumpfile, dt_tp_corrections_file, *, dt_tp_hits_file=None, n_lines_to_skip=None,
+                                  block_n_lines=500_000, n_proc=1, rel_thres=0.2, alignment="chamber", correct_for_offsets=True):
+    label = "testpulse dumpfile -> dt tp corrections"
+    if alignment not in ("chamber", "sl"):
+        raise ValueError(f"alignment has to be \"chamber\" or \"sl\", not \"{alignment}\"")
+    if n_lines_to_skip is None:
+        n_lines_to_skip = params._dumpfile_hits_to_skip
+    root_utils.check_input_file(input_dumpfile)
+    log(f"[{label}] START \"{input_dumpfile}\" -> \"{dt_tp_corrections_file}\"")
+    log(f"[{label}] rel_thres={rel_thres}, alignment={alignment}, correct_for_offsets={correct_for_offsets}")
+    t_start = time.perf_counter()
+    ts_orbit_period = int(derived_params._orbit_to_timestamp)
+    shift = int(np.ceil(np.log2(ts_orbit_period)))
+    # occupied (cell, ts_orbit) values and their counts, merged block by block
+    keys_total, counts_total = np.zeros(0, dtype=np.int64), np.zeros(0, dtype=np.int64)
+    sl_hists = {sl: np.zeros(ts_orbit_period, dtype=np.int64) for sl in params._dt_chamber["sls"].keys()}
+    totals = {"raw": 0, "dt": 0}
+    hits_writer = root_utils.TreeWriter(dt_tp_hits_file, root_utils.DT_HITS_TREE) if dt_tp_hits_file is not None else None
+    for dt_block, n_raw, i_block, n_blocks in _iterate_dumpfile(input_dumpfile, n_lines_to_skip=n_lines_to_skip, block_n_lines=block_n_lines,
+                                                                n_proc=n_proc, all_cells=True, label=label):
+        totals["raw"] += n_raw
+        n_dt = 0
+        if dt_block is not None:
+            n_dt = root_utils.length(dt_block)
+            totals["dt"] += n_dt
+            ts_orbit = (dt_block["tdc"].astype(np.int64) * int(derived_params._tdc_to_timestamp)
+                        + dt_block["bx"].astype(np.int64) * int(derived_params._bx_to_timestamp))
+            cell = (dt_block["sl"].astype(np.int64) * 256 + dt_block["ly"].astype(np.int64)) * 256 + dt_block["wi"].astype(np.int64)
+            keys, counts = np.unique((cell << shift) | ts_orbit, return_counts=True)
+            keys_total, inverse = np.unique(np.concatenate((keys_total, keys)), return_inverse=True)
+            counts_total = np.bincount(inverse, weights=np.concatenate((counts_total, counts)), minlength=len(keys_total)).astype(np.int64)
+            for sl, sl_hist in sl_hists.items():
+                sl_hist += np.bincount(ts_orbit[dt_block["sl"] == sl], minlength=ts_orbit_period)[:ts_orbit_period]
+            if hits_writer is not None:
+                dt_block["ts_orbit"] = ts_orbit.astype(params._ts_type)
+                hits_writer.write(dt_block)
+        log(f"[{label}] block {i_block:,} / {n_blocks:,}: {n_raw:,} raw hits -> {n_dt:,} dt hits | totals: {totals['raw']:,} raw, {totals['dt']:,} dt")
+    if hits_writer is not None:
+        hits_writer.close()
+        log(f"[{label}] testpulse dt hits written to \"{dt_tp_hits_file}\"")
+    if totals["dt"] == 0:
+        raise RuntimeError(f"No dt hits found in {input_dumpfile} -- check n_lines_to_skip / bit masks / channel mapping in params.py.")
+
+    ### first peak per cell
+    cells = _chamber_cells()
+    _, _, _, keep_cell, _ = _dt_tables()
+    key_cells, key_values = keys_total >> shift, keys_total & ((1 << shift) - 1)
+    n_cells = len(cells)
+    out = {k: np.zeros(n_cells, dtype=np.int32) for k in ("sl", "ly", "wi", "fe_id", "n_hits", "n_peak_hits", "peak_ts_min", "peak_ts_max", "valid", "masked")}
+    out |= {k: np.zeros(n_cells, dtype=np.float64) for k in ("tp_ts_mean_raw", "tp_ts_err_raw", "tp_offset", "tp_ts_mean", "tp_ts_err", "ts_target", "ts_corr", "err_ts_corr")}
+    for i, (sl, ly, wi) in enumerate(cells):
+        out["sl"][i], out["ly"][i], out["wi"][i] = sl, ly, wi
+        out["fe_id"][i] = derived_params._dt_inverted_remap_table[sl][ly][wi]["fe_id"]
+        out["masked"][i] = int(not keep_cell[sl, ly, wi])
+        start = int(np.searchsorted(key_cells, (sl * 256 + ly) * 256 + wi))
+        stop = int(np.searchsorted(key_cells, (sl * 256 + ly) * 256 + wi, side="right"))
+        out["n_hits"][i] = int(counts_total[start:stop].sum())
+        peak = _first_tp_peak(key_values[start:stop], counts_total[start:stop], rel_thres)
+        mean, err = 0.0, 0.0  # default values of the old script for cells without testpulse hits
+        if peak is not None:
+            mean, err, out["n_peak_hits"][i], out["peak_ts_min"][i], out["peak_ts_max"][i] = peak
+        out["tp_ts_mean_raw"][i], out["tp_ts_err_raw"][i] = mean, err
+        if correct_for_offsets:
+            fe_name = params._fe_idx_list[derived_params._dt_inverted_remap_table[sl][ly][wi]["fe_id"]]
+            out["tp_offset"][i] = params._tp_time_offset[sl][fe_name]
+            mean, err = mean - params._tp_time_offset[sl][fe_name], np.sqrt(params._tp_time_offset_err ** 2 + err ** 2)
+        out["tp_ts_mean"][i], out["tp_ts_err"][i] = mean, err
+        out["valid"][i] = int(peak is not None and mean > 0)  # same condition as the old script (tp_ts_mean > 0)
+
+    ### corrections
+    valid = out["valid"] == 1
+    if not valid.any():
+        raise RuntimeError("No cell with a testpulse peak found -- is this a testpulse run?")
+    groups = [np.full(n_cells, True)] if alignment == "chamber" else [out["sl"] == sl for sl in params._dt_chamber["sls"].keys()]
+    in_target = valid & (out["masked"] == 0)
+    for group in groups:
+        if not (group & in_target).any():
+            log(f"[{label}] WARNING: no valid cell in SL {out['sl'][group][0]}, its cells are not corrected")
+            continue
+        target = np.mean(out["tp_ts_mean"][group & in_target])
+        out["ts_target"][group] = target
+        out["ts_corr"][group & valid] = target - out["tp_ts_mean"][group & valid]
+        out["err_ts_corr"][group & valid] = out["tp_ts_err"][group & valid]
+
+    n_valid = int(valid.sum())
+    log(f"[{label}] {n_valid:,} / {n_cells:,} cells with testpulse peak; corrections between {out['ts_corr'][valid].min():.2f} and "
+        f"{out['ts_corr'][valid].max():.2f} ts units (rms {np.std(out['ts_corr'][valid]):.2f}), mean uncertainty {out['err_ts_corr'][valid].mean():.2f}")
+    no_peak = [cells[i] for i in np.flatnonzero(~valid)]
+    if len(no_peak) > 0:
+        log(f"[{label}] cells without testpulse peak (ts_corr = 0): {no_peak[:20]}{' ...' if len(no_peak) > 20 else ''}")
+
+    ### store
+    if dt_tp_corrections_file.endswith(".pcl"):
+        corrections = {}
+        for i, (sl, ly, wi) in enumerate(cells):
+            corrections.setdefault(sl, {}).setdefault(ly, {})[wi] = {"ts_corr": out["ts_corr"][i], "err_ts_corr": out["err_ts_corr"][i]}
+        root_utils.prepare_output_file(dt_tp_corrections_file)
+        data_utils.store_pickle(data=corrections, file=dt_tp_corrections_file, silent=True)
+    else:
+        histograms = {}
+        for sl in params._dt_chamber["sls"].keys():
+            sel = out["sl"] == sl
+            wi_edges = np.arange(out["wi"][sel].min() - 0.5, out["wi"][sel].max() + 1.5)
+            ly_edges = np.arange(out["ly"][sel].min() - 0.5, out["ly"][sel].max() + 1.5)
+            for key in ("ts_corr", "tp_ts_mean", "n_peak_hits"):
+                hist2d = np.zeros((len(wi_edges) - 1, len(ly_edges) - 1))
+                hist2d[out["wi"][sel] - out["wi"][sel].min(), out["ly"][sel] - out["ly"][sel].min()] = out[key][sel]
+                histograms[f"{key}_sl{sl}"] = (hist2d, wi_edges, ly_edges)
+            histograms[f"ts_orbit_sl{sl}"] = (sl_hists[sl], np.arange(ts_orbit_period + 1) - 0.5)
+        summary = {"n_cells": n_cells, "n_valid": n_valid, "rel_thres": float(rel_thres), "chamber_alignment": int(alignment == "chamber"),
+                   "correct_for_offsets": int(correct_for_offsets), "n_raw_hits": totals["raw"], "n_dt_hits": totals["dt"],
+                   "n_lines_to_skip": int(n_lines_to_skip)}
+        root_utils.write_tree(dt_tp_corrections_file, out, tree=root_utils.DEFAULT_TREE, summary=summary, histograms=histograms)
+    log(f"[{label}] DONE. {n_cells:,} cells written to \"{dt_tp_corrections_file}\", took {time.perf_counter() - t_start:.1f}s")
+    return out
 
 # -----------------------------------------
 # stage: dt hits -> hit difference histogram (side product)
@@ -419,7 +668,7 @@ def dt_hits_to_hit_diff_hist(dt_hits_file, hit_diff_hist_file, *, step_size=root
     for i_chunk, (_, chunk) in enumerate(root_utils.iterate_tree(dt_hits_file, root_utils.DT_HITS_TREE, step_size=step_size), start=1):
         n_hits += root_utils.length(chunk)
         _fold_histogram_chunk(chunk, running)
-        log(f"    chunk {i_chunk} / {n_chunks_total}: {root_utils.length(chunk)} hits, {int(running['entries'])} entries in histogram so far")
+        log(f"    chunk {i_chunk:,} / {n_chunks_total:,}: {root_utils.length(chunk):,} hits, {int(running['entries']):,} entries in histogram so far")
     err_hist, err_hist_down, err_hist_up = hist_utils.calculate_hist_uncertainty(
         hist=running["hist"], hist_err_right=running["hist_err_right"], hist_err_left=running["hist_err_left"], do_stat_err=True,
     )
@@ -441,7 +690,7 @@ def dt_hits_to_hit_diff_hist(dt_hits_file, hit_diff_hist_file, *, step_size=root
         summary = {k: np.float64(hist_data[k]) for k in ["entries", "underflow", "overflow"]} | {"n_hits": np.int64(n_hits)}
         # the same histogram as TH1D object "hit_diff_hist", to be drawn directly in ROOT
         root_utils.write_tree(hit_diff_hist_file, bins, summary=summary, histograms={"hit_diff_hist": (hist_data["hist"], edges)})
-    log(f"[dt hits -> hit diff hist] DONE. {n_hits} hits, {int(running['entries'])} entries in histogram")
+    log(f"[dt hits -> hit diff hist] DONE. {n_hits:,} hits, {int(running['entries']):,} entries in histogram")
     return hist_data
 
 # -----------------------------------------
@@ -471,7 +720,7 @@ def count_dt_cells(dt_hits_file, *, step_size=root_utils.DEFAULT_STEP_SIZE):
         if root_utils.length(chunk) == 0:
             continue
         n_hits += root_utils.length(chunk)
-        log(f"    chunk {i_chunk} / {n_chunks_total}: {root_utils.length(chunk)} hits counted")
+        log(f"    chunk {i_chunk:,} / {n_chunks_total:,}: {root_utils.length(chunk):,} hits counted")
         combo = np.stack([chunk["sl"], chunk["ly"], chunk["wi"]], axis=1)
         uniq_cells, uniq_counts = np.unique(combo, axis=0, return_counts=True)
         for (sl_u, ly_u, wi_u), c in zip(uniq_cells, uniq_counts):
@@ -506,7 +755,7 @@ def dt_hits_to_cell_counts(dt_hits_file, cell_counts_file, *, step_size=root_uti
         counts_2d[cells["wi"].astype(int), 4 * (cells["sl"].astype(int) - 1) + cells["ly"].astype(int)] = cells["count"]
         root_utils.write_tree(cell_counts_file, cells, summary=summary,
                               histograms={"cell_counts": (counts_2d, np.arange(n_wires + 1) - 0.5, np.arange(13) - 0.5)})
-    log(f"[dt hits -> cell counts] DONE. {n_hits} hits, duration {duration_seconds:.3f} s")
+    log(f"[dt hits -> cell counts] DONE. {n_hits:,} hits, duration {duration_seconds:.3f} s")
     return counts_data
 
 # -----------------------------------------
@@ -540,7 +789,7 @@ def dt_hits_to_sl_patterns(dt_hits_file, sl_patterns_file, *, step_size=root_uti
             n_hits = root_utils.length(chunk)
             totals["hits_after_deadtime"] += n_hits
             if n_hits == 0:
-                log(f"    chunk {n_chunks} / {n_chunks_total}: {n_hits_in} hits in, none left after dead time cut")
+                log(f"    chunk {n_chunks:,} / {n_chunks_total:,}: {n_hits_in:,} hits in, none left after dead time cut")
                 continue
             sl_patterns = dt_utils.find_sl_patterns(
                 hits=chunk, verbose=verbose, silent=True,
@@ -549,13 +798,13 @@ def dt_hits_to_sl_patterns(dt_hits_file, sl_patterns_file, *, step_size=root_uti
             del chunk
             n_patterns = root_utils.length(sl_patterns)
             totals["n_patterns"] += n_patterns
-            log(f"    chunk {n_chunks} / {n_chunks_total}: {n_hits_in} hits in, {n_hits} after dead time cut ({100 * n_hits / max(1, n_hits_in):.1f}%) "
-                f"-> {n_patterns} patterns ({time.perf_counter() - t_step:.2f}s)")
+            log(f"    chunk {n_chunks:,} / {n_chunks_total:,}: {n_hits_in:,} hits in, {n_hits:,} after dead time cut ({100 * n_hits / max(1, n_hits_in):.1f}%) "
+                f"-> {n_patterns:,} patterns ({time.perf_counter() - t_step:.2f}s)")
             if n_patterns > 0:
                 writer.write(root_utils.set_chunk_id(sl_patterns, n_chunks))
             gc.collect()
-    log(f"[dt hits -> sl patterns] DONE. {n_chunks} chunks, hits_in={totals['hits_in']}, "
-        f"hits_after_deadtime={totals['hits_after_deadtime']}, patterns={totals['n_patterns']}")
+    log(f"[dt hits -> sl patterns] DONE. {n_chunks:,} chunks, hits_in={totals['hits_in']:,}, "
+        f"hits_after_deadtime={totals['hits_after_deadtime']:,}, patterns={totals['n_patterns']:,}")
     return totals
 
 # -----------------------------------------
@@ -589,7 +838,7 @@ def fit_sl_patterns_file(input_file, output_file, *, fit_vd=False, suffix="", cu
             n_rows = root_utils.length(chunk)
             totals["rows_after_cuts"] += n_rows
             if n_rows == 0:
-                log(f"    chunk {n_chunks} / {n_chunks_total}: {n_in} rows in, none left after cuts")
+                log(f"    chunk {n_chunks:,} / {n_chunks_total:,}: {n_in:,} rows in, none left after cuts")
                 continue
             sl_fits = _run_rowwise(
                 dt_utils.fit_sl_patterns, chunk, "patterns",
@@ -599,10 +848,10 @@ def fit_sl_patterns_file(input_file, output_file, *, fit_vd=False, suffix="", cu
             n_fits = root_utils.length(sl_fits)
             totals["n_fits"] += n_fits
             writer.write(sl_fits)
-            log(f"    chunk {n_chunks} / {n_chunks_total}: {n_in} rows in, {n_rows} after cuts -> {n_fits} fits ({time.perf_counter() - t_step:.2f}s)")
+            log(f"    chunk {n_chunks:,} / {n_chunks_total:,}: {n_in:,} rows in, {n_rows:,} after cuts -> {n_fits:,} fits ({time.perf_counter() - t_step:.2f}s)")
             del sl_fits
             gc.collect()
-    log(f"[{label}] DONE. rows_in={totals['rows_in']}, rows_after_cuts={totals['rows_after_cuts']}, fits={totals['n_fits']}")
+    log(f"[{label}] DONE. rows_in={totals['rows_in']:,}, rows_after_cuts={totals['rows_after_cuts']:,}, fits={totals['n_fits']:,}")
     return totals
 
 # -----------------------------------------
@@ -639,7 +888,7 @@ def sl_fits_to_super_fits(sl_fits_file, super_fits_file, *, super_patterns_file=
                 )
                 n_super_patterns = len(super_patterns.get(f"sl{phi_sls[0]}", []))
             except Exception as e:
-                log(f"    chunk {i_chunk} / {n_chunks_total}: build_phi_super_patterns FAILED, block skipped: {e!r}")
+                log(f"    chunk {i_chunk:,} / {n_chunks_total:,}: build_phi_super_patterns FAILED, block skipped: {e!r}")
                 super_patterns = None
                 n_super_patterns = 0
             totals["n_super_patterns"] += n_super_patterns
@@ -665,12 +914,12 @@ def sl_fits_to_super_fits(sl_fits_file, super_fits_file, *, super_patterns_file=
                 del super_fits
             del sl_fits
             totals["n_super_fits"] += n_super_fits
-            log(f"    chunk {i_chunk} / {n_chunks_total}: {n_fits} sl fits -> {n_super_patterns} super patterns -> {n_super_fits} super fits "
+            log(f"    chunk {i_chunk:,} / {n_chunks_total:,}: {n_fits:,} sl fits -> {n_super_patterns:,} super patterns -> {n_super_fits:,} super fits "
                 f"({time.perf_counter() - t_step:.2f}s)")
             gc.collect()
     if patterns_writer is not None:
         patterns_writer.close()
-    log(f"[sl fits -> super fits] DONE. sl_fits={totals['n_fits']}, super_patterns={totals['n_super_patterns']}, super_fits={totals['n_super_fits']}")
+    log(f"[sl fits -> super fits] DONE. sl_fits={totals['n_fits']:,}, super_patterns={totals['n_super_patterns']:,}, super_fits={totals['n_super_fits']:,}")
     return totals
 
 # -----------------------------------------
@@ -735,13 +984,13 @@ def super_fits_to_dt_muons(super_fits_file, sl_fits_file, dt_muons_file, *, suff
                 ts_min = dt_muons["ts"].min() if ts_min is None else min(ts_min, dt_muons["ts"].min())
                 ts_max = dt_muons["ts"].max() if ts_max is None else max(ts_max, dt_muons["ts"].max())
             totals["n_muons"] += n_muons
-            log(f"    chunk {i_chunk} / {n_chunks_total}: {n_super} super fits, {n_theta_fits} theta sl fits -> {n_muons} dt muons")
+            log(f"    chunk {i_chunk:,} / {n_chunks_total:,}: {n_super:,} super fits, {n_theta_fits:,} theta sl fits -> {n_muons:,} dt muons")
     if totals["n_muons"] == 0:
         log(f"[super fits + theta sl fits -> dt muons] WARNING: no dt muons reconstructed, no output file was written.")
     duration = (ts_max - ts_min) * 0.78e-9 if ts_min is not None else 0
     rate = f", rate {totals['n_muons'] / duration:.2f} Hz over {duration:.2f} s" if duration > 0 else ""
-    log(f"[super fits + theta sl fits -> dt muons] DONE. super_fits={totals['n_super_fits']}, theta_sl_fits={totals['n_theta_fits']}, "
-        f"dt_muons={totals['n_muons']} ({totals['n_ambiguous']} with more than one theta candidate){rate}")
+    log(f"[super fits + theta sl fits -> dt muons] DONE. super_fits={totals['n_super_fits']:,}, theta_sl_fits={totals['n_theta_fits']:,}, "
+        f"dt_muons={totals['n_muons']:,} ({totals['n_ambiguous']:,} with more than one theta candidate){rate}")
     return totals
 
 # -----------------------------------------
@@ -767,10 +1016,10 @@ def apply_cuts_file(input_file, output_file, cuts, *, tree=None, step_size=root_
                 chunk = data_utils.cut_data(data=chunk, conditions=[cut], silent=True)
                 n_after[i] += root_utils.length(chunk)
             writer.write(chunk)
-            log(f"    chunk {i_chunk} / {n_chunks_total}: {root_utils.length(chunk)} of {n_rows_chunk} rows pass the cuts")
-    log(f"[apply cuts] cut flow w.r.t. the {n_in} input rows:")
+            log(f"    chunk {i_chunk:,} / {n_chunks_total:,}: {root_utils.length(chunk):,} of {n_rows_chunk:,} rows pass the cuts")
+    log(f"[apply cuts] cut flow w.r.t. the {n_in:,} input rows:")
     for cut, n in zip(cuts, n_after):
-        log(f"    {cut[0]} {cut[1]} {cut[2]}: {n} / {n_in} = {n / max(1, n_in):.4f}")
+        log(f"    {cut[0]} {cut[1]} {cut[2]}: {n:,} / {n_in:,} = {n / max(1, n_in):.4f}")
     if n_after[-1] == 0:
         log(f"[apply cuts] WARNING: no rows pass the cuts, no output file was written.")
     log(f"[apply cuts] DONE.")

@@ -10,8 +10,8 @@
 # Super fits are selected by their row in the file (--rows), or the first ones passing --cuts are taken (--n_fits).
 #
 # examples:
-#   python scripts/dt_root/singleplot_super_fit.py --input_file out/run_super_fits_cut.root --rows 0,10 --store_plots plots/single_super_fits
-#   python scripts/dt_root/singleplot_super_fit.py --input_file out/run_super_fits.root --n_fits 5 \
+#   python scripts/dt_root/singleplot_super_fit.py --super_fits_file out/run_super_fits_cut.root --rows 0,10 --store_plots plots/single_super_fits
+#   python scripts/dt_root/singleplot_super_fit.py --super_fits_file out/run_super_fits.root --n_fits 5 \
 #          --cuts "chi2/ndf_super_fits,>,10" --store_plots plots/single_super_fits_bad
 #################################################################
 
@@ -35,13 +35,13 @@ def _select_rows(input_file, cuts, n_fits):
     cut_data = root_utils.read_branches(input_file, sorted({c[0] for c in cuts}))
     cut_data["__row"] = np.arange(root_utils.length(cut_data))
     rows = data_utils.cut_data(data=cut_data, conditions=cuts, silent=True)["__row"]
-    log(f"{len(rows)} super fits pass the cuts {cuts}, taking the first {min(n_fits, len(rows))}")
+    log(f"{len(rows):,} super fits pass the cuts {cuts}, taking the first {min(n_fits, len(rows)):,}")
     return [int(r) for r in rows[:n_fits]]
 
 @mpl.rc_context({'font.family': 'sans-serif', 'font.size': 16})
 def main(argv=None):
     parser = argparse.ArgumentParser(description="Event display of single super fits with their two sl fits.")
-    parser.add_argument("--input_file", type=str, required=True, help="input file path: super fits (.root)")
+    parser.add_argument("--super_fits_file", type=str, required=True, help="input file path: super fits (.root)")
     parser.add_argument("--rows", type=str, default=None, help="rows of the super fits to plot, separated by \",\"")
     parser.add_argument("--n_fits", type=int, default=5, help="if --rows is not given: number of super fits to plot (the first ones passing --cuts)")
     parser.add_argument("--cuts", type=str, default=None,
@@ -56,17 +56,17 @@ def main(argv=None):
     sfx = args.suffix
 
     ### which super fits
-    root_utils.check_input_file(args.input_file)
-    if "t0" + sfx not in root_utils.list_branches(args.input_file):
-        raise KeyError(f"No super fit results with suffix \"{sfx}\" in {args.input_file}.")
+    root_utils.check_input_file(args.super_fits_file)
+    if "t0" + sfx not in root_utils.list_branches(args.super_fits_file):
+        raise KeyError(f"No super fit results with suffix \"{sfx}\" in {args.super_fits_file}.")
     if args.rows is not None:
         rows = [int(s) for s in args.rows.split(",") if s.strip() != ""]
     else:
         cuts = dt_pipeline_utils.parse_cuts(args.cuts) if args.cuts is not None else [("impossible" + sfx, "==", 0)]
-        rows = _select_rows(args.input_file, cuts, args.n_fits)
+        rows = _select_rows(args.super_fits_file, cuts, args.n_fits)
     if len(rows) == 0:
         raise RuntimeError("No super fits selected, nothing to plot.")
-    super_fits = root_utils.read_rows(args.input_file, rows)
+    super_fits = root_utils.read_rows(args.super_fits_file, rows)
 
     phi_sls = [sl for sl in params._dt_chamber["sls"].keys() if params._dt_chamber["sls"][sl]["orient"] == "phi"]
     pat_names = list(params._dt_sl_patterns.keys())

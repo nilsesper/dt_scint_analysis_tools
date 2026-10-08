@@ -41,7 +41,7 @@ def propagate_muon(muons, z, muon_id=None, idx=None): # propagate spherical coor
 # generate n muons
 # pass separate timestamp for all muons i.e. ts = [ts[i] for i in range(n)]
 def generate_cosmic_muons(n, ts, xrange, yrange, z0, *, silent=False, thetarange=[0, np.pi/2], phirange=[0,2*np.pi], theta_weight=params.cosmic_muon_theta_weight):
-    if not silent: print(f"Generating {n} cosmic muons...")
+    if not silent: print(f"Generating {n:,} cosmic muons...")
     muons = {k: np.full(n, 0, dtype=v) for k,v in params._muon_obj_keys.items()}
     muons["x0"] = np.random.uniform(low=xrange[0], high=xrange[1], size=n).astype(dtype=params._muon_obj_keys["x0"])
     muons["y0"] = np.random.uniform(low=yrange[0], high=yrange[1], size=n).astype(dtype=params._muon_obj_keys["y0"]) # x,y uniformly distributed inside xrange, yrange
@@ -57,7 +57,7 @@ def generate_cosmic_muons(n, ts, xrange, yrange, z0, *, silent=False, thetarange
 def cut_muons_by_area(muons, xmin, xmax, ymin, ymax, z0, *, silent=False):
     n_muons = len(muons["ts"])
     mask = np.full(n_muons, True)
-    if not silent: print(f"Cutting {n_muons} muons to geometrical area x=({xmin}, {xmax}) y=({ymin}, {ymax}) z={z0}...")
+    if not silent: print(f"Cutting {n_muons:,} muons to geometrical area x=({xmin}, {xmax}) y=({ymin}, {ymax}) z={z0}...")
     # propagate muons and check if in min/max range -> populate mask
     (x,y,z) = propagate_muons(muons, z=z0)
     mask &= (x >= xmin)
@@ -70,8 +70,8 @@ def cut_muons_by_area(muons, xmin, xmax, ymin, ymax, z0, *, silent=False):
         cut_muons[name] = copy.deepcopy(muons[name][mask])
     n_cut_muons = len(cut_muons["ts"])
     if not silent:
-        if n_muons > 0: print(f"Cut flow: {n_cut_muons} / {n_muons} = {n_cut_muons/n_muons}")
-        else: print(f"Cut flow: {n_cut_muons} / {n_muons}")
+        if n_muons > 0: print(f"Cut flow: {n_cut_muons:,} / {n_muons:,} = {n_cut_muons/n_muons}")
+        else: print(f"Cut flow: {n_cut_muons:,} / {n_muons:,}")
     return cut_muons
 
 ### change muon base point (x,y,z) for new given z

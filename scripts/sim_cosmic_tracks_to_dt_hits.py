@@ -30,7 +30,7 @@ def main(argv=None):
     root_utils.check_input_file(args.cosmic_muons_file)
     cosmic_muons = root_utils.read_tree(args.cosmic_muons_file)
     n_muons = root_utils.length(cosmic_muons)
-    log(f"###### Propagating {n_muons} cosmic muons through the dt chamber...")
+    log(f"###### Propagating {n_muons:,} cosmic muons through the dt chamber...")
     dt_hits = dt_utils.hits_from_muons(muons=cosmic_muons, noise_ampl=args.ts_noise_amplitude, sys_miscalib_ampl=args.sys_miscalib_ampl)
     n_dt_hits = root_utils.length(dt_hits)
     if n_dt_hits == 0:
@@ -38,7 +38,7 @@ def main(argv=None):
     root_utils.write_tree(args.dt_hits_file, dt_hits, tree=root_utils.DT_HITS_TREE)
     n_muons_with_hits = len(np.unique(dt_hits["muon_id"]))
     ts_min, ts_max = int(np.amin(dt_hits["ts"])), int(np.amax(dt_hits["ts"]))
-    log(f"###### Stored {n_dt_hits} dt hits of {n_muons_with_hits} muons in {args.dt_hits_file} (ts range {ts_min} .. {ts_max})")
+    log(f"###### Stored {n_dt_hits:,} dt hits of {n_muons_with_hits:,} muons in {args.dt_hits_file} (ts range {ts_min} .. {ts_max})")
 
 if __name__ == "__main__":
     main()

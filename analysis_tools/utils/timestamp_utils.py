@@ -22,7 +22,7 @@ import analysis_tools.params.derived_params as derived_params
 def add_timestamp(hits, *, silent=False):
     ts_hits = copy.deepcopy(hits)
     n_hits = data_utils.length(hits)
-    if not silent: print(f"Add converted timestamp to {n_hits} entries...")
+    if not silent: print(f"Add converted timestamp to {n_hits:,} entries...")
     ts_hits |= {"ts": np.full(n_hits, 0, dtype=params._ts_type)}
     # do for all ro chs separately
     separate_ts_hits = []
@@ -61,7 +61,7 @@ def add_timestamp(hits, *, silent=False):
 def add_timestamp(hits, *, silent=False):
     ts_hits = copy.deepcopy(hits)
     n_hits = data_utils.length(hits)
-    if not silent: print(f"Add converted timestamp to {n_hits} entries...")
+    if not silent: print(f"Add converted timestamp to {n_hits:,} entries...")
     ts_hits |= {"ts": np.full(n_hits, 0, dtype=params._ts_type), "err_ts": np.full(n_hits, 0, dtype=np.float64)}
     # assign timestamp for full dataset (together)
     oc_overflow = 0 # count how many times the orbit counter overflowed -> to have non-jumping but continous timestamp
@@ -89,7 +89,7 @@ def add_timestamp(hits, *, silent=False):
 def sort_by_timestamp(hits, *, silent=False):
     sorted_hits = copy.deepcopy(hits)
     n_hits = data_utils.length(sorted_hits)
-    if not silent: print(f"Sorting {n_hits} entries by timestamp...")
+    if not silent: print(f"Sorting {n_hits:,} entries by timestamp...")
     sorted_hits = data_utils.sort_by_key(data=hits, sort_key="ts", silent=silent)
     return sorted_hits
 
@@ -106,7 +106,7 @@ def remap_htg_timestamp(ts):
 def add_timestamp_this_orbit(hits, *, silent=False):
     n_hits = data_utils.length(hits)
     ts_hits = copy.deepcopy(hits)
-    if not silent: print(f"Add timestamp relative to orbit to {n_hits} entries...")
+    if not silent: print(f"Add timestamp relative to orbit to {n_hits:,} entries...")
     ts_hits |= {"ts_orbit": np.full(n_hits, 0, dtype=params._ts_type), "err_ts_orbit": np.full(n_hits, 0, dtype=params._ts_type)}
     for i in tqdm(range(n_hits), disable=silent):
         tdc = ts_hits["tdc"][i]

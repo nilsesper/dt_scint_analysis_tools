@@ -29,7 +29,7 @@ import analysis_tools.params.derived_params as derived_params
 def extract_scint_hits(hits, *, silent=False, has_timestamp=False):
     tmp_hits = copy.deepcopy(hits)
     n_hits = len(tmp_hits["ch"])
-    if not silent: print(f"Extract scintillator hits from {n_hits} total hits...")
+    if not silent: print(f"Extract scintillator hits from {n_hits:,} total hits...")
     # calculate mask to apply to cut away all hits not belonging to dt chamber (wrong ro_ch or invalid ch)
     scint_mask = np.full(n_hits, False, dtype=np.bool)
     for ro_ch in derived_params._scint_ro_chs:
@@ -40,8 +40,8 @@ def extract_scint_hits(hits, *, silent=False, has_timestamp=False):
     for k in tmp_hits.keys():
         tmp_hits[k] = tmp_hits[k][scint_mask]
     n_scint_hits = len(tmp_hits["ch"])
-    if not silent: print(f"Cut flow: {n_scint_hits}/{n_hits} = {n_scint_hits/n_hits}")
-    if not silent: print(f"Found {n_scint_hits} scintillator hits. Adding scintillator specific keys...")
+    if not silent: print(f"Cut flow: {n_scint_hits:,}/{n_hits:,} = {n_scint_hits/n_hits}")
+    if not silent: print(f"Found {n_scint_hits:,} scintillator hits. Adding scintillator specific keys...")
     # add specific scint keys
     tmp_hits |= {k: np.full(n_scint_hits, 0, dtype=v) for k,v in params._scint_mapping_keys.items()} | {k: np.full(n_hits, 0, dtype=v) for k,v in params._scint_other_keys.items() if ((not has_timestamp) or k != "ts")} 
     for i in tqdm(range(n_scint_hits), disable=silent):
@@ -108,7 +108,7 @@ def _scint_data(default={"color": params._color_info["cell"][None], "text": ""})
 def hits_from_muons(muons, *, silent=False):
     scint_hit_list = []
     n_muons = len(muons["x0"])
-    if not silent: print(f"Calculating scintillator hits by {n_muons} muons...")
+    if not silent: print(f"Calculating scintillator hits by {n_muons:,} muons...")
     for ly in params._scintillator["lys"].keys():
         z_st_idx = 0 # all sts have same z therefore save some time here
         z_pos = derived_params._scintillator_strip_coordinates[ly][z_st_idx][5] # use center z position (idx 5) of each layer
@@ -137,7 +137,7 @@ def hits_from_muons(muons, *, silent=False):
     # convert dt_hit_list to proper format object dt_hits
     n_hits = len(scint_hit_list)
     # map sl,ly,wi to all other keys of dt -> map back to obdt channels & oc,bx,tdc timestamp
-    if not silent: print(f"Adding all keys to calculated {n_hits} scintillator hits...")
+    if not silent: print(f"Adding all keys to calculated {n_hits:,} scintillator hits...")
     scint_hits = {k: np.full(n_hits, 0, dtype=v) for k,v in params._htg_keys.items()} | {k: np.full(n_hits, 0, dtype=v) for k,v in params._scint_mapping_keys.items()} | {k: np.full(n_hits, 0, dtype=v) for k,v in params._scint_other_keys.items()} 
     for i in range(n_hits):
         # copy existing keys
@@ -165,7 +165,7 @@ def reco_muon_area_from_hits(hits, *, silent=False, verbose=False):
     # sort hits by timestamp
     hits = data_utils.sort_by_key(data=hits, sort_key="ts")
     n_hits = len(hits["ts"])
-    if not silent: print(f"Combining {n_hits} scintillator hits to reconstruct muons...")
+    if not silent: print(f"Combining {n_hits:,} scintillator hits to reconstruct muons...")
     # extract sls in phi & theta orientation
     phi_ly_idx = 0 if (params._scintillator["lys"][0]["orient"] == "phi") else 1
     theta_ly_idx = 0 if (params._scintillator["lys"][0]["orient"] == "theta") else 1
@@ -233,7 +233,7 @@ def reco_muon_area_from_hits(hits, *, silent=False, verbose=False):
         last_scint_hits = {ly: None for ly in params._scintillator["lys"].keys()} # last hit for all lys
     # store in proper format
     n_reco_muon_areas = len(reco_muon_area_list)
-    if not silent: print(f"Reconstructed {n_reco_muon_areas} muon areas from {n_hits} scintillator hits.")
+    if not silent: print(f"Reconstructed {n_reco_muon_areas:,} muon areas from {n_hits:,} scintillator hits.")
     reco_muon_areas = {k: np.full(n_reco_muon_areas, 0, dtype=v) for k,v in params._muon_area_obj_keys.items()}
     for i in range(n_reco_muon_areas):
         for k in params._muon_area_obj_keys.keys():
@@ -249,7 +249,7 @@ def reco_muon_area_from_hits(hits, *, silent=False, verbose=False):
     # sort hits by timestamp
     hits = data_utils.sort_by_key(data=hits, sort_key="ts")
     n_hits = len(hits["ts"])
-    if not silent: print(f"Combining {n_hits} scintillator hits to reconstruct muons...")
+    if not silent: print(f"Combining {n_hits:,} scintillator hits to reconstruct muons...")
     # extract sls in phi & theta orientation
     phi_ly_idx = 0 if (params._scintillator["lys"][0]["orient"] == "phi") else 1
     theta_ly_idx = 0 if (params._scintillator["lys"][0]["orient"] == "theta") else 1
@@ -326,7 +326,7 @@ def reco_muon_area_from_hits(hits, *, silent=False, verbose=False):
                 #last_hits[1][st1] = copy.deepcopy(dummy_scint_hit)
     # store in proper format
     n_reco_muon_areas = len(reco_muon_area_list)
-    if not silent: print(f"Reconstructed {n_reco_muon_areas} muon areas from {n_hits} scintillator hits.")
+    if not silent: print(f"Reconstructed {n_reco_muon_areas:,} muon areas from {n_hits:,} scintillator hits.")
     reco_muon_areas = {k: np.full(n_reco_muon_areas, 0, dtype=v) for k,v in params._muon_area_obj_keys.items()}
     for i in range(n_reco_muon_areas):
         for k in params._muon_area_obj_keys.keys():
@@ -351,7 +351,7 @@ def remove_crosstalk_areas(areas, * , silent=False):
         if delta_ts_down < params._scint_area_clear_interval_down or delta_ts_up < params._scint_area_clear_interval_up:
             continue
         mask.append(i)
-    if not silent: print(f"Crosstalk / hit isolation cut flow: {len(mask)} / {n_areas} = {len(mask)/n_areas}")
+    if not silent: print(f"Crosstalk / hit isolation cut flow: {len(mask):,} / {n_areas:,} = {len(mask)/n_areas}")
     ## apply mask of isolated hits
     for k in cleaned_areas.keys():
         cleaned_areas[k] = cleaned_areas[k][mask]
@@ -368,7 +368,7 @@ def remove_crosstalk_areas(areas, * , silent=False):
 def extract_raw_scint_hits(hits, *, silent=False, has_timestamp=False):
     tmp_hits = copy.deepcopy(hits)
     n_hits = len(tmp_hits["ch"])
-    if not silent: print(f"Extract raw scintillator hits from {n_hits} total hits...")
+    if not silent: print(f"Extract raw scintillator hits from {n_hits:,} total hits...")
     # calculate mask to apply to cut away all hits not belonging to dt chamber (wrong ro_ch or invalid ch)
     scint_mask = np.full(n_hits, False, dtype=np.bool)
     for ro_ch in derived_params._raw_scint_ro_chs:
@@ -379,8 +379,8 @@ def extract_raw_scint_hits(hits, *, silent=False, has_timestamp=False):
     for k in tmp_hits.keys():
         tmp_hits[k] = tmp_hits[k][scint_mask]
     n_scint_hits = len(tmp_hits["ch"])
-    if not silent: print(f"Cut flow: {n_scint_hits}/{n_hits} = {n_scint_hits/n_hits}")
-    if not silent: print(f"Found {n_scint_hits} raw scintillator hits. Adding raw scintillator specific keys...")
+    if not silent: print(f"Cut flow: {n_scint_hits:,}/{n_hits:,} = {n_scint_hits/n_hits}")
+    if not silent: print(f"Found {n_scint_hits:,} raw scintillator hits. Adding raw scintillator specific keys...")
     # add specific scint keys
     tmp_hits |= {k: np.full(n_scint_hits, 0, dtype=v) for k,v in params._raw_scint_mapping_keys.items()} | {k: np.full(n_scint_hits, 0, dtype=v) for k,v in params._raw_scint_other_keys.items() if ((not has_timestamp) or k != "ts")} 
     for i in tqdm(range(n_scint_hits), disable=silent):
@@ -441,7 +441,7 @@ def reco_hits_from_raw_hits(hits, *, silent=False):
     # sort hits by timestamp
     hits = data_utils.sort_by_key(data=hits, sort_key="ts")
     n_hits = len(hits["ts"])
-    if not silent: print(f"Combining {n_hits} raw scintillator hits to scintillator hits...")
+    if not silent: print(f"Combining {n_hits:,} raw scintillator hits to scintillator hits...")
     # for all strips separately
     for ly in params._scintillator["lys"].keys():
         for st in range(params._scintillator["lys"][ly]["n_sts"]):
@@ -555,7 +555,7 @@ def reco_hits_from_raw_hits(hits, *, silent=False):
                     last_hits = {sipm: None for sipm in SIPMS}
     # store in proper format
     n_scint_hits = len(scint_hit_list)
-    if not silent: print(f"Reconstructed {n_scint_hits} scintillator hits from {n_hits} raw scintillator hits.")
+    if not silent: print(f"Reconstructed {n_scint_hits:,} scintillator hits from {n_hits:,} raw scintillator hits.")
     scint_keys_types = copy.deepcopy(params._scint_mapping_keys) | copy.deepcopy(params._scint_other_keys) | copy.deepcopy(params._htg_keys)
     scint_hits = {k: np.full(n_scint_hits, 0, dtype=v) for k,v in scint_keys_types.items()}
     for i in range(n_scint_hits):
@@ -725,7 +725,7 @@ def raw_scint_groups_to_strips(groups, hits, *, silent=False, isolation_criterio
                 })
     # store in proper format
     n_scint_hits = len(strip_hits)
-    if not silent: print(f"Reconstructed {n_scint_hits} scintillator hits from {n_groups} raw scintillator hit groups.")
+    if not silent: print(f"Reconstructed {n_scint_hits:,} scintillator hits from {n_groups} raw scintillator hit groups.")
     scint_keys_types = copy.deepcopy(params._scint_mapping_keys) | copy.deepcopy(params._scint_other_keys) | copy.deepcopy(params._htg_keys)
     scint_hits = {k: np.full(n_scint_hits, 0, dtype=v) for k,v in scint_keys_types.items()}
     if n_scint_hits > 0:
@@ -828,7 +828,7 @@ def raw_scint_groups_to_pixels(groups, hits, *, silent=False, isolation_criterio
                 #last_hits[1][st1] = copy.deepcopy(dummy_scint_hit)
     # store in proper format
     n_reco_muon_areas = len(reco_muon_area_list)
-    if not silent: print(f"Reconstructed {n_reco_muon_areas} muon areas from {n_hits} scintillator hits.")
+    if not silent: print(f"Reconstructed {n_reco_muon_areas:,} muon areas from {n_hits:,} scintillator hits.")
     reco_muon_areas = {k: np.full(n_reco_muon_areas, 0, dtype=v) for k,v in params._muon_area_obj_keys.items()}
     if n_reco_muon_areas > 0:
         avail_keys = reco_muon_area_list[0].keys()

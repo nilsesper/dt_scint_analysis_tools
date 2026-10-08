@@ -9,9 +9,11 @@ Needed python packages: numpy, scipy, matplotlib, tqdm, uproot, awkward.
 ## Stages
 
 ```
+testpulse dumpfile (.txt)
+  └─ dumpfile_to_dt_tp_corrections.py ─► tp_corrections.root     (timing calibration of every cell, see below)
+
 dumpfile (.txt)
-  └─ dumpfile_to_dt_hits.py ───────────► dt_hits.root
-        │  (optional) dt_hits_timing_correction.py ► dt_hits_corr.root, used in place of dt_hits.root below
+  └─ dumpfile_to_dt_hits.py ───────────► dt_hits.root            (optional: --dt_tp_corrections_file tp_corrections.root)
         ├─ dt_hits_to_hit_diff_hist.py ► hit_diff_hist.root      (side product)
         ├─ dt_hits_to_cell_counts.py ──► cell_counts.root        (side product)
         └─ dt_hits_to_sl_patterns.py ──► sl_patterns.root        (applies the dead time cut)
@@ -31,8 +33,7 @@ A dt muon is built from one super fit of the two phi superlayers (x-z view) and 
 ```
 D=/path/to/output            # any directory
 python scripts/dt_root/dumpfile_to_dt_hits.py      --input_dumpfile /path/to/run.txt --dt_hits_file $D/run_dt_hits.root --n_proc 8
-# optional: testpulse timing calibration; if used, give run_dt_hits_corr.root as --dt_hits_file to the next scripts
-python scripts/dt_root/dt_hits_timing_correction.py --dt_hits_file $D/run_dt_hits.root --dt_tp_corrections_file /path/to/DT_CORRECTIONS.pcl --corr_dt_hits_file $D/run_dt_hits_corr.root
+#   with testpulse timing calibration: add --dt_tp_corrections_file /path/to/tp_corrections.root
 
 python scripts/dt_root/dt_hits_to_hit_diff_hist.py --dt_hits_file $D/run_dt_hits.root --hit_diff_hist_file $D/run_hit_diff_hist.root
 python scripts/dt_root/dt_hits_to_cell_counts.py   --dt_hits_file $D/run_dt_hits.root --cell_counts_file $D/run_cell_counts.root
@@ -56,7 +57,8 @@ and then has to be given to the later scripts as well (`--suffix`, in `run_dt_pi
 python scripts/dt_root/run_dt_pipeline.py --input_dumpfile /path/to/run.txt --output_dir $D --n_proc 8
 ```
 
-With `--dt_tp_corrections_file /path/to/DT_CORRECTIONS.pcl` the timing calibration is applied and all later stages use the corrected hits.
+With `--dt_tp_corrections_file /path/to/tp_corrections.root` the testpulse timing calibration is applied in stage `dt_hits`,
+so `<prefix>_dt_hits.root` holds the corrected hits and all later stages use them.
 The cuts of the two cut stages are set with `--sl_fit_cuts` and `--super_fit_cuts`.
 
 Writes `<prefix>_<stage>.root` for every stage into `--output_dir` (`<prefix>` = dumpfile name without ending, or `--prefix`).
@@ -65,6 +67,37 @@ Writes `<prefix>_<stage>.root` for every stage into `--output_dir` (`<prefix>` =
 ```
 python scripts/dt_root/run_dt_pipeline.py --output_dir $D --prefix run --from_stage sl_fits_cut
 ```
+
+## Testpulse timing calibration
+
+A dumpfile recorded with simultaneous testpulses on all channels gives the time offset of every cell:
+
+```
+python scripts/dt_root/dumpfile_to_dt_tp_corrections.py --input_dumpfile /path/to/tp_run.txt --dt_tp_corrections_file $D/tp_corrections.root \
+       --dt_tp_hits_file $D/tp_dt_hits.root       # optional: the testpulse hits, for the single cell plots
+python scripts/dt_root/plot_dt_tp_corrections.py --dt_tp_corrections_file $D/tp_corrections.root --store_plots /path/to/plots/tp \
+       --dt_tp_hits_file $D/tp_dt_hits.root --cells "1:0:10,2:3:40"
+```
+
+- All cells of the chamber are calibrated, also masked / dead ones (no dead time cut). Per cell, the time inside the
+  orbit (`tdc + 32 bx`) is histogrammed with bins of 1 TU; the first peak above `--rel_thres` (default 0.2) of the
+  highest bin is the testpulse response (later peaks are ringing), its position is the weighted mean.
+- The known testpulse delays per frontend connector (`params._tp_time_offset`, e.g. theta testpulse latency, old cables)
+  are subtracted (`--no_offset_correction` to switch off).
+- `ts_corr = <mean of the chamber> - <testpulse time of the cell>` (`--alignment sl`: mean of the SL instead; then a
+  time offset between the SLs remains). The mean is taken over the cells which are not masked / dead. Cells without
+  testpulse peak get `ts_corr = 0` (`valid = 0`). The first `params._dumpfile_hits_to_skip` lines are skipped (`--n_lines_to_skip`).
+- Output: tree `tree` with one row per cell (`sl, ly, wi, ts_corr, err_ts_corr, valid, masked, tp_ts_mean, tp_ts_err,
+  tp_ts_mean_raw, tp_offset, n_hits, n_peak_hits, peak_ts_min, peak_ts_max, ...`), tree `summary`, and ROOT histograms
+  `ts_corr_sl<N>`, `tp_ts_mean_sl<N>`, `n_peak_hits_sl<N>` (TH2D, wire vs layer) and `ts_orbit_sl<N>` (TH1D).
+  Same numbers as the old `dt_testpulses.py` (which ignored the masked / dead cells).
+- Applied with a plus sign: `ts -> ts + ts_corr`, `err_ts -> sqrt(err_ts² + err_ts_corr²)`, oc / bx / tdc recalculated.
+  Hits of cells which are not in the calibration file are left uncorrected (with a warning).
+
+Using it: `--dt_tp_corrections_file` in `dumpfile_to_dt_hits.py` / `run_dt_pipeline.py`; for an existing dt hits file
+`dt_hits_timing_correction.py --dt_hits_file ... --dt_tp_corrections_file ... --corr_dt_hits_file ...`.
+An old calibration pickle (`DT_CORRECTIONS.pcl`) works everywhere as well, or is converted with
+`pcl_to_root.py --input_pcl_file DT_CORRECTIONS.pcl --output_file tp_corrections.root`.
 
 ## Simulation
 
@@ -97,23 +130,23 @@ python scripts/dt_root/plot_histograms.py --input_file $D/run_sl_fits.root --sto
        --cuts "impossible,==,0;chi2/ndf,<,20" --branches "t0,x0,tan_alpha,chi2/ndf" --split_by sl
 
 # dt hits: occupancy / rate maps, rate per wire, low and high occupancy cells, hit time difference
-python scripts/dt_root/plot_dt_hits.py --input_file $D/run_dt_hits.root --hit_diff_hist_file $D/run_hit_diff_hist.root --store_plots $P/dt_hits
+python scripts/dt_root/plot_dt_hits.py --dt_hits_file $D/run_dt_hits.root --hit_diff_hist_file $D/run_hit_diff_hist.root --store_plots $P/dt_hits
 
 # sl fits: drift times, fit residuals, time between fits, rates
-python scripts/dt_root/plot_sl_fits.py --input_file $D/run_sl_fits_cut.root --store_plots $P/sl_fits
+python scripts/dt_root/plot_sl_fits.py --sl_fits_file $D/run_sl_fits_cut.root --store_plots $P/sl_fits
 
 # super fits: residuals, drift times, comparison with the two sl fits (T0, slope, position)
-python scripts/dt_root/plot_super_fits.py --input_file $D/run_super_fits_cut.root --store_plots $P/super_fits
+python scripts/dt_root/plot_super_fits.py --super_fits_file $D/run_super_fits_cut.root --store_plots $P/super_fits
 
 # dt muons: x-y maps per superlayer, x-z / y-z projections, 3d view, angles, timing
-python scripts/dt_root/plot_dt_muons.py --input_file $D/run_dt_muons.root --store_plots $P/dt_muons
+python scripts/dt_root/plot_dt_muons.py --dt_muons_file $D/run_dt_muons.root --store_plots $P/dt_muons
 
 # event display of single sl fits (timestamps with residuals, pattern cells with track)
-python scripts/dt_root/singleplot_sl_fit.py --input_file $D/run_sl_fits.root --rows 500,600 --store_plots $P/single_fits
-python scripts/dt_root/singleplot_sl_fit.py --input_file $D/run_sl_fits.root --n_fits 5 --cuts "impossible,==,0;chi2/ndf,<,2" --store_plots $P/single_fits
+python scripts/dt_root/singleplot_sl_fit.py --sl_fits_file $D/run_sl_fits.root --rows 500,600 --store_plots $P/single_fits
+python scripts/dt_root/singleplot_sl_fit.py --sl_fits_file $D/run_sl_fits.root --n_fits 5 --cuts "impossible,==,0;chi2/ndf,<,2" --store_plots $P/single_fits
 
 # event display of single super fits with their two sl fits (8 timestamps with residuals, cells of both phi sls with tracks)
-python scripts/dt_root/singleplot_super_fit.py --input_file $D/run_super_fits_cut.root --rows 0,10 --store_plots $P/single_super_fits
+python scripts/dt_root/singleplot_super_fit.py --super_fits_file $D/run_super_fits_cut.root --rows 0,10 --store_plots $P/single_super_fits
 
 # event display of single dt muons (chamber views with hit cells, sl fits, super fit and global track)
 python scripts/dt_root/singleplot_dt_muon.py --sl_fits_file $D/run_sl_fits_cut.root --super_fits_file $D/run_super_fits_cut.root \

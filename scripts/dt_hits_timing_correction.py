@@ -2,6 +2,7 @@
 ### dt hits -> timing corrected dt hits
 # adds the time offset per wire from a testpulse run to the hit timestamps (ts, err_ts, oc, bx, tdc)
 # the corrected file has the same format as the input and is used in its place by the following stages
+# (the correction can also be applied directly in dumpfile_to_dt_hits.py with --dt_tp_corrections_file)
 #################################################################
 
 import argparse
@@ -18,7 +19,7 @@ def _step_size(value):
 def main(argv=None):
     parser = argparse.ArgumentParser(description="Apply the testpulse timing calibration to dt hits.")
     parser.add_argument("--dt_hits_file", type=str, required=True, help="input file path: dt hits (.root)")
-    parser.add_argument("--dt_tp_corrections_file", type=str, required=True, help="input file path: timing corrections from a testpulse run (.pcl)")
+    parser.add_argument("--dt_tp_corrections_file", type=str, required=True, help="input file path: timing corrections from a testpulse run (.root from dumpfile_to_dt_tp_corrections.py, or old .pcl)")
     parser.add_argument("--corr_dt_hits_file", type=str, required=True, help="output file path: timing corrected dt hits (.root)")
     parser.add_argument("--step_size", type=str, default=root_utils.DEFAULT_STEP_SIZE,
                         help="how much of the input file is read at once: memory size like \"200 MB\" or a number of rows")

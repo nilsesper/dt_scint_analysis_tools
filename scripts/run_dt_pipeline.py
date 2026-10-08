@@ -1,6 +1,6 @@
 #################################################################
 ### run the complete dt workflow on one dumpfile, stage by stage
-# raw dumpfile -> dt hits (-> timing corrected dt hits) -> sl patterns -> sl fits -> cut sl fits
+# raw dumpfile -> dt hits (timing corrected with --dt_tp_corrections_file) -> sl patterns -> sl fits -> cut sl fits
 #   -> super fits (phi superlayers) -> cut super fits -> dt muons (cut super fits + theta sl fits)
 #
 # This calls the same functions as the individual stage scripts in this directory, with the same
@@ -19,7 +19,7 @@ from analysis_tools.utils import dt_pipeline_utils, root_utils
 
 # ---------------------------------------------------------------
 
-STAGES = ["dt_hits", "dt_hits_corr", "hit_diff_hist", "cell_counts", "sl_patterns", "sl_fits", "sl_fits_cut", "super_fits", "super_fits_cut", "dt_muons"]
+STAGES = ["dt_hits", "hit_diff_hist", "cell_counts", "sl_patterns", "sl_fits", "sl_fits_cut", "super_fits", "super_fits_cut", "dt_muons"]
 
 def _step_size(value):
     return int(value) if value.strip().isdigit() else value
@@ -32,8 +32,8 @@ def main(argv=None):
     parser.add_argument("--from_stage", type=str, choices=STAGES, default=STAGES[0], help="first stage to run (earlier outputs have to exist in --output_dir)")
     parser.add_argument("--to_stage", type=str, choices=STAGES, default=STAGES[-1], help="last stage to run")
     parser.add_argument("--dt_tp_corrections_file", type=str, default=None,
-                        help="timing corrections from a testpulse run (.pcl). If given, the dt hits are corrected (stage dt_hits_corr) "
-                             "and all following stages use the corrected hits")
+                        help="optional: testpulse timing calibration (.root from dumpfile_to_dt_tp_corrections.py, or old .pcl). "
+                             "If given, the timestamps of the dt hits are corrected in stage dt_hits")
     parser.add_argument("--skip_stages", type=str, default="", help="comma separated list of stages to leave out, e.g. \"hit_diff_hist,cell_counts\"")
     # settings of the individual stages (same defaults as the stage scripts)
     parser.add_argument("--n_lines_to_skip", type=int, default=999, help="dumpfile lines to ignore at the start")
@@ -65,9 +65,6 @@ def main(argv=None):
     if first > last:
         parser.error("--from_stage is after --to_stage")
     todo = [s for s in STAGES[first:last + 1] if s not in skip]
-    use_corr = args.dt_tp_corrections_file is not None
-    if not use_corr and "dt_hits_corr" in todo:
-        todo.remove("dt_hits_corr")
     if "dt_hits" in todo and args.input_dumpfile is None:
         parser.error("--input_dumpfile is needed for stage dt_hits")
 
@@ -76,7 +73,9 @@ def main(argv=None):
         super_fit_cuts = f"impossible{args.super_fit_suffix},==,0;chi2/ndf{args.super_fit_suffix},<,20"
     step_size = _step_size(args.step_size)
     f = {s: os.path.join(args.output_dir, f"{args.prefix}_{s}.root") for s in STAGES}
-    hits = f["dt_hits_corr"] if use_corr else f["dt_hits"]  # dt hits used by the following stages
+    hits = f["dt_hits"]  # dt hits used by the following stages
+    if args.dt_tp_corrections_file is not None and "dt_hits" not in todo:
+        log(f"###### WARNING: --dt_tp_corrections_file is only used in stage dt_hits, which is not run; {hits} is used as it is")
     os.makedirs(args.output_dir, exist_ok=True)
     root_utils.log(f"###### stages to run: {todo}")
     t_start = time.perf_counter()
@@ -84,11 +83,8 @@ def main(argv=None):
     for stage in todo:
         if stage == "dt_hits":
             dt_pipeline_utils.convert_dumpfile_to_dt_hits(
-                args.input_dumpfile, f["dt_hits"], n_lines_to_skip=args.n_lines_to_skip, block_n_lines=args.block_lines, n_proc=args.n_proc
-            )
-        elif stage == "dt_hits_corr":
-            dt_pipeline_utils.apply_timing_correction(
-                f["dt_hits"], args.dt_tp_corrections_file, f["dt_hits_corr"], step_size=step_size
+                args.input_dumpfile, f["dt_hits"], n_lines_to_skip=args.n_lines_to_skip, block_n_lines=args.block_lines, n_proc=args.n_proc,
+                dt_tp_corrections_file=args.dt_tp_corrections_file,
             )
         elif stage == "hit_diff_hist":
             dt_pipeline_utils.dt_hits_to_hit_diff_hist(

@@ -24,7 +24,7 @@ def main(argv=None):
         tree_names = [k.split(";")[0] for k in f.keys(filter_classname="TTree")]
         for name in tree_names:
             tree = f[name]
-            print(f"tree \"{name}\": {tree.num_entries} rows, {len(tree.keys())} branches")
+            print(f"tree \"{name}\": {tree.num_entries:,} rows, {len(tree.keys()):,} branches")
             for key in tree.keys():
                 print(f"    {key:40s} {tree[key].typename}")
     if args.branches is not None:

@@ -7,7 +7,7 @@
 # Histograms of the single branches: plot_histograms.py
 #
 # examples:
-#   python scripts/dt_root/plot_sl_fits.py --input_file out/run_sl_fits.root --store_plots plots/sl_fits --cuts "impossible,==,0;chi2/ndf,<,20"
+#   python scripts/dt_root/plot_sl_fits.py --sl_fits_file out/run_sl_fits.root --store_plots plots/sl_fits --cuts "impossible,==,0;chi2/ndf,<,20"
 #################################################################
 
 import argparse
@@ -28,7 +28,7 @@ from analysis_tools.params import params, derived_params
 @mpl.rc_context({'font.family': 'sans-serif', 'font.size': 20})
 def main(argv=None):
     parser = argparse.ArgumentParser(description="Drift time, residual and rate plots of sl fits.")
-    parser.add_argument("--input_file", type=str, required=True, help="input file path: sl fits (.root)")
+    parser.add_argument("--sl_fits_file", type=str, required=True, help="input file path: sl fits (.root)")
     parser.add_argument("--suffix", type=str, default="", help="suffix of the fit result branches to plot, if the fit was stored with one (default: none)")
     parser.add_argument("--cuts", type=str, default=None,
                         help="cuts applied before plotting, format \"key1,operator1,value1;key2,operator2,value2;...\" "
@@ -46,13 +46,13 @@ def main(argv=None):
     cuts = dt_pipeline_utils.parse_cuts(args.cuts) if args.cuts is not None else [("impossible" + sfx, "==", 0)]
     keys = ["sl", "t0" + sfx, "vd" + sfx] + [f"ts{ly}" for ly in range(4)] + [f"err_ts{ly}" for ly in range(4)] + [f"dt{ly}{sfx}" for ly in range(4)]
     keys = sorted(set(keys) | {c[0] for c in cuts})
-    log(f"###### Importing sl fits from {args.input_file}...")
-    sl_fits = root_utils.read_branches(args.input_file, keys)
+    log(f"###### Importing sl fits from {args.sl_fits_file}...")
+    sl_fits = root_utils.read_branches(args.sl_fits_file, keys)
     n_all = root_utils.length(sl_fits)
     sl_fits = data_utils.cut_data(data=sl_fits, conditions=cuts, silent=True)
     n_sl_fits = root_utils.length(sl_fits)
     cut_title = "cuts: " + ", ".join(f"{c[0]} {c[1]} {c[2]:g}" for c in cuts)
-    log(f"{cut_title}: {n_sl_fits} / {n_all} fits selected")
+    log(f"{cut_title}: {n_sl_fits:,} / {n_all:,} fits selected")
     if n_sl_fits == 0:
         raise RuntimeError("No fits pass the cuts, nothing to plot.")
 
@@ -114,7 +114,7 @@ def main(argv=None):
     for sl in params._dt_chamber["sls"].keys():
         count = int(np.sum(sl_fits["sl"] == sl))
         rate = f"{count / duration:.3f} +- {np.sqrt(count) / duration:.3f} Hz" if duration > 0 else "n/a"
-        log(f"sl={sl}: {count} fits, rate {rate}")
+        log(f"sl={sl}: {count:,} fits, rate {rate}")
 
     plot_utils.show_figures(args.show_plots)
 
