@@ -26,20 +26,36 @@ def main(argv=None):
         np.random.seed(args.seed)
 
     root_utils.check_input_file(args.dt_hits_file)
-    cells = plot_utils.parse_cells(args.cells) if args.cells is not None else plot_utils.masked_and_dead_cells()
+    if args.cells is not None:
+        cells = plot_utils.parse_cells(args.cells)
+    else:
+        cells = plot_utils.masked_and_dead_cells()
     if len(cells) == 0:
         raise RuntimeError("No cells to remove: give --cells or fill params._dt_wire_mask / params._dt_dead_wires.")
+    cells_to_remove = set()
+    for sl, ly, wi in cells:
+        cells_to_remove.add((int(sl), int(ly), int(wi)))
+
     n_in, n_out = 0, 0
-    with root_utils.TreeWriter(args.masked_dt_hits_file, root_utils.DT_HITS_TREE) as writer:
-        n_chunks_total = root_utils.n_steps(args.dt_hits_file, root_utils.DT_HITS_TREE)
-        for i_chunk, (_, chunk) in enumerate(root_utils.iterate_tree(args.dt_hits_file, root_utils.DT_HITS_TREE), start=1):
-            mask = np.full(root_utils.length(chunk), True)
-            for sl, ly, wi in cells:
-                mask &= ~((chunk["sl"] == sl) & (chunk["ly"] == ly) & (chunk["wi"] == wi))
-            n_in += len(mask)
-            n_out += int(mask.sum())
-            writer.write({k: v[mask] for k, v in chunk.items()})
-            log(f"    chunk {i_chunk:,} / {n_chunks_total:,}: {int(mask.sum()):,} of {len(mask):,} hits kept")
+    writer = root_utils.TreeWriter(args.masked_dt_hits_file, root_utils.DT_HITS_TREE)
+    chunks = root_utils.chunk_ranges(args.dt_hits_file, root_utils.DT_HITS_TREE)
+    for i_chunk in range(len(chunks)):
+        start, stop = chunks[i_chunk]
+        hits = root_utils.read_entries(args.dt_hits_file, root_utils.DT_HITS_TREE, start, stop)
+        n_hits = root_utils.length(hits)
+        keep = np.full(n_hits, True)
+        for i in range(n_hits):
+            if (int(hits["sl"][i]), int(hits["ly"][i]), int(hits["wi"][i])) in cells_to_remove:
+                keep[i] = False
+        kept_hits = {}
+        for key in hits:
+            kept_hits[key] = hits[key][keep]
+        n_kept = root_utils.length(kept_hits)
+        n_in += n_hits
+        n_out += n_kept
+        writer.write(kept_hits)
+        log(f"    chunk {i_chunk + 1:,} / {len(chunks):,}: {n_kept:,} of {n_hits:,} hits kept")
+    writer.close()
     log(f"###### Removed the hits of {len(cells):,} cells: {n_out:,} / {n_in:,} hits kept, stored in {args.masked_dt_hits_file}")
 
 if __name__ == "__main__":

@@ -20,18 +20,25 @@ plot_utils.setup_backend(show_plots="--show_plots" in sys.argv)
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 
-from analysis_tools.utils import cut_utils, data_utils, dt_geometry_utils as geometry, geoplot_utils, root_utils
+from analysis_tools.utils import cut_utils, data_utils, dt_geometry_utils as geometry, dt_track_fit_utils as track_fit, geoplot_utils, root_utils
 from analysis_tools.params import params, derived_params
 
 # ---------------------------------------------------------------
 
 ### rows of the first n fits which pass the cuts
-def _select_rows(input_file, cuts, n_fits):
-    cut_data = root_utils.read_branches(input_file, sorted({c[0] for c in cuts}))
+def select_rows(input_file, cuts, n_fits):
+    cut_keys = []
+    for cut in cuts:
+        if cut[0] not in cut_keys:
+            cut_keys.append(cut[0])
+    cut_data = root_utils.read_branches(input_file, sorted(cut_keys))
     cut_data["__row"] = np.arange(root_utils.length(cut_data))
-    rows = data_utils.cut_data(data=cut_data, conditions=cuts, silent=True)["__row"]
-    log(f"{len(rows):,} fits pass the cuts {cuts}, taking the first {min(n_fits, len(rows)):,}")
-    return [int(r) for r in rows[:n_fits]]
+    passing_rows = data_utils.cut_data(data=cut_data, conditions=cuts, silent=True)["__row"]
+    log(f"{len(passing_rows):,} fits pass the cuts {cuts}, taking the first {min(n_fits, len(passing_rows)):,}")
+    rows = []
+    for row in passing_rows[:n_fits]:
+        rows.append(int(row))
+    return rows
 
 @mpl.rc_context({'font.family': 'sans-serif', 'font.size': 20})
 def main(argv=None):
@@ -46,28 +53,41 @@ def main(argv=None):
     plot_utils.add_plot_arguments(parser)
     args = parser.parse_args(argv)
     plot_utils.check_plot_arguments(parser, args)
-    out = dict(store_plots=args.store_plots, show_plots=args.show_plots, file_format=args.format)
     sfx = args.suffix
 
     ### which fits
     root_utils.check_input_file(args.sl_fits_file)
     if args.rows is not None:
-        rows = [int(s) for s in args.rows.split(",") if s.strip() != ""]
+        rows = []
+        for text in args.rows.split(","):
+            if text.strip() != "":
+                rows.append(int(text))
     else:
-        cuts = cut_utils.parse_cuts(args.cuts) if args.cuts is not None else [("impossible" + sfx, "==", 0)]
-        rows = _select_rows(args.sl_fits_file, cuts, args.n_fits)
+        if args.cuts is not None:
+            cuts = cut_utils.parse_cuts(args.cuts)
+        else:
+            cuts = [("impossible" + sfx, "==", 0)]
+        rows = select_rows(args.sl_fits_file, cuts, args.n_fits)
     if len(rows) == 0:
         raise RuntimeError("No fits selected, nothing to plot.")
     sl_fits = root_utils.read_rows(args.sl_fits_file, rows)
     if "t0" + sfx not in sl_fits:
         raise KeyError(f"No fit results with suffix \"{sfx}\" in {args.sl_fits_file}.")
 
-    for i, row in enumerate(rows):
-        fit = {k: sl_fits[k][i] for k in sl_fits.keys()}
+    for i in range(len(rows)):
+        row = rows[i]
+        fit = {}
+        for key in sl_fits.keys():
+            fit[key] = sl_fits[key][i]
         ### data
         lys = np.arange(0, 4)
-        ts = np.array([fit[f"ts{ly}"] for ly in range(4)], dtype=np.float64)
-        err_ts = np.array([fit[f"err_ts{ly}"] for ly in range(4)], dtype=np.float64)
+        ts = np.zeros(4, dtype=np.float64)
+        err_ts = np.zeros(4, dtype=np.float64)
+        wires = []
+        for ly in range(4):
+            ts[ly] = fit[f"ts{ly}"]
+            err_ts[ly] = fit[f"err_ts{ly}"]
+            wires.append(int(fit[f"wi{ly}"]))
         sl = int(fit["sl"])
         ### pattern
         pat_type = int(fit["pat_type"])
@@ -75,35 +95,57 @@ def main(argv=None):
         lats = params._dt_sl_patterns[pat_name]["laterality"]  # list of [lat for ly0,1,2,3] laterality lists
         lat_idx = int(fit["laterality" + sfx])
         laterality = np.array(lats[lat_idx])
+        laterality_list = []
+        for lat in laterality:
+            laterality_list.append(int(lat))
         ### fit results (vd in mm / timestamp unit, as used by the fit function)
-        t0, x0, tan_alpha, vd = fit["t0" + sfx], fit["x0" + sfx], fit["tan_alpha" + sfx], fit["vd" + sfx]
-        err_t0, err_x0, err_tan_alpha, err_vd = fit["err_t0" + sfx], fit["err_x0" + sfx], fit["err_tan_alpha" + sfx], fit["err_vd" + sfx]
-        corr = {k: fit[k + sfx] for k in ["corr_t0_x0", "corr_t0_tan_alpha", "corr_t0_vd", "corr_x0_tan_alpha", "corr_x0_vd", "corr_tan_alpha_vd"]}
+        t0 = fit["t0" + sfx]
+        x0 = fit["x0" + sfx]
+        tan_alpha = fit["tan_alpha" + sfx]
+        vd = fit["vd" + sfx]
+        err_t0 = fit["err_t0" + sfx]
+        err_x0 = fit["err_x0" + sfx]
+        err_tan_alpha = fit["err_tan_alpha" + sfx]
+        err_vd = fit["err_vd" + sfx]
+        corr_t0_x0 = fit["corr_t0_x0" + sfx]
+        corr_t0_tan_alpha = fit["corr_t0_tan_alpha" + sfx]
+        corr_t0_vd = fit["corr_t0_vd" + sfx]
+        corr_x0_tan_alpha = fit["corr_x0_tan_alpha" + sfx]
+        corr_x0_vd = fit["corr_x0_vd" + sfx]
+        corr_tan_alpha_vd = fit["corr_tan_alpha_vd" + sfx]
         chi2ndf = fit["chi2/ndf" + sfx]
         impossible = bool(fit["impossible" + sfx])
-        vd_um_per_ns, err_vd_um_per_ns = vd / derived_params._drift_velocity_conversion, err_vd / derived_params._drift_velocity_conversion
+        vd_um_per_ns = vd / derived_params._drift_velocity_conversion
+        err_vd_um_per_ns = err_vd / derived_params._drift_velocity_conversion
         ### geometry of the pattern: z of the layers, x of the wires (local frame: wire of ly 3 at (0, 0))
-        z_arr, x_cell = np.full(4, 0, dtype=np.float64), np.full(4, 0, dtype=np.float64)
+        z_arr = np.full(4, 0, dtype=np.float64)
+        x_cell = np.full(4, 0, dtype=np.float64)
         for ly in lys:
             z_arr[ly] = geometry.pattern_layer_z(ly)
             rel_wi = params._dt_sl_patterns[pat_name]["rel_wis"][ly]
-            x_cell[ly] = geometry.pattern_cell(ly, rel_wi).center[0]
+            x_cell[ly] = geometry.pattern_cell(ly, rel_wi)["center"][0]
         ### fitted timestamps
-        fit_ts, err_fit_ts = np.zeros(4), np.zeros(4)
+        fit_ts = np.zeros(4)
+        err_fit_ts = np.zeros(4)
         for ly in lys:
-            fit_ts[ly] = geometry.hit_time(x_cell=x_cell[ly], t0=t0, x0=x0, tan_alpha=tan_alpha, z=z_arr[ly], laterality=laterality[ly], vd=vd)
-            err_fit_ts[ly] = geometry.err_hit_time(
+            fit_ts[ly] = track_fit.hit_time(x_cell=x_cell[ly], t0=t0, x0=x0, tan_alpha=tan_alpha, z=z_arr[ly], laterality=laterality[ly], vd=vd)
+            err_fit_ts[ly] = track_fit.err_hit_time(
                 x_cell=x_cell[ly], t0=t0, x0=x0, tan_alpha=tan_alpha, z=z_arr[ly], laterality=laterality[ly], vd=vd,
-                err_t0=err_t0, err_x0=err_x0, err_tan_alpha=err_tan_alpha, err_vd=err_vd, **corr,
+                err_t0=err_t0, err_x0=err_x0, err_tan_alpha=err_tan_alpha, err_vd=err_vd,
+                corr_t0_x0=corr_t0_x0, corr_t0_tan_alpha=corr_t0_tan_alpha, corr_t0_vd=corr_t0_vd,
+                corr_x0_tan_alpha=corr_x0_tan_alpha, corr_x0_vd=corr_x0_vd, corr_tan_alpha_vd=corr_tan_alpha_vd,
             )
         residuals = ts - fit_ts
         ### print
-        log(f"sl fit, row {row}{' (flagged impossible)' if impossible else ''}:")
-        log(f"  sl = {sl}, pat_type = {pat_type} ({pat_name}), wires = {[int(fit[f'wi{ly}']) for ly in range(4)]}, laterality = {[int(l) for l in laterality]} (idx {lat_idx})")
+        impossible_text = ""
+        if impossible:
+            impossible_text = " (flagged impossible)"
+        log(f"sl fit, row {row}{impossible_text}:")
+        log(f"  sl = {sl}, pat_type = {pat_type} ({pat_name}), wires = {wires}, laterality = {laterality_list} (idx {lat_idx})")
         log(f"  t0 = {t0:.2f} +- {err_t0:.2f} TU, x0 = {x0:.3f} +- {err_x0:.3f} mm, tan_alpha = {tan_alpha:.4f} +- {err_tan_alpha:.4f}")
         log(f"  vd = {vd_um_per_ns:.2f} +- {err_vd_um_per_ns:.2f} um/ns, chi2/ndf = {chi2ndf:.3f}")
         log(f"  residuals [TU] = {np.round(residuals, 2)}")
-        title = f"SL {sl} ({params._dt_chamber['sls'][sl]['orient']}), Pattern {pat_type}, Laterality {[int(l) for l in laterality]}, row {row}"
+        title = f"SL {sl} ({params._dt_chamber['sls'][sl]['orient']}), Pattern {pat_type}, Laterality {laterality_list}, row {row}"
 
         ################################
         ###### timestamps per layer with fit, and residuals
@@ -129,11 +171,11 @@ $\\chi^2/N_{{df}}={chi2ndf:.2f}$"""
         ax[1].set_ylabel("Residuals [TU]")
         fig.align_ylabels(ax)
         ax[1].set_xlabel("Layer $ly$")
-        ax[1].set_xticks([j for j in range(4)])
-        ax[1].set_xticklabels([f"{j}" for j in range(4)])
+        ax[1].set_xticks([0, 1, 2, 3])
+        ax[1].set_xticklabels(["0", "1", "2", "3"])
         fig.tight_layout()
         fig.subplots_adjust(hspace=0.1)
-        plot_utils.finish_figure(fig, f"sl_fit{sfx}_row{row}_timestamps", **out)
+        plot_utils.save_figure(fig, f"sl_fit{sfx}_row{row}_timestamps", args)
 
         ################################
         ###### pattern cells with hit positions and fitted track (local frame)
@@ -145,14 +187,14 @@ $\\chi^2/N_{{df}}={chi2ndf:.2f}$"""
               (laterality * vd) ** 2 * err_ts ** 2
             + (-laterality * vd) ** 2 * err_t0 ** 2
             + (laterality * (ts - t0)) ** 2 * err_vd ** 2
-            + 2 * (-laterality * vd) * (laterality * (ts - t0)) * corr["corr_t0_vd"],
+            + 2 * (-laterality * vd) * (laterality * (ts - t0)) * corr_t0_vd,
             0, None,
         ))
         ax.errorbar(x=x_hits, y=z_arr, xerr=err_x_hits, color="tab:blue", marker="o", markersize=7, linestyle="", label="Hit positions", zorder=5)
         # fitted track with uncertainty band
         z_range = np.linspace(np.amin(z_arr) - params._plot_z_margin, np.amax(z_arr) + params._plot_z_margin, 1000)
         track = geometry.track_position(z=z_range, x0=x0, tan_alpha=tan_alpha)
-        err_track = geometry.err_track_position(z=z_range, x0=x0, tan_alpha=tan_alpha, err_x0=err_x0, err_tan_alpha=err_tan_alpha, corr_x0_tan_alpha=corr["corr_x0_tan_alpha"])
+        err_track = geometry.err_track_position(z=z_range, x0=x0, tan_alpha=tan_alpha, err_x0=err_x0, err_tan_alpha=err_tan_alpha, corr_x0_tan_alpha=corr_x0_tan_alpha)
         ax.plot(track, z_range, linewidth=2, color="tab:red", label=fit_label, zorder=4)
         ax.fill_betweenx(x1=track - err_track, x2=track + err_track, y=z_range, color="tab:red", alpha=0.2, zorder=3)
         ax.legend(prop={"size": 14}, loc="center left", bbox_to_anchor=(1.01, 0.5), fancybox=False, framealpha=params._legend_alpha)
@@ -165,7 +207,7 @@ $\\chi^2/N_{{df}}={chi2ndf:.2f}$"""
         ax.set_aspect("equal", adjustable="box")
         ax.set_title(title, fontsize=16)
         fig.tight_layout()
-        plot_utils.finish_figure(fig, f"sl_fit{sfx}_row{row}_track", **out)
+        plot_utils.save_figure(fig, f"sl_fit{sfx}_row{row}_track", args)
 
     plot_utils.show_figures(args.show_plots)
 

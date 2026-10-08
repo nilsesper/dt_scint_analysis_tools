@@ -32,8 +32,40 @@ from analysis_tools.utils import cut_utils, data_utils, root_utils
 
 BOOKKEEPING_BRANCHES = [root_utils.CHUNK_ID_KEY, "nidcs"]
 
-def _is_other_laterality_branch(key):
+### branch with the results of a not-selected laterality ("lat0_...", "lat1_...", ...)
+def is_other_laterality_branch(key):
     return re.match(r"^lat\d+_", key) is not None
+
+### fixed-size array branches (e.g. ts_residual with 8 values per row): one histogram per element
+# returns [(name, values)], for a normal branch only [(key, column)]
+def split_array_branch(key, column):
+    sub_columns = []
+    if column.ndim == 1:
+        sub_columns.append((key, column))
+        return sub_columns
+    n_elements = int(np.prod(column.shape[1:]))
+    columns_2d = column.reshape(len(column), -1)
+    for j in range(n_elements):
+        sub_columns.append((f"{key}[{j}]", columns_2d[:, j]))
+    return sub_columns
+
+### one histogram line per value of the split branch, all in the same plot
+def draw_split_histograms(ax, values, finite, edges, split_column, split_values, split_by, xlabel, log_scale):
+    top = 0
+    for value in split_values:
+        selected = values[finite & (split_column == value)]
+        hist, _ = np.histogram(selected, bins=edges)
+        ax.stairs(hist, edges, linewidth=2, label=f"{plot_utils.key_label(split_by)} = {value:g} ({len(selected):,} rows)")
+        if len(hist) > 0:
+            top = max(top, hist.max())
+    if log_scale:
+        ax.set_yscale("log")
+        ax.set_ylim(bottom=0.5, top=max(top, 1) * np.exp(1.1))
+    else:
+        ax.set_ylim(bottom=0, top=max(top, 1) * 1.25)
+    ax.set_xlabel(xlabel)
+    ax.set_ylabel("Counts")
+    ax.legend(prop={"size": 14}, fancybox=False)
 
 @mpl.rc_context({'font.family': 'sans-serif', 'font.size': 20})
 def main(argv=None):
@@ -57,7 +89,9 @@ def main(argv=None):
 
     root_utils.check_input_file(args.input_file)
     tree = root_utils.resolve_tree_name(args.input_file, args.tree)
-    prefix = args.prefix if args.prefix is not None else os.path.splitext(os.path.basename(args.input_file))[0]
+    prefix = args.prefix
+    if prefix is None:
+        prefix = os.path.splitext(os.path.basename(args.input_file))[0]
     available = root_utils.list_branches(args.input_file, tree)
     n_rows_file = root_utils.n_entries(args.input_file, tree)
     log(f"###### {args.input_file}: tree \"{tree}\", {n_rows_file:,} rows, {len(available):,} branches")
@@ -66,28 +100,43 @@ def main(argv=None):
 
     ### which branches
     if args.branches is not None:
-        keys = [k.strip() for k in args.branches.split(",") if k.strip() != ""]
-        missing = [k for k in keys if k not in available]
+        keys = []
+        for k in args.branches.split(","):
+            if k.strip() != "":
+                keys.append(k.strip())
+        missing = []
+        for k in keys:
+            if k not in available:
+                missing.append(k)
         if len(missing) > 0:
             raise KeyError(f"Branches {missing} not found. Available: {available}")
     elif args.all_branches:
         keys = list(available)
     else:
-        keys = [k for k in available if k not in BOOKKEEPING_BRANCHES and not _is_other_laterality_branch(k)]
+        keys = []
+        for k in available:
+            if k not in BOOKKEEPING_BRANCHES and not is_other_laterality_branch(k):
+                keys.append(k)
 
     ### selection mask from cuts
     cuts = cut_utils.parse_cuts(args.cuts)
     mask = np.full(n_rows_file, True)
     if len(cuts) > 0:
-        cut_data = root_utils.read_branches(args.input_file, sorted({c[0] for c in cuts}), tree)
+        cut_keys = []
+        for c in cuts:
+            if c[0] not in cut_keys:
+                cut_keys.append(c[0])
+        cut_data = root_utils.read_branches(args.input_file, sorted(cut_keys), tree)
         cut_data["__row"] = np.arange(n_rows_file)
-        mask = np.isin(np.arange(n_rows_file), data_utils.cut_data(data=cut_data, conditions=cuts, silent=True)["__row"])
+        selected_rows = data_utils.cut_data(data=cut_data, conditions=cuts, silent=True)["__row"]
+        mask = np.isin(np.arange(n_rows_file), selected_rows)
         log(f"###### cuts {cuts}: {int(mask.sum()):,} / {n_rows_file:,} rows selected")
         if not mask.any():
             raise RuntimeError("No rows pass the cuts, nothing to plot.")
 
     ### split values
-    split_values, split_column = [None], None
+    split_values = [None]
+    split_column = None
     if args.split_by is not None:
         split_column = root_utils.read_branches(args.input_file, [args.split_by], tree)[args.split_by][mask]
         split_values = list(np.unique(split_column))
@@ -103,8 +152,7 @@ def main(argv=None):
             skipped["not numbers"].append(key)
             continue
         column = column[mask]
-        # fixed-size array branches (e.g. ts_residual with 8 values per row): one histogram per element
-        sub_columns = [(key, column)] if column.ndim == 1 else [(f"{key}[{j}]", column.reshape(len(column), -1)[:, j]) for j in range(int(np.prod(column.shape[1:])))]
+        sub_columns = split_array_branch(key, column)
         for name, values in sub_columns:
             values = values.astype(np.float64)
             finite = np.isfinite(values)
@@ -117,37 +165,31 @@ def main(argv=None):
                 continue
             edges = plot_utils.choose_edges(values[finite], n_bins=args.n_bins, full_range=args.full_range)
             fig, ax = plt.subplots(1, 1, figsize=(12, 8))
-            xlabel = plot_utils.key_label(key) if name == key else name
+            xlabel = name
+            if name == key:
+                xlabel = plot_utils.key_label(key)
             if split_column is None:
                 _, _, entries, underflow, overflow = plot_utils.draw_histogram(ax, values[finite], edges, xlabel=xlabel, log_scale=args.log_scale)
                 log(f"hist: {name}: n_data={len(values):,}, entries={entries:,}, underflow={underflow:,}, overflow={overflow:,}, not finite={n_not_finite:,}, n_bins={len(edges) - 1}")
             else:
-                top = 0
-                for value in split_values:
-                    selected = values[finite & (split_column == value)]
-                    hist, _ = np.histogram(selected, bins=edges)
-                    ax.stairs(hist, edges, linewidth=2, label=f"{plot_utils.key_label(args.split_by)} = {value:g} ({len(selected):,} rows)")
-                    top = max(top, hist.max() if len(hist) > 0 else 0)
-                if args.log_scale:
-                    ax.set_yscale("log")
-                    ax.set_ylim(bottom=0.5, top=max(top, 1) * np.exp(1.1))
-                else:
-                    ax.set_ylim(bottom=0, top=max(top, 1) * 1.25)
-                ax.set_xlabel(xlabel)
-                ax.set_ylabel("Counts")
-                ax.legend(prop={"size": 14}, fancybox=False)
+                draw_split_histograms(ax, values, finite, edges, split_column, split_values, args.split_by, xlabel, args.log_scale)
                 log(f"hist: {name} split by {args.split_by}: n_data={len(values):,}, not finite={n_not_finite:,}, n_bins={len(edges) - 1}")
             if len(cuts) > 0:
-                ax.set_title("cuts: " + ", ".join(f"{c[0]} {c[1]} {c[2]:g}" for c in cuts), fontsize=12)
+                cut_texts = []
+                for c in cuts:
+                    cut_texts.append(f"{c[0]} {c[1]} {c[2]:g}")
+                ax.set_title("cuts: " + ", ".join(cut_texts), fontsize=12)
             fig.tight_layout()
-            suffix = f"_by_{plot_utils.safe_name(args.split_by)}" if split_column is not None else ""
-            plot_utils.finish_figure(fig, f"{prefix}_{plot_utils.safe_name(name)}{suffix}", store_plots=args.store_plots, show_plots=args.show_plots, file_format=args.format)
+            suffix = ""
+            if split_column is not None:
+                suffix = f"_by_{plot_utils.safe_name(args.split_by)}"
+            plot_utils.save_figure(fig, f"{prefix}_{plot_utils.safe_name(name)}{suffix}", args)
             n_plots += 1
 
     log(f"###### {n_plots:,} histograms made")
-    for reason, names in skipped.items():
-        if len(names) > 0:
-            log(f"skipped ({reason}): {', '.join(names)}")
+    for reason in skipped:
+        if len(skipped[reason]) > 0:
+            log(f"skipped ({reason}): {', '.join(skipped[reason])}")
     plot_utils.show_figures(args.show_plots)
 
 if __name__ == "__main__":

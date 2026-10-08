@@ -21,20 +21,21 @@ def main(argv=None):
 
     root_utils.check_input_file(args.input_file)
     with uproot.open(args.input_file) as f:
-        tree_names = [k.split(";")[0] for k in f.keys(filter_classname="TTree")]
-        for name in tree_names:
+        for key in f.keys(filter_classname="TTree"):
+            name = key.split(";")[0]
             tree = f[name]
             print(f"tree \"{name}\": {tree.num_entries:,} rows, {len(tree.keys()):,} branches")
-            for key in tree.keys():
-                print(f"    {key:40s} {tree[key].typename}")
+            for branch in tree.keys():
+                print(f"    {branch:40s} {tree[branch].typename}")
     if args.branches is not None:
-        wanted = [b.strip() for b in args.branches.split(",")]
-        for _, chunk in root_utils.iterate_tree(args.input_file, step_size=max(1, args.n_rows)):
-            for key in wanted:
-                if key not in chunk:
-                    raise KeyError(f"Branch \"{key}\" not found.")
-                print(f"{key} = {chunk[key][:args.n_rows]}")
-            break
+        tree = root_utils.resolve_tree_name(args.input_file)
+        n_rows = min(args.n_rows, root_utils.n_entries(args.input_file, tree))
+        rows = root_utils.read_entries(args.input_file, tree, 0, n_rows)
+        for key in args.branches.split(","):
+            key = key.strip()
+            if key not in rows:
+                raise KeyError(f"Branch \"{key}\" not found.")
+            print(f"{key} = {rows[key]}")
 
 if __name__ == "__main__":
     main()

@@ -191,7 +191,10 @@ chamber and the superlayers are only used for drawing. A different chamber type 
   fits give `x0`, `tan_alpha` in this frame
 - super pattern frame: the chamber x-z frame shifted to `SUPER_FRAME_ORIGIN` (a wire of the topmost phi layer); each
   super fit is shifted once more to its own topmost wire (branches `ref_x`, `ref_z`)
-- track model: `hit_time` (fit function), `track_position`, `muon_track_position` (global track in a 2d view)
+- straight tracks: `track_position`, `muon_track_position` (global track in a 2d view)
+
+The fit model (`hit_time`), its derivatives (`hit_time_derivatives`, the Jacobian of the fit) and its uncertainty
+(`err_hit_time`) are together in `analysis_tools/utils/dt_track_fit_utils.py`, next to the fit itself.
 
 ## Helpers
 
@@ -206,8 +209,12 @@ python scripts/pcl_to_root.py --input_pcl_file sim_dt_hits.pcl --output_file sim
 
 - dt hits are in a tree called `dt_hits`, everything else in a tree called `tree`. Branch names are the keys of the
   data dicts used throughout `analysis_tools` (also `chi2/ndf`).
-- Read a file in python with `root_utils.read_tree(path)` (returns `{key: np.ndarray}`) or in chunks with
-  `root_utils.iterate_tree(path)`.
+- Read a file in python with `root_utils.read_tree(path)` (returns `{key: np.ndarray}`) or in chunks:
+  ```python
+  chunks = root_utils.chunk_ranges(path, "tree", "200 MB")   # [(first row, row after the last row), ...]
+  for start, stop in chunks:
+      data = root_utils.read_entries(path, "tree", start, stop)
+  ```
 - `hit_diff_hist.root`: histogram object `hit_diff_hist` (TH1D) to draw directly in ROOT; tree `tree` has one row per
   bin (branch `hist` = bin content), tree `summary` holds entries / underflow / overflow. Drawing the branch `hist` of
   the tree in ROOT shows how often each bin content occurs, not the distribution: use the TH1D or
@@ -228,8 +235,8 @@ The dt hits are processed in chunks (`--step_size`, default 200 MB). The dead ti
 hit difference histogram do not look across the border between two chunks. Every pattern carries the `chunk_id` of
 its hit chunk, and this branch is passed on to all later files. The stages which combine rows (super fits, dt muons)
 only combine rows of the same `chunk_id`. This way the results depend only on the `--step_size` used for
-`dt_hits_to_sl_patterns.py` and not on how the later scripts read their files; `--step_size` and `--n_proc` of the
-later stages change speed and memory use only.
+`dt_hits_to_sl_patterns.py`: `sl_fits_to_super_fits.py` and `super_fits_to_dt_muons.py` read one `chunk_id` at a
+time, and `--step_size` / `--n_proc` of the other later stages change speed and memory use only.
 
 ## Where the code is
 
@@ -240,7 +247,7 @@ later stages change speed and memory use only.
 - `dt_hit_utils.py`: dead time cut, time between hits of a cell, hits per cell
 - `dt_pattern_utils.py`: pattern search
 - `dt_track_fit_utils.py`: the straight track fit shared by sl fit and super fit (bounds, fit, best laterality)
-- `dt_sl_fit_utils.py`, `dt_super_fit_utils.py`, `dt_muon_reco_utils.py`, `dt_matching_utils.py`: the reconstruction steps
+- `dt_sl_fit_utils.py`, `dt_super_fit_utils.py`, `dt_muon_reco_utils.py`: the reconstruction steps
 - `dt_sim_utils.py`: simulated hits, noise and secondary hits
 - `dt_chamber_utils.py`, `dt_geometry_utils.py`: superlayers / cells / readout channel lookup, geometry and frames
 - `root_utils.py` (ROOT files, `log`), `parallel_utils.py`, `cut_utils.py`, `plot_utils.py`, `geoplot_utils.py`,

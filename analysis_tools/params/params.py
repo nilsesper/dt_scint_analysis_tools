@@ -4,7 +4,7 @@
 # All settings of the analysis: data format, chamber geometry, readout mapping, calibration, reconstruction,
 # simulation, branch definitions and plotting. Values which follow from these are in derived_params.py, the geometry
 # built from _dt_chamber is in analysis_tools/utils/dt_geometry_utils.py.
-# Another parameter file with the same names can be used with --params_file (see analysis_tools/_params_select.py).
+# Another parameter file with the same names can be used with --params_file (see analysis_tools/params_file_selection.py).
 # Units: lengths in mm, times in timestamp units (TU, 1 TU = 0.78 ns = 1 TDC count), angles in rad.
 
 import numpy as np

@@ -3,8 +3,6 @@
 ###########################################
 # All functions give the same result as running on one process.
 
-import collections
-import contextlib
 import multiprocessing
 import numpy as np
 
@@ -12,45 +10,50 @@ from analysis_tools.utils import root_utils
 
 # -----------------------------------------
 
-### a pool of n_proc worker processes, or None for n_proc <= 1 (use in a with statement)
-@contextlib.contextmanager
-def optional_pool(n_proc):
+### a pool of n_proc worker processes, or None for n_proc <= 1; close it with close_pool
+def open_pool(n_proc):
     if n_proc <= 1:
-        yield None
-        return
-    pool = multiprocessing.Pool(n_proc)
-    try:
-        yield pool
-    finally:
+        return None
+    return multiprocessing.Pool(n_proc)
+
+def close_pool(pool):
+    if pool is not None:
         pool.close()
         pool.join()
 
-### function(item) for every item, in the order of the items; on the pool if one is given
-# at most 2 * (pool size) items are in work at a time, so a generator of items is never read far ahead
-def map_in_order(function, items, pool=None):
-    if pool is None:
-        for item in items:
-            yield function(item)
-        return
-    in_work = collections.deque()
-    for item in items:
-        in_work.append(pool.apply_async(function, (item,)))
-        if len(in_work) >= 2 * pool._processes:
-            yield in_work.popleft().get()
-    while in_work:
-        yield in_work.popleft().get()
+### split a data dict into n_parts dicts with (nearly) the same number of rows
+def split_rows(data, n_parts):
+    n_rows = root_utils.length(data)
+    parts = []
+    for i_part in range(n_parts):
+        start = (i_part * n_rows) // n_parts
+        stop = ((i_part + 1) * n_rows) // n_parts
+        part = {}
+        for key in data:
+            part[key] = data[key][start:stop]
+        parts.append(part)
+    return parts
 
-def _call_with_rows(job):
-    function, rows, rows_argument, kwargs = job
-    return function(**{rows_argument: rows}, **kwargs)
+def merge_rows(parts):
+    merged = {}
+    for key in parts[0]:
+        arrays = []
+        for part in parts:
+            arrays.append(part[key])
+        merged[key] = np.concatenate(arrays)
+    return merged
 
-### function(rows, **kwargs) for a function which treats every row on its own (one output row per input row),
-# with the rows split over n_proc processes
-def run_rowwise(function, rows, rows_argument, kwargs, n_proc):
+### fit_function(rows, fit_vd, suffix, verbose) for a fit function which treats every row on its own (one output row per
+# input row, e.g. dt_sl_fit_utils.fit_sl_patterns): the rows are split into n_proc parts, which are fitted in parallel,
+# and the results are merged again
+def run_fits_in_parallel(fit_function, rows, fit_vd, suffix, verbose, n_proc):
     n_rows = root_utils.length(rows)
     if n_proc <= 1 or n_rows < 4 * n_proc:
-        return function(**{rows_argument: rows}, **kwargs)
-    parts = [{k: v[part] for k, v in rows.items()} for part in np.array_split(np.arange(n_rows), n_proc)]
-    with multiprocessing.Pool(n_proc) as pool:
-        results = pool.map(_call_with_rows, [(function, part, rows_argument, kwargs) for part in parts])
-    return {k: np.concatenate([result[k] for result in results]) for k in results[0].keys()}
+        return fit_function(rows, fit_vd, suffix, verbose)
+    jobs = []
+    for part in split_rows(rows, n_proc):
+        jobs.append((part, fit_vd, suffix, verbose))
+    pool = open_pool(n_proc)
+    results = pool.starmap(fit_function, jobs)
+    close_pool(pool)
+    return merge_rows(results)

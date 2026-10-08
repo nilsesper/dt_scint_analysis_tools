@@ -25,7 +25,9 @@ def propagate_muons(muons, z): # propagate spherical coordinates
 # pass separate timestamp for all muons i.e. ts = [ts[i] for i in range(n)]
 def generate_cosmic_muons(n, ts, xrange, yrange, z0, *, silent=False, thetarange=[0, np.pi/2], phirange=[0,2*np.pi], theta_weight=params.cosmic_muon_theta_weight):
     if not silent: print(f"Generating {n:,} cosmic muons...")
-    muons = {k: np.full(n, 0, dtype=v) for k,v in params._muon_obj_keys.items()}
+    muons = {}
+    for key in params._muon_obj_keys:
+        muons[key] = np.full(n, 0, dtype=params._muon_obj_keys[key])
     muons["x0"] = np.random.uniform(low=xrange[0], high=xrange[1], size=n).astype(dtype=params._muon_obj_keys["x0"])
     muons["y0"] = np.random.uniform(low=yrange[0], high=yrange[1], size=n).astype(dtype=params._muon_obj_keys["y0"]) # x,y uniformly distributed inside xrange, yrange
     muons["z0"] = np.full(n, z0, dtype=params._muon_obj_keys["z0"])

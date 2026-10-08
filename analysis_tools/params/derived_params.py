@@ -14,7 +14,11 @@ import analysis_tools.params.params as params
 _dt_ro_chs = list(params._dt_mapping.keys())
 
 # OBDT channels of the dt chamber per readout channel: {ro_ch: [ch]}
-_dt_chs_by_ro_ch = {ro_ch: [ch for connector in params._dt_mapping[ro_ch].values() for ch in connector["chs"]] for ro_ch in _dt_ro_chs}
+_dt_chs_by_ro_ch = {}
+for ro_ch in _dt_ro_chs:
+    _dt_chs_by_ro_ch[ro_ch] = []
+    for connector in params._dt_mapping[ro_ch].values():
+        _dt_chs_by_ro_ch[ro_ch].extend(connector["chs"])
 
 ### cell of a channel: {ro_ch: {ch: {"sl", "ly", "wi", "conn_id", "fe_id", "ch_id"}}}
 # conductor ch_id of frontend connector fe_id -> wire 4 * fe_id + ch_id // 4, layer params._fe_conductor_layers[ch_id % 4];
@@ -37,9 +41,14 @@ for ro_ch in _dt_ro_chs:
 ### channel of a cell: {sl: {ly: {wi: {"ch", "ro_ch", "conn_id", "fe_id", "ch_id"}}}}
 _dt_inverted_remap_table = {}
 for ro_ch in _dt_ro_chs:
-    for ch, cell in _dt_remap_table[ro_ch].items():
-        _dt_inverted_remap_table.setdefault(cell["sl"], {}).setdefault(cell["ly"], {})[cell["wi"]] = \
-            {"ch": ch, "ro_ch": ro_ch} | {k: cell[k] for k in ["conn_id", "fe_id", "ch_id"]}
+    for ch in _dt_remap_table[ro_ch]:
+        cell = _dt_remap_table[ro_ch][ch]
+        sl, ly, wi = cell["sl"], cell["ly"], cell["wi"]
+        if sl not in _dt_inverted_remap_table:
+            _dt_inverted_remap_table[sl] = {}
+        if ly not in _dt_inverted_remap_table[sl]:
+            _dt_inverted_remap_table[sl][ly] = {}
+        _dt_inverted_remap_table[sl][ly][wi] = {"ch": ch, "ro_ch": ro_ch, "conn_id": cell["conn_id"], "fe_id": cell["fe_id"], "ch_id": cell["ch_id"]}
 
 # -----------------------------------------
 ### units

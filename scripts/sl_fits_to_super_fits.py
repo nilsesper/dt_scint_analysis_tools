@@ -10,7 +10,7 @@ import argparse
 import numpy as np
 
 from analysis_tools.utils.root_utils import log
-from analysis_tools.utils import dt_pipeline_utils, root_utils
+from analysis_tools.utils import dt_pipeline_utils
 
 # ---------------------------------------------------------------
 
@@ -26,8 +26,6 @@ def main(argv=None):
     parser.add_argument("--free_vd", action="store_true", help="fit the drift velocity as free parameter in the super fit (default: fixed)")
     parser.add_argument("--suffix", type=str, default=dt_pipeline_utils.DEFAULT_SUPER_FIT_SUFFIX, help="suffix of the super fit result branches")
     parser.add_argument("--n_proc", type=int, default=1, help="number of processes to run in parallel")
-    parser.add_argument("--step_size", type=str, default=root_utils.DEFAULT_STEP_SIZE,
-                        help="how much of the input file is read at once: memory size like \"200 MB\" or a number of rows")
     parser.add_argument("--verbose", action="store_true", help="print info for every fit (switches off parallel processing)")
     parser.add_argument("--params_file", type=str, default=None,
                         help="parameter file to use instead of analysis_tools/params/params.py (e.g. another readout mapping)")
@@ -36,7 +34,7 @@ def main(argv=None):
     dt_pipeline_utils.sl_fits_to_super_fits(
         args.sl_fits_file, args.super_fits_file, super_patterns_file=args.super_patterns_file, max_chi2=args.max_chi2,
         max_alpha=np.deg2rad(args.max_alpha_deg), fit_vd=args.free_vd, suffix=args.suffix,
-        step_size=root_utils.parse_step_size(args.step_size), n_proc=args.n_proc, verbose=args.verbose,
+        n_proc=args.n_proc, verbose=args.verbose,
     )
 
 if __name__ == "__main__":

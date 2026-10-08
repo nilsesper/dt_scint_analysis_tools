@@ -37,6 +37,10 @@ def finish_figure(fig, name, *, store_plots=None, show_plots=False, file_format=
     if not show_plots:
         plt.close(fig)
 
+### finish_figure with the plot arguments of the script (--store_plots, --show_plots, --format)
+def save_figure(fig, name, args):
+    finish_figure(fig, name, store_plots=args.store_plots, show_plots=args.show_plots, file_format=args.format)
+
 ### show all open figures at the end of a script (only if plots are shown)
 def show_figures(show_plots):
     if show_plots:
@@ -60,19 +64,27 @@ def check_plot_arguments(parser, args):
 def key_label(key, *, known_suffixes=("_super_fits",)):
     base, suffix_text = key, ""
     if key not in params._key_symbols:
+        # super fit branches like "t0_super_fits"
         for suffix in known_suffixes:
             if key.endswith(suffix) and key[:-len(suffix)] in params._key_symbols:
-                base, suffix_text = key[:-len(suffix)], " (" + suffix.strip("_").replace("_", " ") + ")"
+                base = key[:-len(suffix)]
+                suffix_text = " (" + suffix.strip("_").replace("_", " ") + ")"
                 break
-        else:
-            m = re.match(r"^(.*)_sl(\d)$", key)  # super pattern branches like "t0_sl1"
-            if m and m.group(1) in params._key_symbols:
-                base, suffix_text = m.group(1), f" (SL {m.group(2)})"
+        # super pattern branches like "t0_sl1"
+        if base == key and len(key) > 4 and key[-4:-1] == "_sl" and key[-1].isdigit() and key[:-4] in params._key_symbols:
+            base = key[:-4]
+            suffix_text = f" (SL {key[-1]})"
     if base not in params._key_symbols:
-        return key.replace("_", "\\_") if "$" in key else key
+        if "$" in key:
+            return key.replace("_", "\\_")
+        return key
     label = params._key_symbols[base] + suffix_text
-    unit = params._key_units.get(base, "")
-    return label if unit == "" else f"{label} [{unit}]"
+    unit = ""
+    if base in params._key_units:
+        unit = params._key_units[base]
+    if unit == "":
+        return label
+    return f"{label} [{unit}]"
 
 ### parse a cell list "sl:ly:wi,sl:ly:wi,..." into [(sl, ly, wi)]
 def parse_cells(cells_str):
@@ -83,17 +95,18 @@ def parse_cells(cells_str):
         parts = item.strip().split(":")
         if len(parts) != 3:
             raise ValueError(f"Cannot read cell \"{item}\". Expected format: sl:ly:wi")
-        cells.append(tuple(int(p) for p in parts))
+        cells.append((int(parts[0]), int(parts[1]), int(parts[2])))
     return cells
 
 ### cells listed in params._dt_wire_mask and params._dt_dead_wires as [(sl, ly, wi)]
 def masked_and_dead_cells():
-    cells = []
-    for table in (getattr(params, "_dt_wire_mask", {}), getattr(params, "_dt_dead_wires", {})):
-        for sl, lys in table.items():
-            for ly, wis in lys.items():
-                cells.extend((sl, ly, wi) for wi in wis)
-    return sorted(set(cells))
+    cells = set()
+    for table in [params._dt_wire_mask, params._dt_dead_wires]:
+        for sl in table:
+            for ly in table[sl]:
+                for wi in table[sl][ly]:
+                    cells.add((sl, ly, wi))
+    return sorted(cells)
 
 ### bin edges for one data array
 # - data which only holds whole numbers over a small range gets one bin per value
@@ -101,7 +114,7 @@ def masked_and_dead_cells():
 #   distribution given by range_percentiles; values outside are counted as underflow / overflow
 def choose_edges(data, *, n_bins=50, full_range=False, range_percentiles=(0.5, 99.5), max_integer_bins=300):
     lo, hi = float(np.amin(data)), float(np.amax(data))
-    whole_numbers = data.dtype.kind in "iub" or bool(np.all(data == np.round(data)))
+    whole_numbers = data.dtype.kind in "iub" or bool(np.all(data == np.round(data)))  # integer type or only whole numbers
     if whole_numbers and (hi - lo) <= max_integer_bins:
         return np.arange(np.floor(lo) - 0.5, np.ceil(hi) + 1.5, 1.0)
     if not full_range:

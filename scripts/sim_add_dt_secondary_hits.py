@@ -26,8 +26,11 @@ def main(argv=None):
         np.random.seed(args.seed)
 
     root_utils.check_input_file(args.dt_hits_file)
-    window = [float(x) for x in args.window.split(",")]
-    if len(window) != 2 or window[1] <= window[0]:
+    window_parts = args.window.split(",")
+    if len(window_parts) != 2:
+        parser.error("--window has to be \"start,stop\" with stop > start")
+    window = [float(window_parts[0]), float(window_parts[1])]
+    if window[1] <= window[0]:
         parser.error("--window has to be \"start,stop\" with stop > start")
     dt_hits = root_utils.read_tree(args.dt_hits_file, root_utils.DT_HITS_TREE)
     n_hits = root_utils.length(dt_hits)

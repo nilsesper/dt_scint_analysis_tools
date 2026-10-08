@@ -54,14 +54,20 @@ def main(argv=None):
         if args.input_dumpfile is None:
             parser.error("give --prefix when running without --input_dumpfile")
         args.prefix = os.path.splitext(os.path.basename(args.input_dumpfile))[0]
-    skip = [s.strip() for s in args.skip_stages.split(",") if s.strip() != ""]
+    skip = []
+    for s in args.skip_stages.split(","):
+        if s.strip() != "":
+            skip.append(s.strip())
     for s in skip:
         if s not in STAGES:
             parser.error(f"unknown stage \"{s}\" in --skip_stages, allowed: {STAGES}")
     first, last = STAGES.index(args.from_stage), STAGES.index(args.to_stage)
     if first > last:
         parser.error("--from_stage is after --to_stage")
-    todo = [s for s in STAGES[first:last + 1] if s not in skip]
+    todo = []  # stages to run
+    for s in STAGES[first:last + 1]:
+        if s not in skip:
+            todo.append(s)
     if "dt_hits" in todo and args.input_dumpfile is None:
         parser.error("--input_dumpfile is needed for stage dt_hits")
 
@@ -106,7 +112,7 @@ def main(argv=None):
         elif stage == "super_fits":
             dt_pipeline_utils.sl_fits_to_super_fits(
                 f["sl_fits_cut"], f["super_fits"], max_alpha=np.deg2rad(args.max_alpha_deg), fit_vd=args.super_fit_free_vd, suffix=args.super_fit_suffix,
-                step_size=step_size, n_proc=args.n_proc,
+                n_proc=args.n_proc,
             )
         elif stage == "super_fits_cut":
             dt_pipeline_utils.apply_cuts(
@@ -114,12 +120,15 @@ def main(argv=None):
             )
         elif stage == "dt_muons":
             dt_pipeline_utils.super_fits_to_dt_muons(
-                f["super_fits_cut"], f["sl_fits_cut"], f["dt_muons"], suffix=args.super_fit_suffix, tgroup_tolerance=args.tgroup_tolerance, step_size=step_size,
+                f["super_fits_cut"], f["sl_fits_cut"], f["dt_muons"], suffix=args.super_fit_suffix, tgroup_tolerance=args.tgroup_tolerance,
             )
 
     root_utils.log(f"###### all stages done in {(time.perf_counter() - t_start) / 60:.1f} minutes, output files:")
     for stage in todo:
-        root_utils.log(f"    {stage:14s} -> {f[stage]}" + ("" if os.path.isfile(f[stage]) else "   (not written)"))
+        if os.path.isfile(f[stage]):
+            root_utils.log(f"    {stage:14s} -> {f[stage]}")
+        else:
+            root_utils.log(f"    {stage:14s} -> {f[stage]}   (not written)")
 
 if __name__ == "__main__":
     main()

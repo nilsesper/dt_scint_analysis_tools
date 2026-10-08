@@ -10,15 +10,16 @@
 #   (0, 0). Cells are addressed by layer and wire relative to the wire of layer 3 ("rel_wi"). All superlayers have the
 #   same layout, so the pattern frame is the same everywhere; sl fits give x0 (at z = 0) and tan_alpha in this frame.
 #
-# super pattern frame (x, z): chamber frame shifted so that SUPER_FRAME_ORIGIN (the wire of the topmost layer of the
-#   phi superlayers, at FRAME_REFERENCE_WIRE) is at (0, 0). Each super fit is done in this frame shifted once more,
-#   to the topmost wire of its own pattern ("ref_x", "ref_z" are stored with the fit).
+# super pattern frame (x, z): chamber frame shifted so that SUPER_FRAME_ORIGIN (the wire FRAME_REFERENCE_WIRE of the
+#   topmost layer of the phi superlayers) is at (0, 0). Each super fit is done in this frame shifted once more, to the
+#   topmost wire of its own pattern ("ref_x", "ref_z" are stored with the fit).
 #
-# Track model (all frames): a straight track h(z) = x0 + z * tan_alpha crossing at time t0 gives a hit in the cell with
-# the wire at (h_cell, z) at ts = t0 + laterality * (x0 + z * tan_alpha - h_cell) / vd.
+# Tracks (all frames): a straight track is h(z) = x0 + z * tan_alpha. The hit times it gives (the fit model) are in
+# dt_track_fit_utils.
+#
+# A box (cell, superlayer, chamber) is a dict {"low": [...], "high": [...], "center": [...]} with one value per axis
+# (cell: the center is the wire position).
 
-import dataclasses
-import functools
 import numpy as np
 
 from analysis_tools.params import params
@@ -26,20 +27,12 @@ from analysis_tools.utils import dt_chamber_utils
 
 # -----------------------------------------
 
-X, Y, Z = 0, 1, 2
+X = 0
+Y = 1
+Z = 2
 MEASURED_AXIS = {"phi": X, "theta": Y}
 VIEW_AXES = {"phi": (X, Z), "theta": (Y, Z)}  # (horizontal, vertical) axis of the 2d view of a superlayer
 FRAME_REFERENCE_WIRE = 10  # wire used to place the pattern frame and the super pattern frame (any wire of the chamber would do)
-
-### a box: lower corner, upper corner, centre (for a cell: the wire), each one value per axis
-@dataclasses.dataclass(frozen=True)
-class Box:
-    low: tuple
-    high: tuple
-    center: tuple
-
-    def size(self, axis):
-        return self.high[axis] - self.low[axis]
 
 def orientation(sl):
     return params._dt_chamber["sls"][sl]["orient"]
@@ -50,80 +43,117 @@ def measured_axis(sl):
 def view_axes(orient):
     return VIEW_AXES[orient]
 
+def box_size(box, axis):
+    return box["high"][axis] - box["low"][axis]
+
 # -----------------------------------------
 # chamber frame
 # -----------------------------------------
 
-def _corner_box(low, size):
-    return Box(low=tuple(low), high=tuple(low[a] + size[a] for a in range(len(low))), center=tuple(low[a] + size[a] / 2 for a in range(len(low))))
+### box from its lower corner and its size
+def corner_box(low, size):
+    high = []
+    center = []
+    for axis in range(len(low)):
+        high.append(low[axis] + size[axis])
+        center.append(low[axis] + size[axis] / 2)
+    return {"low": list(low), "high": high, "center": center}
 
-@functools.cache
-def _cells():
+### all cells: CELLS[sl][ly][wi] = box
+def build_cells():
     cells = {}
-    for sl, superlayer in params._dt_chamber["sls"].items():
-        axis, size = MEASURED_AXIS[superlayer["orient"]], superlayer["cell_size"]
-        for ly, layer in superlayer["lys"].items():
-            for wi in range(layer["min_wi"], layer["max_wi"] + 1):
-                low = list(layer["cell_0"])
-                low[axis] = low[axis] + wi * size[axis]
-                cells.setdefault(sl, {}).setdefault(ly, {})[wi] = _corner_box(low, size)
+    for sl in dt_chamber_utils.superlayers():
+        superlayer = params._dt_chamber["sls"][sl]
+        axis = MEASURED_AXIS[superlayer["orient"]]
+        size = superlayer["cell_size"]
+        cells[sl] = {}
+        for ly in dt_chamber_utils.layers(sl):
+            cells[sl][ly] = {}
+            for wi in dt_chamber_utils.wires(sl, ly):
+                low = list(superlayer["lys"][ly]["cell_0"])
+                low[axis] = low[axis] + wi * size[axis]  # the cells of a layer follow each other along the measured axis
+                cells[sl][ly][wi] = corner_box(low, size)
     return cells
 
+CELLS = build_cells()
+
 def cell(sl, ly, wi):
-    return _cells()[sl][ly][wi]
+    return CELLS[sl][ly][wi]
 
 def is_cell(sl, ly, wi):
-    return wi in _cells()[sl][ly]
+    return wi in CELLS[sl][ly]
 
 ### position of the wire of a cell in the 2d view of its superlayer: (along the measured axis, z)
 def wire_position(sl, ly, wi):
-    c = cell(sl, ly, wi)
-    return c.center[measured_axis(sl)], c.center[Z]
+    box = cell(sl, ly, wi)
+    return box["center"][measured_axis(sl)], box["center"][Z]
 
+### z of the wires of a layer
 def layer_z(sl, ly):
-    return cell(sl, ly, params._dt_chamber["sls"][sl]["lys"][ly]["min_wi"]).center[Z]
+    first_wire = dt_chamber_utils.wires(sl, ly)[0]
+    return cell(sl, ly, first_wire)["center"][Z]
 
-def _box_from_pos_size(pos, size):
-    low = tuple(np.amin([pos[a], pos[a] + size[a]]) for a in range(3))
-    high = tuple(np.amax([pos[a], pos[a] + size[a]]) for a in range(3))
-    return Box(low=low, high=high, center=tuple(np.mean([pos[a], pos[a] + size[a]]) for a in range(3)))
+### box of the superlayer or chamber outline (from pos and size in params.py)
+def box_from_pos_size(pos, size):
+    low, high, center = [], [], []
+    for axis in range(3):
+        low.append(np.amin([pos[axis], pos[axis] + size[axis]]))
+        high.append(np.amax([pos[axis], pos[axis] + size[axis]]))
+        center.append(np.mean([pos[axis], pos[axis] + size[axis]]))
+    return {"low": low, "high": high, "center": center}
 
 def superlayer_box(sl):
-    return _box_from_pos_size(params._dt_chamber["sls"][sl]["pos"], params._dt_chamber["sls"][sl]["size"])
+    return box_from_pos_size(params._dt_chamber["sls"][sl]["pos"], params._dt_chamber["sls"][sl]["size"])
 
 def chamber_box():
-    return _box_from_pos_size(params._dt_chamber["pos"], params._dt_chamber["size"])
+    return box_from_pos_size(params._dt_chamber["pos"], params._dt_chamber["size"])
 
-### range along an axis covered by all superlayers
+### (lowest, highest) value along an axis covered by all superlayers
 def superlayers_range(axis):
-    boxes = [superlayer_box(sl) for sl in dt_chamber_utils.superlayers()]
-    return np.amin([b.low[axis] for b in boxes]), np.amax([b.high[axis] for b in boxes])
+    lows, highs = [], []
+    for sl in dt_chamber_utils.superlayers():
+        lows.append(superlayer_box(sl)["low"][axis])
+        highs.append(superlayer_box(sl)["high"][axis])
+    return np.amin(lows), np.amax(highs)
 
 # -----------------------------------------
 # pattern frame
 # -----------------------------------------
 
-def _pattern_reference():
-    return dt_chamber_utils.phi_superlayers()[0], 3, FRAME_REFERENCE_WIRE
-
-### cell of layer ly and wire rel_wi (relative to the wire of layer 3) in the pattern frame, as Box over (h, z)
-@functools.cache
-def pattern_cell(ly, rel_wi):
-    sl, ref_ly, ref_wi = _pattern_reference()
+### cells of the pattern frame: PATTERN_CELLS[ly][rel_wi] = box over (h, z), rel_wi from -2 to 2
+# taken from the first phi superlayer around FRAME_REFERENCE_WIRE, shifted so that the wire of layer 3 is at (0, 0)
+def build_pattern_cells():
+    sl = dt_chamber_utils.phi_superlayers()[0]
     axis = measured_axis(sl)
     size = params._dt_chamber["sls"][sl]["cell_size"]
+    reference = cell(sl, 3, FRAME_REFERENCE_WIRE)
+    boxes = {}
+    for ly in dt_chamber_utils.layers(sl):
+        boxes[ly] = {}
+        for rel_wi in range(-2, 3):
+            box = cell(sl, ly, FRAME_REFERENCE_WIRE + rel_wi)
+            low = [box["low"][axis] - reference["low"][axis], box["low"][Z] - reference["low"][Z]]
+            boxes[ly][rel_wi] = corner_box(low, [size[axis], size[Z]])
+    origin = boxes[3][0]["center"]  # the wire of layer 3
+    pattern_cells = {}
+    for ly in boxes:
+        pattern_cells[ly] = {}
+        for rel_wi in boxes[ly]:
+            box = boxes[ly][rel_wi]
+            shifted = {"low": [], "high": [], "center": []}
+            for corner in ["low", "high", "center"]:
+                for i in range(2):
+                    shifted[corner].append(np.float64(box[corner][i]) - origin[i])
+            pattern_cells[ly][rel_wi] = shifted
+    return pattern_cells
 
-    def corner_box(ly, rel_wi):
-        c, ref = cell(sl, ly, ref_wi + rel_wi), cell(sl, ref_ly, ref_wi)
-        return _corner_box([c.low[axis] - ref.low[axis], c.low[Z] - ref.low[Z]], [size[axis], size[Z]])
+PATTERN_CELLS = build_pattern_cells()
 
-    origin = corner_box(ref_ly, 0).center  # the reference wire
-    box = corner_box(ly, rel_wi)
-    return Box(low=tuple(np.float64(v) - o for v, o in zip(box.low, origin)), high=tuple(np.float64(v) - o for v, o in zip(box.high, origin)),
-               center=tuple(np.float64(v) - o for v, o in zip(box.center, origin)))
+def pattern_cell(ly, rel_wi):
+    return PATTERN_CELLS[ly][rel_wi]
 
 def pattern_layer_z(ly):
-    return pattern_cell(ly, 0).center[1]
+    return PATTERN_CELLS[ly][0]["center"][1]
 
 ### an sl fit (pattern frame of its pattern, wire wi_layer3 in layer 3): track position in the chamber frame along the
 # measured axis at height z, and its uncertainty
@@ -132,50 +162,43 @@ def sl_track_position(sl, wi_layer3, x0, tan_alpha, z):
     return track_position(z=-wire_z + z, x0=x0, tan_alpha=tan_alpha) + wire_h
 
 def err_sl_track_position(sl, wi_layer3, x0, tan_alpha, z, err_x0, err_tan_alpha, corr_x0_tan_alpha):
-    _, wire_z = wire_position(sl, 3, wi_layer3)
+    wire_h, wire_z = wire_position(sl, 3, wi_layer3)
     return err_track_position(z=-wire_z + z, x0=x0, tan_alpha=tan_alpha, err_x0=err_x0, err_tan_alpha=err_tan_alpha, corr_x0_tan_alpha=corr_x0_tan_alpha)
 
 # -----------------------------------------
 # super pattern frame
 # -----------------------------------------
 
-def _top_phi_superlayer():
+def find_top_phi_superlayer():
     sl_1, sl_2 = dt_chamber_utils.phi_superlayers()
-    return sl_1 if cell(sl_1, 3, FRAME_REFERENCE_WIRE).center[Z] >= cell(sl_2, 3, FRAME_REFERENCE_WIRE).center[Z] else sl_2
+    if cell(sl_1, 3, FRAME_REFERENCE_WIRE)["center"][Z] >= cell(sl_2, 3, FRAME_REFERENCE_WIRE)["center"][Z]:
+        return sl_1
+    return sl_2
 
-TOP_PHI_SUPERLAYER = _top_phi_superlayer()
-SUPER_FRAME_ORIGIN = (cell(TOP_PHI_SUPERLAYER, 3, FRAME_REFERENCE_WIRE).center[X], cell(TOP_PHI_SUPERLAYER, 3, FRAME_REFERENCE_WIRE).center[Z])
+TOP_PHI_SUPERLAYER = find_top_phi_superlayer()
+SUPER_FRAME_ORIGIN = (cell(TOP_PHI_SUPERLAYER, 3, FRAME_REFERENCE_WIRE)["center"][X], cell(TOP_PHI_SUPERLAYER, 3, FRAME_REFERENCE_WIRE)["center"][Z])
 
 ### wire position (x, z) of a cell of a phi superlayer in the super pattern frame
-@functools.cache
 def super_frame_position(sl, ly, wi):
-    c = cell(sl, ly, wi)
-    return c.center[X] - SUPER_FRAME_ORIGIN[0], c.center[Z] - SUPER_FRAME_ORIGIN[1]
+    box = cell(sl, ly, wi)
+    return box["center"][X] - SUPER_FRAME_ORIGIN[0], box["center"][Z] - SUPER_FRAME_ORIGIN[1]
 
 ### range of x0 (track position at the height of the topmost layer) in the super pattern frame: the half of the cell of
 # wire wi_top (layer 3 of the top phi superlayer) given by the laterality there
-@functools.cache
 def super_frame_x0_range(wi_top, laterality_top):
-    c = cell(TOP_PHI_SUPERLAYER, 3, wi_top)
-    low, high, wire = c.low[X] - SUPER_FRAME_ORIGIN[0], c.high[X] - SUPER_FRAME_ORIGIN[0], c.center[X] - SUPER_FRAME_ORIGIN[0]
-    return (low if laterality_top == -1 else wire), (high if laterality_top == 1 else wire)
+    box = cell(TOP_PHI_SUPERLAYER, 3, wi_top)
+    low = box["low"][X] - SUPER_FRAME_ORIGIN[0]
+    high = box["high"][X] - SUPER_FRAME_ORIGIN[0]
+    wire = box["center"][X] - SUPER_FRAME_ORIGIN[0]
+    if laterality_top == -1:
+        return low, wire
+    if laterality_top == 1:
+        return wire, high
+    return wire, wire
 
 # -----------------------------------------
-# track model
+# straight tracks
 # -----------------------------------------
-
-def hit_time(x_cell, t0, x0, tan_alpha, z, laterality, vd):
-    return (x0 + z * tan_alpha - x_cell) * laterality / vd + t0
-
-def err_hit_time(x_cell, t0, x0, tan_alpha, z, laterality, vd, *, err_t0, err_x0, err_tan_alpha, err_vd, corr_t0_x0, corr_t0_tan_alpha, corr_x0_tan_alpha,
-                 corr_t0_vd, corr_x0_vd, corr_tan_alpha_vd):
-    d_t0, d_x0, d_tan_alpha = 1, laterality / vd, z * laterality / vd
-    d_vd = -(x0 + z * tan_alpha - x_cell) * laterality / vd**2
-    return np.sqrt(
-          d_t0**2 * err_t0**2 + d_x0**2 * err_x0**2 + d_tan_alpha**2 * err_tan_alpha**2 + d_vd**2 * err_vd**2
-        + 2 * d_t0 * d_x0 * corr_t0_x0 + 2 * d_t0 * d_tan_alpha * corr_t0_tan_alpha + 2 * d_t0 * d_vd * corr_t0_vd
-        + 2 * d_x0 * d_tan_alpha * corr_x0_tan_alpha + 2 * d_x0 * d_vd * corr_x0_vd + 2 * d_tan_alpha * d_vd * corr_tan_alpha_vd
-    )
 
 def track_position(z, x0, tan_alpha):
     return x0 + z * tan_alpha
@@ -185,16 +208,17 @@ def err_track_position(z, x0, tan_alpha, err_x0, err_tan_alpha, corr_x0_tan_alph
 
 ### a muon (x0, y0, z0, theta, phi) seen in the 2d view of orient: position along the horizontal axis at height z
 def muon_track_position(orient, z, x0, y0, z0, theta, phi):
-    base = x0 if orient == "phi" else y0
-    tan_alpha = np.tan(theta) * np.cos(phi) if orient == "phi" else np.tan(theta) * np.sin(phi)
-    return base + tan_alpha * (z - z0)
+    if orient == "phi":
+        return x0 + np.tan(theta) * np.cos(phi) * (z - z0)
+    return y0 + np.tan(theta) * np.sin(phi) * (z - z0)
 
 def err_muon_track_position(orient, z, x0, y0, z0, theta, phi, err_x0, err_y0, err_z0, err_theta, err_phi):
-    err_base = err_x0 if orient == "phi" else err_y0
     if orient == "phi":
+        err_base = err_x0
         tan_alpha = np.tan(theta) * np.cos(phi)
         err_tan_alpha = np.sqrt((1 / np.cos(theta)**2 * np.cos(phi))**2 * err_theta**2 + (np.tan(theta) * (-np.sin(phi)))**2 * err_phi**2)
     else:
+        err_base = err_y0
         tan_alpha = np.tan(theta) * np.sin(phi)
         err_tan_alpha = np.sqrt((1 / np.cos(theta)**2 * np.cos(phi))**2 * err_theta**2 + (np.tan(theta) * (np.cos(phi)))**2 * err_phi**2)
     return np.sqrt(err_base**2 + (z - z0)**2 * err_tan_alpha**2 + (-tan_alpha)**2 * err_z0**2)

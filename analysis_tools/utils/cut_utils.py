@@ -19,12 +19,16 @@ def parse_cuts(cuts_str):
         parts = cut_str.split(",")
         if len(parts) != 3:
             raise ValueError(f"Cannot read cut \"{cut_str}\". Expected format: key,operator,value")
-        key, operator, value = [p.strip() for p in parts]
-        value = getattr(params, value.split("params.")[1]) if value.startswith("params.") else float(value)
+        key, operator, value = parts[0].strip(), parts[1].strip(), parts[2].strip()
+        if value.startswith("params."):
+            value = getattr(params, value.split("params.")[1])
+        else:
+            value = float(value)
         cuts.append((key, operator, value))
     return cuts
 
 def check_cut_keys(cuts, data, file):
-    for key, _, _ in cuts:
+    for cut in cuts:
+        key = cut[0]
         if key not in data:
             raise KeyError(f"Cut key \"{key}\" is not a branch of {file}.")

@@ -34,8 +34,13 @@ def main(argv=None):
         return
     if not isinstance(data, dict):
         raise TypeError(f"Expected a dict of numpy arrays in {args.input_pcl_file}, found {type(data)}.")
-    jagged = [k for k, v in data.items() if isinstance(v, list)]
-    bad = [k for k, v in data.items() if not isinstance(v, (list, np.ndarray))]
+    jagged = []  # keys with python lists (stored as variable-length branches)
+    bad = []     # keys which cannot be stored
+    for key in data:
+        if isinstance(data[key], list):
+            jagged.append(key)
+        elif not isinstance(data[key], np.ndarray):
+            bad.append(key)
     if len(bad) > 0:
         raise TypeError(f"Keys {bad} are neither numpy arrays nor lists, cannot be stored as branches.")
     if args.sort_key is not None:
