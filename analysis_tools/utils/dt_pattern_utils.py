@@ -93,7 +93,7 @@ def split_in_time(hits, n_pieces, max_ts_difference):
 
 ### find the patterns of all superlayers; returns the sl patterns table, sorted by the wire of layer 3
 # pool: an open multiprocessing pool for the parallel search (or n_proc > 1 to open one for this call)
-def find_sl_patterns(hits, *, wide_ts_window=False, only_single_muon_patterns=False, n_proc=1, pool=None, min_hits_per_piece=2000, verbose=False):
+def find_sl_patterns(hits, *, wide_ts_window=False, only_single_muon_patterns=False, n_proc=1, pool=None, min_hits_per_piece=20000, verbose=False):
     kwargs = {"wide_ts_window": wide_ts_window, "only_single_muon_patterns": only_single_muon_patterns, "verbose": verbose}
     parallel = (n_proc > 1 or pool is not None) and not verbose
     n_workers = n_proc if pool is None else pool._processes
