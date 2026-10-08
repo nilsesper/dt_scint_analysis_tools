@@ -11,15 +11,11 @@
 #################################################################
 
 import argparse
-import numpy as np
 
 from analysis_tools.utils.root_utils import log
 from analysis_tools.utils import dt_pipeline_utils, root_utils
 
 # ---------------------------------------------------------------
-
-def _step_size(value):
-    return int(value) if value.strip().isdigit() else value
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description="Combine phi super fits and theta sl fits to dt muons.")
@@ -38,7 +34,7 @@ def main(argv=None):
 
     dt_pipeline_utils.super_fits_to_dt_muons(
         args.super_fits_file, args.sl_fits_file, args.dt_muons_file, suffix=args.suffix, tgroup_tolerance=args.tgroup_tolerance,
-        step_size=_step_size(args.step_size), verbose=args.verbose,
+        step_size=root_utils.parse_step_size(args.step_size), verbose=args.verbose,
     )
 
 if __name__ == "__main__":

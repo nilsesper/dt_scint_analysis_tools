@@ -7,7 +7,7 @@
 # Histograms of the single branches: plot_histograms.py
 #
 # examples:
-#   python scripts/dt_root/plot_sl_fits.py --sl_fits_file out/run_sl_fits.root --store_plots plots/sl_fits --cuts "impossible,==,0;chi2/ndf,<,20"
+#   python scripts/plot_sl_fits.py --sl_fits_file out/run_sl_fits.root --store_plots plots/sl_fits --cuts "impossible,==,0;chi2/ndf,<,20"
 #################################################################
 
 import argparse
@@ -20,7 +20,7 @@ plot_utils.setup_backend(show_plots="--show_plots" in sys.argv)
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 
-from analysis_tools.utils import data_utils, dt_pipeline_utils, root_utils
+from analysis_tools.utils import cut_utils, data_utils, root_utils
 from analysis_tools.params import params, derived_params
 
 # ---------------------------------------------------------------
@@ -43,7 +43,7 @@ def main(argv=None):
     name = "sl_fits" + sfx
 
     ### data import (only the needed branches)
-    cuts = dt_pipeline_utils.parse_cuts(args.cuts) if args.cuts is not None else [("impossible" + sfx, "==", 0)]
+    cuts = cut_utils.parse_cuts(args.cuts) if args.cuts is not None else [("impossible" + sfx, "==", 0)]
     keys = ["sl", "t0" + sfx, "vd" + sfx] + [f"ts{ly}" for ly in range(4)] + [f"err_ts{ly}" for ly in range(4)] + [f"dt{ly}{sfx}" for ly in range(4)]
     keys = sorted(set(keys) | {c[0] for c in cuts})
     log(f"###### Importing sl fits from {args.sl_fits_file}...")

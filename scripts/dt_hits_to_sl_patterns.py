@@ -5,15 +5,11 @@
 #################################################################
 
 import argparse
-import numpy as np
 
 from analysis_tools.utils.root_utils import log
 from analysis_tools.utils import dt_pipeline_utils, root_utils
 
 # ---------------------------------------------------------------
-
-def _step_size(value):
-    return int(value) if value.strip().isdigit() else value
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description="Find superlayer hit patterns in dt hits.")
@@ -34,7 +30,7 @@ def main(argv=None):
     args = parser.parse_args(argv)
 
     dt_pipeline_utils.dt_hits_to_sl_patterns(
-        args.dt_hits_file, args.sl_patterns_file, step_size=_step_size(args.step_size), apply_dead_time=not args.no_dead_time,
+        args.dt_hits_file, args.sl_patterns_file, step_size=root_utils.parse_step_size(args.step_size), apply_dead_time=not args.no_dead_time,
         wide_ts_window=(args.ts_window == "free_vd"), simulation_only_muon_patterns=args.simulation_only_muon_patterns,
         n_proc=args.n_proc, verbose=args.verbose,
     )

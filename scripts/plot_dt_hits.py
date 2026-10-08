@@ -7,7 +7,7 @@
 # (histograms of the single branches: plot_histograms.py)
 #
 # example:
-#   python scripts/dt_root/plot_dt_hits.py --dt_hits_file out/run_dt_hits.root --store_plots plots/dt_hits \
+#   python scripts/plot_dt_hits.py --dt_hits_file out/run_dt_hits.root --store_plots plots/dt_hits \
 #          --hit_diff_hist_file out/run_hit_diff_hist.root
 #################################################################
 
@@ -21,13 +21,10 @@ plot_utils.setup_backend(show_plots="--show_plots" in sys.argv)
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 
-from analysis_tools.utils import dt_pipeline_utils, hist_utils, root_utils
+from analysis_tools.utils import dt_hit_utils, hist_utils, root_utils
 from analysis_tools.params import params, derived_params
 
 # ---------------------------------------------------------------
-
-def _step_size(value):
-    return int(value) if value.strip().isdigit() else value
 
 def _wires(sl, ly):
     return range(params._dt_chamber["sls"][sl]["lys"][ly]["min_wi"], params._dt_chamber["sls"][sl]["lys"][ly]["max_wi"] + 1)
@@ -69,7 +66,7 @@ def main(argv=None):
 
     ### count hits per cell
     log(f"###### Counting hits per cell in {args.dt_hits_file}...")
-    cell_counts, ts_min, ts_max, n_hits = dt_pipeline_utils.count_dt_cells(args.dt_hits_file, step_size=_step_size(args.step_size))
+    cell_counts, ts_min, ts_max, n_hits = dt_hit_utils.count_hits_per_cell(args.dt_hits_file, step_size=root_utils.parse_step_size(args.step_size))
     if n_hits == 0:
         raise RuntimeError(f"No dt hits in {args.dt_hits_file}.")
     duration_seconds = plot_utils.TS_UNIT_NS * 1e-9 * float(ts_max - ts_min)

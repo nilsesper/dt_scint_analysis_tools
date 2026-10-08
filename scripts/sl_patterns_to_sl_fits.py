@@ -4,15 +4,11 @@
 #################################################################
 
 import argparse
-import numpy as np
 
 from analysis_tools.utils.root_utils import log
 from analysis_tools.utils import dt_pipeline_utils, root_utils
 
 # ---------------------------------------------------------------
-
-def _step_size(value):
-    return int(value) if value.strip().isdigit() else value
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description="Fit a track segment to every superlayer pattern.")
@@ -27,8 +23,8 @@ def main(argv=None):
                         help="parameter file to use instead of analysis_tools/params/params.py (e.g. another readout mapping)")
     args = parser.parse_args(argv)
 
-    dt_pipeline_utils.fit_sl_patterns_file(
-        args.sl_patterns_file, args.sl_fits_file, fit_vd=args.fit_vd, suffix="", step_size=_step_size(args.step_size),
+    dt_pipeline_utils.sl_patterns_to_sl_fits(
+        args.sl_patterns_file, args.sl_fits_file, fit_vd=args.fit_vd, step_size=root_utils.parse_step_size(args.step_size),
         n_proc=args.n_proc, verbose=args.verbose,
     )
 

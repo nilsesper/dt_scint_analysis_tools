@@ -8,8 +8,7 @@ import argparse
 import numpy as np
 
 from analysis_tools.utils.root_utils import log
-from analysis_tools.utils import data_utils, dt_utils, muon_utils, plot_utils, root_utils
-from analysis_tools.params import params, derived_params
+from analysis_tools.utils import dt_sim_utils, root_utils
 
 # ---------------------------------------------------------------
 
@@ -33,7 +32,7 @@ def main(argv=None):
     dt_hits = root_utils.read_tree(args.dt_hits_file, root_utils.DT_HITS_TREE)
     n_hits = root_utils.length(dt_hits)
     log(f"###### Adding secondary hits with probability {args.probability:g} in the window {window} TU to {n_hits:,} hits...")
-    dt_hits = dt_utils.add_secondary_hits(hits=dt_hits, secondary_hit_window=window, secondary_hit_probability=args.probability)
+    dt_hits = dt_sim_utils.add_secondary_hits(hits=dt_hits, secondary_hit_window=window, secondary_hit_probability=args.probability)
     n_hits_new = root_utils.length(dt_hits)
     root_utils.write_tree(args.dt_hits_file_with_secondaries, dt_hits, tree=root_utils.DT_HITS_TREE)
     log(f"###### {n_hits:,} hits before, {n_hits_new:,} after: added {n_hits_new - n_hits:,} secondary hits, stored in {args.dt_hits_file_with_secondaries}")

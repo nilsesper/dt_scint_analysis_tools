@@ -10,8 +10,8 @@
 # Super fits are selected by their row in the file (--rows), or the first ones passing --cuts are taken (--n_fits).
 #
 # examples:
-#   python scripts/dt_root/singleplot_super_fit.py --super_fits_file out/run_super_fits_cut.root --rows 0,10 --store_plots plots/single_super_fits
-#   python scripts/dt_root/singleplot_super_fit.py --super_fits_file out/run_super_fits.root --n_fits 5 \
+#   python scripts/singleplot_super_fit.py --super_fits_file out/run_super_fits_cut.root --rows 0,10 --store_plots plots/single_super_fits
+#   python scripts/singleplot_super_fit.py --super_fits_file out/run_super_fits.root --n_fits 5 \
 #          --cuts "chi2/ndf_super_fits,>,10" --store_plots plots/single_super_fits_bad
 #################################################################
 
@@ -25,7 +25,7 @@ plot_utils.setup_backend(show_plots="--show_plots" in sys.argv)
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 
-from analysis_tools.utils import data_utils, dt_pipeline_utils, dt_utils, geoplot_utils, root_utils
+from analysis_tools.utils import cut_utils, data_utils, dt_chamber_utils, dt_geometry_utils as geometry, dt_pipeline_utils, geoplot_utils, root_utils
 from analysis_tools.params import params, derived_params
 
 # ---------------------------------------------------------------
@@ -62,7 +62,7 @@ def main(argv=None):
     if args.rows is not None:
         rows = [int(s) for s in args.rows.split(",") if s.strip() != ""]
     else:
-        cuts = dt_pipeline_utils.parse_cuts(args.cuts) if args.cuts is not None else [("impossible" + sfx, "==", 0)]
+        cuts = cut_utils.parse_cuts(args.cuts) if args.cuts is not None else [("impossible" + sfx, "==", 0)]
         rows = _select_rows(args.super_fits_file, cuts, args.n_fits)
     if len(rows) == 0:
         raise RuntimeError("No super fits selected, nothing to plot.")
@@ -80,8 +80,8 @@ def main(argv=None):
         ts = np.array([fit[f"ts{j}"] for j in range(8)], dtype=np.float64)
         err_ts = np.array([fit[f"err_ts{j}"] for j in range(8)], dtype=np.float64)
         wires = {sl: [int(fit[f"wi{ly}_sl{sl}"]) for ly in range(4)] for sl in phi_sls}
-        x_cell = np.array([derived_params._dt_cell_coordinates[sl][ly][wires[sl][ly]][3] for sl in phi_sls for ly in range(4)])
-        z_cell = np.array([derived_params._dt_cell_coordinates[sl][ly][wires[sl][ly]][5] for sl in phi_sls for ly in range(4)])
+        x_cell = np.array([geometry.wire_position(sl, ly, wires[sl][ly])[0] for sl in phi_sls for ly in range(4)])
+        z_cell = np.array([geometry.wire_position(sl, ly, wires[sl][ly])[1] for sl in phi_sls for ly in range(4)])
         ### super fit results; the fit frame has the top wire of the super pattern at (0, 0)
         t0, x0, tan_alpha, vd = fit["t0" + sfx], fit["x0" + sfx], fit["tan_alpha" + sfx], fit["vd" + sfx]
         err_t0, err_x0, err_tan_alpha, err_vd = fit["err_t0" + sfx], fit["err_x0" + sfx], fit["err_tan_alpha" + sfx], fit["err_vd" + sfx]
@@ -89,8 +89,8 @@ def main(argv=None):
         chi2ndf = fit["chi2/ndf" + sfx]
         vd_um_per_ns, err_vd_um_per_ns = vd / derived_params._drift_velocity_conversion, err_vd / derived_params._drift_velocity_conversion
         vd_is_free = err_vd != 0
-        x_ref = derived_params._super_pattern_x_ref + fit["ref_x" + sfx]
-        z_ref = derived_params._super_pattern_z_ref + fit["ref_z" + sfx]
+        x_ref = geometry.SUPER_FRAME_ORIGIN[0] + fit["ref_x" + sfx]
+        z_ref = geometry.SUPER_FRAME_ORIGIN[1] + fit["ref_z" + sfx]
         pat_type = {sl: int(fit[f"pat_type_sl{sl}"]) for sl in phi_sls}
         lat_ids = {phi_sls[0]: int(fit["lat_id1" + sfx]), phi_sls[1]: int(fit["lat_id2" + sfx])}
         laterality = np.array([params._dt_sl_patterns[pat_names[pat_type[sl]]]["laterality"][lat_ids[sl]][ly] for sl in phi_sls for ly in range(4)], dtype=np.float64)
@@ -103,15 +103,15 @@ def main(argv=None):
             sl_fit[sl] = {
                 "t0": fit[f"t0_sl{sl}"], "x0": fit[f"x0_sl{sl}"], "tan_alpha": fit[f"tan_alpha_sl{sl}"], "chi2/ndf": fit[f"chi2/ndf_sl{sl}"],
                 "err_x0": fit[f"err_x0_sl{sl}"], "err_tan_alpha": fit[f"err_tan_alpha_sl{sl}"], "corr_x0_tan_alpha": fit[f"corr_x0_tan_alpha_sl{sl}"],
-                "x_ref": derived_params._dt_cell_coordinates[sl][3][ref_wi][3], "z_ref": derived_params._dt_cell_coordinates[sl][3][ref_wi][5],
+                "x_ref": geometry.wire_position(sl, 3, ref_wi)[0], "z_ref": geometry.wire_position(sl, 3, ref_wi)[1],
                 "fit_ts": np.array([fit[f"t0_sl{sl}"] + fit[f"dt{ly}_sl{sl}"] for ly in range(4)]),
                 "laterality": params._dt_sl_patterns[pat_names[pat_type[sl]]]["laterality"][int(fit[f"laterality_sl{sl}"])],
                 "idx": idx8[4 * n: 4 * n + 4],
             }
             # distance sl fit - super fit in the middle of the superlayer
-            z_mid = derived_params.sl_z_center[sl]
-            x_sl = derived_params.f_x_muon(z=z_mid - sl_fit[sl]["z_ref"], x0=sl_fit[sl]["x0"], tan_alpha=sl_fit[sl]["tan_alpha"]) + sl_fit[sl]["x_ref"]
-            x_super = derived_params.f_x_muon(z=z_mid - z_ref, x0=x0, tan_alpha=tan_alpha) + x_ref
+            z_mid = geometry.superlayer_box(sl).center[geometry.Z]
+            x_sl = geometry.track_position(z=z_mid - sl_fit[sl]["z_ref"], x0=sl_fit[sl]["x0"], tan_alpha=sl_fit[sl]["tan_alpha"]) + sl_fit[sl]["x_ref"]
+            x_super = geometry.track_position(z=z_mid - z_ref, x0=x0, tan_alpha=tan_alpha) + x_ref
             sl_fit[sl]["dx"] = x_sl - x_super
         ### print
         log(f"super fit, row {row}{' (flagged impossible)' if fit['impossible' + sfx] else ''}:")
@@ -160,11 +160,11 @@ $v_d={vd_um_per_ns:.1f}$ um/ns""" + (f" $\\pm{err_vd_um_per_ns:.1f}$" if vd_is_f
 
         ################################
         ###### cells of both phi superlayers with hit positions, sl fits and super fit (global chamber frame)
-        dt_cell_data = dt_utils._chamber_data()
+        dt_cell_data = dt_chamber_utils.cell_display_map()
         for sl in phi_sls:
             for ly in range(4):
                 dt_cell_data[sl][ly][wires[sl][ly]]["color"] = "aqua"
-        z_range = np.linspace(np.amin(z_cell) - params._cell_height * 1.5, np.amax(z_cell) + params._cell_height * 1.5, 600)
+        z_range = np.linspace(np.amin(z_cell) - params._plot_z_margin * 1.5, np.amax(z_cell) + params._plot_z_margin * 1.5, 600)
         fig, ax = plt.subplots(1, 1, figsize=(15, 9))
         ax = geoplot_utils.chamber_ax(ax=ax, orient="phi", cell_data=dt_cell_data, wire=True)
         # hit positions from the drift times of the super fit: x = x_wire + laterality * (T - T0) * vd
@@ -172,16 +172,16 @@ $v_d={vd_um_per_ns:.1f}$ um/ns""" + (f" $\\pm{err_vd_um_per_ns:.1f}$" if vd_is_f
         err_x_hits = np.sqrt((vd * err_ts) ** 2 + (vd * err_t0) ** 2)
         ax.errorbar(x=x_hits, y=z_cell, xerr=err_x_hits, color="black", marker="o", markersize=6, linestyle="", label="Hit positions (super fit $T_0$, $v_d$)", zorder=8)
         # super fit track with uncertainty band
-        track = derived_params.f_x_muon(z=z_range - z_ref, x0=x0, tan_alpha=tan_alpha) + x_ref
-        err_track = derived_params.err_f_x_muon(z=z_range - z_ref, x0=x0, tan_alpha=tan_alpha, err_x0=err_x0, err_tan_alpha=err_tan_alpha, corr_x0_tan_alpha=corr_x0_tan_alpha)
+        track = geometry.track_position(z=z_range - z_ref, x0=x0, tan_alpha=tan_alpha) + x_ref
+        err_track = geometry.err_track_position(z=z_range - z_ref, x0=x0, tan_alpha=tan_alpha, err_x0=err_x0, err_tan_alpha=err_tan_alpha, corr_x0_tan_alpha=corr_x0_tan_alpha)
         ax.plot(track, z_range, linewidth=2, color="tab:blue", label=super_label, zorder=7)
         ax.fill_betweenx(x1=track - err_track, x2=track + err_track, y=z_range, color="tab:blue", alpha=0.2, zorder=6)
         # sl fit segments with uncertainty band
         for sl in phi_sls:
             f_sl = sl_fit[sl]
-            sl_z_range = np.linspace(derived_params._dt_cell_coordinates[sl][0][wires[sl][0]][5] - params._cell_height, derived_params._dt_cell_coordinates[sl][3][wires[sl][3]][5] + params._cell_height, 200)
-            sl_track = derived_params.f_x_muon(z=sl_z_range - f_sl["z_ref"], x0=f_sl["x0"], tan_alpha=f_sl["tan_alpha"]) + f_sl["x_ref"]
-            err_sl_track = derived_params.err_f_x_muon(z=sl_z_range - f_sl["z_ref"], x0=f_sl["x0"], tan_alpha=f_sl["tan_alpha"], err_x0=f_sl["err_x0"], err_tan_alpha=f_sl["err_tan_alpha"], corr_x0_tan_alpha=f_sl["corr_x0_tan_alpha"])
+            sl_z_range = np.linspace(geometry.layer_z(sl, 0) - params._plot_z_margin, geometry.layer_z(sl, 3) + params._plot_z_margin, 200)
+            sl_track = geometry.track_position(z=sl_z_range - f_sl["z_ref"], x0=f_sl["x0"], tan_alpha=f_sl["tan_alpha"]) + f_sl["x_ref"]
+            err_sl_track = geometry.err_track_position(z=sl_z_range - f_sl["z_ref"], x0=f_sl["x0"], tan_alpha=f_sl["tan_alpha"], err_x0=f_sl["err_x0"], err_tan_alpha=f_sl["err_tan_alpha"], corr_x0_tan_alpha=f_sl["corr_x0_tan_alpha"])
             sl_label = f"SL {sl} fit: $\\tan\\alpha={f_sl['tan_alpha']:.3f}$, $\\chi^2/N_{{df}}={f_sl['chi2/ndf']:.2f}$\nSL fit $-$ super fit: {f_sl['dx']:+.2f} mm"
             ax.plot(sl_track, sl_z_range, color=sl_colors[sl], linewidth=3, linestyle="--", label=sl_label, zorder=5)
             ax.fill_betweenx(x1=sl_track - err_sl_track, x2=sl_track + err_sl_track, y=sl_z_range, color=sl_colors[sl], alpha=0.2, zorder=4)

@@ -4,33 +4,11 @@
 
 import numpy as np
 import copy
-import os.path
-from tqdm import tqdm
 import pickle
 
-import analysis_tools.params.params as params
 
 # -----------------------------------------
 
-### import raw file (.txt recorded with htg box)
-# extract data from dumpfile and convert to numbers
-# taken from private exchange with A. Bergnoli (INFN Padova/Legnaro)
-# return dict of np arrays
-def import_raw(file_name, *, silent=False):
-    if not silent: print(f"Importing raw file \"{file_name}\"...")
-    with open(file_name) as ascii_bin_file:
-        lines = ascii_bin_file.readlines()
-    if not silent: print(f"Converting raw file to dictionary of np arrays...")
-    n_hits = len(lines)
-    hits = {k: np.full(n_hits, 0, dtype=v) for k,v in params._htg_keys.items()}
-    for i in tqdm(range(n_hits), disable=silent):
-        d = lines[i]
-        hits["ch"][i] = (int(d) & params._htg_shifted_mask["ch"]) >> params._htg_bitshift["ch"]
-        hits["bx"][i] = (int(d) & params._htg_shifted_mask["bx"]) >> params._htg_bitshift["bx"]
-        hits["tdc"][i] = (int(d) & params._htg_shifted_mask["tdc"]) >> params._htg_bitshift["tdc"]
-        hits["oc"][i] = (int(d) & params._htg_shifted_mask["oc"]) >> params._htg_bitshift["oc"]
-        hits["ro_ch"][i] = (int(d) & params._htg_shifted_mask["ro_ch"]) >> params._htg_bitshift["ro_ch"]
-    return hits
 
 ### return data array with applied conditions (cuts)
 # arguments: data dict
@@ -111,84 +89,13 @@ def load_pickle(file, *, silent=False):
         data = pickle.load(file=file_obj)
     return data
 
-### split given data into n_parts
-# to be calculated in parallel
-def split_dataset(data, n_parts, *, silent=False):
-    split_data = [{} for i in range(n_parts)]
-    if not silent: print(f"Splitting dataset into {n_parts} parts...")
-    for k in data.keys():
-        split_array = np.array_split(data[k], n_parts) # near-equal array division
-        for i in range(n_parts):
-            split_data[i][k] = split_array[i]
-    return split_data # [data_part[i] for i in range(n_parts)]
 
-### merge split dataset into one
-# after parallel calculation
-# assume all data has same keys
-# split data = [ single datasets {} ]
-def merge_dataset(split_data, *, silent=False):
-    n_parts = len(split_data)
-    any_key = list(split_data[0].keys())[0]
-    n_data_parts = [len(split_data[i][any_key]) for i in range(n_parts)] # data entries of each part
-    n_data = np.sum(n_data_parts) # total no of data entries
-    merged_data = {}
-    for k,v in split_data[0].items():
-        if type(v) == type([]):
-            merged_data[k] = [[] for i in range(n_data)]
-        else:
-            merged_data[k] = np.full(n_data, 0, dtype=v.dtype) 
-    offset = 0
-    if not silent: print(f"Merging dataset from {n_parts} parts into one...")
-    for part in tqdm(range(n_parts), disable=silent):
-        for k in split_data[part].keys():
-            for i in range(n_data_parts[part]):
-                merged_data[k][i+offset] = split_data[part][k][i]
-        if n_data_parts[part] > 0:
-            offset += i+1
-    return merged_data #copy.deepcopy(merged_data)
 
-### restrict data to last X entries
-def restrict_to_last_entries(data, n_keep=1, *, silent=False):
-    n_data = length(data)
-    restricted_data = copy.deepcopy(data) 
-    for k in restricted_data.keys():
-        if n_data > n_keep:
-            restricted_data[k] = restricted_data[k][-n_keep:-1]
-    return restricted_data
 
-### cut first X entries of dumpfile
-def cut_first_entries(data, n_cut=1, *, silent=False):
-    n_data = length(data) 
-    cut_data = copy.deepcopy(data) 
-    for k in cut_data.keys():
-        if n_data > n_cut:
-            cut_data[k] = data[k][n_cut-1:-1]
-    if n_data <= n_cut:
-        print(f"could not cut first elements of dumpfile since it was too short.")
-    return cut_data
 
 ### get length of data object
 def length(data):
     any_key = list(data.keys())[0]
     return len(data[any_key])
 
-### slice data: select only data points with given indices from object
-def slice_data(data, slice_indices, *, silent=False):
-    data = copy.deepcopy(data)
-    sliced_data = {}
-    for name in data.keys():
-        # if python list at this key
-        sliced_data[name] = []
-        if isinstance(data[name], list) or isinstance(data[name], np.ndarray):
-            for i in range(len(data[name])):
-                if i in slice_indices:
-                    sliced_data[name].append(data[name][i])
-        else:
-            raise Exception(f"SLICE_DATA ERROR: data[{name}] is of unsupported type {type(data[name])}. can only cut lists or numpy arrays")
-    data = copy.deepcopy(sliced_data)
-    one_key = list(sliced_data.keys())[0]
-    if not silent:
-        if len(data[one_key]) > 0: print(f"Cut flow: {len(sliced_data[one_key])} / {len(data[one_key])} = {len(sliced_data[one_key])/len(data[one_key])}")
-        else: print(f"Cut flow: {len(sliced_data[one_key])} / {len(data[one_key])}")
-    return sliced_data
 

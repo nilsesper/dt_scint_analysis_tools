@@ -8,8 +8,7 @@ import argparse
 import numpy as np
 
 from analysis_tools.utils.root_utils import log
-from analysis_tools.utils import data_utils, dt_utils, muon_utils, plot_utils, root_utils
-from analysis_tools.params import params, derived_params
+from analysis_tools.utils import plot_utils, root_utils
 
 # ---------------------------------------------------------------
 

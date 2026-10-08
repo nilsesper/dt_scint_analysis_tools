@@ -9,8 +9,7 @@ import argparse
 import numpy as np
 
 from analysis_tools.utils.root_utils import log
-from analysis_tools.utils import data_utils, dt_utils, muon_utils, plot_utils, root_utils
-from analysis_tools.params import params, derived_params
+from analysis_tools.utils import dt_sim_utils, root_utils
 
 # ---------------------------------------------------------------
 
@@ -31,12 +30,12 @@ def main(argv=None):
     cosmic_muons = root_utils.read_tree(args.cosmic_muons_file)
     n_muons = root_utils.length(cosmic_muons)
     log(f"###### Propagating {n_muons:,} cosmic muons through the dt chamber...")
-    dt_hits = dt_utils.hits_from_muons(muons=cosmic_muons, noise_ampl=args.ts_noise_amplitude, sys_miscalib_ampl=args.sys_miscalib_ampl)
+    dt_hits = dt_sim_utils.hits_from_muons(muons=cosmic_muons, noise_ampl=args.ts_noise_amplitude, sys_miscalib_ampl=args.sys_miscalib_ampl)
     n_dt_hits = root_utils.length(dt_hits)
     if n_dt_hits == 0:
         raise RuntimeError("No dt hits were created.")
     root_utils.write_tree(args.dt_hits_file, dt_hits, tree=root_utils.DT_HITS_TREE)
-    n_muons_with_hits = len(np.unique(dt_hits["muon_id"]))
+    n_muons_with_hits = len(np.unique(dt_hits["sim_id"]))
     ts_min, ts_max = int(np.amin(dt_hits["ts"])), int(np.amax(dt_hits["ts"]))
     log(f"###### Stored {n_dt_hits:,} dt hits of {n_muons_with_hits:,} muons in {args.dt_hits_file} (ts range {ts_min} .. {ts_max})")
 

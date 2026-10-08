@@ -1,15 +1,15 @@
 #################################################################
 ### simulation: add random noise hits to dt hits
 # every cell gets poisson distributed noise hits with the given rate over the time range of the input hits
-# noise hits have muon_id = 0
+# noise hits have sim_id = 0
 #################################################################
 
 import argparse
 import numpy as np
 
 from analysis_tools.utils.root_utils import log
-from analysis_tools.utils import data_utils, dt_utils, muon_utils, plot_utils, root_utils
-from analysis_tools.params import params, derived_params
+from analysis_tools.utils import dt_sim_utils, root_utils
+from analysis_tools.params import params
 
 # ---------------------------------------------------------------
 
@@ -31,7 +31,7 @@ def main(argv=None):
     log(f"###### Adding dt noise of {args.noise_rate_hz:g} Hz per cell to {n_hits:,} hits...")
     t_start = np.amin(dt_hits["ts"]) - params._dt_max_drift_time
     t_stop = np.amax(dt_hits["ts"]) + params._dt_max_drift_time
-    dt_hits = dt_utils.add_noise(hits=dt_hits, ts_range=[t_start, t_stop], ref_cell_noise_rate=args.noise_rate_hz)
+    dt_hits = dt_sim_utils.add_noise(hits=dt_hits, ts_range=[t_start, t_stop], ref_cell_noise_rate=args.noise_rate_hz)
     n_hits_new = root_utils.length(dt_hits)
     root_utils.write_tree(args.dt_hits_file_with_noise, dt_hits, tree=root_utils.DT_HITS_TREE)
     log(f"###### {n_hits:,} hits before, {n_hits_new:,} after: added {n_hits_new - n_hits:,} noise hits, stored in {args.dt_hits_file_with_noise}")

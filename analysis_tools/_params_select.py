@@ -3,7 +3,7 @@
 ###########################################
 # By default all code uses analysis_tools/params/params.py.
 # A different parameter file (e.g. another readout mapping) can be selected without editing any code:
-#   - command line:  --params_file /path/to/other_params.py     (scripts in scripts/dt_root/)
+#   - command line:  --params_file /path/to/other_params.py     (every script in scripts/)
 #   - environment:   export DT_SCINT_PARAMS_FILE=/path/to/other_params.py   (works for every script)
 # The selected file is loaded in place of analysis_tools.params.params, so that every
 # "from analysis_tools.params import params" in the code base gets it, and derived_params is derived from it.

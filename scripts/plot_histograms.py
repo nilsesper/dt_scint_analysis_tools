@@ -9,8 +9,8 @@
 # Use --branches to select branches by name, or --all_branches to get everything.
 #
 # examples:
-#   python scripts/dt_root/plot_histograms.py --input_file out/run_sl_fits.root --store_plots plots/sl_fits
-#   python scripts/dt_root/plot_histograms.py --input_file out/run_sl_fits.root --store_plots plots/sl_fits_good \
+#   python scripts/plot_histograms.py --input_file out/run_sl_fits.root --store_plots plots/sl_fits
+#   python scripts/plot_histograms.py --input_file out/run_sl_fits.root --store_plots plots/sl_fits_good \
 #          --cuts "impossible,==,0;chi2/ndf,<,10" --branches "t0,x0,tan_alpha,chi2/ndf" --split_by sl
 #################################################################
 
@@ -26,7 +26,7 @@ plot_utils.setup_backend(show_plots="--show_plots" in sys.argv)
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 
-from analysis_tools.utils import data_utils, dt_pipeline_utils, root_utils
+from analysis_tools.utils import cut_utils, data_utils, root_utils
 
 # ---------------------------------------------------------------
 
@@ -76,7 +76,7 @@ def main(argv=None):
         keys = [k for k in available if k not in BOOKKEEPING_BRANCHES and not _is_other_laterality_branch(k)]
 
     ### selection mask from cuts
-    cuts = dt_pipeline_utils.parse_cuts(args.cuts)
+    cuts = cut_utils.parse_cuts(args.cuts)
     mask = np.full(n_rows_file, True)
     if len(cuts) > 0:
         cut_data = root_utils.read_branches(args.input_file, sorted({c[0] for c in cuts}), tree)

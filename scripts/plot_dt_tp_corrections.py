@@ -10,8 +10,8 @@
 # Also works for calibration files converted from the old .pcl (pcl_to_root.py), then only the correction plots are made.
 #
 # examples:
-#   python scripts/dt_root/plot_dt_tp_corrections.py --dt_tp_corrections_file calib/tp_corrections.root --store_plots plots/tp
-#   python scripts/dt_root/plot_dt_tp_corrections.py --dt_tp_corrections_file calib/tp_corrections.root --store_plots plots/tp \
+#   python scripts/plot_dt_tp_corrections.py --dt_tp_corrections_file calib/tp_corrections.root --store_plots plots/tp
+#   python scripts/plot_dt_tp_corrections.py --dt_tp_corrections_file calib/tp_corrections.root --store_plots plots/tp \
 #          --dt_tp_hits_file calib/tp_dt_hits.root --cells "1:0:10,2:3:40" --ignore_cells "1:1:49,2:1:57,3:1:49"
 #################################################################
 

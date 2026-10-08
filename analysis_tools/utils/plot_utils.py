@@ -1,7 +1,7 @@
 ###########################################
 ### PLOTTING UTILS FOR THE ROOT FILE WORKFLOW
 ###########################################
-# Shared by the plotting scripts in scripts/dt_root/: figure output, axis labels, generic histograms.
+# Shared by the plotting scripts in scripts/: figure output, axis labels, generic histograms.
 # The histogram calculation and drawing itself is done with hist_utils (same look as the older plotting scripts).
 
 import os
@@ -56,8 +56,8 @@ def check_plot_arguments(parser, args):
         parser.error("give --store_plots <directory> and/or --show_plots")
 
 ### axis label of a branch: symbol and unit from params._key_symbols / params._key_units if known, else the branch name
-# suffixes of refits / super fits ("t0_refit") are recognised and written behind the symbol
-def key_label(key, *, known_suffixes=("_super_fits", "_free_vd_super_fit", "_refit")):
+# the suffix of the super fit branches ("t0_super_fits") is recognised and written behind the symbol
+def key_label(key, *, known_suffixes=("_super_fits",)):
     base, suffix_text = key, ""
     if key not in params._key_symbols:
         for suffix in known_suffixes:

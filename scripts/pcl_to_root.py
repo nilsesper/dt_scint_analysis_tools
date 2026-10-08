@@ -1,17 +1,17 @@
 #################################################################
 ### convert a .pcl data file ({key: np.ndarray}) into a ROOT file of this workflow
 # e.g. dt hits stored as .pcl -> dt hits ROOT file:
-#   python scripts/dt_root/pcl_to_root.py --input_pcl_file sim_dt_hits.pcl --output_file sim_dt_hits.root --tree dt_hits
+#   python scripts/pcl_to_root.py --input_pcl_file sim_dt_hits.pcl --output_file sim_dt_hits.root --tree dt_hits
 # a testpulse timing calibration of the old script ({sl: {ly: {wi: {"ts_corr", "err_ts_corr"}}}}) is recognised and
 # written as calibration ROOT file (one row per cell), usable with --dt_tp_corrections_file:
-#   python scripts/dt_root/pcl_to_root.py --input_pcl_file DT_CORRECTIONS.pcl --output_file tp_corrections.root
+#   python scripts/pcl_to_root.py --input_pcl_file DT_CORRECTIONS.pcl --output_file tp_corrections.root
 #################################################################
 
 import argparse
 import numpy as np
 
 from analysis_tools.utils.root_utils import log
-from analysis_tools.utils import data_utils, dt_pipeline_utils, root_utils
+from analysis_tools.utils import data_utils, dt_calibration_utils, root_utils
 
 # ---------------------------------------------------------------
 
@@ -28,8 +28,8 @@ def main(argv=None):
 
     root_utils.check_input_file(args.input_pcl_file)
     data = data_utils.load_pickle(file=args.input_pcl_file, silent=True)
-    if dt_pipeline_utils.is_tp_corrections_dict(data):
-        n_cells = dt_pipeline_utils.store_tp_corrections_root(data, args.output_file)
+    if dt_calibration_utils.is_tp_corrections_dict(data):
+        n_cells = dt_calibration_utils.store_tp_corrections_root(data, args.output_file)
         log(f"Testpulse timing calibration recognised: wrote {n_cells:,} cells to tree \"{root_utils.DEFAULT_TREE}\" in {args.output_file}")
         return
     if not isinstance(data, dict):

@@ -3,8 +3,6 @@
 ###########################################
 
 import numpy as np
-import copy
-import os.path
 
 # -----------------------------------------
 
@@ -24,13 +22,6 @@ def draw_from_pdf(pdf, val_range, n=1, *, dtype=np.float64):
         x_arr[i] = x
     return x_arr
 
-### calculate mean with error & std
-def calculate_mean_std(data, err_data):
-    n_data = len(data)
-    mean = np.mean(data)
-    std = np.std(data, ddof=1)
-    err_mean = std / np.sqrt(n_data)
-    return mean, std, err_mean
 
 ### return latex scientific notation for float
 def latex_float(f, afterpoint_digits=2):

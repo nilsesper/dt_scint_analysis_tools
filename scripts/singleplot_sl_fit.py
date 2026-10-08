@@ -7,7 +7,7 @@
 # Fits are selected by their row in the file (--rows), or the first fits passing --cuts are taken (--n_fits).
 #
 # examples:
-#   python scripts/dt_root/singleplot_sl_fit.py --sl_fits_file out/run_sl_fits.root --rows 500,600,700 --store_plots plots/single_fits
+#   python scripts/singleplot_sl_fit.py --sl_fits_file out/run_sl_fits.root --rows 500,600,700 --store_plots plots/single_fits
 #################################################################
 
 import argparse
@@ -19,9 +19,8 @@ from analysis_tools.utils import plot_utils
 plot_utils.setup_backend(show_plots="--show_plots" in sys.argv)
 import matplotlib as mpl
 import matplotlib.pyplot as plt
-from matplotlib.ticker import ScalarFormatter
 
-from analysis_tools.utils import data_utils, dt_pipeline_utils, geoplot_utils, root_utils
+from analysis_tools.utils import cut_utils, data_utils, dt_geometry_utils as geometry, geoplot_utils, root_utils
 from analysis_tools.params import params, derived_params
 
 # ---------------------------------------------------------------
@@ -55,7 +54,7 @@ def main(argv=None):
     if args.rows is not None:
         rows = [int(s) for s in args.rows.split(",") if s.strip() != ""]
     else:
-        cuts = dt_pipeline_utils.parse_cuts(args.cuts) if args.cuts is not None else [("impossible" + sfx, "==", 0)]
+        cuts = cut_utils.parse_cuts(args.cuts) if args.cuts is not None else [("impossible" + sfx, "==", 0)]
         rows = _select_rows(args.sl_fits_file, cuts, args.n_fits)
     if len(rows) == 0:
         raise RuntimeError("No fits selected, nothing to plot.")
@@ -86,14 +85,14 @@ def main(argv=None):
         ### geometry of the pattern: z of the layers, x of the wires (local frame: wire of ly 3 at (0, 0))
         z_arr, x_cell = np.full(4, 0, dtype=np.float64), np.full(4, 0, dtype=np.float64)
         for ly in lys:
-            z_arr[ly] = derived_params._sl_pattern_coordinates[ly][0][3]
+            z_arr[ly] = geometry.pattern_layer_z(ly)
             rel_wi = params._dt_sl_patterns[pat_name]["rel_wis"][ly]
-            x_cell[ly] = derived_params._sl_pattern_coordinates[ly][rel_wi][2]
+            x_cell[ly] = geometry.pattern_cell(ly, rel_wi).center[0]
         ### fitted timestamps
         fit_ts, err_fit_ts = np.zeros(4), np.zeros(4)
         for ly in lys:
-            fit_ts[ly] = derived_params.f_ts_fit(x_cell=x_cell[ly], t0=t0, x0=x0, tan_alpha=tan_alpha, z=z_arr[ly], laterality=laterality[ly], vd=vd)
-            err_fit_ts[ly] = derived_params.err_f_ts_fit(
+            fit_ts[ly] = geometry.hit_time(x_cell=x_cell[ly], t0=t0, x0=x0, tan_alpha=tan_alpha, z=z_arr[ly], laterality=laterality[ly], vd=vd)
+            err_fit_ts[ly] = geometry.err_hit_time(
                 x_cell=x_cell[ly], t0=t0, x0=x0, tan_alpha=tan_alpha, z=z_arr[ly], laterality=laterality[ly], vd=vd,
                 err_t0=err_t0, err_x0=err_x0, err_tan_alpha=err_tan_alpha, err_vd=err_vd, **corr,
             )
@@ -151,9 +150,9 @@ $\\chi^2/N_{{df}}={chi2ndf:.2f}$"""
         ))
         ax.errorbar(x=x_hits, y=z_arr, xerr=err_x_hits, color="tab:blue", marker="o", markersize=7, linestyle="", label="Hit positions", zorder=5)
         # fitted track with uncertainty band
-        z_range = np.linspace(np.amin(z_arr) - params._cell_height, np.amax(z_arr) + params._cell_height, 1000)
-        track = derived_params.f_x_muon(z=z_range, x0=x0, tan_alpha=tan_alpha)
-        err_track = derived_params.err_f_x_muon(z=z_range, x0=x0, tan_alpha=tan_alpha, err_x0=err_x0, err_tan_alpha=err_tan_alpha, corr_x0_tan_alpha=corr["corr_x0_tan_alpha"])
+        z_range = np.linspace(np.amin(z_arr) - params._plot_z_margin, np.amax(z_arr) + params._plot_z_margin, 1000)
+        track = geometry.track_position(z=z_range, x0=x0, tan_alpha=tan_alpha)
+        err_track = geometry.err_track_position(z=z_range, x0=x0, tan_alpha=tan_alpha, err_x0=err_x0, err_tan_alpha=err_tan_alpha, corr_x0_tan_alpha=corr["corr_x0_tan_alpha"])
         ax.plot(track, z_range, linewidth=2, color="tab:red", label=fit_label, zorder=4)
         ax.fill_betweenx(x1=track - err_track, x2=track + err_track, y=z_range, color="tab:red", alpha=0.2, zorder=3)
         ax.legend(prop={"size": 14}, loc="center left", bbox_to_anchor=(1.01, 0.5), fancybox=False, framealpha=params._legend_alpha)

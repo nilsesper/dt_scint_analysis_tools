@@ -14,9 +14,6 @@ from analysis_tools.utils import dt_pipeline_utils, root_utils
 
 # ---------------------------------------------------------------
 
-def _step_size(value):
-    return int(value) if value.strip().isdigit() else value
-
 def main(argv=None):
     parser = argparse.ArgumentParser(description="Combine the fits of the two phi superlayers and fit the 8 hits together.")
     parser.add_argument("--sl_fits_file", type=str, required=True, help="input file path: sl fits after cuts (.root)")
@@ -39,7 +36,7 @@ def main(argv=None):
     dt_pipeline_utils.sl_fits_to_super_fits(
         args.sl_fits_file, args.super_fits_file, super_patterns_file=args.super_patterns_file, max_chi2=args.max_chi2,
         max_alpha=np.deg2rad(args.max_alpha_deg), fit_vd=args.free_vd, suffix=args.suffix,
-        step_size=_step_size(args.step_size), n_proc=args.n_proc, verbose=args.verbose,
+        step_size=root_utils.parse_step_size(args.step_size), n_proc=args.n_proc, verbose=args.verbose,
     )
 
 if __name__ == "__main__":

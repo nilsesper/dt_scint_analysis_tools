@@ -32,18 +32,18 @@ A dt muon is built from one super fit of the two phi superlayers (x-z view) and 
 
 ```
 D=/path/to/output            # any directory
-python scripts/dt_root/dumpfile_to_dt_hits.py      --input_dumpfile /path/to/run.txt --dt_hits_file $D/run_dt_hits.root --n_proc 8
+python scripts/dumpfile_to_dt_hits.py      --input_dumpfile /path/to/run.txt --dt_hits_file $D/run_dt_hits.root --n_proc 8
 #   with testpulse timing calibration: add --dt_tp_corrections_file /path/to/tp_corrections.root
 
-python scripts/dt_root/dt_hits_to_hit_diff_hist.py --dt_hits_file $D/run_dt_hits.root --hit_diff_hist_file $D/run_hit_diff_hist.root
-python scripts/dt_root/dt_hits_to_cell_counts.py   --dt_hits_file $D/run_dt_hits.root --cell_counts_file $D/run_cell_counts.root
-python scripts/dt_root/dt_hits_to_sl_patterns.py   --dt_hits_file $D/run_dt_hits.root --sl_patterns_file $D/run_sl_patterns.root --n_proc 8
-python scripts/dt_root/sl_patterns_to_sl_fits.py   --sl_patterns_file $D/run_sl_patterns.root --sl_fits_file $D/run_sl_fits.root --n_proc 8
-python scripts/dt_root/apply_cuts.py               --input_file $D/run_sl_fits.root --output_file $D/run_sl_fits_cut.root --cuts "impossible,==,0;chi2/ndf,<,20"
-python scripts/dt_root/sl_fits_to_super_fits.py    --sl_fits_file $D/run_sl_fits_cut.root --super_fits_file $D/run_super_fits.root --n_proc 8
-python scripts/dt_root/apply_cuts.py               --input_file $D/run_super_fits.root --output_file $D/run_super_fits_cut.root \
+python scripts/dt_hits_to_hit_diff_hist.py --dt_hits_file $D/run_dt_hits.root --hit_diff_hist_file $D/run_hit_diff_hist.root
+python scripts/dt_hits_to_cell_counts.py   --dt_hits_file $D/run_dt_hits.root --cell_counts_file $D/run_cell_counts.root
+python scripts/dt_hits_to_sl_patterns.py   --dt_hits_file $D/run_dt_hits.root --sl_patterns_file $D/run_sl_patterns.root --n_proc 8
+python scripts/sl_patterns_to_sl_fits.py   --sl_patterns_file $D/run_sl_patterns.root --sl_fits_file $D/run_sl_fits.root --n_proc 8
+python scripts/apply_cuts.py               --input_file $D/run_sl_fits.root --output_file $D/run_sl_fits_cut.root --cuts "impossible,==,0;chi2/ndf,<,20"
+python scripts/sl_fits_to_super_fits.py    --sl_fits_file $D/run_sl_fits_cut.root --super_fits_file $D/run_super_fits.root --n_proc 8
+python scripts/apply_cuts.py               --input_file $D/run_super_fits.root --output_file $D/run_super_fits_cut.root \
        --cuts "impossible_super_fits,==,0;chi2/ndf_super_fits,<,20"
-python scripts/dt_root/super_fits_to_dt_muons.py   --super_fits_file $D/run_super_fits_cut.root --sl_fits_file $D/run_sl_fits_cut.root --dt_muons_file $D/run_dt_muons.root
+python scripts/super_fits_to_dt_muons.py   --super_fits_file $D/run_super_fits_cut.root --sl_fits_file $D/run_sl_fits_cut.root --dt_muons_file $D/run_dt_muons.root
 ```
 
 The super fit uses the fixed drift velocity of `params.py` by default; `--free_vd` makes it a fit parameter
@@ -54,7 +54,7 @@ and then has to be given to the later scripts as well (`--suffix`, in `run_dt_pi
 ## Everything in one go
 
 ```
-python scripts/dt_root/run_dt_pipeline.py --input_dumpfile /path/to/run.txt --output_dir $D --n_proc 8
+python scripts/run_dt_pipeline.py --input_dumpfile /path/to/run.txt --output_dir $D --n_proc 8
 ```
 
 With `--dt_tp_corrections_file /path/to/tp_corrections.root` the testpulse timing calibration is applied in stage `dt_hits`,
@@ -65,7 +65,7 @@ Writes `<prefix>_<stage>.root` for every stage into `--output_dir` (`<prefix>` =
 `--from_stage`, `--to_stage` and `--skip_stages` select a part of the chain, e.g. redo everything after the fits:
 
 ```
-python scripts/dt_root/run_dt_pipeline.py --output_dir $D --prefix run --from_stage sl_fits_cut
+python scripts/run_dt_pipeline.py --output_dir $D --prefix run --from_stage sl_fits_cut
 ```
 
 ## Testpulse timing calibration
@@ -73,9 +73,9 @@ python scripts/dt_root/run_dt_pipeline.py --output_dir $D --prefix run --from_st
 A dumpfile recorded with simultaneous testpulses on all channels gives the time offset of every cell:
 
 ```
-python scripts/dt_root/dumpfile_to_dt_tp_corrections.py --input_dumpfile /path/to/tp_run.txt --dt_tp_corrections_file $D/tp_corrections.root \
+python scripts/dumpfile_to_dt_tp_corrections.py --input_dumpfile /path/to/tp_run.txt --dt_tp_corrections_file $D/tp_corrections.root \
        --dt_tp_hits_file $D/tp_dt_hits.root       # optional: the testpulse hits, for the single cell plots
-python scripts/dt_root/plot_dt_tp_corrections.py --dt_tp_corrections_file $D/tp_corrections.root --store_plots /path/to/plots/tp \
+python scripts/plot_dt_tp_corrections.py --dt_tp_corrections_file $D/tp_corrections.root --store_plots /path/to/plots/tp \
        --dt_tp_hits_file $D/tp_dt_hits.root --cells "1:0:10,2:3:40"
 ```
 
@@ -102,19 +102,19 @@ An old calibration pickle (`DT_CORRECTIONS.pcl`) works everywhere as well, or is
 ## Simulation
 
 ```
-python scripts/dt_root/sim_gen_cosmic_tracks.py        --cosmic_muons_file $D/sim_muons.root --duration_s 60 --seed 1
-python scripts/dt_root/sim_cosmic_tracks_to_dt_hits.py --cosmic_muons_file $D/sim_muons.root --dt_hits_file $D/sim_clean_dt_hits.root --ts_noise_amplitude 3
+python scripts/sim_gen_cosmic_tracks.py        --cosmic_muons_file $D/sim_muons.root --duration_s 60 --seed 1
+python scripts/sim_cosmic_tracks_to_dt_hits.py --cosmic_muons_file $D/sim_muons.root --dt_hits_file $D/sim_clean_dt_hits.root --ts_noise_amplitude 3
 # optional: random noise hits, secondary hits, dead cells
-python scripts/dt_root/sim_add_dt_hit_noise.py         --dt_hits_file $D/sim_clean_dt_hits.root --dt_hits_file_with_noise $D/sim_noise_dt_hits.root --noise_rate_hz 15
-python scripts/dt_root/sim_add_dt_secondary_hits.py    --dt_hits_file $D/sim_noise_dt_hits.root --dt_hits_file_with_secondaries $D/sim_sec_dt_hits.root
-python scripts/dt_root/dt_hits_mask_cells.py           --dt_hits_file $D/sim_sec_dt_hits.root --masked_dt_hits_file $D/sim_dt_hits.root --cells "3:0:10,3:1:41"
+python scripts/sim_add_dt_hit_noise.py         --dt_hits_file $D/sim_clean_dt_hits.root --dt_hits_file_with_noise $D/sim_noise_dt_hits.root --noise_rate_hz 15
+python scripts/sim_add_dt_secondary_hits.py    --dt_hits_file $D/sim_noise_dt_hits.root --dt_hits_file_with_secondaries $D/sim_sec_dt_hits.root
+python scripts/dt_hits_mask_cells.py           --dt_hits_file $D/sim_sec_dt_hits.root --masked_dt_hits_file $D/sim_dt_hits.root --cells "3:0:10,3:1:41"
 # reconstruction: same chain as for data, starting from the dt hits file <prefix>_dt_hits.root
-python scripts/dt_root/run_dt_pipeline.py --output_dir $D --prefix sim --from_stage hit_diff_hist
+python scripts/run_dt_pipeline.py --output_dir $D --prefix sim --from_stage hit_diff_hist
 ```
 
-The simulated truth is carried through all files in the `muon_...` branches (`muon_id` >= 1 for simulated muons,
-0 for noise and for data). In `dt_muons.root`, `muon_theta`, `muon_phi`, `muon_x0`, ... are the true track parameters
-and `muon_id_mismatch` marks muons built from fits of different simulated muons. `singleplot_dt_muon.py --simulation`
+The simulated truth is carried through all files in the `sim_...` branches (`sim_id` >= 1 for simulated muons,
+0 for noise and for data). In `dt_muons.root`, `sim_theta`, `sim_phi`, `sim_x0`, ... are the true track parameters
+and `sim_id_mismatch` marks muons built from fits of different simulated muons. `singleplot_dt_muon.py --simulation`
 draws the true track into the event display.
 
 ## Plots
@@ -125,31 +125,31 @@ All plotting scripts read the ROOT files directly. Give `--store_plots <director
 ```
 P=/path/to/plots
 # histograms of all basic branches of any file of the workflow
-python scripts/dt_root/plot_histograms.py --input_file $D/run_sl_fits.root --store_plots $P/sl_fits
-python scripts/dt_root/plot_histograms.py --input_file $D/run_sl_fits.root --store_plots $P/sl_fits_good \
+python scripts/plot_histograms.py --input_file $D/run_sl_fits.root --store_plots $P/sl_fits
+python scripts/plot_histograms.py --input_file $D/run_sl_fits.root --store_plots $P/sl_fits_good \
        --cuts "impossible,==,0;chi2/ndf,<,20" --branches "t0,x0,tan_alpha,chi2/ndf" --split_by sl
 
 # dt hits: occupancy / rate maps, rate per wire, low and high occupancy cells, hit time difference
-python scripts/dt_root/plot_dt_hits.py --dt_hits_file $D/run_dt_hits.root --hit_diff_hist_file $D/run_hit_diff_hist.root --store_plots $P/dt_hits
+python scripts/plot_dt_hits.py --dt_hits_file $D/run_dt_hits.root --hit_diff_hist_file $D/run_hit_diff_hist.root --store_plots $P/dt_hits
 
 # sl fits: drift times, fit residuals, time between fits, rates
-python scripts/dt_root/plot_sl_fits.py --sl_fits_file $D/run_sl_fits_cut.root --store_plots $P/sl_fits
+python scripts/plot_sl_fits.py --sl_fits_file $D/run_sl_fits_cut.root --store_plots $P/sl_fits
 
 # super fits: residuals, drift times, comparison with the two sl fits (T0, slope, position)
-python scripts/dt_root/plot_super_fits.py --super_fits_file $D/run_super_fits_cut.root --store_plots $P/super_fits
+python scripts/plot_super_fits.py --super_fits_file $D/run_super_fits_cut.root --store_plots $P/super_fits
 
 # dt muons: x-y maps per superlayer, x-z / y-z projections, 3d view, angles, timing
-python scripts/dt_root/plot_dt_muons.py --dt_muons_file $D/run_dt_muons.root --store_plots $P/dt_muons
+python scripts/plot_dt_muons.py --dt_muons_file $D/run_dt_muons.root --store_plots $P/dt_muons
 
 # event display of single sl fits (timestamps with residuals, pattern cells with track)
-python scripts/dt_root/singleplot_sl_fit.py --sl_fits_file $D/run_sl_fits.root --rows 500,600 --store_plots $P/single_fits
-python scripts/dt_root/singleplot_sl_fit.py --sl_fits_file $D/run_sl_fits.root --n_fits 5 --cuts "impossible,==,0;chi2/ndf,<,2" --store_plots $P/single_fits
+python scripts/singleplot_sl_fit.py --sl_fits_file $D/run_sl_fits.root --rows 500,600 --store_plots $P/single_fits
+python scripts/singleplot_sl_fit.py --sl_fits_file $D/run_sl_fits.root --n_fits 5 --cuts "impossible,==,0;chi2/ndf,<,2" --store_plots $P/single_fits
 
 # event display of single super fits with their two sl fits (8 timestamps with residuals, cells of both phi sls with tracks)
-python scripts/dt_root/singleplot_super_fit.py --super_fits_file $D/run_super_fits_cut.root --rows 0,10 --store_plots $P/single_super_fits
+python scripts/singleplot_super_fit.py --super_fits_file $D/run_super_fits_cut.root --rows 0,10 --store_plots $P/single_super_fits
 
 # event display of single dt muons (chamber views with hit cells, sl fits, super fit and global track)
-python scripts/dt_root/singleplot_dt_muon.py --sl_fits_file $D/run_sl_fits_cut.root --super_fits_file $D/run_super_fits_cut.root \
+python scripts/singleplot_dt_muon.py --sl_fits_file $D/run_sl_fits_cut.root --super_fits_file $D/run_super_fits_cut.root \
        --dt_muons_file $D/run_dt_muons.root --rows 0,7 --store_plots $P/single_muons
 ```
 
@@ -174,15 +174,30 @@ python scripts/dt_root/singleplot_dt_muon.py --sl_fits_file $D/run_sl_fits_cut.r
 
 ## Parameter file
 
-All scripts use `analysis_tools/params/params.py` unless another file is given with `--params_file`. Use the same
-parameter file for all stages of one run. For the scripts outside `scripts/dt_root/`, which do not have this argument, set
-`export DT_SCINT_PARAMS_FILE=/path/to/params_file.py` instead.
+All scripts use `analysis_tools/params/params.py` unless another file is given with `--params_file` (or
+`export DT_SCINT_PARAMS_FILE=/path/to/params_file.py`). Use the same parameter file for all stages of one run.
+
+## Chamber geometry
+
+`params._dt_chamber` describes the chamber (mm): per superlayer the orientation (`phi`: wires along y, measures x;
+`theta`: wires along x, measures y), the size of a cell, and per layer the wire range and the lower corner of the
+cell of wire 0 (`cell_0`). The cells of a layer follow each other along the measured axis. `pos` / `size` of the
+chamber and the superlayers are only used for drawing. A different chamber type or cell layout only needs a new
+`_dt_chamber` (and the readout mapping) in a parameter file.
+
+`analysis_tools/utils/dt_geometry_utils.py` builds everything else from it:
+- `cell(sl, ly, wi)`: box of a cell (`low`, `high`, `center` = wire position, per axis x, y, z)
+- pattern frame: the 4 cells of an sl pattern with the wire of layer 3 at (0, 0) (`pattern_cell(ly, rel_wi)`); the sl
+  fits give `x0`, `tan_alpha` in this frame
+- super pattern frame: the chamber x-z frame shifted to `SUPER_FRAME_ORIGIN` (a wire of the topmost phi layer); each
+  super fit is shifted once more to its own topmost wire (branches `ref_x`, `ref_z`)
+- track model: `hit_time` (fit function), `track_position`, `muon_track_position` (global track in a 2d view)
 
 ## Helpers
 
 ```
-python scripts/dt_root/inspect_root_file.py --input_file $D/run_sl_fits.root --branches "sl,t0,chi2/ndf"
-python scripts/dt_root/pcl_to_root.py --input_pcl_file sim_dt_hits.pcl --output_file sim_dt_hits.root --tree dt_hits --sort_key ts
+python scripts/inspect_root_file.py --input_file $D/run_sl_fits.root --branches "sl,t0,chi2/ndf"
+python scripts/pcl_to_root.py --input_pcl_file sim_dt_hits.pcl --output_file sim_dt_hits.root --tree dt_hits --sort_key ts
 ```
 
 `pcl_to_root.py` converts a .pcl data file of the older scripts into a ROOT file of this workflow.
@@ -205,7 +220,7 @@ python scripts/dt_root/pcl_to_root.py --input_pcl_file sim_dt_hits.pcl --output_
   `sl2_fit_row`, `sl3_fit_row` (rows in the cut sl fits file).
 - `dt_muons.root`, other branches: `n_theta_candidates` = number of theta sl fits inside the time window of the super
   fit (more than 1: ambiguous match, the closest was taken), `delta_t0` = theta `t0` - super fit `t0`,
-  `muon_id_mismatch` = 1 if the combined fits come from different simulated muons (simulation only).
+  `sim_id_mismatch` = 1 if the combined fits come from different simulated muons (simulation only).
 
 ## Chunks and the `chunk_id` branch
 
@@ -218,9 +233,17 @@ later stages change speed and memory use only.
 
 ## Where the code is
 
-- `analysis_tools/utils/dt_pipeline_utils.py`: one function per stage (the scripts only parse arguments).
-- `analysis_tools/utils/root_utils.py`: reading and writing the ROOT files.
-- `analysis_tools/utils/dt_utils.py`: the reconstruction functions (pattern search, sl fit, super patterns, super fit,
-  `reco_muons_from_super_fits`).
+`analysis_tools/utils/`:
+- `dt_pipeline_utils.py`: one function per stage, with the name of its script (the scripts only parse arguments)
+- `dt_dumpfile_utils.py`: decoding the dumpfile, timestamps with orbit counter overflows
+- `dt_calibration_utils.py`: applying a testpulse calibration, calibration from a testpulse run
+- `dt_hit_utils.py`: dead time cut, time between hits of a cell, hits per cell
+- `dt_pattern_utils.py`: pattern search
+- `dt_track_fit_utils.py`: the straight track fit shared by sl fit and super fit (bounds, fit, best laterality)
+- `dt_sl_fit_utils.py`, `dt_super_fit_utils.py`, `dt_muon_reco_utils.py`, `dt_matching_utils.py`: the reconstruction steps
+- `dt_sim_utils.py`: simulated hits, noise and secondary hits
+- `dt_chamber_utils.py`, `dt_geometry_utils.py`: superlayers / cells / readout channel lookup, geometry and frames
+- `root_utils.py` (ROOT files, `log`), `parallel_utils.py`, `cut_utils.py`, `plot_utils.py`, `geoplot_utils.py`,
+  `hist_utils.py`, `muon_utils.py`, `data_utils.py`
 
-
+`analysis_tools/params/`: `params.py` (all settings), `derived_params.py` (readout lookup tables, unit conversions).

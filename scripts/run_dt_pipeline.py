@@ -15,14 +15,11 @@ import time
 import numpy as np
 
 from analysis_tools.utils.root_utils import log
-from analysis_tools.utils import dt_pipeline_utils, root_utils
+from analysis_tools.utils import cut_utils, dt_pipeline_utils, root_utils
 
 # ---------------------------------------------------------------
 
 STAGES = ["dt_hits", "hit_diff_hist", "cell_counts", "sl_patterns", "sl_fits", "sl_fits_cut", "super_fits", "super_fits_cut", "dt_muons"]
-
-def _step_size(value):
-    return int(value) if value.strip().isdigit() else value
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description="Run the complete dt workflow on one dumpfile.")
@@ -71,7 +68,7 @@ def main(argv=None):
     super_fit_cuts = args.super_fit_cuts
     if super_fit_cuts is None:
         super_fit_cuts = f"impossible{args.super_fit_suffix},==,0;chi2/ndf{args.super_fit_suffix},<,20"
-    step_size = _step_size(args.step_size)
+    step_size = root_utils.parse_step_size(args.step_size)
     f = {s: os.path.join(args.output_dir, f"{args.prefix}_{s}.root") for s in STAGES}
     hits = f["dt_hits"]  # dt hits used by the following stages
     if args.dt_tp_corrections_file is not None and "dt_hits" not in todo:
@@ -82,7 +79,7 @@ def main(argv=None):
 
     for stage in todo:
         if stage == "dt_hits":
-            dt_pipeline_utils.convert_dumpfile_to_dt_hits(
+            dt_pipeline_utils.dumpfile_to_dt_hits(
                 args.input_dumpfile, f["dt_hits"], n_lines_to_skip=args.n_lines_to_skip, block_n_lines=args.block_lines, n_proc=args.n_proc,
                 dt_tp_corrections_file=args.dt_tp_corrections_file,
             )
@@ -99,12 +96,12 @@ def main(argv=None):
                 hits, f["sl_patterns"], step_size=step_size, n_proc=args.n_proc
             )
         elif stage == "sl_fits":
-            dt_pipeline_utils.fit_sl_patterns_file(
+            dt_pipeline_utils.sl_patterns_to_sl_fits(
                 f["sl_patterns"], f["sl_fits"], fit_vd=False, step_size=step_size, n_proc=args.n_proc
             )
         elif stage == "sl_fits_cut":
-            dt_pipeline_utils.apply_cuts_file(
-                f["sl_fits"], f["sl_fits_cut"], dt_pipeline_utils.parse_cuts(args.sl_fit_cuts), step_size=step_size
+            dt_pipeline_utils.apply_cuts(
+                f["sl_fits"], f["sl_fits_cut"], cut_utils.parse_cuts(args.sl_fit_cuts), step_size=step_size
             )
         elif stage == "super_fits":
             dt_pipeline_utils.sl_fits_to_super_fits(
@@ -112,8 +109,8 @@ def main(argv=None):
                 step_size=step_size, n_proc=args.n_proc,
             )
         elif stage == "super_fits_cut":
-            dt_pipeline_utils.apply_cuts_file(
-                f["super_fits"], f["super_fits_cut"], dt_pipeline_utils.parse_cuts(super_fit_cuts), step_size=step_size
+            dt_pipeline_utils.apply_cuts(
+                f["super_fits"], f["super_fits_cut"], cut_utils.parse_cuts(super_fit_cuts), step_size=step_size
             )
         elif stage == "dt_muons":
             dt_pipeline_utils.super_fits_to_dt_muons(

@@ -150,6 +150,16 @@ def iterate_tree(path, tree=None, *, step_size=DEFAULT_STEP_SIZE):
         yield entry_start, chunk
         entry_start += n
 
+### iterate_tree with progress numbers: yields (chunk number starting at 1, number of chunks, {key: np.ndarray})
+def iterate_chunks(path, tree=None, *, step_size=DEFAULT_STEP_SIZE):
+    n_chunks = n_steps(path, tree, step_size=step_size)
+    for i_chunk, (_, chunk) in enumerate(iterate_tree(path, tree, step_size=step_size), start=1):
+        yield i_chunk, n_chunks, chunk
+
+### command line value of --step_size: a number of rows ("50000") or a memory size ("200 MB")
+def parse_step_size(value):
+    return int(value) if value.strip().isdigit() else value
+
 ### iterate over a tree in blocks of equal "chunk_id", yields (chunk_id, entry_start, {key: np.ndarray})
 # Rows with the same chunk_id are contiguous in the file. A block is yielded as a whole,
 # no matter where the read steps of this function fall.

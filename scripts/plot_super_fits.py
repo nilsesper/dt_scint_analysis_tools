@@ -7,7 +7,7 @@
 # (histograms of the single branches: plot_histograms.py, single super fits: singleplot_super_fit.py)
 #
 # example:
-#   python scripts/dt_root/plot_super_fits.py --super_fits_file out/run_super_fits_cut.root --store_plots plots/super_fits
+#   python scripts/plot_super_fits.py --super_fits_file out/run_super_fits_cut.root --store_plots plots/super_fits
 #################################################################
 
 import argparse
@@ -20,7 +20,7 @@ plot_utils.setup_backend(show_plots="--show_plots" in sys.argv)
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 
-from analysis_tools.utils import data_utils, dt_pipeline_utils, root_utils
+from analysis_tools.utils import cut_utils, data_utils, dt_chamber_utils, dt_geometry_utils as geometry, dt_pipeline_utils, root_utils
 from analysis_tools.params import params, derived_params
 
 # ---------------------------------------------------------------
@@ -46,7 +46,7 @@ def main(argv=None):
     root_utils.check_input_file(args.super_fits_file)
     if "t0" + sfx not in root_utils.list_branches(args.super_fits_file):
         raise KeyError(f"No super fit results with suffix \"{sfx}\" in {args.super_fits_file}.")
-    cuts = dt_pipeline_utils.parse_cuts(args.cuts) if args.cuts is not None else [("impossible" + sfx, "==", 0)]
+    cuts = cut_utils.parse_cuts(args.cuts) if args.cuts is not None else [("impossible" + sfx, "==", 0)]
     keys = [k + sfx for k in ["t0", "x0", "tan_alpha", "vd", "err_vd", "ref_x", "ref_z", "ts_residual"]] + [f"dt{j}{sfx}" for j in range(8)] + [f"err_ts{j}" for j in range(8)]
     for sl in phi_sls:
         keys += [f"t0_sl{sl}", f"x0_sl{sl}", f"tan_alpha_sl{sl}", f"wi3_sl{sl}"]
@@ -114,19 +114,18 @@ def main(argv=None):
 
     ### super fit - sl fit
     # the super fit frame has the top wire of the super pattern at (0, 0), the sl fit frame the wire of ly 3
-    x_ref_super = derived_params._super_pattern_x_ref + fits["ref_x" + sfx]
-    z_ref_super = derived_params._super_pattern_z_ref + fits["ref_z" + sfx]
+    x_ref_super = geometry.SUPER_FRAME_ORIGIN[0] + fits["ref_x" + sfx]
+    z_ref_super = geometry.SUPER_FRAME_ORIGIN[1] + fits["ref_z" + sfx]
     delta_t0, delta_tan_alpha, delta_x = [], [], []
     for sl in phi_sls:
-        wires = sorted(derived_params._dt_cell_coordinates[sl][3].keys())
-        x_wire = np.full(max(wires) + 1, np.nan)
-        for wi in wires:
-            x_wire[wi] = derived_params._dt_cell_coordinates[sl][3][wi][3]
+        x_wire = np.full(max(dt_chamber_utils.wires(sl, 3)) + 1, np.nan)
+        for wi in dt_chamber_utils.wires(sl, 3):
+            x_wire[wi] = geometry.cell(sl, 3, wi).center[geometry.X]
         x_ref_sl = x_wire[fits[f"wi3_sl{sl}"].astype(np.intp)]
-        z_ref_sl = derived_params._dt_cell_coordinates[sl][3][wires[0]][5]
-        z_mid = derived_params.sl_z_center[sl]
-        x_sl = derived_params.f_x_muon(z=z_mid - z_ref_sl, x0=fits[f"x0_sl{sl}"], tan_alpha=fits[f"tan_alpha_sl{sl}"]) + x_ref_sl
-        x_super = derived_params.f_x_muon(z=z_mid - z_ref_super, x0=fits["x0" + sfx], tan_alpha=fits["tan_alpha" + sfx]) + x_ref_super
+        z_ref_sl = geometry.layer_z(sl, 3)
+        z_mid = geometry.superlayer_box(sl).center[geometry.Z]
+        x_sl = geometry.track_position(z=z_mid - z_ref_sl, x0=fits[f"x0_sl{sl}"], tan_alpha=fits[f"tan_alpha_sl{sl}"]) + x_ref_sl
+        x_super = geometry.track_position(z=z_mid - z_ref_super, x0=fits["x0" + sfx], tan_alpha=fits["tan_alpha" + sfx]) + x_ref_super
         delta_t0.append((f"SL {sl}", fits[f"t0_sl{sl}"] - fits["t0" + sfx]))
         delta_tan_alpha.append((f"SL {sl}", fits[f"tan_alpha_sl{sl}"] - fits["tan_alpha" + sfx]))
         delta_x.append((f"SL {sl}", x_sl - x_super))

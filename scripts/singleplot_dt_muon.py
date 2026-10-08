@@ -12,7 +12,7 @@
 # Muons are selected by their row in the dt muons file (--rows), default are the first --n_muons.
 #
 # example:
-#   python scripts/dt_root/singleplot_dt_muon.py --sl_fits_file out/run_sl_fits_cut.root \
+#   python scripts/singleplot_dt_muon.py --sl_fits_file out/run_sl_fits_cut.root \
 #          --super_fits_file out/run_super_fits_cut.root --dt_muons_file out/run_dt_muons.root --rows 0,5 --store_plots plots/single_muons
 #################################################################
 
@@ -26,7 +26,7 @@ plot_utils.setup_backend(show_plots="--show_plots" in sys.argv)
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 
-from analysis_tools.utils import dt_pipeline_utils, dt_utils, geoplot_utils, root_utils
+from analysis_tools.utils import dt_chamber_utils, dt_geometry_utils as geometry, dt_pipeline_utils, geoplot_utils, root_utils
 from analysis_tools.params import params, derived_params
 
 # ---------------------------------------------------------------
@@ -62,7 +62,8 @@ def main(argv=None):
         raise RuntimeError("No dt muons selected, nothing to plot.")
     dt_muons = root_utils.read_rows(args.dt_muons_file, rows)
     sls = list(params._dt_chamber["sls"].keys())
-    z_range = np.linspace(derived_params._dt_cell_coordinates[1][0][1][5] - params._cell_height * 2, derived_params._dt_cell_coordinates[3][3][1][5] + params._cell_height * 2, 1000)
+    layer_z = [geometry.layer_z(sl, ly) for sl in sls for ly in dt_chamber_utils.layers(sl)]
+    z_range = np.linspace(min(layer_z) - params._plot_z_margin * 2, max(layer_z) + params._plot_z_margin * 2, 1000)
 
     for i, row in enumerate(rows):
         muon = {k: dt_muons[k][i] for k in dt_muons.keys()}
@@ -80,8 +81,8 @@ def main(argv=None):
         if "t0" + sfx not in super_fit:
             raise KeyError(f"No super fit results with suffix \"{sfx}\" in {args.super_fits_file}.")
         # super fit track in the global frame: x(z) = x_ref + x0 + (z - z_ref) * tan_alpha
-        super_x_ref = derived_params._super_pattern_x_ref + super_fit["ref_x" + sfx]
-        super_z_ref = derived_params._super_pattern_z_ref + super_fit["ref_z" + sfx]
+        super_x_ref = geometry.SUPER_FRAME_ORIGIN[0] + super_fit["ref_x" + sfx]
+        super_z_ref = geometry.SUPER_FRAME_ORIGIN[1] + super_fit["ref_z" + sfx]
         super_vd = super_fit["vd" + sfx] / derived_params._drift_velocity_conversion
         super_err_vd = super_fit["err_vd" + sfx] / derived_params._drift_velocity_conversion
 
@@ -101,7 +102,7 @@ def main(argv=None):
         log(f"  theta sl fit - super fit t0 = {muon['delta_t0']:.1f} TU, theta candidates in time window = {int(muon['n_theta_candidates'])}")
 
         ### hit cells
-        dt_cell_data = dt_utils._chamber_data()
+        dt_cell_data = dt_chamber_utils.cell_display_map()
         for k in range(n_fits):
             sl = int(sl_fits["sl"][k])
             for ly in range(4):
@@ -110,8 +111,8 @@ def main(argv=None):
         fig, axes = plt.subplots(2, 2, figsize=(20, 10), width_ratios=(2.2, 1))
         for i_orient, orient in enumerate(["phi", "theta"]):
             ### track of the muon in this projection
-            track = derived_params.proj_glob_muon(orient=orient, z=z_range, x0=x0, y0=y0, z0=z0, theta=theta, phi=phi)
-            err_track = derived_params.err_proj_glob_muon(orient=orient, z=z_range, x0=x0, y0=y0, z0=z0, theta=theta, phi=phi, err_x0=err_x0, err_y0=err_y0, err_z0=err_z0, err_phi=err_phi, err_theta=err_theta)
+            track = geometry.muon_track_position(orient=orient, z=z_range, x0=x0, y0=y0, z0=z0, theta=theta, phi=phi)
+            err_track = geometry.err_muon_track_position(orient=orient, z=z_range, x0=x0, y0=y0, z0=z0, theta=theta, phi=phi, err_x0=err_x0, err_y0=err_y0, err_z0=err_z0, err_phi=err_phi, err_theta=err_theta)
             muon_label = f"""Global track (row {row}):
 $T_0=({ts:.1f}\\pm{err_ts:.1f})$ {params._key_units['t0']}
 $\\theta=({theta * params.rad_to_deg:.1f}\\pm{err_theta * params.rad_to_deg:.1f})^\\circ$
@@ -122,18 +123,14 @@ $\\phi=({phi * params.rad_to_deg:.1f}\\pm{err_phi * params.rad_to_deg:.1f})^\\ci
                 sl = int(sl_fits["sl"][k])
                 if params._dt_chamber["sls"][sl]["orient"] != orient:
                     continue
-                sl_z_range = np.linspace(derived_params._dt_cell_coordinates[sl][0][1][5] - params._cell_height, derived_params._dt_cell_coordinates[sl][3][1][5] + params._cell_height, 200)
-                ref_ly = 3
-                ref_wi = int(sl_fits[f"wi{ref_ly}"][k])
-                ref_axis = 0 if (orient == "phi") else 1
-                x_ref_cell = derived_params._dt_cell_coordinates[sl][ref_ly][ref_wi][ref_axis + 3]
-                z_ref_cell = derived_params._dt_cell_coordinates[sl][ref_ly][ref_wi][5]
-                sl_track = derived_params.f_x_muon(z=sl_z_range - z_ref_cell, x0=sl_fits["x0"][k], tan_alpha=sl_fits["tan_alpha"][k]) + x_ref_cell
-                err_sl_track = derived_params.err_f_x_muon(z=sl_z_range - z_ref_cell, x0=sl_fits["x0"][k], tan_alpha=sl_fits["tan_alpha"][k], err_x0=sl_fits["err_x0"][k], err_tan_alpha=sl_fits["err_tan_alpha"][k], corr_x0_tan_alpha=sl_fits["corr_x0_tan_alpha"][k])
+                sl_z_range = np.linspace(geometry.layer_z(sl, 0) - params._plot_z_margin, geometry.layer_z(sl, 3) + params._plot_z_margin, 200)
+                x_ref_cell, z_ref_cell = geometry.wire_position(sl, 3, int(sl_fits["wi3"][k]))  # origin of the pattern frame of the fit
+                sl_track = geometry.track_position(z=sl_z_range - z_ref_cell, x0=sl_fits["x0"][k], tan_alpha=sl_fits["tan_alpha"][k]) + x_ref_cell
+                err_sl_track = geometry.err_track_position(z=sl_z_range - z_ref_cell, x0=sl_fits["x0"][k], tan_alpha=sl_fits["tan_alpha"][k], err_x0=sl_fits["err_x0"][k], err_tan_alpha=sl_fits["err_tan_alpha"][k], corr_x0_tan_alpha=sl_fits["corr_x0_tan_alpha"][k])
                 # distance sl fit - global track in the middle of the superlayer
-                z_mid = derived_params.sl_z_center[sl]
-                x_sl_mid = derived_params.f_x_muon(z=z_mid - z_ref_cell, x0=sl_fits["x0"][k], tan_alpha=sl_fits["tan_alpha"][k]) + x_ref_cell
-                x_glob_mid = derived_params.proj_glob_muon(orient=orient, z=z_mid, x0=x0, y0=y0, z0=z0, theta=theta, phi=phi)
+                z_mid = geometry.superlayer_box(sl).center[geometry.Z]
+                x_sl_mid = geometry.track_position(z=z_mid - z_ref_cell, x0=sl_fits["x0"][k], tan_alpha=sl_fits["tan_alpha"][k]) + x_ref_cell
+                x_glob_mid = geometry.muon_track_position(orient=orient, z=z_mid, x0=x0, y0=y0, z0=z0, theta=theta, phi=phi)
                 segments.append((sl, sl_z_range, sl_track, err_sl_track, x_sl_mid - x_glob_mid))
                 log(f"  sl {sl} ({orient}) fit row {fit_rows[k]}: t0 = {sl_fits['t0'][k]:.1f} TU, tan_alpha = {sl_fits['tan_alpha'][k]:.3f}, "
                       f"chi2/ndf = {sl_fits['chi2/ndf'][k]:.2f}, sl fit - global track = {x_sl_mid - x_glob_mid:.2f} mm")
@@ -147,13 +144,13 @@ $\\phi=({phi * params.rad_to_deg:.1f}\\pm{err_phi * params.rad_to_deg:.1f})^\\ci
                 ax.fill_betweenx(x1=track - err_track, x2=track + err_track, y=z_range, color="tab:green", alpha=0.2, zorder=5)
                 if args.simulation:
                     sim_label = f"""Simulated track:
-$T_0={muon['muon_ts']:.1f}$ {params._key_units['t0']}
-$\\theta={muon['muon_theta'] * params.rad_to_deg:.1f}^\\circ$
-$\\phi={muon['muon_phi'] * params.rad_to_deg:.1f}^\\circ$"""
-                    sim_track = derived_params.proj_glob_muon(orient=orient, z=z_range, x0=muon["muon_x0"], y0=muon["muon_y0"], z0=muon["muon_z0"], theta=muon["muon_theta"], phi=muon["muon_phi"])
+$T_0={muon['sim_ts']:.1f}$ {params._key_units['t0']}
+$\\theta={muon['sim_theta'] * params.rad_to_deg:.1f}^\\circ$
+$\\phi={muon['sim_phi'] * params.rad_to_deg:.1f}^\\circ$"""
+                    sim_track = geometry.muon_track_position(orient=orient, z=z_range, x0=muon["sim_x0"], y0=muon["sim_y0"], z0=muon["sim_z0"], theta=muon["sim_theta"], phi=muon["sim_phi"])
                     ax.plot(sim_track, z_range, linewidth=1, color="black", label=sim_label, linestyle="--", zorder=7)
                 if orient == "phi":
-                    super_track = derived_params.f_x_muon(z=z_range - super_z_ref, x0=super_fit["x0" + sfx], tan_alpha=super_fit["tan_alpha" + sfx]) + super_x_ref
+                    super_track = geometry.track_position(z=z_range - super_z_ref, x0=super_fit["x0" + sfx], tan_alpha=super_fit["tan_alpha" + sfx]) + super_x_ref
                     super_label = f"Super fit (SL 1 + SL 3):\n$v_d=({super_vd:.1f}\\pm{super_err_vd:.1f})$ um/ns, $\\chi^2/N_{{df}}={super_fit['chi2/ndf' + sfx]:.2f}$"
                     ax.plot(super_track, z_range, color="tab:blue", linewidth=1.5, linestyle=":", label=super_label, zorder=8)
                 for j, (sl, sl_z_range, sl_track, err_sl_track, _) in enumerate(segments):
@@ -169,8 +166,8 @@ $\\phi={muon['muon_phi'] * params.rad_to_deg:.1f}^\\circ$"""
                     ax.set_title(f"zoom to the track ({args.zoom_width:g} mm wide)")
                     ax.legend(prop={"size": 11}, fancybox=False, framealpha=0.9, loc="center left", bbox_to_anchor=(1.01, 0.5))
                 else:
-                    lo = derived_params.dt_chamber_x_min if orient == "phi" else derived_params.dt_chamber_y_min
-                    hi = derived_params.dt_chamber_x_max if orient == "phi" else derived_params.dt_chamber_y_max
+                    lo = geometry.chamber_box().low[geometry.X] if orient == "phi" else geometry.chamber_box().low[geometry.Y]
+                    hi = geometry.chamber_box().high[geometry.X] if orient == "phi" else geometry.chamber_box().high[geometry.Y]
                     ax.set_xlim(lo - 100, hi + 100)
                     view = "SL-$\\phi$ view" if orient == "phi" else "SL-$\\theta$ view"
                     ax.set_title(f"DT track, row {row}: ${axis_name}$-$z$-plane ({view})")

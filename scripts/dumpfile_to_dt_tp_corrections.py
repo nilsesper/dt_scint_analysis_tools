@@ -22,12 +22,12 @@
 # TH1D per SL: ts_orbit_sl<N> of all hits). Output ending .pcl: only the correction dict of the old script.
 #
 # Use the result with
-#   python scripts/dt_root/dumpfile_to_dt_hits.py ... --dt_tp_corrections_file <this output>
-#   python scripts/dt_root/run_dt_pipeline.py ... --dt_tp_corrections_file <this output>
+#   python scripts/dumpfile_to_dt_hits.py ... --dt_tp_corrections_file <this output>
+#   python scripts/run_dt_pipeline.py ... --dt_tp_corrections_file <this output>
 #
 # examples:
-#   python scripts/dt_root/dumpfile_to_dt_tp_corrections.py --input_dumpfile tp_run.txt --dt_tp_corrections_file calib/tp_corrections.root
-#   python scripts/dt_root/dumpfile_to_dt_tp_corrections.py --input_dumpfile tp_run.txt --dt_tp_corrections_file calib/tp_corrections.root \
+#   python scripts/dumpfile_to_dt_tp_corrections.py --input_dumpfile tp_run.txt --dt_tp_corrections_file calib/tp_corrections.root
+#   python scripts/dumpfile_to_dt_tp_corrections.py --input_dumpfile tp_run.txt --dt_tp_corrections_file calib/tp_corrections.root \
 #          --dt_tp_hits_file calib/tp_dt_hits.root --alignment sl --n_proc 4
 #################################################################
 

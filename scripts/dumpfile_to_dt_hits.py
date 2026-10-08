@@ -6,16 +6,15 @@
 # dumpfile_to_dt_tp_corrections.py): ts -> ts + ts_corr(sl, ly, wi).
 #
 # examples:
-#   python scripts/dt_root/dumpfile_to_dt_hits.py --input_dumpfile run.txt --dt_hits_file out/run_dt_hits.root --n_proc 4
-#   python scripts/dt_root/dumpfile_to_dt_hits.py --input_dumpfile run.txt --dt_hits_file out/run_dt_hits.root \
+#   python scripts/dumpfile_to_dt_hits.py --input_dumpfile run.txt --dt_hits_file out/run_dt_hits.root --n_proc 4
+#   python scripts/dumpfile_to_dt_hits.py --input_dumpfile run.txt --dt_hits_file out/run_dt_hits.root \
 #          --dt_tp_corrections_file calib/tp_corrections.root
 #################################################################
 
 import argparse
-import numpy as np
 
 from analysis_tools.utils.root_utils import log
-from analysis_tools.utils import dt_pipeline_utils, root_utils
+from analysis_tools.utils import dt_pipeline_utils
 
 # ---------------------------------------------------------------
 
@@ -34,7 +33,7 @@ def main(argv=None):
                         help="parameter file to use instead of analysis_tools/params/params.py (e.g. another readout mapping)")
     args = parser.parse_args(argv)
 
-    dt_pipeline_utils.convert_dumpfile_to_dt_hits(
+    dt_pipeline_utils.dumpfile_to_dt_hits(
         args.input_dumpfile, args.dt_hits_file, n_lines_to_skip=args.n_lines_to_skip, block_n_lines=args.block_lines, n_proc=args.n_proc,
         dt_tp_corrections_file=args.dt_tp_corrections_file,
     )

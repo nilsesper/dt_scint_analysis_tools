@@ -13,15 +13,11 @@
 #################################################################
 
 import argparse
-import numpy as np
 
 from analysis_tools.utils.root_utils import log
 from analysis_tools.utils import dt_pipeline_utils, root_utils
 
 # ---------------------------------------------------------------
-
-def _step_size(value):
-    return int(value) if value.strip().isdigit() else value
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description="Histogram the time difference between consecutive hits of the same cell.")
@@ -36,7 +32,7 @@ def main(argv=None):
     args = parser.parse_args(argv)
 
     dt_pipeline_utils.dt_hits_to_hit_diff_hist(
-        args.dt_hits_file, args.hit_diff_hist_file, step_size=_step_size(args.step_size), n_bins=args.n_bins, ts_max=args.ts_max,
+        args.dt_hits_file, args.hit_diff_hist_file, step_size=root_utils.parse_step_size(args.step_size), n_bins=args.n_bins, ts_max=args.ts_max,
     )
 
 if __name__ == "__main__":

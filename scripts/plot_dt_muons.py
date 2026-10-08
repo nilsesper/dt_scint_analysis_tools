@@ -7,7 +7,7 @@
 # (histograms of the single branches: plot_histograms.py)
 #
 # example:
-#   python scripts/dt_root/plot_dt_muons.py --dt_muons_file out/run_dt_muons.root --store_plots plots/dt_muons
+#   python scripts/plot_dt_muons.py --dt_muons_file out/run_dt_muons.root --store_plots plots/dt_muons
 #################################################################
 
 import argparse
@@ -22,18 +22,17 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as pat
 from matplotlib.ticker import ScalarFormatter
 
-from analysis_tools.utils import data_utils, dt_pipeline_utils, dt_utils, geoplot_utils, hist_utils, muon_utils, root_utils
-from analysis_tools.params import params, derived_params
+from analysis_tools.utils import cut_utils, data_utils, dt_chamber_utils, dt_geometry_utils as geometry, geoplot_utils, hist_utils, muon_utils, root_utils
+from analysis_tools.params import params
 
 # ---------------------------------------------------------------
 
-SLS = [1, 2, 3]
+SLS = dt_chamber_utils.superlayers()
 MUON_KEYS = ["x0", "y0", "z0", "theta", "phi", "ts"]
 
 def _cell_rectangle(sl, ly, wi, **kwargs):
-    # derived_params._dt_cell_coordinates = {sl: {ly: {wi: [[xmin, xmax], [ymin, ymax], [zmin, zmax], x_center, y_center, z_center]}}}
-    c = derived_params._dt_cell_coordinates[sl][ly][wi]
-    return pat.Rectangle((c[0][0], c[1][0]), width=c[0][1] - c[0][0], height=c[1][1] - c[1][0], **kwargs)
+    c = geometry.cell(sl, ly, wi)
+    return pat.Rectangle((c.low[geometry.X], c.low[geometry.Y]), width=c.size(geometry.X), height=c.size(geometry.Y), **kwargs)
 
 def _colorbar(fig, ax, im_obj, label):
     formatter = ScalarFormatter(useMathText=True)
@@ -66,11 +65,11 @@ def main(argv=None):
     else:
         marked_cells = plot_utils.parse_cells(args.mark_cells)
     for sl, ly, wi in marked_cells:
-        if wi not in derived_params._dt_cell_coordinates.get(sl, {}).get(ly, {}):
+        if (sl, ly, wi) not in dt_chamber_utils.chamber_cells():
             raise ValueError(f"--mark_cells: cell sl={sl}, ly={ly}, wi={wi} does not exist in the chamber.")
 
     ### data import
-    cuts = dt_pipeline_utils.parse_cuts(args.cuts)
+    cuts = cut_utils.parse_cuts(args.cuts)
     log(f"###### Importing dt muons from {args.dt_muons_file}...")
     dt_muons = root_utils.read_branches(args.dt_muons_file, sorted(set(MUON_KEYS) | {c[0] for c in cuts}))
     n_all = root_utils.length(dt_muons)
@@ -92,15 +91,15 @@ def main(argv=None):
     ####### X-Y maps: track positions in the plane of each superlayer
     for sl in SLS:
         margin = 100  # mm
-        x_edges = np.arange(start=derived_params.sl_x_min[sl] - margin, stop=derived_params.sl_x_max[sl] + margin + args.xy_bin_width, step=args.xy_bin_width)
-        y_edges = np.arange(start=derived_params.sl_y_min[sl] - margin, stop=derived_params.sl_y_max[sl] + margin + args.xy_bin_width, step=args.xy_bin_width)
-        dt_muons_sl = muon_utils.change_muon_base_point(muons=dt_muons, z_new=derived_params.sl_z_center[sl])
+        box = geometry.superlayer_box(sl)
+        x_edges = np.arange(start=box.low[geometry.X] - margin, stop=box.high[geometry.X] + margin + args.xy_bin_width, step=args.xy_bin_width)
+        y_edges = np.arange(start=box.low[geometry.Y] - margin, stop=box.high[geometry.Y] + margin + args.xy_bin_width, step=args.xy_bin_width)
+        dt_muons_sl = muon_utils.change_muon_base_point(muons=dt_muons, z_new=box.center[geometry.Z])
         pos_muons_hist2d, _, _ = np.histogram2d(x=dt_muons_sl["y0"], y=dt_muons_sl["x0"], bins=(y_edges, x_edges))
         fig, ax = plt.subplots(1, 1, figsize=(10, 8.5))
         im_obj = ax.imshow(X=pos_muons_hist2d, origin="lower", extent=[x_edges[0], x_edges[-1], y_edges[0], y_edges[-1]], aspect="equal")
         ax.add_patch(pat.Rectangle(
-            (derived_params.sl_x_min[sl], derived_params.sl_y_min[sl]),
-            width=(derived_params.sl_x_max[sl] - derived_params.sl_x_min[sl]), height=(derived_params.sl_y_max[sl] - derived_params.sl_y_min[sl]),
+            (box.low[geometry.X], box.low[geometry.Y]), width=(box.high[geometry.X] - box.low[geometry.X]), height=(box.high[geometry.Y] - box.low[geometry.Y]),
             edgecolor="white", facecolor="None", label="Superlayer position",
         ))
         first_label = True
@@ -109,7 +108,7 @@ def main(argv=None):
                 continue
             ax.add_patch(_cell_rectangle(sl, ly, wi, edgecolor="red", facecolor="None", label="Marked cells" if first_label else None))
             first_label = False
-        ax.set_title(f"DT tracks in SL {sl} ($z={derived_params.sl_z_center[sl]:.0f}$ mm)")
+        ax.set_title(f"DT tracks in SL {sl} ($z={box.center[geometry.Z]:.0f}$ mm)")
         ax.set_xlabel("$x$ [mm]")
         ax.set_ylabel("$y$ [mm]")
         ax.legend(prop={"size": 12}, loc="upper left", fancybox=False, framealpha=params._legend_alpha)
@@ -121,15 +120,15 @@ def main(argv=None):
         plot_utils.finish_figure(fig, f"dt_muons_xy_sl{sl}", **out)
 
     ####### X-Z and Y-Z projections of the tracks through the chamber
-    marked_cell_data = dt_utils._chamber_data()
+    marked_cell_data = dt_chamber_utils.cell_display_map()
     for sl, ly, wi in marked_cells:
         marked_cell_data[sl][ly][wi]["color"] = "tab:red"
-    sl_z_coord = (np.amin([derived_params.sl_z_min[sl] for sl in SLS]), np.amax([derived_params.sl_z_max[sl] for sl in SLS]))
+    sl_z_coord = geometry.superlayers_range(geometry.Z)
     for orient, slice_name in [("phi", "xz"), ("theta", "yz")]:
         if slice_name == "xz":
-            sl_x_coord = (np.amin([derived_params.sl_x_min[sl] for sl in SLS]), np.amax([derived_params.sl_x_max[sl] for sl in SLS]))
+            sl_x_coord = geometry.superlayers_range(geometry.X)
         else:
-            sl_x_coord = (np.amin([derived_params.sl_y_min[sl] for sl in SLS]), np.amax([derived_params.sl_y_max[sl] for sl in SLS]))
+            sl_x_coord = geometry.superlayers_range(geometry.Y)
         margin = 100  # mm
         x_edges = np.arange(start=sl_x_coord[0] - margin, stop=sl_x_coord[1] + margin + args.xz_bin_width, step=args.xz_bin_width)
         z_edges = np.arange(start=sl_z_coord[0] - margin, stop=sl_z_coord[1] + margin + args.xz_bin_width, step=args.xz_bin_width)
@@ -152,7 +151,7 @@ def main(argv=None):
         legend_entries = {"Chamber geometry": pat.Patch(edgecolor="white", facecolor="none")}
         if len(marked_cells) > 0:
             legend_entries["Marked cells"] = pat.Patch(edgecolor="tab:red", facecolor="none")
-        legend = ax.legend(legend_entries.values(), legend_entries.keys(), prop={"size": 11}, loc="lower center", ncols=2, fancybox=False, framealpha=params._legend_alpha, facecolor="gray")
+        ax.legend(legend_entries.values(), legend_entries.keys(), prop={"size": 11}, loc="lower center", ncols=2, fancybox=False, framealpha=params._legend_alpha, facecolor="gray")
         fig.tight_layout()
         plot_utils.finish_figure(fig, f"dt_muons_{slice_name}_chamber", **out)
 
@@ -161,9 +160,8 @@ def main(argv=None):
     fig = plt.figure(figsize=(12, 9))
     ax = fig.add_subplot(projection="3d")
     for sl in SLS:  # superlayer boxes
-        x0, x1 = derived_params.sl_x_min[sl], derived_params.sl_x_max[sl]
-        y0, y1 = derived_params.sl_y_min[sl], derived_params.sl_y_max[sl]
-        z0, z1 = derived_params.sl_z_min[sl], derived_params.sl_z_max[sl]
+        box = geometry.superlayer_box(sl)
+        (x0, y0, z0), (x1, y1, z1) = box.low, box.high
         color = "tab:blue" if params._dt_chamber["sls"][sl]["orient"] == "phi" else "tab:orange"
         for z in (z0, z1):
             ax.plot([x0, x1, x1, x0, x0], [y0, y0, y1, y1, y0], [z, z, z, z, z], color=color, linewidth=1.2)
@@ -177,14 +175,14 @@ def main(argv=None):
         x = dt_muons["x0"][i] + tan_alpha_x[i] * (z - dt_muons["z0"][i])
         y = dt_muons["y0"][i] + tan_alpha_y[i] * (z - dt_muons["z0"][i])
         ax.plot(x, y, z, color="tab:green", linewidth=0.8, alpha=0.6)
-    ax.set_xlim(sl_x_coord_all(0) - 200, sl_x_coord_all(1) + 200)
-    ax.set_ylim(sl_y_coord_all(0) - 200, sl_y_coord_all(1) + 200)
+    ax.set_xlim(geometry.superlayers_range(geometry.X)[0] - 200, geometry.superlayers_range(geometry.X)[1] + 200)
+    ax.set_ylim(geometry.superlayers_range(geometry.Y)[0] - 200, geometry.superlayers_range(geometry.Y)[1] + 200)
     ax.set_zlim(z_lo, z_hi)
     ax.set_xlabel("$x$ [mm]", labelpad=14)
     ax.set_ylabel("$y$ [mm]", labelpad=14)
     ax.set_zlabel("$z$ [mm]", labelpad=10)
-    x_span = sl_x_coord_all(1) - sl_x_coord_all(0) + 400
-    y_span = sl_y_coord_all(1) - sl_y_coord_all(0) + 400
+    x_span = geometry.superlayers_range(geometry.X)[1] - geometry.superlayers_range(geometry.X)[0] + 400
+    y_span = geometry.superlayers_range(geometry.Y)[1] - geometry.superlayers_range(geometry.Y)[0] + 400
     ax.set_box_aspect((x_span, y_span, 0.45 * max(x_span, y_span)))  # z is stretched, the chamber is flat
     ax.set_title(f"DT tracks ({n_3d:,} of {n_dt_muons:,} shown, $z$ axis stretched)")
     legend_entries = {
@@ -218,12 +216,6 @@ def main(argv=None):
             _hist(np.diff(ts_sorted), "$\\Delta T_0$ [ms]", "dt_muons_delta_ts", scale=plot_utils.TS_UNIT_NS * 1e-6, bin_unit="ms", log_scale=True)
 
     plot_utils.show_figures(args.show_plots)
-
-def sl_x_coord_all(i):
-    return (np.amin([derived_params.sl_x_min[sl] for sl in SLS]), np.amax([derived_params.sl_x_max[sl] for sl in SLS]))[i]
-
-def sl_y_coord_all(i):
-    return (np.amin([derived_params.sl_y_min[sl] for sl in SLS]), np.amax([derived_params.sl_y_max[sl] for sl in SLS]))[i]
 
 if __name__ == "__main__":
     main()

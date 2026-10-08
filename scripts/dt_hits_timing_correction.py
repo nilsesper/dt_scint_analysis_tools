@@ -6,15 +6,11 @@
 #################################################################
 
 import argparse
-import numpy as np
 
 from analysis_tools.utils.root_utils import log
 from analysis_tools.utils import dt_pipeline_utils, root_utils
 
 # ---------------------------------------------------------------
-
-def _step_size(value):
-    return int(value) if value.strip().isdigit() else value
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description="Apply the testpulse timing calibration to dt hits.")
@@ -27,8 +23,8 @@ def main(argv=None):
                         help="parameter file to use instead of analysis_tools/params/params.py (e.g. another readout mapping)")
     args = parser.parse_args(argv)
 
-    dt_pipeline_utils.apply_timing_correction(
-        args.dt_hits_file, args.dt_tp_corrections_file, args.corr_dt_hits_file, step_size=_step_size(args.step_size),
+    dt_pipeline_utils.dt_hits_timing_correction(
+        args.dt_hits_file, args.dt_tp_corrections_file, args.corr_dt_hits_file, step_size=root_utils.parse_step_size(args.step_size),
     )
 
 if __name__ == "__main__":

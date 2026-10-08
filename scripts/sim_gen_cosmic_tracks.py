@@ -2,7 +2,7 @@
 ### simulation: generate cosmic muon tracks (ROOT file)
 # muons start in a plane at the bottom of the chamber, uniformly over the chamber area plus a margin,
 # with the angular distribution params.cosmic_muon_theta_weight and exponential waiting times
-# simulated muons have muon_id >= 1 (data has muon_id = 0)
+# simulated muons have sim_id >= 1 (data has sim_id = 0)
 #
 # simulation chain:
 #   sim_gen_cosmic_tracks.py -> sim_cosmic_tracks_to_dt_hits.py [-> sim_add_dt_hit_noise.py] [-> sim_add_dt_secondary_hits.py]
@@ -13,8 +13,8 @@ import argparse
 import numpy as np
 
 from analysis_tools.utils.root_utils import log
-from analysis_tools.utils import data_utils, dt_utils, muon_utils, plot_utils, root_utils
-from analysis_tools.params import params, derived_params
+from analysis_tools.utils import muon_utils, plot_utils, root_utils
+from analysis_tools.params import params
 
 # ---------------------------------------------------------------
 
