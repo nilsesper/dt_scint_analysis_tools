@@ -33,8 +33,8 @@ def main(argv=None):
                              "If given, the timestamps of the dt hits are corrected in stage dt_hits")
     parser.add_argument("--skip_stages", type=str, default="", help="comma separated list of stages to leave out, e.g. \"hit_diff_hist,cell_counts\"")
     # settings of the individual stages (same defaults as the stage scripts)
-    parser.add_argument("--n_lines_to_skip", type=int, default=999, help="dumpfile lines to ignore at the start")
-    parser.add_argument("--block_lines", type=int, default=500_000, help="dumpfile lines processed at once")
+    parser.add_argument("--n_lines_to_skip", type=int, default=50_000, help="dumpfile lines to ignore at the start")
+    parser.add_argument("--block_lines", type=int, default=2_000_000, help="dumpfile lines processed at once")
     parser.add_argument("--step_size", type=str, default=root_utils.DEFAULT_STEP_SIZE, help="how much of a ROOT file is read at once: memory size like \"200 MB\" or a number of rows")
     parser.add_argument("--sl_fit_cuts", type=str, default="impossible,==,0;chi2/ndf,<,20",
                         help="cuts on the sl fits (stage sl_fits_cut), format \"key1,operator1,value1;key2,operator2,value2;...\"")

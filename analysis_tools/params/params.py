@@ -46,7 +46,7 @@ _dumpfile_hits_to_skip = 50000
 _lhc_tdc_count = 32 # TDC counts per BX
 _lhc_bunch_count = 3564 # BX per orbit
 _lhc_orbit_count = 2**26 # range of the orbit counter
-_oc_difference_for_overflow = 10000 # the orbit counter has overflowed when it jumps back by more than this
+_oc_difference_for_overflow = 50_000 #10_000 # the orbit counter has overflowed when it jumps back by more than this
 _ts_type = np.float64 # data type of timestamps
 _ts_float_type = np.float64 # data type of timestamps in fits
 

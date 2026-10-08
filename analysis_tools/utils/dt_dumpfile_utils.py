@@ -73,6 +73,7 @@ def count_orbit_overflows(orbit):
     for i in range(1, len(orbit)):
         if orbit[i - 1] - orbit[i] > params._oc_difference_for_overflow:
             n_overflows += 1
+            print(f"OC overflow detected. From oc={orbit[i - 1]} to oc={orbit[i]}. Now have found a total of {n_overflows} overflows in the current block.")
         overflows[i] = n_overflows
     return overflows
 

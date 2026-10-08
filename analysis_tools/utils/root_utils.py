@@ -24,7 +24,7 @@ DT_HITS_TREE = "dt_hits"
 DEFAULT_TREE = "tree"
 SUMMARY_TREE = "summary"
 CHUNK_ID_KEY = "chunk_id"
-DEFAULT_STEP_SIZE = "200 MB"
+DEFAULT_STEP_SIZE = "500 MB"
 
 START_TIME = time.perf_counter()
 
