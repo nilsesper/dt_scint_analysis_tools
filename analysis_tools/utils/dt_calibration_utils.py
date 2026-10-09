@@ -171,6 +171,7 @@ def fill_testpulse_histograms(tp_histograms, hits, ts_orbit):
         cell_hist[ts] += 1
         if sl in tp_histograms["per_sl"]:
             tp_histograms["per_sl"][sl][ts] += 1
+    return tp_histograms
 
 ### occupied ts_orbit values of one cell (sorted) and their number of hits, as two arrays
 def testpulse_times_of_cell(tp_histograms, sl, ly, wi):
@@ -228,6 +229,7 @@ def calibrate_cells(tp_histograms, *, rel_thres, alignment, correct_for_offsets,
         sl, ly, wi = cells[i]
         values, counts = testpulse_times_of_cell(tp_histograms, sl, ly, wi)
         peak = first_testpulse_peak(values, counts, rel_thres)
+        if peak is None: print(f"no data for {(sl, ly, wi)}")
         mean, err = 0.0, 0.0
         if peak is not None:
             mean, err, calib["n_peak_hits"][i], calib["peak_ts_min"][i], calib["peak_ts_max"][i] = peak

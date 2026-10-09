@@ -45,7 +45,7 @@ def main():
                         help="threshold for the peak search, relative to the highest bin of the cell histogram")
     parser.add_argument("--no_offset_correction", action="store_true",
                         help="do not subtract the known testpulse delays per frontend connector (params._tp_time_offset)")
-    parser.add_argument("--n_lines_to_skip", type=int, default=params._dumpfile_hits_to_skip,
+    parser.add_argument("--n_lines_to_skip", type=int, default=1_000,
                         help=f"number of lines at the start of the dumpfile to ignore (default: params._dumpfile_hits_to_skip = {params._dumpfile_hits_to_skip})")
     parser.add_argument("--block_lines", type=int, default=500_000, help="number of dumpfile lines processed at once")
     parser.add_argument("--params_file", type=str, default=None,
@@ -78,7 +78,7 @@ def main():
         if dt_hits is not None:
             n_dt_hits = root_utils.length(dt_hits)
             ts_orbit = timestamp_utils.add_timestamp_this_orbit(hits=dt_hits, silent=True)["ts_orbit"]
-            dt_calibration_utils.fill_testpulse_histograms(tp_histograms, dt_hits, ts_orbit)
+            tp_histograms = dt_calibration_utils.fill_testpulse_histograms(tp_histograms, dt_hits, ts_orbit)
             if hits_file is not None:
                 dt_hits["ts_orbit"] = ts_orbit
                 root_utils.write_rows(hits_file, root_utils.DT_HITS_TREE, dt_hits)
