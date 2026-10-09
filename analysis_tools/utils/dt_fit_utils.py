@@ -264,7 +264,7 @@ def sl_fit_position_at_reco_z0(sl_fits, i):
 # sl in time (|t0 difference| <= params._muon_tgroup_tolerance) with a similar angle. The pair is kept if both fits give
 # the same track position at z = params._muon_reco_z0, otherwise the fit of the first sl stays unpaired.
 def pair_phi_sl_fits(sl_fits, rows_1, rows_2):
-    tolerance = params._muon_tgroup_tolerance
+    t0_tolerance = params._muon_tgroup_tolerance
     t0_1 = sl_fits["t0"][rows_1]
     t0_2 = sl_fits["t0"][rows_2]
     order_1 = np.argsort(t0_1)
@@ -273,26 +273,32 @@ def pair_phi_sl_fits(sl_fits, rows_1, rows_2):
     pairs = []
     first_candidate = 0  # position in order_2 of the first fit of sl 2 which is not too early
     for i in order_1:
-        while first_candidate < len(rows_2) and t0_2[order_2[first_candidate]] < t0_1[i] - tolerance:
+        # check only those sl fits which anyway lie close enough in time with their t0 values
+        while first_candidate < len(rows_2) and t0_2[order_2[first_candidate]] < t0_1[i] - t0_tolerance:
             first_candidate += 1
-        closest, closest_distance = None, None
+        closest, x_at_reco_z0_distance = None, None
         k = first_candidate
-        while k < len(rows_2) and t0_2[order_2[k]] <= t0_1[i] + tolerance:
+        while k < len(rows_2) and t0_2[order_2[k]] <= t0_1[i] + t0_tolerance:
             j = order_2[k]
             k += 1
             if used_2[j]:
                 continue
+            # check difference in tan_alpha small
             if np.abs(sl_fits["tan_alpha"][rows_2[j]] - sl_fits["tan_alpha"][rows_1[i]]) > params._muon_slphi_tan_alpha_tolerance:
                 continue
-            distance = np.abs(t0_2[j] - t0_1[i])
-            if closest is None or distance < closest_distance:
-                closest, closest_distance = j, distance
+            # distance in x at reco z0 between phi sl fits
+            x_1 = sl_fit_position_at_reco_z0(sl_fits, rows_1[i])
+            x_2 = sl_fit_position_at_reco_z0(sl_fits, rows_2[j])
+            x_at_reco_z0_distance = np.abs(x_1 - x_2)
+            # check distance in x small
+            if x_at_reco_z0_distance > params._muon_slphi_xproj_tolerance:
+                continue
+            # select "closest" sl fit by x distance (not by t0, in order to not spoil multi-muon events)
+            if closest is None or x_at_reco_z0_distance < closest_x_at_reco_z0_distance:
+                closest, closest_x_at_reco_z0_distance = j, x_at_reco_z0_distance
         if closest is None:
             continue
-        x_1 = sl_fit_position_at_reco_z0(sl_fits, rows_1[i])
-        x_2 = sl_fit_position_at_reco_z0(sl_fits, rows_2[closest])
-        if np.abs(x_1 - x_2) > params._muon_slphi_xproj_tolerance:
-            continue
+        
         used_2[closest] = True
         pairs.append((rows_1[i], rows_2[closest]))
     return pairs
