@@ -22,21 +22,15 @@ from analysis_tools.utils.root_utils import log
 ### the sl fits of one chunk_id -> super patterns and super fits; runs in its own process if --n_proc > 1
 def super_fits_of_chunk(job):
     sl_fits_file, chunk_id, start, stop, max_chi2ndf, max_alpha, fit_vd, verbose = job
-    print(f"HELLO from super_fits_of_chunk():", job)
     t_start = time.perf_counter()
     sl_fits = root_utils.read_tree(sl_fits_file, root_utils.DEFAULT_TREE, start, stop)
-    print(f"HELLO from super_fits_of_chunk(): read_tree")
     super_patterns = dt_fit_utils.build_super_patterns(sl_fits, max_chi2ndf, max_alpha)
-    print(f"HELLO from super_fits_of_chunk(): build_super_patterns")
     n_super_patterns = root_utils.length(super_patterns)
-    print(f"HELLO from super_fits_of_chunk(): have {n_super_patterns}")
     # rows of the paired sl fits in the whole file instead of in this chunk
     for sl in dt_chamber_utils.phi_superlayers():
         super_patterns[f"row_sl{sl}"] = super_patterns[f"row_sl{sl}"] + start
     super_patterns[root_utils.CHUNK_ID_KEY] = np.full(n_super_patterns, chunk_id, dtype=np.int64)
-    print(f"HELLO from super_fits_of_chunk(): ready for fitting")
     super_fits = dt_fit_utils.fit_super_patterns(super_patterns, fit_vd, verbose)
-    print(f"HELLO from super_fits_of_chunk(): fit_super_patterns")
     return super_patterns, super_fits, root_utils.length(sl_fits), time.perf_counter() - t_start
 
 def main():

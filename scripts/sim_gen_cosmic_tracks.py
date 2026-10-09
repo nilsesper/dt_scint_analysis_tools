@@ -22,7 +22,7 @@ def main():
     parser = argparse.ArgumentParser(description="Generate simulated cosmic muon tracks.")
     parser.add_argument("--cosmic_muons_file", type=str, required=True, help="output file path: cosmic muon tracks (.root)")
     parser.add_argument("--duration_s", type=float, default=1000, help="simulated time in seconds")
-    parser.add_argument("--margin_mm", type=float, default=1500, help="size of the muon source beyond the chamber edges in mm")
+    parser.add_argument("--margin_mm", type=float, default=2000, help="size of the muon source beyond the chamber edges in mm")
     parser.add_argument("--rate_hz_per_m2", type=float, default=147, help="muon rate through the source plane in Hz/m^2")
     parser.add_argument("--t_start", type=float, default=1000, help="timestamp of the start of the simulation in timestamp units")
     parser.add_argument("--seed", type=int, default=None, help="seed of the random number generator, for reproducible output (default: random)")
