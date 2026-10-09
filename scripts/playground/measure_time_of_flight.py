@@ -95,12 +95,15 @@ def main():
     sl12_t0_diff /= 0.78 # convert to ns
     sl23_t0_diff /= 0.78 # convert to ns
     sl13_t0_diff /= 0.78 # convert to ns
+    log(f"sl12_t0_diff: mean={np.mean(sl12_t0_diff)} ns, std={np.std(sl12_t0_diff, ddof=1)} ns")
+    log(f"sl23_t0_diff: mean={np.mean(sl23_t0_diff)} ns, std={np.std(sl23_t0_diff, ddof=1)} ns")
+    log(f"sl13_t0_diff: mean={np.mean(sl13_t0_diff)} ns, std={np.std(sl13_t0_diff, ddof=1)} ns")
 
     plot_utils.plot_histogram(sl12_t0_diff, "sl12_t0_diff", args, xlabel="time difference SL2 $-$ SL1 [ns]",
         full_range=True, log_scale=False, bin_unit="ns")
     plot_utils.plot_histogram(sl23_t0_diff, "sl23_t0_diff", args, xlabel="time difference SL3 $-$ SL2 [ns]",
         full_range=True, log_scale=False, bin_unit="ns")
-    plot_utils.plot_histogram(sl23_t0_diff, "sl13_t0_diff", args, xlabel="time difference SL3 $-$ SL1 [ns]",
+    plot_utils.plot_histogram(sl13_t0_diff, "sl13_t0_diff", args, xlabel="time difference SL3 $-$ SL1 [ns]",
             full_range=True, log_scale=False, bin_unit="ns")
 
     ### calculate binned distribution: reco muon angle vs. time difference
@@ -120,6 +123,7 @@ def main():
     ax.errorbar(np.rad2deg(angle_bins), mean_sl13_t0_diff_by_theta, yerr=sigma_sl13_t0_diff_by_theta, xerr=np.diff(np.rad2deg(angle_edges))/4, linestyle="")
     ax.set_xlabel(f"reco theta [deg]")
     ax.set_ylabel(f"mean time difference SL3 $-$ SL1 [ns]")
+    ax.set_ylim(mean_sl13_t0_diff_by_theta[n_bins//2]-5 , mean_sl13_t0_diff_by_theta[n_bins//2]+5)
     fig.tight_layout()
     plot_utils.save_figure(fig, f"mean_sl13_t0_diff_by_theta", args)
 
