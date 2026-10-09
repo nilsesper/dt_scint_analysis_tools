@@ -95,13 +95,31 @@ def main():
     #     for idx in idcs:
     #         print(f"    dt_muon_row={idx}, ts={dt_muons['ts'][idx]}, x0={dt_muons['x0'][idx]}, y0={dt_muons['y0'][idx]}, theta={dt_muons['theta'][idx]}, phi={dt_muons['phi'][idx]}")
 
+    ### search groups with more than 2 muons
+    closeby_multimuon_groups = []
+    for i in range(n_closeby_muon_groups):
+        if len(closeby_muon_groups[i]) > 2:
+            closeby_multimuon_groups.append(closeby_muon_groups[i])
+    n_closeby_multimuon_groups = len(closeby_multimuon_groups)
+    log(f"found {n_closeby_multimuon_groups} groups of more than two muons that are consecutively closer than {ts_tolerance} ts units in time")
+    # print more info on all of them
+    # for i, idcs in enumerate(closeby_multimuon_groups):
+    #     print(f"  closeby multimuon group {i}: contains {len(idcs)} consecutive muons")
+    #     for idx in idcs:
+    #         print(f"    dt_muon_row={idx}, ts={dt_muons['ts'][idx]}, x0={dt_muons['x0'][idx]}, y0={dt_muons['y0'][idx]}, theta={dt_muons['theta'][idx]}, phi={dt_muons['phi'][idx]}")
+
     ### select groups with exactly 2 muons
     closeby_dimuon_groups = []
     for i in range(n_closeby_muon_groups):
         if len(closeby_muon_groups[i]) == 2:
             closeby_dimuon_groups.append(closeby_muon_groups[i])
-    log(f"found {n_closeby_muon_groups} groups of exactly two muons that are consecutively closer than {ts_tolerance} ts units in time")
     n_closeby_dimuon_groups = len(closeby_dimuon_groups)
+    log(f"found {n_closeby_dimuon_groups} groups of exactly two muons that are consecutively closer than {ts_tolerance} ts units in time")
+    # print more info on all of them
+    # for i, idcs in enumerate(closeby_dimuon_groups):
+    #     print(f"  closeby dimuon group {i}: contains {len(idcs)} consecutive muons")
+    #     for idx in idcs:
+    #         print(f"    dt_muon_row={idx}, ts={dt_muons['ts'][idx]}, x0={dt_muons['x0'][idx]}, y0={dt_muons['y0'][idx]}, theta={dt_muons['theta'][idx]}, phi={dt_muons['phi'][idx]}")
 
     ### analyze dimuons in more detail
     # the ideas are taken from the following diploma thesis from aachen: https://web.physik.rwth-aachen.de/user/hebbeker/theses/mameghani_diploma.pdf
