@@ -229,6 +229,13 @@ def main():
 
     ### 1d histograms
     with mpl.rc_context({'font.family': 'sans-serif', 'font.size': 20}):
+        ### positions
+        plot_utils.plot_histogram(dt_muons["x0"], "dt_muons_x0", args, xlabel="Position $x_0$ [mm]",
+                                          full_range=True, log_scale=False, bin_unit="mm")
+        plot_utils.plot_histogram(dt_muons["y0"], "dt_muons_y0", args, xlabel="Position $y_0$ [mm]",
+                                                  full_range=True, log_scale=False, bin_unit="mm")
+        plot_utils.plot_histogram(dt_muons["z0"], "dt_muons_z0", args, xlabel="Position $z_0$ [mm]",
+                                                  full_range=True, log_scale=False, bin_unit="mm")
         ### angles
         plot_utils.plot_histogram(np.rad2deg(dt_muons["theta"]), "dt_muons_theta_deg", args, xlabel="Polar angle $\\theta$ [deg]",
                                   full_range=True, log_scale=False, bin_unit="deg")
