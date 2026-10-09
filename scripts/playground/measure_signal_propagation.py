@@ -90,8 +90,6 @@ def main():
     theta_t0_residual = np.zeros(n_dt_muons)
     # calculate residual of theta from phi superfit ts
     theta_t0_residual = super_fits["t0_super_fits"][phi_superfit_rows] - sl_fits["t0"][theta_sl_fit_rows]
-    # -> if residual > 0 it means the reference time (phi / global) is later than the theta time
-    # -> if residual < 0 it means the theta time is later than the reference time (phi / global)
 
     theta_sl_central_z = np.mean([dt_chamber_utils.layer_z(sl=theta_sl, ly=0), dt_chamber_utils.layer_z(sl=theta_sl, ly=3) ])
     dt_muons_theta_base_point = muon_utils.change_muon_base_point(muons=dt_muons, z_new=theta_sl_central_z)
@@ -108,7 +106,6 @@ def main():
         sigma_theta_t0_residual_by_x0[i] = np.std( theta_t0_residual[muon_idcs], ddof=1 )
     mean_theta_t0_residual_by_x0 /= 0.78 # conversion to ns
     sigma_theta_t0_residual_by_x0 /= 0.78 # conversion to ns
-    #print(f"mean_theta_t0_residual_by_x0 = {mean_theta_t0_residual_by_x0}")
     ### plot distribution
     fig, ax = plt.subplots()
     ax.errorbar(x0_bins, mean_theta_t0_residual_by_x0, yerr=sigma_theta_t0_residual_by_x0, xerr=np.diff(x0_edges)/4, linestyle="")
@@ -145,8 +142,6 @@ def main():
     phi1_t0_residual = np.zeros(n_dt_muons)
     # calculate residual of theta from phi superfit ts
     phi1_t0_residual = sl_fits["t0"][theta_sl_fit_rows] - super_fits[f"t0_sl{phi_sl_1}"][phi_superfit_rows]
-    # -> if residual > 0 it means the reference time (phi / global) is later than the theta time
-    # -> if residual < 0 it means the theta time is later than the reference time (phi / global)
 
     phi1_sl_central_z = np.mean([dt_chamber_utils.layer_z(sl=phi_sl_1, ly=0), dt_chamber_utils.layer_z(sl=phi_sl_1, ly=3) ])
     dt_muons_phi1_base_point = muon_utils.change_muon_base_point(muons=dt_muons, z_new=phi1_sl_central_z)
@@ -163,7 +158,6 @@ def main():
         sigma_phi1_t0_residual_by_y0[i] = np.std( phi1_t0_residual[muon_idcs], ddof=1 )
     mean_phi1_t0_residual_by_y0 /= 0.78 # conversion to ns
     sigma_phi1_t0_residual_by_y0 /= 0.78 # conversion to ns
-    #print(f"mean_phi1_t0_residual_by_y0 = {mean_phi1_t0_residual_by_y0}")
     ### plot distribution
     fig, ax = plt.subplots()
     ax.errorbar(y0_bins, mean_phi1_t0_residual_by_y0, yerr=sigma_phi1_t0_residual_by_y0, xerr=np.diff(y0_edges)/4, linestyle="")
@@ -200,8 +194,6 @@ def main():
     phi2_t0_residual = np.zeros(n_dt_muons)
     # calculate residual of theta from phi superfit ts
     phi2_t0_residual = sl_fits["t0"][theta_sl_fit_rows] - super_fits[f"t0_sl{phi_sl_2}"][phi_superfit_rows]
-    # -> if residual > 0 it means the reference time (phi / global) is later than the theta time
-    # -> if residual < 0 it means the theta time is later than the reference time (phi / global)
 
     phi2_sl_central_z = np.mean([dt_chamber_utils.layer_z(sl=phi_sl_1, ly=0), dt_chamber_utils.layer_z(sl=phi_sl_1, ly=3) ])
     dt_muons_phi2_base_point = muon_utils.change_muon_base_point(muons=dt_muons, z_new=phi2_sl_central_z)
@@ -218,7 +210,6 @@ def main():
         sigma_phi2_t0_residual_by_y0[i] = np.std( phi2_t0_residual[muon_idcs], ddof=1 )
     mean_phi2_t0_residual_by_y0 /= 0.78 # conversion to ns
     sigma_phi2_t0_residual_by_y0 /= 0.78 # conversion to ns
-    #print(f"mean_phi2_t0_residual_by_y0 = {mean_phi2_t0_residual_by_y0}")
     ### plot distribution
     fig, ax = plt.subplots()
     ax.errorbar(y0_bins, mean_phi2_t0_residual_by_y0, yerr=sigma_phi2_t0_residual_by_y0, xerr=np.diff(y0_edges)/4, linestyle="")
