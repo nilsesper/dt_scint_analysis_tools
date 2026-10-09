@@ -238,7 +238,7 @@ def main():
         theta_edges = np.linspace(0-0.5,70+0.5,51)
         theta_centers = (theta_edges[:-1] + theta_edges[1:]) / 2
         sin_theta_weights = 1/np.sin(np.deg2rad(theta_centers))
-        plot_utils.plot_histogram(np.rad2deg(dt_muons["theta"]), "dt_muons_theta_weighted_deg", args, xlabel="Azimuthal angle $\\phi$ [deg]",
+        plot_utils.plot_histogram(np.rad2deg(dt_muons["theta"]), "dt_muons_theta_weighted_deg", args, xlabel="Polar angle $\\theta$ weighted by $1/\\sin\\theta$ [deg]",
                                   full_range=True, log_scale=False, bin_unit="deg",
                                   edges=theta_edges, weights=sin_theta_weights)
         ### projected angles in the x-z and y-z planes
