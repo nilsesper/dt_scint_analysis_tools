@@ -49,7 +49,7 @@ def add_timestamp(hits, *, silent=False, overflow_state=None):
         overflow_state["oc_overflow"] = oc_overflow
         overflow_state["last_oc"] = last_oc
     # sort hits by timestamp
-    ts_hits = sort_by_timestamp(hits=ts_hits)
+    ts_hits = sort_by_timestamp(hits=ts_hits, silent=True)
     return ts_hits
 
 ### sort hits by timestamp
