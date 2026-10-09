@@ -27,7 +27,7 @@ def main():
     parser.add_argument("--sl_patterns_file", type=str, required=True, help="input file path: sl patterns (.root)")
     parser.add_argument("--sl_fits_file", type=str, required=True, help="output file path: sl fits (.root)")
     parser.add_argument("--fit_vd", action="store_true", help="fit the drift velocity as free parameter (default: fixed)")
-    parser.add_argument("--chunk_size", type=int, default=5_000, help="number of patterns per chunk")
+    parser.add_argument("--chunk_size", type=int, default=10_000, help="number of patterns per chunk")
     parser.add_argument("--n_proc", type=int, default=1, help="number of chunks fitted at the same time")
     parser.add_argument("--verbose", action="store_true", help="print every fit (switches off --n_proc)")
     parser.add_argument("--params_file", type=str, default=None,
