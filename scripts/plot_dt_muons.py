@@ -53,7 +53,7 @@ def main():
                              "(default: the cells listed in params._dt_wire_mask and params._dt_dead_wires)")
     parser.add_argument("--xy_bin_width", type=float, default=20, help="bin width of the x-y maps in mm")
     parser.add_argument("--xz_bin_width", type=float, default=5, help="bin width of the x-z and y-z projections in mm")
-    parser.add_argument("--n_tracks_3d", type=int, default=150, help="max number of tracks drawn in the 3d view")
+    parser.add_argument("--n_tracks_3d", type=int, default=1_000, help="max number of tracks drawn in the 3d view")
     parser.add_argument("--n_bins", type=int, default=50, help="number of bins of the 1d histograms")
     plot_utils.add_plot_arguments(parser)
     args = parser.parse_args()
@@ -181,7 +181,7 @@ def main():
 
     ### 3d view of the tracks through the superlayers
     n_3d = min(args.n_tracks_3d, n_dt_muons)
-    n_3d = n_dt_muons
+    #n_3d = n_dt_muons
     fig = plt.figure(figsize=(12, 9))
     ax = fig.add_subplot(projection="3d")
     ### superlayer boxes: top and bottom rectangle and the four vertical edges
@@ -234,6 +234,13 @@ def main():
                                   full_range=True, log_scale=False, bin_unit="deg")
         plot_utils.plot_histogram(np.rad2deg(dt_muons["phi"]), "dt_muons_phi_deg", args, xlabel="Azimuthal angle $\\phi$ [deg]",
                                   full_range=True, log_scale=False, bin_unit="deg")
+        # weighted with 1 / sin theta
+        theta_edges = np.linspace(0-0.5,70+0.5,51)
+        theta_centers = (theta_edges[:-1] + theta_edges[1:]) / 2
+        sin_theta_weights = 1/np.sin(np.deg2rad(theta_centers))
+        plot_utils.plot_histogram(np.rad2deg(dt_muons["theta"]), "dt_muons_theta_weighted_deg", args, xlabel="Azimuthal angle $\\phi$ [deg]",
+                                  full_range=True, log_scale=False, bin_unit="deg",
+                                  edges=theta_edges, weights=sin_theta_weights)
         ### projected angles in the x-z and y-z planes
         plot_utils.plot_histogram(np.rad2deg(np.arctan(tan_alpha_x)), "dt_muons_angle_xz_deg", args, xlabel="Projected angle in the $x$-$z$ plane [deg]",
                                   full_range=True, log_scale=False, bin_unit="deg")
