@@ -20,19 +20,11 @@ plot_utils.setup_backend(show_plots="--show_plots" in sys.argv)
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 
-from analysis_tools.utils import cut_utils, data_utils, root_utils
-from analysis_tools.params import params, derived_params
+from analysis_tools.utils import data_utils, root_utils
+from analysis_tools.utils import dt_chamber_utils
+from analysis_tools.params import derived_params
 
 # ---------------------------------------------------------------
-
-### one histogram with the cuts as title, stored as plot_name
-def plot_one_histogram(data, xlabel, plot_name, cut_title, args, scale=1.0, bin_unit=None, full_range=False, log_scale=False):
-    fig, ax = plt.subplots(1, 1, figsize=(12, 8))
-    edges = plot_utils.choose_edges(data, n_bins=args.n_bins, full_range=full_range)
-    plot_utils.draw_histogram(ax, data, edges, xlabel=xlabel, log_scale=log_scale, bin_unit=bin_unit, scale=scale)
-    ax.set_title(cut_title, fontsize=12)
-    fig.tight_layout()
-    plot_utils.save_figure(fig, plot_name, args)
 
 ### title text of the cuts, e.g. "cuts: impossible == 0, chi2/ndf < 20"
 def make_cut_title(cuts):
@@ -42,46 +34,40 @@ def make_cut_title(cuts):
     return "cuts: " + ", ".join(cut_texts)
 
 @mpl.rc_context({'font.family': 'sans-serif', 'font.size': 20})
-def main(argv=None):
+def main():
     parser = argparse.ArgumentParser(description="Drift time, residual and rate plots of sl fits.")
     parser.add_argument("--sl_fits_file", type=str, required=True, help="input file path: sl fits (.root)")
-    parser.add_argument("--suffix", type=str, default="", help="suffix of the fit result branches to plot, if the fit was stored with one (default: none)")
     parser.add_argument("--cuts", type=str, default=None,
                         help="cuts applied before plotting, format \"key1,operator1,value1;key2,operator2,value2;...\" "
-                             "(default: \"impossible<suffix>,==,0\")")
+                             "(default: \"impossible,==,0\")")
     parser.add_argument("--n_bins", type=int, default=100, help="number of bins")
     parser.add_argument("--log_scale", action="store_true", help="logarithmic y axis")
     plot_utils.add_plot_arguments(parser)
-    args = parser.parse_args(argv)
+    args = parser.parse_args()
     plot_utils.check_plot_arguments(parser, args)
-    sfx = args.suffix
-    name = "sl_fits" + sfx
+    name = "sl_fits"
+    ns = plot_utils.TS_UNIT_NS
 
     ### cuts
+    root_utils.check_input_file(args.sl_fits_file)
     if args.cuts is not None:
-        cuts = cut_utils.parse_cuts(args.cuts)
+        cuts = data_utils.parse_cuts(args.cuts)
     else:
-        cuts = [("impossible" + sfx, "==", 0)]
+        cuts = [("impossible", "==", 0)]
 
     ### data import (only the needed branches)
-    keys = ["sl", "t0" + sfx, "vd" + sfx]
+    keys = ["sl", "t0", "vd"]
     for ly in range(4):
         keys.append(f"ts{ly}")
-    for ly in range(4):
         keys.append(f"err_ts{ly}")
-    for ly in range(4):
-        keys.append(f"dt{ly}{sfx}")
+        keys.append(f"dt{ly}")
     for cut in cuts:
-        keys.append(cut[0])
-    unique_keys = []
-    for key in keys:
-        if key not in unique_keys:
-            unique_keys.append(key)
-    keys = sorted(unique_keys)
+        if cut[0] not in keys:
+            keys.append(cut[0])
     log(f"###### Importing sl fits from {args.sl_fits_file}...")
-    sl_fits = root_utils.read_branches(args.sl_fits_file, keys)
+    sl_fits = root_utils.read_tree(args.sl_fits_file, root_utils.DEFAULT_TREE, branches=keys)
     n_all = root_utils.length(sl_fits)
-    sl_fits = data_utils.cut_data(data=sl_fits, conditions=cuts, silent=True)
+    sl_fits = data_utils.cut_data(sl_fits, cuts, silent=True)
     n_sl_fits = root_utils.length(sl_fits)
     cut_title = make_cut_title(cuts)
     log(f"{cut_title}: {n_sl_fits:,} / {n_all:,} fits selected")
@@ -91,22 +77,19 @@ def main(argv=None):
     ### fitted drift times of all layers
     drift_times_per_layer = []
     for ly in range(4):
-        drift_times_per_layer.append(sl_fits[f"dt{ly}{sfx}"])
+        drift_times_per_layer.append(sl_fits[f"dt{ly}"])
     drift_times = np.concatenate(drift_times_per_layer)
-    plot_one_histogram(drift_times, "$t_\\text{drift}$ of all layers [ns]", f"{name}_drift_time", cut_title, args,
-                       scale=plot_utils.TS_UNIT_NS, bin_unit="ns", log_scale=args.log_scale)
+    plot_utils.plot_histogram(drift_times, f"{name}_drift_time", args, xlabel="$t_\\text{drift}$ of all layers [ns]", title=cut_title,
+                              scale=ns, bin_unit="ns")
 
     ### fit residuals: measured hit time - fitted hit time, where the fitted hit time is t0 + fitted drift time
-    residuals = {}
+    residuals = []
     for ly in range(4):
         ts = np.asarray(sl_fits[f"ts{ly}"], dtype=np.float64)
-        residuals[ly] = ts - sl_fits["t0" + sfx] - sl_fits[f"dt{ly}{sfx}"]
-    residuals_per_layer = []
-    for ly in range(4):
-        residuals_per_layer.append(residuals[ly])
-    all_residuals = np.concatenate(residuals_per_layer)
-    plot_one_histogram(all_residuals, "Fit residual $T_{ly} - T_{ly}^\\text{fit}$ of all layers [ns]", f"{name}_residuals", cut_title, args,
-                       scale=plot_utils.TS_UNIT_NS, bin_unit="ns", log_scale=args.log_scale)
+        residuals.append(ts - sl_fits["t0"] - sl_fits[f"dt{ly}"])
+    all_residuals = np.concatenate(residuals)
+    plot_utils.plot_histogram(all_residuals, f"{name}_residuals", args, xlabel="Fit residual $T_{ly} - T_{ly}^\\text{fit}$ of all layers [ns]",
+                              title=cut_title, scale=ns, bin_unit="ns")
 
     ### fit residuals per layer, all in one plot
     fig, ax = plt.subplots(1, 1, figsize=(12, 8))
@@ -114,9 +97,9 @@ def main(argv=None):
     top = 1
     for ly in range(4):
         hist, _ = np.histogram(residuals[ly], bins=edges)
-        mean_ns = np.mean(residuals[ly]) * plot_utils.TS_UNIT_NS
-        std_ns = np.std(residuals[ly]) * plot_utils.TS_UNIT_NS
-        ax.stairs(hist, edges * plot_utils.TS_UNIT_NS, linewidth=2, label=f"Layer {ly}: mean {mean_ns:.2f} ns, std {std_ns:.2f} ns")
+        mean_ns = np.mean(residuals[ly]) * ns
+        std_ns = np.std(residuals[ly]) * ns
+        ax.stairs(hist, edges * ns, linewidth=2, label=f"Layer {ly}: mean {mean_ns:.2f} ns, std {std_ns:.2f} ns")
         top = max(top, hist.max())
     if args.log_scale:
         ax.set_yscale("log")
@@ -135,29 +118,25 @@ def main(argv=None):
     for ly in range(4):
         pulls_per_layer.append(residuals[ly] / sl_fits[f"err_ts{ly}"])
     pulls = np.concatenate(pulls_per_layer)
-    finite = np.isfinite(pulls)
-    plot_one_histogram(pulls[finite], "Fit residual / hit time uncertainty", f"{name}_residual_pulls", cut_title, args,
-                       log_scale=args.log_scale)
+    plot_utils.plot_histogram(pulls, f"{name}_residual_pulls", args, xlabel="Fit residual / hit time uncertainty", title=cut_title)
 
     ### drift velocity in um/ns (only meaningful if it was a free fit parameter)
-    vd_um_per_ns = sl_fits["vd" + sfx] / derived_params._drift_velocity_conversion
+    vd_um_per_ns = sl_fits["vd"] / derived_params._drift_velocity_conversion
     if np.amin(vd_um_per_ns) != np.amax(vd_um_per_ns):
-        plot_one_histogram(vd_um_per_ns, "$v_\\text{drift}$ [um/ns]", f"{name}_drift_velocity", cut_title, args,
-                           bin_unit="um/ns", log_scale=args.log_scale)
+        plot_utils.plot_histogram(vd_um_per_ns, f"{name}_drift_velocity", args, xlabel="$v_\\text{drift}$ [um/ns]", title=cut_title, bin_unit="um/ns")
     else:
         log(f"drift velocity is the same for all fits ({vd_um_per_ns[0]:.2f} um/ns, fixed in the fit): no drift velocity plot")
 
     ### time between consecutive fits (all superlayers together, sorted by t0)
-    t0_sorted = np.sort(sl_fits["t0" + sfx])
     if n_sl_fits > 1:
-        delta_t0 = np.diff(t0_sorted)
-        plot_one_histogram(delta_t0, "Time between consecutive fits $\\Delta T_0$ [ms]", f"{name}_delta_t0", cut_title, args,
-                           scale=plot_utils.TS_UNIT_NS * 1e-6, bin_unit="ms", log_scale=True)
+        delta_t0 = np.diff(np.sort(sl_fits["t0"]))
+        plot_utils.plot_histogram(delta_t0, f"{name}_delta_t0", args, xlabel="Time between consecutive fits $\\Delta T_0$ [ms]", title=cut_title,
+                                  scale=ns * 1e-6, bin_unit="ms", log_scale=True)
 
     ### number and rate of fits per superlayer
-    duration = plot_utils.TS_UNIT_NS * 1e-9 * float(np.amax(sl_fits["ts0"]) - np.amin(sl_fits["ts0"]))
+    duration = ns * 1e-9 * float(np.amax(sl_fits["ts0"]) - np.amin(sl_fits["ts0"]))
     log(f"measurement duration = {duration} s")
-    for sl in params._dt_chamber["sls"].keys():
+    for sl in dt_chamber_utils.superlayers():
         count = int(np.sum(sl_fits["sl"] == sl))
         if duration > 0:
             rate = f"{count / duration:.3f} +- {np.sqrt(count) / duration:.3f} Hz"
@@ -165,7 +144,7 @@ def main(argv=None):
             rate = "n/a"
         log(f"sl={sl}: {count:,} fits, rate {rate}")
 
-    plot_utils.show_figures(args.show_plots)
+    plot_utils.show_figures(args)
 
 if __name__ == "__main__":
     main()

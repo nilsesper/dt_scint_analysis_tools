@@ -12,7 +12,7 @@ from analysis_tools.utils import dt_sim_utils, root_utils
 
 # ---------------------------------------------------------------
 
-def main(argv=None):
+def main():
     parser = argparse.ArgumentParser(description="Add secondary hits to simulated dt hits.")
     parser.add_argument("--dt_hits_file", type=str, required=True, help="input file path: dt hits (.root)")
     parser.add_argument("--dt_hits_file_with_secondaries", type=str, required=True, help="output file path: dt hits with secondary hits (.root)")
@@ -21,7 +21,7 @@ def main(argv=None):
     parser.add_argument("--seed", type=int, default=None, help="seed of the random number generator, for reproducible output (default: random)")
     parser.add_argument("--params_file", type=str, default=None,
                         help="parameter file to use instead of analysis_tools/params/params.py (e.g. another readout mapping)")
-    args = parser.parse_args(argv)
+    args = parser.parse_args()
     if args.seed is not None:
         np.random.seed(args.seed)
 
@@ -37,7 +37,7 @@ def main(argv=None):
     log(f"###### Adding secondary hits with probability {args.probability:g} in the window {window} TU to {n_hits:,} hits...")
     dt_hits = dt_sim_utils.add_secondary_hits(hits=dt_hits, secondary_hit_window=window, secondary_hit_probability=args.probability)
     n_hits_new = root_utils.length(dt_hits)
-    root_utils.write_tree(args.dt_hits_file_with_secondaries, dt_hits, tree=root_utils.DT_HITS_TREE)
+    root_utils.write_file(args.dt_hits_file_with_secondaries, dt_hits, root_utils.DT_HITS_TREE)
     log(f"###### {n_hits:,} hits before, {n_hits_new:,} after: added {n_hits_new - n_hits:,} secondary hits, stored in {args.dt_hits_file_with_secondaries}")
 
 if __name__ == "__main__":

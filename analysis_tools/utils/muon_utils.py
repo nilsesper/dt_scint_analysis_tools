@@ -5,10 +5,10 @@
 import numpy as np
 import copy
 
-import analysis_tools.utils.math_utils as math_utils
-import analysis_tools.utils.data_utils as data_utils
+from analysis_tools.utils import math_utils
+from analysis_tools.utils import data_utils
 
-import analysis_tools.params.params as params
+from analysis_tools.params import params
 
 # -----------------------------------------
 

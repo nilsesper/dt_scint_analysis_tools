@@ -13,7 +13,7 @@ from analysis_tools.params import params
 
 # ---------------------------------------------------------------
 
-def main(argv=None):
+def main():
     parser = argparse.ArgumentParser(description="Add random noise hits to simulated dt hits.")
     parser.add_argument("--dt_hits_file", type=str, required=True, help="input file path: dt hits (.root)")
     parser.add_argument("--dt_hits_file_with_noise", type=str, required=True, help="output file path: dt hits with added noise (.root)")
@@ -21,7 +21,7 @@ def main(argv=None):
     parser.add_argument("--seed", type=int, default=None, help="seed of the random number generator, for reproducible output (default: random)")
     parser.add_argument("--params_file", type=str, default=None,
                         help="parameter file to use instead of analysis_tools/params/params.py (e.g. another readout mapping)")
-    args = parser.parse_args(argv)
+    args = parser.parse_args()
     if args.seed is not None:
         np.random.seed(args.seed)
 
@@ -33,7 +33,7 @@ def main(argv=None):
     t_stop = np.amax(dt_hits["ts"]) + params._dt_max_drift_time
     dt_hits = dt_sim_utils.add_noise(hits=dt_hits, ts_range=[t_start, t_stop], ref_cell_noise_rate=args.noise_rate_hz)
     n_hits_new = root_utils.length(dt_hits)
-    root_utils.write_tree(args.dt_hits_file_with_noise, dt_hits, tree=root_utils.DT_HITS_TREE)
+    root_utils.write_file(args.dt_hits_file_with_noise, dt_hits, root_utils.DT_HITS_TREE)
     log(f"###### {n_hits:,} hits before, {n_hits_new:,} after: added {n_hits_new - n_hits:,} noise hits, stored in {args.dt_hits_file_with_noise}")
 
 if __name__ == "__main__":

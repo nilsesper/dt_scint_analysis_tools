@@ -7,8 +7,9 @@
 # (histograms of the single branches: plot_histograms.py)
 #
 # example:
-#   python scripts/plot_dt_hits.py --dt_hits_file out/run_dt_hits.root --store_plots plots/dt_hits \
+#   python scripts/plot_dt_hits.py --cell_counts_file out/run_cell_counts.root --store_plots plots/dt_hits \
 #          --hit_diff_hist_file out/run_hit_diff_hist.root
+# (the cell counts file is made by dt_hits_to_cell_counts.py)
 #################################################################
 
 import argparse
@@ -21,27 +22,23 @@ plot_utils.setup_backend(show_plots="--show_plots" in sys.argv)
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 
-from analysis_tools.utils import dt_hit_utils, hist_utils, root_utils
-from analysis_tools.params import params, derived_params
+from analysis_tools.utils import dt_chamber_utils
+from analysis_tools.utils import root_utils
+from analysis_tools.params import derived_params
 
 # ---------------------------------------------------------------
-
-### wire numbers of one layer
-def wires_of_layer(sl, ly):
-    layer = params._dt_chamber["sls"][sl]["lys"][ly]
-    return range(layer["min_wi"], layer["max_wi"] + 1)
 
 ### 2d map of the chamber: one row per (superlayer, layer), one column per wire
 def plot_chamber_matrix(values, colorbar_label, title):
     max_wire = 0
     for sl in range(1, 4):
         for ly in range(4):
-            max_wire = max(max_wire, max(wires_of_layer(sl, ly)))
+            max_wire = max(max_wire, max(dt_chamber_utils.wires(sl, ly)))
     n_wires = max_wire + 1
     chamber_matrix = np.full((12, n_wires), np.nan)  # nan: no cell
     for sl in range(1, 4):
         for ly in range(4):
-            for wi in wires_of_layer(sl, ly):
+            for wi in dt_chamber_utils.wires(sl, ly):
                 chamber_matrix[4 * (sl - 1) + ly][wi] = values[sl][ly][wi]
     fig, ax = plt.subplots(1, 1, figsize=(16, 6))
     im_obj = ax.imshow(X=chamber_matrix, origin="lower", extent=[0 - 0.5, n_wires - 1 + 0.5, 0 - 0.5, 11 + 0.5], vmin=0)
@@ -81,7 +78,7 @@ def average_rate(cell_counts, sls, low_cells, duration_seconds):
     counts = []
     for sl in sls:
         for ly in range(4):
-            for wi in wires_of_layer(sl, ly):
+            for wi in dt_chamber_utils.wires(sl, ly):
                 if (sl, ly, wi) not in low_cells:
                     counts.append(cell_counts[sl][ly][wi])
     total = np.sum(counts)
@@ -93,7 +90,7 @@ def average_rate(cell_counts, sls, low_cells, duration_seconds):
 def plot_rate_per_wire(cell_counts, sl, duration_seconds):
     fig, ax = plt.subplots(4, 1, figsize=(16, 10), sharex=True)
     for ly in range(4):
-        wires = np.array(list(wires_of_layer(sl, ly)))
+        wires = np.array(list(dt_chamber_utils.wires(sl, ly)))
         hits_list = []
         for wi in wires:
             hits_list.append(cell_counts[sl][ly][wi])
@@ -115,36 +112,38 @@ def plot_hit_diff(hit_diff_hist_file):
     root_utils.check_input_file(hit_diff_hist_file)
     bins = root_utils.read_tree(hit_diff_hist_file, root_utils.DEFAULT_TREE)
     summary = root_utils.read_tree(hit_diff_hist_file, root_utils.SUMMARY_TREE)
-    err_hist = np.where(bins["hist"] > 0, bins["err_hist"], 0)  # no error bar on empty bins
+    edges = np.append(bins["edge_low"], bins["edge_high"][-1])
     fig, ax = plt.subplots(1, 1, figsize=(12, 8))
-    hist_utils.plot_histogram(
-        ax=ax, hist=bins["hist"], centers=bins["center"] * plot_utils.TS_UNIT_NS, err_hist=err_hist, log_scale=True, add_info=True,
-        entries=int(summary["entries"][0]), overflow=int(summary["overflow"][0]), underflow=int(summary["underflow"][0]), bin_unit="ns", power_limits=[-3, 4],
-    )
-    ax.set_xlabel("Time between consecutive hits of the same cell [ns]")
+    plot_utils.draw_histogram(ax, bins["hist"], edges, int(summary["entries"][0]), int(summary["underflow"][0]), int(summary["overflow"][0]),
+                              xlabel="Time between consecutive hits of the same cell [ns]", log_scale=True, bin_unit="ns", scale=plot_utils.TS_UNIT_NS)
     fig.tight_layout()
     return fig
 
 @mpl.rc_context({'font.family': 'sans-serif', 'font.size': 20})
-def main(argv=None):
+def main():
     parser = argparse.ArgumentParser(description="Occupancy and rate plots of dt hits.")
-    parser.add_argument("--dt_hits_file", type=str, required=True, help="input file path: dt hits (.root)")
+    parser.add_argument("--cell_counts_file", type=str, required=True, help="input file path: hits per cell from dt_hits_to_cell_counts.py (.root)")
     parser.add_argument("--hit_diff_hist_file", type=str, default=None,
                         help="optional input file path: hit time difference histogram from dt_hits_to_hit_diff_hist.py (.root)")
     parser.add_argument("--low_fraction", type=float, default=0.5, help="cells below this fraction of the mean count are listed as low occupancy")
     parser.add_argument("--high_fraction", type=float, default=1.5, help="cells above this fraction of the mean count are listed as high occupancy")
-    parser.add_argument("--step_size", type=str, default=root_utils.DEFAULT_STEP_SIZE,
-                        help="how much of the input file is read at once: memory size like \"200 MB\" or a number of rows")
     plot_utils.add_plot_arguments(parser)
-    args = parser.parse_args(argv)
+    args = parser.parse_args()
     plot_utils.check_plot_arguments(parser, args)
 
-    ### count hits per cell
-    log(f"###### Counting hits per cell in {args.dt_hits_file}...")
-    cell_counts, ts_min, ts_max, n_hits = dt_hit_utils.count_hits_per_cell(args.dt_hits_file, step_size=root_utils.parse_step_size(args.step_size))
+    ### read the hits per cell
+    log(f"###### Reading hits per cell from {args.cell_counts_file}...")
+    root_utils.check_input_file(args.cell_counts_file)
+    rows = root_utils.read_tree(args.cell_counts_file, root_utils.DEFAULT_TREE)
+    summary = root_utils.read_tree(args.cell_counts_file, root_utils.SUMMARY_TREE)
+    n_hits = int(summary["n_hits"][0])
+    duration_seconds = float(summary["duration_seconds"][0])
     if n_hits == 0:
-        raise RuntimeError(f"No dt hits in {args.dt_hits_file}.")
-    duration_seconds = plot_utils.TS_UNIT_NS * 1e-9 * float(ts_max - ts_min)
+        raise RuntimeError(f"No dt hits counted in {args.cell_counts_file}.")
+    cell_counts = dt_chamber_utils.chamber_map(0)
+    for i in range(root_utils.length(rows)):
+        sl, ly, wi = int(rows["sl"][i]), int(rows["ly"][i]), int(rows["wi"][i])
+        cell_counts[sl][ly][wi] = int(rows["count"][i])
     log(f"{n_hits:,} dt hits, measurement duration = {duration_seconds} s")
     cell_rates = {}
     for sl in cell_counts:
@@ -164,7 +163,7 @@ def main(argv=None):
     all_counts = []
     for sl in range(1, 4):
         for ly in range(4):
-            for wi in wires_of_layer(sl, ly):
+            for wi in dt_chamber_utils.wires(sl, ly):
                 all_counts.append(cell_counts[sl][ly][wi])
     n_cells = len(all_counts)
     total_count = int(np.sum(all_counts))
@@ -177,7 +176,7 @@ def main(argv=None):
     high_cells = []
     for sl in range(1, 4):
         for ly in range(4):
-            for wi in wires_of_layer(sl, ly):
+            for wi in dt_chamber_utils.wires(sl, ly):
                 count = cell_counts[sl][ly][wi]
                 if count < args.low_fraction * mean_count:
                     kind = "low "
@@ -208,7 +207,7 @@ def main(argv=None):
         fig = plot_hit_diff(args.hit_diff_hist_file)
         plot_utils.save_figure(fig, "dt_hits_hit_diff", args)
 
-    plot_utils.show_figures(args.show_plots)
+    plot_utils.show_figures(args)
 
 if __name__ == "__main__":
     main()

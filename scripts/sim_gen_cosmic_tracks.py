@@ -13,12 +13,12 @@ import argparse
 import numpy as np
 
 from analysis_tools.utils.root_utils import log
-from analysis_tools.utils import muon_utils, plot_utils, root_utils
+from analysis_tools.utils import muon_utils, root_utils
 from analysis_tools.params import params
 
 # ---------------------------------------------------------------
 
-def main(argv=None):
+def main():
     parser = argparse.ArgumentParser(description="Generate simulated cosmic muon tracks.")
     parser.add_argument("--cosmic_muons_file", type=str, required=True, help="output file path: cosmic muon tracks (.root)")
     parser.add_argument("--duration_s", type=float, default=1000, help="simulated time in seconds")
@@ -28,16 +28,16 @@ def main(argv=None):
     parser.add_argument("--seed", type=int, default=None, help="seed of the random number generator, for reproducible output (default: random)")
     parser.add_argument("--params_file", type=str, default=None,
                         help="parameter file to use instead of analysis_tools/params/params.py (e.g. another readout mapping)")
-    args = parser.parse_args(argv)
+    args = parser.parse_args()
     if args.seed is not None:
         np.random.seed(args.seed)
 
-    t_sim = int(args.duration_s / (plot_utils.TS_UNIT_NS * 1e-9))  # in timestamp units
+    t_sim = int(args.duration_s / (0.78 * 1e-9))  # in timestamp units
     xrange = [params._dt_chamber["pos"][0] - args.margin_mm, params._dt_chamber["pos"][0] + params._dt_chamber["size"][0] + args.margin_mm]
     yrange = [params._dt_chamber["pos"][1] - args.margin_mm, params._dt_chamber["pos"][1] + params._dt_chamber["size"][1] + args.margin_mm]
     z0 = params._dt_chamber["pos"][2]  # lowest point of chamber (closest to sl 1)
     muon_area = np.abs(xrange[1] - xrange[0]) * np.abs(yrange[1] - yrange[0]) * 1e-6  # m^2
-    muon_rate = muon_area * args.rate_hz_per_m2 * plot_utils.TS_UNIT_NS * 1e-9  # 1 / timestamp unit
+    muon_rate = muon_area * args.rate_hz_per_m2 * 0.78 * 1e-9  # 1 / timestamp unit
     n_muons = np.random.poisson(lam=muon_rate * t_sim)
     inter_arrival_times = np.random.exponential(1.0 / muon_rate, n_muons)  # in timestamp units
     ts = args.t_start + np.cumsum(inter_arrival_times)
@@ -45,7 +45,7 @@ def main(argv=None):
     cosmic_muons = muon_utils.generate_cosmic_muons(
         n=n_muons, ts=ts, xrange=xrange, yrange=yrange, z0=z0, phirange=[0, 2 * np.pi], thetarange=[0, np.pi / 2], theta_weight=params.cosmic_muon_theta_weight,
     )
-    root_utils.write_tree(args.cosmic_muons_file, cosmic_muons)
+    root_utils.write_file(args.cosmic_muons_file, cosmic_muons)
     log(f"###### Stored {n_muons:,} cosmic muon tracks in {args.cosmic_muons_file}")
 
 if __name__ == "__main__":

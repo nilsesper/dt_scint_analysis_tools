@@ -216,7 +216,7 @@ def plot_single_cell(cal, r, ts_orbit, sl, ly, wi, window_after_peak):
     return fig
 
 @mpl.rc_context({'font.family': 'sans-serif', 'font.size': 18})
-def main(argv=None):
+def main():
     parser = argparse.ArgumentParser(description="Plots of a testpulse timing calibration.")
     parser.add_argument("--dt_tp_corrections_file", type=str, required=True, help="input file path: timing calibration (.root) from dumpfile_to_dt_tp_corrections.py")
     parser.add_argument("--dt_tp_hits_file", type=str, default=None,
@@ -228,7 +228,7 @@ def main(argv=None):
                         help="ts_orbit range shown after the testpulse peaks in the timing histograms, in ts units")
     parser.add_argument("--prefix", type=str, default="tp", help="prefix of the plot file names")
     plot_utils.add_plot_arguments(parser)
-    args = parser.parse_args(argv)
+    args = parser.parse_args()
     plot_utils.check_plot_arguments(parser, args)
     if args.cells is not None and args.dt_tp_hits_file is None:
         parser.error("--cells needs --dt_tp_hits_file")
@@ -269,7 +269,7 @@ def main(argv=None):
     ### timing histograms of single cells
     cells = plot_utils.parse_cells(args.cells)
     if len(cells) > 0:
-        hits = root_utils.read_branches(args.dt_tp_hits_file, ["sl", "ly", "wi", "ts_orbit"], root_utils.DT_HITS_TREE)
+        hits = root_utils.read_tree(args.dt_tp_hits_file, root_utils.DT_HITS_TREE, branches=["sl", "ly", "wi", "ts_orbit"])
         for sl, ly, wi in cells:
             r = find_cell_row(cal, sl, ly, wi)
             ts_orbit = hits["ts_orbit"][(hits["sl"] == sl) & (hits["ly"] == ly) & (hits["wi"] == wi)]
@@ -278,7 +278,7 @@ def main(argv=None):
                 continue
             fig = plot_single_cell(cal, r, ts_orbit, sl, ly, wi, args.window_after_peak)
             plot_utils.save_figure(fig, f"{args.prefix}_cell_{sl}_{ly}_{wi}", args)
-    plot_utils.show_figures(args.show_plots)
+    plot_utils.show_figures(args)
 
 if __name__ == "__main__":
     main()

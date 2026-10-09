@@ -25,7 +25,7 @@ plot_utils.setup_backend(show_plots="--show_plots" in sys.argv)
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 
-from analysis_tools.utils import cut_utils, data_utils, dt_chamber_utils, dt_geometry_utils as geometry, dt_pipeline_utils, geoplot_utils, root_utils
+from analysis_tools.utils import data_utils, dt_chamber_utils, dt_fit_utils, root_utils
 from analysis_tools.params import params, derived_params
 
 # ---------------------------------------------------------------
@@ -36,7 +36,7 @@ def select_rows(input_file, cuts, n_fits):
     for cut in cuts:
         if cut[0] not in cut_keys:
             cut_keys.append(cut[0])
-    cut_data = root_utils.read_branches(input_file, sorted(cut_keys))
+    cut_data = root_utils.read_tree(input_file, root_utils.DEFAULT_TREE, branches=sorted(cut_keys))
     cut_data["__row"] = np.arange(root_utils.length(cut_data))
     passing_rows = data_utils.cut_data(data=cut_data, conditions=cuts, silent=True)["__row"]
     log(f"{len(passing_rows):,} super fits pass the cuts {cuts}, taking the first {min(n_fits, len(passing_rows)):,}")
@@ -46,24 +46,23 @@ def select_rows(input_file, cuts, n_fits):
     return rows
 
 @mpl.rc_context({'font.family': 'sans-serif', 'font.size': 16})
-def main(argv=None):
+def main():
     parser = argparse.ArgumentParser(description="Event display of single super fits with their two sl fits.")
     parser.add_argument("--super_fits_file", type=str, required=True, help="input file path: super fits (.root)")
     parser.add_argument("--rows", type=str, default=None, help="rows of the super fits to plot, separated by \",\"")
     parser.add_argument("--n_fits", type=int, default=5, help="if --rows is not given: number of super fits to plot (the first ones passing --cuts)")
     parser.add_argument("--cuts", type=str, default=None,
                         help="if --rows is not given: selection of the super fits, format \"key1,operator1,value1;...\" "
-                             "(default: \"impossible<suffix>,==,0\")")
-    parser.add_argument("--suffix", type=str, default=dt_pipeline_utils.DEFAULT_SUPER_FIT_SUFFIX, help="suffix of the super fit result branches")
+                             "(default: \"impossible_super_fits,==,0\")")
     parser.add_argument("--zoom_width", type=float, default=300, help="width of the cell view in mm")
     plot_utils.add_plot_arguments(parser)
-    args = parser.parse_args(argv)
+    args = parser.parse_args()
     plot_utils.check_plot_arguments(parser, args)
-    sfx = args.suffix
+    sfx = dt_fit_utils.SUPER_FIT_SUFFIX
 
     ### which super fits
     root_utils.check_input_file(args.super_fits_file)
-    if "t0" + sfx not in root_utils.list_branches(args.super_fits_file):
+    if "t0" + sfx not in root_utils.branch_names(args.super_fits_file, root_utils.DEFAULT_TREE):
         raise KeyError(f"No super fit results with suffix \"{sfx}\" in {args.super_fits_file}.")
     if args.rows is not None:
         rows = []
@@ -72,13 +71,12 @@ def main(argv=None):
                 rows.append(int(text))
     else:
         if args.cuts is not None:
-            cuts = cut_utils.parse_cuts(args.cuts)
+            cuts = data_utils.parse_cuts(args.cuts)
         else:
             cuts = [("impossible" + sfx, "==", 0)]
         rows = select_rows(args.super_fits_file, cuts, args.n_fits)
     if len(rows) == 0:
         raise RuntimeError("No super fits selected, nothing to plot.")
-    super_fits = root_utils.read_rows(args.super_fits_file, rows)
 
     ### the two phi superlayers, their colours and the labels of the 8 layers
     phi_sls = []
@@ -93,11 +91,11 @@ def main(argv=None):
             layer_labels.append(f"SL {sl}\nLy {ly}")
     idx8 = np.arange(8)
 
-    for i in range(len(rows)):
-        row = rows[i]
+    for row in rows:
+        super_fit = root_utils.read_tree(args.super_fits_file, root_utils.DEFAULT_TREE, row, row + 1)
         fit = {}
-        for key in super_fits.keys():
-            fit[key] = super_fits[key][i]
+        for key in super_fit.keys():
+            fit[key] = super_fit[key][0]
         ### hits: index 0-3 = four layers of the first phi sl, 4-7 = four layers of the second phi sl
         ts = np.zeros(8, dtype=np.float64)
         err_ts = np.zeros(8, dtype=np.float64)
@@ -113,12 +111,12 @@ def main(argv=None):
         z_cell_list = []
         for sl in phi_sls:
             for ly in range(4):
-                x_wire, z_wire = geometry.wire_position(sl, ly, wires[sl][ly])
+                x_wire, z_wire = dt_chamber_utils.wire_position(sl, ly, wires[sl][ly])
                 x_cell_list.append(x_wire)
                 z_cell_list.append(z_wire)
         x_cell = np.array(x_cell_list)
         z_cell = np.array(z_cell_list)
-        ### super fit results; the fit frame has the top wire of the super pattern at (0, 0)
+        ### super fit results; track frame: wire of layer 3 of the upper phi sl at (0, 0), in the chamber at (x_ref, z_ref)
         t0 = fit["t0" + sfx]
         x0 = fit["x0" + sfx]
         tan_alpha = fit["tan_alpha" + sfx]
@@ -132,8 +130,8 @@ def main(argv=None):
         vd_um_per_ns = vd / derived_params._drift_velocity_conversion
         err_vd_um_per_ns = err_vd / derived_params._drift_velocity_conversion
         vd_is_free = err_vd != 0
-        x_ref = geometry.SUPER_FRAME_ORIGIN[0] + fit["ref_x" + sfx]
-        z_ref = geometry.SUPER_FRAME_ORIGIN[1] + fit["ref_z" + sfx]
+        x_ref = fit["ref_x" + sfx]
+        z_ref = fit["ref_z" + sfx]
         pat_type = {}
         for sl in phi_sls:
             pat_type[sl] = int(fit[f"pat_type_sl{sl}"])
@@ -162,16 +160,16 @@ def main(argv=None):
                 "err_x0": fit[f"err_x0_sl{sl}"],
                 "err_tan_alpha": fit[f"err_tan_alpha_sl{sl}"],
                 "corr_x0_tan_alpha": fit[f"corr_x0_tan_alpha_sl{sl}"],
-                "x_ref": geometry.wire_position(sl, 3, ref_wi)[0],
-                "z_ref": geometry.wire_position(sl, 3, ref_wi)[1],
+                "x_ref": dt_chamber_utils.wire_position(sl, 3, ref_wi)[0],
+                "z_ref": dt_chamber_utils.wire_position(sl, 3, ref_wi)[1],
                 "fit_ts": np.array(fit_ts_list),
                 "laterality": params._dt_sl_patterns[pat_names[pat_type[sl]]]["laterality"][int(fit[f"laterality_sl{sl}"])],
                 "idx": idx8[4 * n: 4 * n + 4],
             }
             # distance sl fit - super fit in the middle of the superlayer
-            z_mid = geometry.superlayer_box(sl)["center"][geometry.Z]
-            x_sl = geometry.track_position(z=z_mid - sl_fit[sl]["z_ref"], x0=sl_fit[sl]["x0"], tan_alpha=sl_fit[sl]["tan_alpha"]) + sl_fit[sl]["x_ref"]
-            x_super = geometry.track_position(z=z_mid - z_ref, x0=x0, tan_alpha=tan_alpha) + x_ref
+            z_mid = dt_chamber_utils.superlayer_box(sl)["center"][dt_chamber_utils.Z]
+            x_sl = dt_chamber_utils.track_position_in_chamber(sl_fit[sl]["x_ref"], sl_fit[sl]["z_ref"], sl_fit[sl]["x0"], sl_fit[sl]["tan_alpha"], z_mid)
+            x_super = dt_chamber_utils.track_position_in_chamber(x_ref, z_ref, x0, tan_alpha, z_mid)
             sl_fit[sl]["dx"] = x_sl - x_super
         ### print
         impossible_text = ""
@@ -243,29 +241,28 @@ $v_d={vd_um_per_ns:.1f}$ um/ns"""
 
         ################################
         ###### cells of both phi superlayers with hit positions, sl fits and super fit (global chamber frame)
-        dt_cell_data = dt_chamber_utils.cell_display_map()
+        cell_colors = {}
         for sl in phi_sls:
             for ly in range(4):
-                dt_cell_data[sl][ly][wires[sl][ly]]["color"] = "aqua"
+                cell_colors[(sl, ly, wires[sl][ly])] = "aqua"
         z_range = np.linspace(np.amin(z_cell) - params._plot_z_margin * 1.5, np.amax(z_cell) + params._plot_z_margin * 1.5, 600)
         fig, ax = plt.subplots(1, 1, figsize=(15, 9))
-        ax = geoplot_utils.chamber_ax(ax=ax, orient="phi", cell_data=dt_cell_data, wire=True)
+        plot_utils.draw_chamber(ax, "phi", cell_colors=cell_colors, wires=True)
         # hit positions from the drift times of the super fit: x = x_wire + laterality * (T - T0) * vd
         x_hits = x_cell + laterality * (ts - t0) * vd
         err_x_hits = np.sqrt((vd * err_ts) ** 2 + (vd * err_t0) ** 2)
         ax.errorbar(x=x_hits, y=z_cell, xerr=err_x_hits, color="black", marker="o", markersize=6, linestyle="", label="Hit positions (super fit $T_0$, $v_d$)", zorder=8)
         # super fit track with uncertainty band
-        track = geometry.track_position(z=z_range - z_ref, x0=x0, tan_alpha=tan_alpha) + x_ref
-        err_track = geometry.err_track_position(z=z_range - z_ref, x0=x0, tan_alpha=tan_alpha, err_x0=err_x0, err_tan_alpha=err_tan_alpha, corr_x0_tan_alpha=corr_x0_tan_alpha)
+        track = dt_chamber_utils.track_position_in_chamber(x_ref, z_ref, x0, tan_alpha, z_range)
+        err_track = dt_chamber_utils.err_track_position_in_chamber(z_ref, z_range, err_x0, err_tan_alpha, corr_x0_tan_alpha)
         ax.plot(track, z_range, linewidth=2, color="tab:blue", label=super_label, zorder=7)
         ax.fill_betweenx(x1=track - err_track, x2=track + err_track, y=z_range, color="tab:blue", alpha=0.2, zorder=6)
         # sl fit segments with uncertainty band
         for sl in phi_sls:
             f_sl = sl_fit[sl]
-            sl_z_range = np.linspace(geometry.layer_z(sl, 0) - params._plot_z_margin, geometry.layer_z(sl, 3) + params._plot_z_margin, 200)
-            sl_track = geometry.track_position(z=sl_z_range - f_sl["z_ref"], x0=f_sl["x0"], tan_alpha=f_sl["tan_alpha"]) + f_sl["x_ref"]
-            err_sl_track = geometry.err_track_position(z=sl_z_range - f_sl["z_ref"], x0=f_sl["x0"], tan_alpha=f_sl["tan_alpha"], err_x0=f_sl["err_x0"],
-                                                       err_tan_alpha=f_sl["err_tan_alpha"], corr_x0_tan_alpha=f_sl["corr_x0_tan_alpha"])
+            sl_z_range = np.linspace(dt_chamber_utils.layer_z(sl, 0) - params._plot_z_margin, dt_chamber_utils.layer_z(sl, 3) + params._plot_z_margin, 200)
+            sl_track = dt_chamber_utils.track_position_in_chamber(f_sl["x_ref"], f_sl["z_ref"], f_sl["x0"], f_sl["tan_alpha"], sl_z_range)
+            err_sl_track = dt_chamber_utils.err_track_position_in_chamber(f_sl["z_ref"], sl_z_range, f_sl["err_x0"], f_sl["err_tan_alpha"], f_sl["corr_x0_tan_alpha"])
             sl_label = f"SL {sl} fit: $\\tan\\alpha={f_sl['tan_alpha']:.3f}$, $\\chi^2/N_{{df}}={f_sl['chi2/ndf']:.2f}$\nSL fit $-$ super fit: {f_sl['dx']:+.2f} mm"
             ax.plot(sl_track, sl_z_range, color=sl_colors[sl], linewidth=3, linestyle="--", label=sl_label, zorder=5)
             ax.fill_betweenx(x1=sl_track - err_sl_track, x2=sl_track + err_sl_track, y=sl_z_range, color=sl_colors[sl], alpha=0.2, zorder=4)
@@ -279,7 +276,7 @@ $v_d={vd_um_per_ns:.1f}$ um/ns"""
         fig.tight_layout()
         plot_utils.save_figure(fig, f"super_fit_row{row}_track", args)
 
-    plot_utils.show_figures(args.show_plots)
+    plot_utils.show_figures(args)
 
 if __name__ == "__main__":
     main()

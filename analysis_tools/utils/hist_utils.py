@@ -6,12 +6,118 @@ import numpy as np
 import copy
 from matplotlib.ticker import ScalarFormatter
 
-import analysis_tools.params.params as params
+from analysis_tools.params import params
 
 # -----------------------------------------
 
 
 
+
+### generate one histogram from given data
+# binning and given conditions for selection of hits from data for one specific key
+# arguments:
+#   data: data dict
+#   key: key of data dict to create histogram from
+#   bin_centers: centers of bins as list/array
+#       special keywords:
+#           auto: leave binning up to np.histogram
+#           step1: bin width is fixed to 1, automatically choose binning from min to max value
+def calculate_hist(data, key, *, bin_centers=None, bin_edges=None, silent=False):
+    if not silent: print(f"Calculating histogram for data key \"{key}\"...")
+    hists, edges, centers, underflow, overflow = [], [], [], 0, 0
+    ### in case data is empty, return empty arrays
+    if len(data[key]) == 0:
+        print("EMPTY HIST DATA !!!")
+        return hists, edges, centers, underflow, overflow
+    ### set bins
+    # BIN CENTERS
+    if type(bin_centers) != type(None):
+        # check for special keywords
+        if type(bin_centers) in [type("")]: # use string keyword for bins option in np.histogram if given
+            if bin_centers == "auto":
+                #edges = "auto" # automatic binning
+                n_auto_bins = 20
+                dmin = np.amin(data[key])
+                dmax = np.amax(data[key])
+                drange = dmax - dmin
+                if drange > 0:
+                    centers = np.linspace(dmin-drange*0.1, dmax+drange*0.1, n_auto_bins)
+                else:
+                    centers = np.linspace(dmin-1, dmax+1, n_auto_bins)
+            elif "auto" in bin_centers: 
+                # "autoXX" = auto binning with XX bins
+                n_auto_bins = int(bin_centers[4:])
+                dmin = np.amin(data[key])
+                dmax = np.amax(data[key])
+                drange = dmax - dmin
+                #print(key, dmin, dmax, drange)
+                if drange > 0:
+                    centers = np.linspace(dmin-drange*0.1, dmax+drange*0.1, n_auto_bins)
+                else:
+                    centers = np.linspace(dmin-1, dmax+1, n_auto_bins)
+            elif bin_centers == "step1": # automatic binning with bin width of 1
+                dmin = np.int64(np.amin(data[key]))
+                dmax = np.int64(np.amax(data[key]))
+                centers = np.linspace(dmin-1, dmax+1, dmax-dmin+3)
+        # else use given bin centers
+        else:
+            centers = bin_centers
+        # calculate edges from centers
+        distance = np.mean(np.diff(centers))/2
+        #if edges != "auto":
+        #    edges = np.zeros(len(centers)+1)
+        #    for i in range(len(centers)):
+        #        edges[i] = centers[i]-distance
+        #    edges[len(centers)] = centers[-1]+distance
+    # BIN EDGES
+        edges = np.zeros(len(centers)+1)
+        for i in range(len(centers)):
+            edges[i] = centers[i]-distance
+        edges[len(centers)] = centers[-1]+distance
+    # if edges given
+    elif type(bin_edges) != type(None):
+        edges = bin_edges
+    # ---
+    ### calculate actual histograms
+    # create edges w/ over/underflow
+    ou_step = 1
+    ou_clip = [np.amin(edges)-ou_step, np.amax(edges)+ou_step]
+    edges_with_ou = np.array(copy.deepcopy(edges))
+    edges_with_ou = np.insert(edges_with_ou, 0, ou_clip[0])
+    edges_with_ou = np.append(edges_with_ou, ou_clip[1])
+    data_ou_clip = np.clip(data[key], a_min=ou_clip[0], a_max=ou_clip[1])
+    hists_with_ou, edges_with_ou = np.histogram(data_ou_clip, bins=edges_with_ou)
+    underflow = hists_with_ou[0]
+    overflow = hists_with_ou[-1]
+    # calculate hists, bin centers & edges w/o over/underflow
+    hists = hists_with_ou[1:-1]
+    edges = edges_with_ou[1:-1]
+    centers = np.array([(edges[i]+edges[i+1])/2 for i in range(len(edges)-1)])
+    return hists, edges, centers, underflow, overflow
+
+### determine interval/range of histogram peak
+# give rel_thres to determine where the peak starts & stops relative to the max value of the (whole) histogram
+# returns list of lists indices of hist values / bin centers of all bins belonging to this peak - outer list is for all peaks
+# [[peak indixes] for peaks]
+def find_peak_indices(hist, rel_thres=0.01,*, silent=False):
+    peak_indices = []
+    peak_no = -1
+    current_peak = False
+    n_hist = len(hist)
+    if n_hist == 0:
+        return []
+    thres = np.amax(hist)*rel_thres
+    for i in range(n_hist):
+        if hist[i] < thres:
+            current_peak = False
+        else:
+            if not current_peak:
+                current_peak = True
+                peak_indices.append([])
+                peak_no += 1
+            peak_indices[peak_no].append(i)
+    peak_indices = [np.array(idx_list) for idx_list in list(peak_indices)]
+    return peak_indices
 
 ### calculate histogram peak position with weighted mean (bin centers = x, hist values = weights)
 def weighted_mean_peak_position(hist, centers, err_hist, err_centers, *, silent=False):

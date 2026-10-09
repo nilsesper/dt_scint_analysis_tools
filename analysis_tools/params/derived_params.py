@@ -1,11 +1,11 @@
 ###############################
 ### DERIVED PARAMETERS
 ###############################
-# Lookup tables and unit conversions which follow from params.py (the chamber geometry: dt_geometry_utils.py).
+# Lookup tables and unit conversions which follow from params.py (the chamber geometry: analysis_tools/utils/dt_chamber_utils.py).
 
 import numpy as np
 
-import analysis_tools.params.params as params
+from analysis_tools.params import params
 
 # -----------------------------------------
 ### readout mapping

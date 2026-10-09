@@ -9,17 +9,7 @@
 #     the mean is taken over the cells which are not masked / dead,
 #     applied with a plus sign: ts_corrected = ts + ts_corr
 #
-# output (.root): tree "tree" with one row per cell:
-#   sl, ly, wi, fe_id                 cell
-#   ts_corr, err_ts_corr              the correction (0 for cells without testpulse peak)
-#   valid                             1 if a testpulse peak was found
-#   masked                            1 for cells in params._dt_wire_mask / _dt_dead_wires (calibrated, but not used for the mean)
-#   tp_ts_mean, tp_ts_err             testpulse time of the cell (after the offset correction)
-#   tp_ts_mean_raw, tp_ts_err_raw, tp_offset   ... before the offset correction, and the subtracted offset
-#   ts_target                         mean testpulse time the cell is aligned to
-#   n_hits, n_peak_hits, peak_ts_min, peak_ts_max   hits of the cell, hits in the first peak and its range in ts_orbit
-# plus tree "summary" and histograms (TH2D per SL, x = wire, y = layer: ts_corr_sl<N>, tp_ts_mean_sl<N>, n_peak_hits_sl<N>;
-# TH1D per SL: ts_orbit_sl<N> of all hits). Output ending .pcl: only the correction dict of the old script.
+# output (.root): one row per cell, see OUTPUT_FILES.md. Output ending .pcl: only the correction dict of the old script.
 #
 # Use the result with
 #   python scripts/dumpfile_to_dt_hits.py ... --dt_tp_corrections_file <this output>
@@ -28,18 +18,20 @@
 # examples:
 #   python scripts/dumpfile_to_dt_tp_corrections.py --input_dumpfile tp_run.txt --dt_tp_corrections_file calib/tp_corrections.root
 #   python scripts/dumpfile_to_dt_tp_corrections.py --input_dumpfile tp_run.txt --dt_tp_corrections_file calib/tp_corrections.root \
-#          --dt_tp_hits_file calib/tp_dt_hits.root --alignment sl --n_proc 4
+#          --dt_tp_hits_file calib/tp_dt_hits.root --alignment sl
 #################################################################
 
 import argparse
+import time
+import numpy as np
 
-from analysis_tools.utils.root_utils import log
 from analysis_tools.params import params
-from analysis_tools.utils import dt_pipeline_utils
+from analysis_tools.utils import data_utils, dt_calibration_utils, dt_dumpfile_utils, dt_hit_utils, root_utils, timestamp_utils
+from analysis_tools.utils.root_utils import log
 
 # ---------------------------------------------------------------
 
-def main(argv=None):
+def main():
     parser = argparse.ArgumentParser(description="Calculate the timing calibration of all dt cells from a testpulse dumpfile.")
     parser.add_argument("--input_dumpfile", type=str, required=True, help="input file path: raw dumpfile (.txt) recorded with testpulses")
     parser.add_argument("--dt_tp_corrections_file", type=str, required=True,
@@ -53,19 +45,88 @@ def main(argv=None):
                         help="threshold for the peak search, relative to the highest bin of the cell histogram")
     parser.add_argument("--no_offset_correction", action="store_true",
                         help="do not subtract the known testpulse delays per frontend connector (params._tp_time_offset)")
-    parser.add_argument("--n_lines_to_skip", type=int, default=None,
+    parser.add_argument("--n_lines_to_skip", type=int, default=params._dumpfile_hits_to_skip,
                         help=f"number of lines at the start of the dumpfile to ignore (default: params._dumpfile_hits_to_skip = {params._dumpfile_hits_to_skip})")
-    parser.add_argument("--n_proc", type=int, default=1, help="number of processes to read the dumpfile (does not change the result)")
     parser.add_argument("--block_lines", type=int, default=500_000, help="number of dumpfile lines processed at once")
     parser.add_argument("--params_file", type=str, default=None,
                         help="parameter file to use instead of analysis_tools/params/params.py (e.g. another readout mapping)")
-    args = parser.parse_args(argv)
+    args = parser.parse_args()
 
-    dt_pipeline_utils.dumpfile_to_dt_tp_corrections(
-        args.input_dumpfile, args.dt_tp_corrections_file, dt_tp_hits_file=args.dt_tp_hits_file, n_lines_to_skip=args.n_lines_to_skip,
-        block_n_lines=args.block_lines, n_proc=args.n_proc, rel_thres=args.rel_thres, alignment=args.alignment,
-        correct_for_offsets=not args.no_offset_correction,
-    )
+    label = "testpulse dumpfile -> dt tp corrections"
+    correct_for_offsets = not args.no_offset_correction
+    root_utils.check_input_file(args.input_dumpfile)
+    log(f"[{label}] START \"{args.input_dumpfile}\" -> \"{args.dt_tp_corrections_file}\"")
+    log(f"[{label}] rel_thres={args.rel_thres}, alignment={args.alignment}, correct_for_offsets={correct_for_offsets}")
+    t_start = time.perf_counter()
+
+    ### 1. histograms of the testpulse hit times of every cell (all cells, also masked / dead ones)
+    tp_histograms = dt_calibration_utils.empty_testpulse_histograms()
+    hits_file = None
+    if args.dt_tp_hits_file is not None:
+        hits_file = root_utils.create_file(args.dt_tp_hits_file)
+    dumpfile, n_blocks = dt_dumpfile_utils.open_dumpfile(args.input_dumpfile, args.n_lines_to_skip, args.block_lines, label)
+    overflow_state = {"oc_overflow": 0, "last_oc": None}  # orbit counter overflows, counted from the start of the file
+    n_words_total, n_dt_hits_total = 0, 0
+    for i_block in range(n_blocks):
+        lines = dt_dumpfile_utils.read_lines(dumpfile, args.block_lines)
+        hits = data_utils.import_raw_lines(lines, silent=True)
+        n_words = len(lines)
+        dt_hits = dt_hit_utils.extract_dt_hits(hits, all_cells=True, overflow_state=overflow_state)
+        if root_utils.length(dt_hits) == 0:
+            dt_hits = None
+        n_dt_hits = 0
+        if dt_hits is not None:
+            n_dt_hits = root_utils.length(dt_hits)
+            ts_orbit = timestamp_utils.add_timestamp_this_orbit(hits=dt_hits, silent=True)["ts_orbit"]
+            dt_calibration_utils.fill_testpulse_histograms(tp_histograms, dt_hits, ts_orbit)
+            if hits_file is not None:
+                dt_hits["ts_orbit"] = ts_orbit
+                root_utils.write_rows(hits_file, root_utils.DT_HITS_TREE, dt_hits)
+        n_words_total += n_words
+        n_dt_hits_total += n_dt_hits
+        log(f"[{label}] block {i_block + 1:,} / {n_blocks:,}: {n_words:,} raw hits -> {n_dt_hits:,} dt hits | "
+            f"totals: {n_words_total:,} raw, {n_dt_hits_total:,} dt")
+    dumpfile.close()
+    if overflow_state["oc_overflow"] > 0:
+        log(f"[{label}] orbit counter overflows found: {overflow_state['oc_overflow']:,}")
+    if hits_file is not None:
+        hits_file.close()
+        log(f"[{label}] testpulse dt hits written to \"{args.dt_tp_hits_file}\"")
+    if n_dt_hits_total == 0:
+        raise RuntimeError(f"No dt hits found in {args.input_dumpfile} -- check n_lines_to_skip / bit masks / channel mapping in params.py.")
+
+    ### 2. calibration of every cell
+    calib = dt_calibration_utils.calibrate_cells(tp_histograms, rel_thres=args.rel_thres, alignment=args.alignment,
+                                                 correct_for_offsets=correct_for_offsets, label=label)
+    valid = (calib["valid"] == 1)
+    n_valid = int(np.sum(valid))
+    log(f"[{label}] {n_valid:,} / {len(valid):,} cells with testpulse peak; corrections between {np.amin(calib['ts_corr'][valid]):.2f} and "
+        f"{np.amax(calib['ts_corr'][valid]):.2f} ts units (rms {np.std(calib['ts_corr'][valid]):.2f}), mean uncertainty {np.mean(calib['err_ts_corr'][valid]):.2f}")
+    cells_without_peak = []
+    for i in range(len(valid)):
+        if not valid[i]:
+            cells_without_peak.append((int(calib["sl"][i]), int(calib["ly"][i]), int(calib["wi"][i])))
+    if len(cells_without_peak) > 0:
+        message = f"[{label}] cells without testpulse peak (ts_corr = 0): {cells_without_peak[:20]}"
+        if len(cells_without_peak) > 20:
+            message += " ..."
+        log(message)
+
+    ### 3. output file
+    if args.dt_tp_corrections_file.endswith(".pcl"):
+        data_utils.store_pickle(data=dt_calibration_utils.tp_corrections_dict(calib), file=args.dt_tp_corrections_file, silent=True)
+    else:
+        output_file = root_utils.create_file(args.dt_tp_corrections_file)
+        root_utils.write_rows(output_file, root_utils.DEFAULT_TREE, calib)
+        summary = {"n_cells": len(valid), "n_valid": n_valid, "rel_thres": float(args.rel_thres), "chamber_alignment": int(args.alignment == "chamber"),
+                   "correct_for_offsets": int(correct_for_offsets), "n_raw_hits": n_words_total, "n_dt_hits": n_dt_hits_total,
+                   "n_lines_to_skip": int(args.n_lines_to_skip)}
+        root_utils.write_summary(output_file, summary)
+        histograms = dt_calibration_utils.calibration_histograms(calib, tp_histograms)
+        for name in histograms:
+            root_utils.write_histogram(output_file, name, histograms[name])
+        output_file.close()
+    log(f"[{label}] DONE. {len(valid):,} cells written to \"{args.dt_tp_corrections_file}\", took {time.perf_counter() - t_start:.1f}s")
 
 if __name__ == "__main__":
     main()

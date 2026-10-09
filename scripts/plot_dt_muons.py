@@ -19,10 +19,11 @@ from analysis_tools.utils import plot_utils
 plot_utils.setup_backend(show_plots="--show_plots" in sys.argv)
 import matplotlib as mpl
 import matplotlib.pyplot as plt
-import matplotlib.patches as pat
+import matplotlib.patches as patches
 from matplotlib.ticker import ScalarFormatter
 
-from analysis_tools.utils import cut_utils, data_utils, dt_chamber_utils, dt_geometry_utils as geometry, geoplot_utils, hist_utils, muon_utils, root_utils
+from analysis_tools.utils import data_utils, hist_utils, muon_utils, root_utils
+from analysis_tools.utils import dt_chamber_utils
 from analysis_tools.params import params
 
 # ---------------------------------------------------------------
@@ -32,8 +33,8 @@ MUON_KEYS = ["x0", "y0", "z0", "theta", "phi", "ts"]
 
 ### rectangle patch of one cell in the x-y plane
 def cell_rectangle(sl, ly, wi, **kwargs):
-    c = geometry.cell(sl, ly, wi)
-    return pat.Rectangle((c["low"][geometry.X], c["low"][geometry.Y]), width=geometry.box_size(c, geometry.X), height=geometry.box_size(c, geometry.Y), **kwargs)
+    c = dt_chamber_utils.cell(sl, ly, wi)
+    return patches.Rectangle((c["low"][dt_chamber_utils.X], c["low"][dt_chamber_utils.Y]), width=dt_chamber_utils.box_size(c, dt_chamber_utils.X), height=dt_chamber_utils.box_size(c, dt_chamber_utils.Y), **kwargs)
 
 ### colorbar with scientific notation for large numbers
 def add_colorbar(fig, ax, im_obj, label):
@@ -42,17 +43,8 @@ def add_colorbar(fig, ax, im_obj, label):
     cbar = fig.colorbar(im_obj, ax=ax, fraction=0.05, format=formatter)
     cbar.set_label(label)
 
-### one 1d histogram over the full range of the data, stored as plot_name
-def plot_one_histogram(data, xlabel, plot_name, args, scale=1.0, bin_unit=None, log_scale=False, full_range=True, weights=None, edges=None):
-    fig, ax = plt.subplots(1, 1, figsize=(12, 8))
-    if edges is None:
-        edges = plot_utils.choose_edges(data, n_bins=args.n_bins, full_range=full_range)
-    plot_utils.draw_histogram(ax, data, edges, xlabel=xlabel, log_scale=log_scale, bin_unit=bin_unit, scale=scale, weights=weights)
-    fig.tight_layout()
-    plot_utils.save_figure(fig, plot_name, args)
-
 @mpl.rc_context({'font.family': 'sans-serif', 'font.size': 16})
-def main(argv=None):
+def main():
     parser = argparse.ArgumentParser(description="Track maps, projections, 3d view and timing plots of dt muons.")
     parser.add_argument("--dt_muons_file", type=str, required=True, help="input file path: dt muons (.root)")
     parser.add_argument("--cuts", type=str, default=None, help="cuts applied before plotting, format \"key1,operator1,value1;key2,operator2,value2;...\"")
@@ -64,12 +56,12 @@ def main(argv=None):
     parser.add_argument("--n_tracks_3d", type=int, default=150, help="max number of tracks drawn in the 3d view")
     parser.add_argument("--n_bins", type=int, default=50, help="number of bins of the 1d histograms")
     plot_utils.add_plot_arguments(parser)
-    args = parser.parse_args(argv)
+    args = parser.parse_args()
     plot_utils.check_plot_arguments(parser, args)
 
     ### cells to mark
     if args.mark_cells is None:
-        marked_cells = plot_utils.masked_and_dead_cells()
+        marked_cells = sorted(dt_chamber_utils.excluded_cells())
     elif args.mark_cells.strip().lower() == "none":
         marked_cells = []
     else:
@@ -79,19 +71,18 @@ def main(argv=None):
             raise ValueError(f"--mark_cells: cell sl={sl}, ly={ly}, wi={wi} does not exist in the chamber.")
 
     ### data import
-    cuts = cut_utils.parse_cuts(args.cuts)
+    cuts = data_utils.parse_cuts(args.cuts)
     keys = []
     for key in MUON_KEYS:
         keys.append(key)
     for cut in cuts:
         if cut[0] not in keys:
             keys.append(cut[0])
-    keys = sorted(keys)
     log(f"###### Importing dt muons from {args.dt_muons_file}...")
-    dt_muons = root_utils.read_branches(args.dt_muons_file, keys)
+    dt_muons = root_utils.read_tree(args.dt_muons_file, root_utils.DEFAULT_TREE, branches=keys)
     n_all = root_utils.length(dt_muons)
     if len(cuts) > 0:
-        dt_muons = data_utils.cut_data(data=dt_muons, conditions=cuts, silent=True)
+        dt_muons = data_utils.cut_data(dt_muons, cuts, silent=True)
         log(f"cuts {cuts}: {root_utils.length(dt_muons):,} / {n_all:,} muons selected")
     # keep only the muon branches (not the extra branches of the cuts)
     muon_branches = {}
@@ -109,18 +100,18 @@ def main(argv=None):
     if duration > 0:
         log(f"dt muon rate: {n_dt_muons / duration:.3f} +- {np.sqrt(n_dt_muons) / duration:.3f} Hz")
 
-    ####### X-Y maps: track positions in the plane of each superlayer
+    ### X-Y maps: track positions in the plane of each superlayer
     for sl in SLS:
         margin = 100  # mm
-        box = geometry.superlayer_box(sl)
-        x_edges = np.arange(start=box["low"][geometry.X] - margin, stop=box["high"][geometry.X] + margin + args.xy_bin_width, step=args.xy_bin_width)
-        y_edges = np.arange(start=box["low"][geometry.Y] - margin, stop=box["high"][geometry.Y] + margin + args.xy_bin_width, step=args.xy_bin_width)
-        dt_muons_sl = muon_utils.change_muon_base_point(muons=dt_muons, z_new=box["center"][geometry.Z])
+        box = dt_chamber_utils.superlayer_box(sl)
+        x_edges = np.arange(start=box["low"][dt_chamber_utils.X] - margin, stop=box["high"][dt_chamber_utils.X] + margin + args.xy_bin_width, step=args.xy_bin_width)
+        y_edges = np.arange(start=box["low"][dt_chamber_utils.Y] - margin, stop=box["high"][dt_chamber_utils.Y] + margin + args.xy_bin_width, step=args.xy_bin_width)
+        dt_muons_sl = muon_utils.change_muon_base_point(muons=dt_muons, z_new=box["center"][dt_chamber_utils.Z])
         pos_muons_hist2d, _, _ = np.histogram2d(x=dt_muons_sl["y0"], y=dt_muons_sl["x0"], bins=(y_edges, x_edges))
         fig, ax = plt.subplots(1, 1, figsize=(10, 8.5))
         im_obj = ax.imshow(X=pos_muons_hist2d, origin="lower", extent=[x_edges[0], x_edges[-1], y_edges[0], y_edges[-1]], aspect="equal")
-        ax.add_patch(pat.Rectangle(
-            (box["low"][geometry.X], box["low"][geometry.Y]), width=(box["high"][geometry.X] - box["low"][geometry.X]), height=(box["high"][geometry.Y] - box["low"][geometry.Y]),
+        ax.add_patch(patches.Rectangle(
+            (box["low"][dt_chamber_utils.X], box["low"][dt_chamber_utils.Y]), width=(box["high"][dt_chamber_utils.X] - box["low"][dt_chamber_utils.X]), height=(box["high"][dt_chamber_utils.Y] - box["low"][dt_chamber_utils.Y]),
             edgecolor="white", facecolor="None", label="Superlayer position",
         ))
         # marked cells of this superlayer, only the first one gets a legend label
@@ -134,7 +125,7 @@ def main(argv=None):
                 label = None
             ax.add_patch(cell_rectangle(sl, ly, wi, edgecolor="red", facecolor="None", label=label))
             first_label = False
-        ax.set_title(f"DT tracks in SL {sl} ($z={box["center"][geometry.Z]:.0f}$ mm)")
+        ax.set_title(f"DT tracks in SL {sl} ($z={box["center"][dt_chamber_utils.Z]:.0f}$ mm)")
         ax.set_xlabel("$x$ [mm]")
         ax.set_ylabel("$y$ [mm]")
         ax.legend(prop={"size": 12}, loc="upper left", fancybox=False, framealpha=params._legend_alpha)
@@ -145,22 +136,22 @@ def main(argv=None):
         fig.tight_layout()
         plot_utils.save_figure(fig, f"dt_muons_xy_sl{sl}", args)
 
-    ####### X-Z and Y-Z projections of the tracks through the chamber
-    marked_cell_data = dt_chamber_utils.cell_display_map()
-    for sl, ly, wi in marked_cells:
-        marked_cell_data[sl][ly][wi]["color"] = "tab:red"
-    sl_z_coord = geometry.superlayers_range(geometry.Z)
+    ### X-Z and Y-Z projections of the tracks through the chamber
+    marked_cell_colors = {}
+    for cell in marked_cells:
+        marked_cell_colors[cell] = "tab:red"
+    sl_z_coord = dt_chamber_utils.superlayers_range(dt_chamber_utils.Z)
     for orient, slice_name in [("phi", "xz"), ("theta", "yz")]:
         if slice_name == "xz":
-            sl_x_coord = geometry.superlayers_range(geometry.X)
+            sl_x_coord = dt_chamber_utils.superlayers_range(dt_chamber_utils.X)
             other = "y"
         else:
-            sl_x_coord = geometry.superlayers_range(geometry.Y)
+            sl_x_coord = dt_chamber_utils.superlayers_range(dt_chamber_utils.Y)
             other = "x"
         margin = 100  # mm
         x_edges = np.arange(start=sl_x_coord[0] - margin, stop=sl_x_coord[1] + margin + args.xz_bin_width, step=args.xz_bin_width)
         z_edges = np.arange(start=sl_z_coord[0] - margin, stop=sl_z_coord[1] + margin + args.xz_bin_width, step=args.xz_bin_width)
-        z_bins = hist_utils.centers_from_edges(z_edges)
+        z_bins = (z_edges[:-1] + z_edges[1:]) / 2
         # track position at every z bin
         x_muons = []
         z_muons = []
@@ -174,30 +165,30 @@ def main(argv=None):
         pos_muons_hist2d, _, _ = np.histogram2d(x=np.concatenate(z_muons), y=np.concatenate(x_muons), bins=(z_edges, x_edges))
         fig, ax = plt.subplots(1, 1, figsize=(14, 4.5))
         im_obj = ax.imshow(X=pos_muons_hist2d, origin="lower", extent=[x_edges[0], x_edges[-1], z_edges[0], z_edges[-1]], aspect="auto")
-        ax = geoplot_utils.chamber_ax(ax=ax, orient=orient, cell_data=marked_cell_data, wire=False, transparent=True)
+        plot_utils.draw_chamber(ax, orient, cell_colors=marked_cell_colors, wires=False, transparent=True)
         ax.set_title(f"DT tracks, ${slice_name[0]}$-$z$ projection ({n_dt_muons:,} tracks)")
         ax.set_xlabel(f"${slice_name[0]}$ [mm]")
         ax.set_ylabel("$z$ [mm]")
         add_colorbar(fig, ax, im_obj, f"Tracks per bin\n(summed over ${other}$)")
-        legend_handles = [pat.Patch(edgecolor="white", facecolor="none")]
+        legend_handles = [patches.Patch(edgecolor="white", facecolor="none")]
         legend_labels = ["Chamber geometry"]
         if len(marked_cells) > 0:
-            legend_handles.append(pat.Patch(edgecolor="tab:red", facecolor="none"))
+            legend_handles.append(patches.Patch(edgecolor="tab:red", facecolor="none"))
             legend_labels.append("Marked cells")
         ax.legend(legend_handles, legend_labels, prop={"size": 11}, loc="lower center", ncols=2, fancybox=False, framealpha=params._legend_alpha, facecolor="gray")
         fig.tight_layout()
         plot_utils.save_figure(fig, f"dt_muons_{slice_name}_chamber", args)
 
-    ####### 3d view of the tracks through the superlayers
+    ### 3d view of the tracks through the superlayers
     n_3d = min(args.n_tracks_3d, n_dt_muons)
     fig = plt.figure(figsize=(12, 9))
     ax = fig.add_subplot(projection="3d")
     ### superlayer boxes: top and bottom rectangle and the four vertical edges
     for sl in SLS:
-        box = geometry.superlayer_box(sl)
+        box = dt_chamber_utils.superlayer_box(sl)
         x0, y0, z0 = box["low"]
         x1, y1, z1 = box["high"]
-        if params._dt_chamber["sls"][sl]["orient"] == "phi":
+        if dt_chamber_utils.orientation(sl) == "phi":
             color = "tab:blue"
         else:
             color = "tab:orange"
@@ -215,49 +206,48 @@ def main(argv=None):
         x = dt_muons["x0"][i] + tan_alpha_x[i] * (z - dt_muons["z0"][i])
         y = dt_muons["y0"][i] + tan_alpha_y[i] * (z - dt_muons["z0"][i])
         ax.plot(x, y, z, color="tab:green", linewidth=0.8, alpha=0.6)
-    ax.set_xlim(geometry.superlayers_range(geometry.X)[0] - 200, geometry.superlayers_range(geometry.X)[1] + 200)
-    ax.set_ylim(geometry.superlayers_range(geometry.Y)[0] - 200, geometry.superlayers_range(geometry.Y)[1] + 200)
+    ax.set_xlim(dt_chamber_utils.superlayers_range(dt_chamber_utils.X)[0] - 200, dt_chamber_utils.superlayers_range(dt_chamber_utils.X)[1] + 200)
+    ax.set_ylim(dt_chamber_utils.superlayers_range(dt_chamber_utils.Y)[0] - 200, dt_chamber_utils.superlayers_range(dt_chamber_utils.Y)[1] + 200)
     ax.set_zlim(z_lo, z_hi)
     ax.set_xlabel("$x$ [mm]", labelpad=14)
     ax.set_ylabel("$y$ [mm]", labelpad=14)
     ax.set_zlabel("$z$ [mm]", labelpad=10)
-    x_span = geometry.superlayers_range(geometry.X)[1] - geometry.superlayers_range(geometry.X)[0] + 400
-    y_span = geometry.superlayers_range(geometry.Y)[1] - geometry.superlayers_range(geometry.Y)[0] + 400
+    x_span = dt_chamber_utils.superlayers_range(dt_chamber_utils.X)[1] - dt_chamber_utils.superlayers_range(dt_chamber_utils.X)[0] + 400
+    y_span = dt_chamber_utils.superlayers_range(dt_chamber_utils.Y)[1] - dt_chamber_utils.superlayers_range(dt_chamber_utils.Y)[0] + 400
     ax.set_box_aspect((x_span, y_span, 0.45 * max(x_span, y_span)))  # z is stretched, the chamber is flat
     ax.set_title(f"DT tracks ({n_3d:,} of {n_dt_muons:,} shown, $z$ axis stretched)")
     legend_handles = [
-        pat.Patch(edgecolor="tab:blue", facecolor="none"),
-        pat.Patch(edgecolor="tab:orange", facecolor="none"),
-        pat.Patch(edgecolor="tab:green", facecolor="none"),
+        patches.Patch(edgecolor="tab:blue", facecolor="none"),
+        patches.Patch(edgecolor="tab:orange", facecolor="none"),
+        patches.Patch(edgecolor="tab:green", facecolor="none"),
     ]
     legend_labels = ["Phi superlayers (SL 1, SL 3)", "Theta superlayer (SL 2)", "DT tracks"]
     ax.legend(legend_handles, legend_labels, prop={"size": 12}, loc="upper left", fancybox=False)
     fig.tight_layout()
     plot_utils.save_figure(fig, "dt_muons_3d", args)
 
-    ####### 1d histograms
+    ### 1d histograms
     with mpl.rc_context({'font.family': 'sans-serif', 'font.size': 20}):
         ### angles
-        plot_one_histogram(np.rad2deg(dt_muons["theta"]), "Polar angle $\\theta$ [deg]", "dt_muons_theta_deg", args, bin_unit="deg")
-        theta_edges = np.linspace(0, 70, 50)
-        theta_centers = (theta_edges[:-1] + theta_edges[1:]) / 2
-        sin_theta_weights = 1/np.sin(np.deg2rad(theta_centers))
-        print(theta_edges, sin_theta_weights)
-        plot_one_histogram(np.rad2deg(dt_muons["theta"]), "Polar angle $\\theta$ weighted with $1/{\\sin\\theta}$ [deg]", "dt_muons_theta_sin_weighted_deg", args, bin_unit="deg", edges=theta_edges, weights=sin_theta_weights)
-        plot_one_histogram(np.rad2deg(dt_muons["phi"]), "Azimuthal angle $\\phi$ [deg]", "dt_muons_phi_deg", args, bin_unit="deg")
-        # projected angles in the x-z and y-z planes
-        tan_alpha_x = np.tan(dt_muons["theta"]) * np.cos(dt_muons["phi"])
-        tan_alpha_y = np.tan(dt_muons["theta"]) * np.sin(dt_muons["phi"])
-        plot_one_histogram(np.rad2deg(np.arctan(tan_alpha_x)), "Projected angle in the $x$-$z$ plane [deg]", "dt_muons_angle_xz_deg", args, bin_unit="deg")
-        plot_one_histogram(np.rad2deg(np.arctan(tan_alpha_y)), "Projected angle in the $y$-$z$ plane [deg]", "dt_muons_angle_yz_deg", args, bin_unit="deg")
+        plot_utils.plot_histogram(np.rad2deg(dt_muons["theta"]), "dt_muons_theta_deg", args, xlabel="Polar angle $\\theta$ [deg]",
+                                  full_range=True, log_scale=False, bin_unit="deg")
+        plot_utils.plot_histogram(np.rad2deg(dt_muons["phi"]), "dt_muons_phi_deg", args, xlabel="Azimuthal angle $\\phi$ [deg]",
+                                  full_range=True, log_scale=False, bin_unit="deg")
+        ### projected angles in the x-z and y-z planes
+        plot_utils.plot_histogram(np.rad2deg(np.arctan(tan_alpha_x)), "dt_muons_angle_xz_deg", args, xlabel="Projected angle in the $x$-$z$ plane [deg]",
+                                  full_range=True, log_scale=False, bin_unit="deg")
+        plot_utils.plot_histogram(np.rad2deg(np.arctan(tan_alpha_y)), "dt_muons_angle_yz_deg", args, xlabel="Projected angle in the $y$-$z$ plane [deg]",
+                                  full_range=True, log_scale=False, bin_unit="deg")
         ### arrival times since the first muon
         ts_sorted = np.sort(np.asarray(dt_muons["ts"], dtype=np.float64))
-        plot_one_histogram(ts_sorted - ts_sorted[0], "$T_0$ since first muon [s]", "dt_muons_ts", args, scale=plot_utils.TS_UNIT_NS * 1e-9, bin_unit="s")
+        plot_utils.plot_histogram(ts_sorted - ts_sorted[0], "dt_muons_ts", args, xlabel="$T_0$ since first muon [s]",
+                                  full_range=True, log_scale=False, scale=plot_utils.TS_UNIT_NS * 1e-9, bin_unit="s")
         ### time between consecutive muons
         if n_dt_muons > 1:
-            plot_one_histogram(np.diff(ts_sorted), "$\\Delta T_0$ [ms]", "dt_muons_delta_ts", args, scale=plot_utils.TS_UNIT_NS * 1e-6, bin_unit="ms", log_scale=True)
+            plot_utils.plot_histogram(np.diff(ts_sorted), "dt_muons_delta_ts", args, xlabel="$\\Delta T_0$ [ms]",
+                                      full_range=True, log_scale=True, scale=plot_utils.TS_UNIT_NS * 1e-6, bin_unit="ms")
 
-    plot_utils.show_figures(args.show_plots)
+    plot_utils.show_figures(args)
 
 if __name__ == "__main__":
     main()

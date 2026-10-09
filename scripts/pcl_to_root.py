@@ -15,7 +15,7 @@ from analysis_tools.utils import data_utils, dt_calibration_utils, root_utils
 
 # ---------------------------------------------------------------
 
-def main(argv=None):
+def main():
     parser = argparse.ArgumentParser(description="Convert a .pcl data file (dict of numpy arrays) into a ROOT file.")
     parser.add_argument("--input_pcl_file", type=str, required=True, help="input file path (.pcl)")
     parser.add_argument("--output_file", type=str, required=True, help="output file path (.root)")
@@ -24,7 +24,7 @@ def main(argv=None):
     parser.add_argument("--sort_key", type=str, default=None, help="sort the rows by this key before writing (dt hits have to be sorted by \"ts\")")
     parser.add_argument("--params_file", type=str, default=None,
                         help="parameter file to use instead of analysis_tools/params/params.py (e.g. another readout mapping)")
-    args = parser.parse_args(argv)
+    args = parser.parse_args()
 
     root_utils.check_input_file(args.input_pcl_file)
     data = data_utils.load_pickle(file=args.input_pcl_file, silent=True)
@@ -45,7 +45,15 @@ def main(argv=None):
         raise TypeError(f"Keys {bad} are neither numpy arrays nor lists, cannot be stored as branches.")
     if args.sort_key is not None:
         data = data_utils.sort_by_key(data=data, sort_key=args.sort_key)
-    root_utils.write_tree(args.output_file, data, tree=args.tree, jagged=jagged)
+    if len(jagged) > 0:
+        # python lists of lists (different length per row) are written as variable-length branches with awkward arrays
+        import awkward as ak
+        for key in jagged:
+            rows = []
+            for row in data[key]:
+                rows.append(np.asarray(row, dtype=np.int64))
+            data[key] = ak.Array(rows)
+    root_utils.write_file(args.output_file, data, args.tree)
     log(f"Wrote {root_utils.length(data):,} rows with {len(data):,} branches to tree \"{args.tree}\" in {args.output_file}")
 
 if __name__ == "__main__":

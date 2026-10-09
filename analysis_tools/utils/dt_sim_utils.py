@@ -7,7 +7,7 @@
 import numpy as np
 
 from analysis_tools.params import params, derived_params
-from analysis_tools.utils import dt_chamber_utils, dt_dumpfile_utils, dt_geometry_utils as geometry, muon_utils
+from analysis_tools.utils import data_utils, dt_chamber_utils, dt_dumpfile_utils, muon_utils, timestamp_utils
 
 # -----------------------------------------
 
@@ -24,12 +24,12 @@ def empty_dt_hits(n):
 
 ### fill the branches which follow from the cell (readout channel) and from the timestamp (oc, bx, tdc, err_ts)
 def set_readout_and_time_keys(hits):
-    hits["err_ts"][:] = dt_dumpfile_utils.DT_HIT_TS_UNCERTAINTY
-    ts_int = np.uint64(np.round(hits["ts"], 0))
-    hits["oc"][:] = (ts_int % derived_params._orbit_overflow_to_timestamp) // derived_params._orbit_to_timestamp
-    hits["bx"][:] = (ts_int % derived_params._orbit_to_timestamp) // derived_params._bx_to_timestamp
-    hits["tdc"][:] = (ts_int % derived_params._bx_to_timestamp) // derived_params._tdc_to_timestamp
     for i in range(len(hits["ts"])):
+        hits["err_ts"][i] = dt_dumpfile_utils.DT_HIT_TS_UNCERTAINTY
+        # map back htg timestamp
+        (oc, bx, tdc) = timestamp_utils.remap_htg_timestamp(hits["ts"][i])
+        hits["oc"][i], hits["bx"][i], hits["tdc"][i] = oc, bx, tdc
+        # map back htg parameters
         readout_keys = dt_chamber_utils.readout_keys_of_cell(hits["sl"][i], hits["ly"][i], hits["wi"][i])
         for key in readout_keys:
             hits[key][i] = readout_keys[key]
@@ -43,29 +43,17 @@ def dt_hits_from_list(hit_list):
     set_readout_and_time_keys(hits)
     return hits
 
-def sort_by_time(hits):
-    order = np.argsort(hits["ts"])
-    sorted_hits = {}
-    for key in hits:
-        sorted_hits[key] = hits[key][order]
-    return sorted_hits
-
 ### several dt hits tables in one, sorted by time
 def merge_and_sort_by_time(parts):
-    merged = {}
-    for key in parts[0]:
-        arrays = []
-        for part in parts:
-            arrays.append(part[key])
-        merged[key] = np.concatenate(arrays).astype(parts[0][key].dtype, copy=False)
-    return sort_by_time(merged)
+    merged = data_utils.merge_dataset(split_data=parts, silent=True)
+    return timestamp_utils.sort_by_timestamp(hits=merged, silent=True)
 
 ### the wire of layer (sl, ly) whose cell contains the point (x, y), or None
 def cell_at(sl, ly, x, y):
     for wi in dt_chamber_utils.wires(sl, ly):
-        box = geometry.cell(sl, ly, wi)
-        inside_x = box["low"][geometry.X] <= x < box["high"][geometry.X]
-        inside_y = box["low"][geometry.Y] <= y < box["high"][geometry.Y]
+        box = dt_chamber_utils.cell(sl, ly, wi)
+        inside_x = box["low"][dt_chamber_utils.X] <= x < box["high"][dt_chamber_utils.X]
+        inside_y = box["low"][dt_chamber_utils.Y] <= y < box["high"][dt_chamber_utils.Y]
         if inside_x and inside_y:
             return wi
     return None
@@ -84,22 +72,22 @@ def hits_from_muons(muons, *, noise_ampl=0, sys_miscalib_ampl=0):
 
     hit_list = []
     for sl in dt_chamber_utils.superlayers():
-        axis = geometry.measured_axis(sl)
+        axis = dt_chamber_utils.measured_axis(sl)
         for ly in dt_chamber_utils.layers(sl):
-            x, y, _ = muon_utils.propagate_muons(muons=muons, z=geometry.layer_z(sl, ly))
+            x, y, _ = muon_utils.propagate_muons(muons=muons, z=dt_chamber_utils.layer_z(sl, ly))
             for i in range(len(muons["x0"])):
                 wi = cell_at(sl, ly, x[i], y[i])
                 if wi is None:
                     continue
                 if np.random.uniform(low=0, high=1) > params._dt_cell_efficiency:
                     continue
-                if axis == geometry.X:
+                if axis == dt_chamber_utils.X:
                     track_position = x[i]
                     tan_alpha = np.tan(muons["theta"][i]) * np.cos(muons["phi"][i])
                 else:
                     track_position = y[i]
                     tan_alpha = np.tan(muons["theta"][i]) * np.sin(muons["phi"][i])
-                wire_position = geometry.cell(sl, ly, wi)["center"][axis]
+                wire_position = dt_chamber_utils.cell(sl, ly, wi)["center"][axis]
                 jitter = 0
                 if noise_ampl > 0:
                     jitter = np.random.normal(loc=0, scale=1) * noise_ampl
@@ -112,7 +100,7 @@ def hits_from_muons(muons, *, noise_ampl=0, sys_miscalib_ampl=0):
                     "sim_lat": laterality, "sim_tan_alpha": tan_alpha, "sim_vd": derived_params._drift_velocity_mm_per_timestamp,
                     "sim_x0": muons["x0"][i], "sim_y0": muons["y0"][i], "sim_z0": muons["z0"][i], "sim_theta": muons["theta"][i], "sim_phi": muons["phi"][i],
                 })
-    return sort_by_time(dt_hits_from_list(hit_list))
+    return timestamp_utils.sort_by_timestamp(hits=dt_hits_from_list(hit_list), silent=True)
 
 ### random noise hits in every cell (rate ref_cell_noise_rate in Hz) during ts_range = [ts_min, ts_max], added to the hits
 def add_noise(hits, *, ts_range, ref_cell_noise_rate):

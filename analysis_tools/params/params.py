@@ -2,8 +2,8 @@
 ### PARAMETERS
 ###############################
 # All settings of the analysis: data format, chamber geometry, readout mapping, calibration, reconstruction,
-# simulation, branch definitions and plotting. Values which follow from these are in derived_params.py, the geometry
-# built from _dt_chamber is in analysis_tools/utils/dt_geometry_utils.py.
+# simulation, branch definitions and plotting. Values which follow from these are in derived_params.py, the chamber
+# geometry built from _dt_chamber (and the description of all coordinate systems) is in analysis_tools/utils/dt_chamber_utils.py.
 # Another parameter file with the same names can be used with --params_file (see analysis_tools/params_file_selection.py).
 # Units: lengths in mm, times in timestamp units (TU, 1 TU = 0.78 ns = 1 TDC count), angles in rad.
 
@@ -293,59 +293,33 @@ _t0_tolerance = 0 # tolerance of t0 beyond the max drift time
 _dt_sl_patterns_ts_window_fit_vd = _dt_max_drift_time_vd_min + _t0_tolerance # free drift velocity
 _dt_sl_patterns_ts_window = _dt_max_drift_time + _t0_tolerance # fixed drift velocity
 
-# pattern shapes: wire of each layer relative to the wire of layer 3 ("rel_wis", order ly 0-3), and the possible
-# lateralities (-1: track left of the wire, +1: right). pat_type = index of the shape.
-# Layers 1 and 3 are shifted by half a cell against layers 0 and 2:
-# ly  [+A]     ref              [-A]     ref         
-# 3   | - | - | O | - | - |     | - | - | O | - | - |
-# 2   - | - | - | O | - | -     - | - | O | - | - | -
-# 1   | - | - | O | - | - |     | - | - | O | - | - |
-# 0   - | - | - | O | - | -     - | - | O | - | - | -
-# possible lateralities (l=-1, r=+1) ly 3-0:
-# llrl rlrl llrr rlrr           rrlr lrlr rrll lrll
-# lateralities ly 0-3:
-# lrll lrlr rrll rrlr           rlrr rlrl llrr llrl
+# Pattern shapes: which 4 cells (one per layer) a muon can cross in a superlayer.
+#   "rel_wis":    wire of layer 0, 1, 2, 3 relative to the wire of layer 3 (the reference cell, "O" in the sketches)
+#   "laterality": the possible lateralities of the 4 hits (layer 0, 1, 2, 3): -1 = track at smaller h than the wire
+#                 (left in the sketches), +1 = larger h (right)
+# pat_type (branch of the sl patterns) = index of the shape in this dict: "+a" = 0, "-a" = 1, ...
+# The wires of layers 0 and 2 are half a cell to the right of the wires of layers 1 and 3 (in all superlayers).
+# Cells of the pattern = O, layer 3 on top:
 #
-# ly  [+B]     ref              [-B]     ref         
-# 3   | - | - | O | - | - |     | - | - | O | - | - |
-# 2   - | - | O | - | - | -     - | - | - | O | - | -
-# 1   | - | - | O | - | - |     | - | - | O | - | - |
-# 0   - | - | - | O | - | -     - | - | O | - | - | -
-# possible lateralities (l=-1, r=+1) ly 3-0:
-# lrrr lrrl lrll                rlll rllr rlrr
-# lateralities ly 0-3:
-# rrrl lrrl llrl                lllr rllr rrlr
-# 
-# ly  [+C]     ref              [-C]     ref         
-# 3   | - | - | O | - | - |     | - | - | O | - | - |
-# 2   - | - | - | O | - | -     - | - | O | - | - | -
-# 1   | - | - | - | O | - |     | - | O | - | - | - |
-# 0   - | - | - | O | - | -     - | - | O | - | - | -
-# possible lateralities (l=-1, r=+1) ly 3-0:
-# lllr rllr rrlr                rrrl lrrl llrl
-# lateralities ly 0-3:
-# rlll rllr rlrr                lrrr lrrl lrll
-# 
-# ly  [+D]     ref              [-D]     ref         
-# 3   | - | - | O | - | - |     | - | - | O | - | - |
-# 2   - | - | - | O | - | -     - | - | O | - | - | -
-# 1   | - | - | - | O | - |     | - | O | - | - | - |
-# 0   - | - | - | - | O | -     - | O | - | - | - | -
-# possible lateralities (l=-1, r=+1) ly 3-0:
-# llll rrrr llrr rrll lllr rrrl      rrrr llll rrll llrr rrrl lllr
-# lateralities ly 0-3:
-# llll rrrr rrll llrr rlll lrrr      rrrr llll llrr rrll lrrr rlll
-# 
-# (!) depends on ly_indent = _dt_chamber["sls"][sl]["ly_indent"]
-# with ly_indent = [True, False, True, False] (order is ly 0-3) we have: (z axis goes upwards)
-# ly  rel_wi   -2  -1   0   1         
-# 3           | - | - | O | - | - 
-# 2           - | - | - | - | - | -  
-# 1           | - | - | - | - | - 
-# 0           - | - | - | - | - | -  
-#     rel_wi     -2  -1   0   1   
+# ly  [+A]                         [-A]
+# 3   | - | - | O | - | - |        | - | - | O | - | - |
+# 2     | - | - | O | - | - |        | - | O | - | - | - |
+# 1   | - | - | O | - | - |        | - | - | O | - | - |
+# 0     | - | - | O | - | - |        | - | O | - | - | - |
 #
-# use layer 3 (top layer) as reference where relative wire index is fixed to 0
+# ly  [+B]                         [-B]
+# 3   | - | - | O | - | - |        | - | - | O | - | - |
+# 2     | - | O | - | - | - |        | - | - | O | - | - |
+# 1   | - | - | O | - | - |        | - | - | O | - | - |
+# 0     | - | - | O | - | - |        | - | O | - | - | - |
+#
+# ly  [+C]                         [-C]
+# 3   | - | - | O | - | - |        | - | - | O | - | - |
+# 2     | - | - | O | - | - |        | - | O | - | - | - |
+# 1   | - | - | - | O | - |        | - | O | - | - | - |
+# 0     | - | - | O | - | - |        | - | O | - | - | - |
+#
+# (the wider shapes +D / -D are switched off: they cannot distinguish the lateralities rrll and llrr)
 _dt_sl_patterns = { # pat_type key in sl patterns is idx of key, i.e. "+a"=0, "-a"=1 etc.
     # order in lists: ly 0,1,2,3
     "+a": {

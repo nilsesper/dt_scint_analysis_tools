@@ -13,7 +13,7 @@ from analysis_tools.utils import dt_sim_utils, root_utils
 
 # ---------------------------------------------------------------
 
-def main(argv=None):
+def main():
     parser = argparse.ArgumentParser(description="Create simulated dt hits from cosmic muon tracks.")
     parser.add_argument("--cosmic_muons_file", type=str, required=True, help="input file path: cosmic muon tracks (.root)")
     parser.add_argument("--dt_hits_file", type=str, required=True, help="output file path: simulated dt hits (.root)")
@@ -22,19 +22,19 @@ def main(argv=None):
     parser.add_argument("--seed", type=int, default=None, help="seed of the random number generator, for reproducible output (default: random)")
     parser.add_argument("--params_file", type=str, default=None,
                         help="parameter file to use instead of analysis_tools/params/params.py (e.g. another readout mapping)")
-    args = parser.parse_args(argv)
+    args = parser.parse_args()
     if args.seed is not None:
         np.random.seed(args.seed)
 
     root_utils.check_input_file(args.cosmic_muons_file)
-    cosmic_muons = root_utils.read_tree(args.cosmic_muons_file)
+    cosmic_muons = root_utils.read_tree(args.cosmic_muons_file, root_utils.DEFAULT_TREE)
     n_muons = root_utils.length(cosmic_muons)
     log(f"###### Propagating {n_muons:,} cosmic muons through the dt chamber...")
     dt_hits = dt_sim_utils.hits_from_muons(muons=cosmic_muons, noise_ampl=args.ts_noise_amplitude, sys_miscalib_ampl=args.sys_miscalib_ampl)
     n_dt_hits = root_utils.length(dt_hits)
     if n_dt_hits == 0:
         raise RuntimeError("No dt hits were created.")
-    root_utils.write_tree(args.dt_hits_file, dt_hits, tree=root_utils.DT_HITS_TREE)
+    root_utils.write_file(args.dt_hits_file, dt_hits, root_utils.DT_HITS_TREE)
     n_muons_with_hits = len(np.unique(dt_hits["sim_id"]))
     ts_min, ts_max = int(np.amin(dt_hits["ts"])), int(np.amax(dt_hits["ts"]))
     log(f"###### Stored {n_dt_hits:,} dt hits of {n_muons_with_hits:,} muons in {args.dt_hits_file} (ts range {ts_min} .. {ts_max})")

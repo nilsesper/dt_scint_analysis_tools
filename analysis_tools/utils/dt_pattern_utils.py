@@ -5,14 +5,13 @@
 # every pattern shape (params._dt_sl_patterns: wire offsets per layer) is placed so that it contains the new hit;
 # a pattern is found if all 4 cells of the shape have a hit and these hits are close enough in time.
 #
-# Parallel search: the hits of a superlayer are split into pieces in time. Every piece also gets the hits of
-# the time window before it ("lookback"), which only fill the cells, so it finds exactly the patterns which
-# the search over all hits finds for the hits of the piece.
+# Pattern frame (used in params._dt_sl_patterns): the wire of layer 3 of the pattern is the reference, the other layers
+# are given by their wire relative to it ("rel_wis"). See the sketches above _dt_sl_patterns in params.py.
 
 import numpy as np
 
 from analysis_tools.params import params
-from analysis_tools.utils import data_utils, dt_chamber_utils
+from analysis_tools.utils import data_utils, dt_chamber_utils, timestamp_utils
 
 # -----------------------------------------
 
@@ -57,9 +56,8 @@ def pattern_row(sl, pat_type, pat_name, pattern_wires, hits, hit_idx, new_hit, o
     return row
 
 ### pattern search in the hits of one superlayer (sorted by time); returns a list of pattern rows
-# n_lookback: the first n_lookback hits only fill the cells, no patterns are searched for them
 # only_single_muon_patterns (simulation): drop patterns made of hits of different simulated muons
-def find_patterns_in_superlayer(sl, hits, n_lookback, wide_ts_window, only_single_muon_patterns, verbose):
+def find_patterns_in_superlayer(sl, hits, wide_ts_window, only_single_muon_patterns, verbose):
     ts_window = max_ts_difference(wide_ts_window)
     pattern_names = list(params._dt_sl_patterns.keys())
     last_hit_of_cell = {}  # (ly, wi) -> index of the last hit of this cell
@@ -67,8 +65,6 @@ def find_patterns_in_superlayer(sl, hits, n_lookback, wide_ts_window, only_singl
     for i in range(len(hits["ts"])):
         ly, wi = int(hits["ly"][i]), int(hits["wi"][i])
         last_hit_of_cell[(ly, wi)] = i
-        if i < n_lookback:
-            continue
         for pat_type in range(len(pattern_names)):
             pat_name = pattern_names[pat_type]
             rel_wis = params._dt_sl_patterns[pat_name]["rel_wis"]
@@ -104,52 +100,13 @@ def find_patterns_in_superlayer(sl, hits, n_lookback, wide_ts_window, only_singl
             rows.append(pattern_row(sl, pat_type, pat_name, pattern_wires, hits, hit_idx, i, only_single_muon_patterns))
     return rows
 
-### pieces of the hits of one superlayer (sorted by time) for the parallel search: list of (hits of the piece incl. lookback, n_lookback)
-def split_in_time(hits, n_pieces, ts_window):
-    n_hits = len(hits["ts"])
-    bounds = np.linspace(0, n_hits, n_pieces + 1).astype(int)
-    pieces = []
-    for i_piece in range(n_pieces):
-        first, stop = bounds[i_piece], bounds[i_piece + 1]
-        if stop <= first:
-            continue
-        # go back in time to the first hit inside the time window before the first hit of the piece
-        lookback_start = first
-        while lookback_start > 0 and np.float64(hits["ts"][lookback_start - 1]) >= np.float64(hits["ts"][first]) - ts_window:
-            lookback_start -= 1
-        piece = {}
-        for key in hits:
-            piece[key] = hits[key][lookback_start:stop]
-        pieces.append((piece, first - lookback_start))
-    return pieces
-
-### find the patterns of all superlayers; returns the sl patterns table, sorted by the wire of layer 3
-# pool: open multiprocessing pool with n_proc processes for the parallel search (None: no parallel search)
-def find_sl_patterns(hits, *, wide_ts_window=False, only_single_muon_patterns=False, pool=None, n_proc=1, min_hits_per_piece=200000, verbose=False):
-    ts_window = max_ts_difference(wide_ts_window)
-    jobs = []  # arguments of find_patterns_in_superlayer
+### find the patterns of all superlayers; returns the sl patterns table (params._sl_pattern_keys), sorted by the time of layer 3
+def find_sl_patterns(hits, wide_ts_window=False, only_single_muon_patterns=False, verbose=False):
+    rows = []
     for sl in dt_chamber_utils.superlayers():
         sl_hits = data_utils.cut_data(data=hits, conditions=[("sl", "==", sl)], silent=True)
-        sl_hits = data_utils.sort_by_key(data=sl_hits, sort_key="ts", silent=True)
-        n_pieces = 1
-        if pool is not None:
-            n_pieces = max(1, min(n_proc, len(sl_hits["ts"]) // max(1, min_hits_per_piece)))
-        if n_pieces == 1:
-            jobs.append((sl, sl_hits, 0, wide_ts_window, only_single_muon_patterns, verbose))
-        else:
-            for piece, n_lookback in split_in_time(sl_hits, n_pieces, ts_window):
-                jobs.append((sl, piece, n_lookback, wide_ts_window, only_single_muon_patterns, verbose))
-
-    if pool is not None and len(jobs) > 1:
-        results = pool.starmap(find_patterns_in_superlayer, jobs)
-    else:
-        results = []
-        for job in jobs:
-            job_sl, job_hits, n_lookback, job_wide_ts_window, job_only_single_muon_patterns, job_verbose = job
-            results.append(find_patterns_in_superlayer(job_sl, job_hits, n_lookback, job_wide_ts_window, job_only_single_muon_patterns, job_verbose))
-    rows = []
-    for result in results:
-        rows.extend(result)
+        sl_hits = timestamp_utils.sort_by_timestamp(hits=sl_hits, silent=True)
+        rows.extend(find_patterns_in_superlayer(sl, sl_hits, wide_ts_window, only_single_muon_patterns, verbose))
 
     n_patterns = len(rows)
     sl_patterns = {}
@@ -158,5 +115,5 @@ def find_sl_patterns(hits, *, wide_ts_window=False, only_single_muon_patterns=Fa
     for i in range(n_patterns):
         for key in rows[i]:
             sl_patterns[key][i] = rows[i][key]
-    # sort by the wire of layer 3 (the reference cell)
-    return data_utils.sort_by_key(data=sl_patterns, sort_key="wi3", silent=True)
+    # sort by the timestamp of layer 3 (the reference cell)
+    return data_utils.sort_by_key(data=sl_patterns, sort_key="ts3", silent=True)
