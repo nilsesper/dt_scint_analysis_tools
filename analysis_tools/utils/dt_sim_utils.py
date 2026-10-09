@@ -79,6 +79,8 @@ def hits_from_muons(muons, *, noise_ampl=0, sys_miscalib_ampl=0):
                 wi = cell_at(sl, ly, x[i], y[i])
                 if wi is None:
                     continue
+                if wi in params._dt_dead_wires[sl][ly] or wi in params._dt_wire_mask[sl][ly]:
+                    continue # skip masked cells in params
                 if np.random.uniform(low=0, high=1) > params._dt_cell_efficiency:
                     continue
                 if axis == dt_chamber_utils.X:

@@ -181,6 +181,7 @@ def main():
 
     ### 3d view of the tracks through the superlayers
     n_3d = min(args.n_tracks_3d, n_dt_muons)
+    n_3d = n_dt_muons
     fig = plt.figure(figsize=(12, 9))
     ax = fig.add_subplot(projection="3d")
     ### superlayer boxes: top and bottom rectangle and the four vertical edges

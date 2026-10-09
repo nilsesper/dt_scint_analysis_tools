@@ -22,7 +22,17 @@ from analysis_tools.utils.root_utils import log
 
 # ---------------------------------------------------------------
 
-STAGES = ["dt_hits", "hit_diff_hist", "cell_counts", "sl_patterns", "sl_fits", "sl_fits_cut", "super_fits", "super_fits_cut", "dt_muons"]
+STAGES = [
+    "dt_hits",
+    "hit_diff_hist",
+    #"cell_counts",
+    "sl_patterns",
+    "sl_fits",
+    "sl_fits_cut",
+    "super_fits",
+    "super_fits_cut",
+    "dt_muons"
+]
 SCRIPTS_DIR = os.path.dirname(os.path.abspath(__file__))
 
 ### the command of one stage: [python, script, arguments...]
@@ -63,6 +73,8 @@ def stage_command(stage, args, files):
             command += ["--tgroup_tolerance", str(args.tgroup_tolerance)]
     if args.params_file is not None:
         command += ["--params_file", args.params_file]
+    if args.verbose:
+        command += ["--verbose"]
     return command
 
 def main():
@@ -89,6 +101,7 @@ def main():
     parser.add_argument("--tgroup_tolerance", type=float, default=None,
                         help="max |t0 difference| between super fit and theta sl fit of a muon in timestamp units (default: params._muon_tgroup_tolerance)")
     parser.add_argument("--n_proc", type=int, default=1, help="number of processes for the pattern search and the fits (does not change the results)")
+    parser.add_argument("--verbose", action="store_true", help="print detailed info (switches off --n_proc)")
     parser.add_argument("--params_file", type=str, default=None,
                         help="parameter file to use instead of analysis_tools/params/params.py (e.g. another readout mapping)")
     args = parser.parse_args()

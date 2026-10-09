@@ -39,7 +39,7 @@ def main():
     parser.add_argument("--no_dead_time", action="store_true", help="do not apply the dead time cut")
     parser.add_argument("--simulation_only_muon_patterns", action="store_true",
                         help="simulation only: keep only patterns whose four hits come from the same simulated muon")
-    parser.add_argument("--chunk_size", type=int, default=1_000_000, help="number of hits per chunk")
+    parser.add_argument("--chunk_size", type=int, default=100_000, help="number of hits per chunk")
     parser.add_argument("--n_proc", type=int, default=1, help="number of chunks processed at the same time")
     parser.add_argument("--verbose", action="store_true", help="print every pattern found (switches off --n_proc)")
     parser.add_argument("--params_file", type=str, default=None,

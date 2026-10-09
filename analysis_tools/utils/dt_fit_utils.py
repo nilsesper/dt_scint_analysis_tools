@@ -312,10 +312,14 @@ def count_fits_in_time_window(sl_fits, rows, t0_center):
 #   first phi sl (the fit itself included); 1 in both superlayers = no other sl fit could have been taken instead
 # simulation truth of the first sl and "sim_id_mismatch" (1 if the sl fits come from different simulated muons)
 def build_super_patterns(sl_fits, max_chi2ndf=np.inf, max_alpha=np.deg2rad(60)):
+    print(f"HELLO from build_super_patterns(): ")
     sl_1, sl_2 = dt_chamber_utils.phi_superlayers()
     rows_1 = pairable_rows(sl_fits, sl_1, max_chi2ndf, max_alpha)
+    print(f"HELLO from build_super_patterns(): pairable_rows 1")
     rows_2 = pairable_rows(sl_fits, sl_2, max_chi2ndf, max_alpha)
+    print(f"HELLO from build_super_patterns(): pairable_rows 2")
     pairs = pair_phi_sl_fits(sl_fits, rows_1, rows_2)
+    print(f"HELLO from build_super_patterns(): pair_phi_sl_fits")
     n = len(pairs)
 
     patterns = {"sim_id_mismatch": np.zeros(n, dtype=np.int64)}
@@ -333,7 +337,9 @@ def build_super_patterns(sl_fits, max_chi2ndf=np.inf, max_alpha=np.deg2rad(60)):
         if key in sl_fits:
             patterns[key] = np.zeros(n, dtype=np.float64)
 
+    print(f"HELLO from build_super_patterns(): preparing {n} super patterns")
     for p in range(n):
+        print(f"HELLO from build_super_patterns(): preparing {n} super patterns, iteration {p} of {n}")
         t0_sl_1 = sl_fits["t0"][pairs[p][0]]
         patterns[f"n_candidates_sl{sl_1}"][p] = count_fits_in_time_window(sl_fits, rows_1, t0_sl_1)
         patterns[f"n_candidates_sl{sl_2}"][p] = count_fits_in_time_window(sl_fits, rows_2, t0_sl_1)
@@ -351,6 +357,8 @@ def build_super_patterns(sl_fits, max_chi2ndf=np.inf, max_alpha=np.deg2rad(60)):
                 patterns[key][p] = sl_fits[key][pairs[p][0]]
         if "sim_id" in sl_fits and sl_fits["sim_id"][pairs[p][0]] != sl_fits["sim_id"][pairs[p][1]]:
             patterns["sim_id_mismatch"][p] = 1
+
+    print(f"HELLO from build_super_patterns(): super patterns prepared")
     return patterns
 
 # -----------------------------------------
