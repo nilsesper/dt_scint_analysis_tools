@@ -25,6 +25,8 @@ def main():
     parser.add_argument("--cuts", type=str, default=None, help="cuts applied before plotting, format \"key1,operator1,value1;key2,operator2,value2;...\"")
     args = parser.parse_args()
 
+    root_utils.check_input_file(args.dt_muons_file)
+    
     ### data import
     cuts = data_utils.parse_cuts(args.cuts)
     keys = []
@@ -81,13 +83,12 @@ def main():
     n_closeby_muon_groups = len(closeby_muon_groups)
 
     ### analyze closeby muons
-    log(f"found {n_closeby_muon_groups} groups of muons that are consecutively closer than {ts_tolerance} ts units in time")
-    #log(f"closeby_muon_groups = {closeby_muon_groups}")
-
+    log(f"found {n_closeby_muon_groups} groups of muons that are consecutively closer than {ts_tolerance} ts units in time:")
     for i, idcs in enumerate(closeby_muon_groups):
         print(f"  closeby muon group {i}: contains {len(idcs)} consecutive muons")
         for idx in idcs:
             print(f"    dt_muon_row={idx}, ts={dt_muons['ts'][idx]}, x0={dt_muons['x0'][idx]}, y0={dt_muons['y0'][idx]}, theta={dt_muons['theta'][idx]}, phi={dt_muons['phi'][idx]}")
+    
 
 if __name__ == "__main__":
     main()
