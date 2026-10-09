@@ -92,9 +92,9 @@ def main():
     sl23_t0_diff = super_fits[f"t0_sl{phi_sl_2}"][phi_superfit_rows] - sl_fits["t0"][theta_sl_fit_rows]
     sl13_t0_diff = super_fits[f"t0_sl{phi_sl_2}"][phi_superfit_rows] - super_fits[f"t0_sl{phi_sl_1}"][phi_superfit_rows]
 
-    sl12_t0_diff /= 0.78 # convert to ns
-    sl23_t0_diff /= 0.78 # convert to ns
-    sl13_t0_diff /= 0.78 # convert to ns
+    sl12_t0_diff *= 0.78 # convert to ns
+    sl23_t0_diff *= 0.78 # convert to ns
+    sl13_t0_diff *= 0.78 # convert to ns
     log(f"sl12_t0_diff: mean={np.mean(sl12_t0_diff)} ns, std={np.std(sl12_t0_diff, ddof=1)} ns")
     log(f"sl23_t0_diff: mean={np.mean(sl23_t0_diff)} ns, std={np.std(sl23_t0_diff, ddof=1)} ns")
     log(f"sl13_t0_diff: mean={np.mean(sl13_t0_diff)} ns, std={np.std(sl13_t0_diff, ddof=1)} ns")

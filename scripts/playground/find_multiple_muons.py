@@ -112,7 +112,7 @@ def main():
         delta_y0[i] = dt_muons["y0"][idx2] - dt_muons["y0"][idx1]
         delta_z0[i] = dt_muons["z0"][idx2] - dt_muons["z0"][idx1]
         delta_ts[i] = dt_muons["ts"][idx2] - dt_muons["ts"][idx1]
-    delta_ts /= 0.78 # convert to ns
+    delta_ts *= 0.78 # convert to ns
 
     # create plots
     plot_utils.plot_histogram(np.rad2deg(delta_theta), "dimuon_delta_theta", args, xlabel="$\\Delta \\theta$ [deg]",

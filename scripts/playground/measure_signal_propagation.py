@@ -104,8 +104,8 @@ def main():
         muon_idcs = np.where((dt_muons_theta_base_point["x0"] >= x0_edges[i]) & (dt_muons_theta_base_point["x0"] < x0_edges[i+1]))
         mean_theta_t0_residual_by_x0[i] = np.mean( theta_t0_residual[muon_idcs] )
         sigma_theta_t0_residual_by_x0[i] = np.std( theta_t0_residual[muon_idcs], ddof=1 )
-    mean_theta_t0_residual_by_x0 /= 0.78 # conversion to ns
-    sigma_theta_t0_residual_by_x0 /= 0.78 # conversion to ns
+    mean_theta_t0_residual_by_x0 *= 0.78 # conversion to ns
+    sigma_theta_t0_residual_by_x0 *= 0.78 # conversion to ns
     ### plot distribution
     fig, ax = plt.subplots()
     ax.errorbar(x0_bins, mean_theta_t0_residual_by_x0, yerr=sigma_theta_t0_residual_by_x0, xerr=np.diff(x0_edges)/4, linestyle="")
@@ -156,8 +156,8 @@ def main():
         muon_idcs = np.where((dt_muons_phi1_base_point["y0"] >= y0_edges[i]) & (dt_muons_phi1_base_point["y0"] < y0_edges[i+1]))
         mean_phi1_t0_residual_by_y0[i] = np.mean( phi1_t0_residual[muon_idcs] )
         sigma_phi1_t0_residual_by_y0[i] = np.std( phi1_t0_residual[muon_idcs], ddof=1 )
-    mean_phi1_t0_residual_by_y0 /= 0.78 # conversion to ns
-    sigma_phi1_t0_residual_by_y0 /= 0.78 # conversion to ns
+    mean_phi1_t0_residual_by_y0 *= 0.78 # conversion to ns
+    sigma_phi1_t0_residual_by_y0 *= 0.78 # conversion to ns
     ### plot distribution
     fig, ax = plt.subplots()
     ax.errorbar(y0_bins, mean_phi1_t0_residual_by_y0, yerr=sigma_phi1_t0_residual_by_y0, xerr=np.diff(y0_edges)/4, linestyle="")
@@ -208,8 +208,8 @@ def main():
         muon_idcs = np.where((dt_muons_phi2_base_point["y0"] >= y0_edges[i]) & (dt_muons_phi2_base_point["y0"] < y0_edges[i+1]))
         mean_phi2_t0_residual_by_y0[i] = np.mean( phi2_t0_residual[muon_idcs] )
         sigma_phi2_t0_residual_by_y0[i] = np.std( phi2_t0_residual[muon_idcs], ddof=1 )
-    mean_phi2_t0_residual_by_y0 /= 0.78 # conversion to ns
-    sigma_phi2_t0_residual_by_y0 /= 0.78 # conversion to ns
+    mean_phi2_t0_residual_by_y0 *= 0.78 # conversion to ns
+    sigma_phi2_t0_residual_by_y0 *= 0.78 # conversion to ns
     ### plot distribution
     fig, ax = plt.subplots()
     ax.errorbar(y0_bins, mean_phi2_t0_residual_by_y0, yerr=sigma_phi2_t0_residual_by_y0, xerr=np.diff(y0_edges)/4, linestyle="")
