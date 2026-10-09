@@ -23,7 +23,10 @@ def main():
     parser = argparse.ArgumentParser(description="Track maps, projections, 3d view and timing plots of dt muons.")
     parser.add_argument("--dt_muons_file", type=str, required=True, help="input file path: dt muons (.root)")
     parser.add_argument("--cuts", type=str, default=None, help="cuts applied before plotting, format \"key1,operator1,value1;key2,operator2,value2;...\"")
+    parser.add_argument("--n_bins", type=int, default=50, help="number of bins of the 1d histograms")
+    plot_utils.add_plot_arguments(parser)
     args = parser.parse_args()
+    plot_utils.check_plot_arguments(parser, args)
 
     root_utils.check_input_file(args.dt_muons_file)
     
@@ -82,13 +85,50 @@ def main():
         start = None
     n_closeby_muon_groups = len(closeby_muon_groups)
 
-    ### analyze closeby muons
-    log(f"found {n_closeby_muon_groups} groups of muons that are consecutively closer than {ts_tolerance} ts units in time:")
-    for i, idcs in enumerate(closeby_muon_groups):
-        print(f"  closeby muon group {i}: contains {len(idcs)} consecutive muons")
-        for idx in idcs:
-            print(f"    dt_muon_row={idx}, ts={dt_muons['ts'][idx]}, x0={dt_muons['x0'][idx]}, y0={dt_muons['y0'][idx]}, theta={dt_muons['theta'][idx]}, phi={dt_muons['phi'][idx]}")
+    log(f"found {n_closeby_muon_groups} groups of muons that are consecutively closer than {ts_tolerance} ts units in time")
+    # print more info on all of them
+    # for i, idcs in enumerate(closeby_muon_groups):
+    #     print(f"  closeby muon group {i}: contains {len(idcs)} consecutive muons")
+    #     for idx in idcs:
+    #         print(f"    dt_muon_row={idx}, ts={dt_muons['ts'][idx]}, x0={dt_muons['x0'][idx]}, y0={dt_muons['y0'][idx]}, theta={dt_muons['theta'][idx]}, phi={dt_muons['phi'][idx]}")
+
+    ### select groups with exactly 2 muons
+    closeby_dimuon_groups = []
+    for i in range(n_closeby_muon_groups):
+        if len(closeby_muon_groups[i]) == 2:
+            closeby_dimuon_groups.append(closeby_muon_groups[i])
+    log(f"found {n_closeby_muon_groups} groups of exactly two muons that are consecutively closer than {ts_tolerance} ts units in time")
+    n_closeby_dimuon_groups = len(closeby_dimuon_groups)
+
+    ### analyze dimuons
+    delta_theta, delta_phi = np.zeros(n_closeby_dimuon_groups), np.zeros(n_closeby_dimuon_groups)
+    delta_x0, delta_y0, delta_z0 = np.zeros(n_closeby_dimuon_groups), np.zeros(n_closeby_dimuon_groups), np.zeros(n_closeby_dimuon_groups)
+    delta_ts = np.zeros(n_closeby_dimuon_groups)
+    for i in range(n_closeby_dimuon_groups):
+        idx1, idx2 = closeby_dimuon_groups[i]
+        delta_theta[i] = dt_muons["theta"][idx2] - dt_muons["theta"][idx1]
+        delta_phi[i] = dt_muons["phi"][idx2] - dt_muons["phi"][idx1]
+        delta_x0[i] = dt_muons["x0"][idx2] - dt_muons["x0"][idx1]
+        delta_y0[i] = dt_muons["y0"][idx2] - dt_muons["y0"][idx1]
+        delta_z0[i] = dt_muons["z0"][idx2] - dt_muons["z0"][idx1]
+        delta_ts[i] = dt_muons["ts"][idx2] - dt_muons["ts"][idx1]
+    delta_ts /= 0.78 # convert to ns
+
+    # create plots
+    plot_utils.plot_histogram(np.rad2deg(delta_theta), "dimuon_delta_theta", args, xlabel="$\\Delta \\theta$ [deg]",
+        full_range=True, log_scale=False, bin_unit="deg")
+    plot_utils.plot_histogram(np.rad2deg(delta_phi), "dimuon_delta_phi", args, xlabel="$\\Delta \\Phi$ [deg]",
+        full_range=True, log_scale=False, bin_unit="deg")
+    plot_utils.plot_histogram(delta_x0, "dimuon_delta_x0", args, xlabel="$\\Delta x_0$ [mm]",
+        full_range=True, log_scale=False, bin_unit="mm")
+    plot_utils.plot_histogram(delta_y0, "dimuon_delta_y0", args, xlabel="$\\Delta y_0$ [mm]",
+        full_range=True, log_scale=False, bin_unit="mm")
+    plot_utils.plot_histogram(delta_z0, "dimuon_delta_z0", args, xlabel="$\\Delta z_0$ [mm]",
+        full_range=True, log_scale=False, bin_unit="mm")
+    plot_utils.plot_histogram(delta_ts, "dimuon_delta_ts", args, xlabel="$\\Delta T$ [ns]",
+        full_range=True, log_scale=False, bin_unit="ns")
     
+
 
 if __name__ == "__main__":
     main()
