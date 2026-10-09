@@ -43,10 +43,11 @@ def add_colorbar(fig, ax, im_obj, label):
     cbar.set_label(label)
 
 ### one 1d histogram over the full range of the data, stored as plot_name
-def plot_one_histogram(data, xlabel, plot_name, args, scale=1.0, bin_unit=None, log_scale=False, full_range=True):
+def plot_one_histogram(data, xlabel, plot_name, args, scale=1.0, bin_unit=None, log_scale=False, full_range=True, weights=None, edges=None):
     fig, ax = plt.subplots(1, 1, figsize=(12, 8))
-    edges = plot_utils.choose_edges(data, n_bins=args.n_bins, full_range=full_range)
-    plot_utils.draw_histogram(ax, data, edges, xlabel=xlabel, log_scale=log_scale, bin_unit=bin_unit, scale=scale)
+    if edges is None:
+        edges = plot_utils.choose_edges(data, n_bins=args.n_bins, full_range=full_range)
+    plot_utils.draw_histogram(ax, data, edges, xlabel=xlabel, log_scale=log_scale, bin_unit=bin_unit, scale=scale, weights=weights)
     fig.tight_layout()
     plot_utils.save_figure(fig, plot_name, args)
 
@@ -238,8 +239,15 @@ def main(argv=None):
     with mpl.rc_context({'font.family': 'sans-serif', 'font.size': 20}):
         ### angles
         plot_one_histogram(np.rad2deg(dt_muons["theta"]), "Polar angle $\\theta$ [deg]", "dt_muons_theta_deg", args, bin_unit="deg")
+        theta_edges = np.linspace(0, 70, 50)
+        theta_centers = (theta_edges[:-1] + theta_edges[1:]) / 2
+        sin_theta_weights = 1/np.sin(np.deg2rad(theta_centers))
+        print(theta_edges, sin_theta_weights)
+        plot_one_histogram(np.rad2deg(dt_muons["theta"]), "Polar angle $\\theta$ weighted with $1/{\\sin\\theta}$ [deg]", "dt_muons_theta_sin_weighted_deg", args, bin_unit="deg", edges=theta_edges, weights=sin_theta_weights)
         plot_one_histogram(np.rad2deg(dt_muons["phi"]), "Azimuthal angle $\\phi$ [deg]", "dt_muons_phi_deg", args, bin_unit="deg")
         # projected angles in the x-z and y-z planes
+        tan_alpha_x = np.tan(dt_muons["theta"]) * np.cos(dt_muons["phi"])
+        tan_alpha_y = np.tan(dt_muons["theta"]) * np.sin(dt_muons["phi"])
         plot_one_histogram(np.rad2deg(np.arctan(tan_alpha_x)), "Projected angle in the $x$-$z$ plane [deg]", "dt_muons_angle_xz_deg", args, bin_unit="deg")
         plot_one_histogram(np.rad2deg(np.arctan(tan_alpha_y)), "Projected angle in the $y$-$z$ plane [deg]", "dt_muons_angle_yz_deg", args, bin_unit="deg")
         ### arrival times since the first muon

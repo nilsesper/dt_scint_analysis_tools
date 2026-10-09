@@ -129,7 +129,7 @@ def choose_edges(data, *, n_bins=50, full_range=False, range_percentiles=(0.5, 9
 
 ### calculate and draw one histogram with statistical uncertainty and info box into ax
 # returns (hist, edges, entries, underflow, overflow)
-def draw_histogram(ax, data, edges, *, xlabel="", log_scale=False, info_loc="top right", bin_unit=None, scale=1.0):
+def draw_histogram(ax, data, edges, *, xlabel="", log_scale=False, info_loc="top right", bin_unit=None, scale=1.0, weights=None):
     centers = hist_utils.centers_from_edges(edges)
     hist, _, _, entries, underflow, overflow, hist_err_right, hist_err_left = \
         hist_utils.calculate_histogram_and_shifted_histograms(data=data, edges=edges)
@@ -138,6 +138,7 @@ def draw_histogram(ax, data, edges, *, xlabel="", log_scale=False, info_loc="top
     hist_utils.plot_histogram(
         ax=ax, hist=hist, centers=centers * scale, err_hist=err_hist, log_scale=log_scale, add_info=True,
         entries=int(entries), overflow=int(overflow), underflow=int(underflow), bin_unit=bin_unit, info_loc=info_loc, power_limits=[-3, 4],
+        weights=weights,
     )
     ax.set_xlabel(xlabel)
     return hist, edges, int(entries), int(underflow), int(overflow)

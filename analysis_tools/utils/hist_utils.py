@@ -106,8 +106,17 @@ def calculate_hist_uncertainty(hist, *, hist_err_right=None, hist_err_left=None,
 # give hist to plot
 # optionally give err_hist (symm errors)
 # or err_hist_down and err_hist_up (asymm errors)
-def plot_histogram(ax, hist, centers, *, err_hist=None, err_hist_down=None, err_hist_up=None, log_scale=False, power_limits=[-2, 2], add_info=False, overflow=None, underflow=None, entries=None, bin_unit=None, bin_width_digits=3, set_y_label=True, info_font_size=params._info_font_size, info_loc="top right", bool_plus_label = False, pluslabel = ""):
+def plot_histogram(ax, hist, centers, *, err_hist=None, err_hist_down=None, err_hist_up=None, log_scale=False, power_limits=[-2, 2], add_info=False, overflow=None, underflow=None, entries=None, bin_unit=None, bin_width_digits=3, set_y_label=True, info_font_size=params._info_font_size, info_loc="top right", bool_plus_label = False, pluslabel = "", weights=None):
     barwidth = np.mean(np.diff(centers))
+    # apply weights
+    if weights is None:
+        weights = np.ones(np.shape(hist))
+    else:
+        if np.shape(weights) != np.shape(hist):
+            raise Exception(f"Expect hits weights of same shape as hist {np.shape(hist)}, not {np.shape(weights)}")
+        weights = np.array(weights)
+    hist = weights*hist
+    # plot
     ax.bar(centers, hist, width=barwidth, align="center", facecolor="tab:blue")
     # if up down errors given
     if type(err_hist_down) != type(None) and type(err_hist_up) != type(None):
