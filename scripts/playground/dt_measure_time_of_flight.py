@@ -1,5 +1,5 @@
 #################################################################
-### analysis of signal propagation along the wire
+### measure dt muon time of flight
 #################################################################
 
 import argparse

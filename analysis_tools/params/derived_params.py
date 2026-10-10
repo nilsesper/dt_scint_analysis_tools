@@ -50,6 +50,27 @@ for ro_ch in _dt_ro_chs:
             _dt_inverted_remap_table[sl][ly] = {}
         _dt_inverted_remap_table[sl][ly][wi] = {"ch": ch, "ro_ch": ro_ch, "conn_id": cell["conn_id"], "fe_id": cell["fe_id"], "ch_id": cell["ch_id"]}
 
+### SiPM channels of the scintillator: {ro_ch: {ch: {"ly", "st", "sipm", "ch_id"}}}
+# ch_id: index of the channel in the mezzanine mapping (params._raw_scint_mapping)
+_raw_scint_ro_chs = list(params._raw_scint_mapping.keys())
+_raw_scint_remap_table = {}
+for ro_ch in _raw_scint_ro_chs:
+    _raw_scint_remap_table[ro_ch] = {}
+    for ch_id, channel in enumerate(params._raw_scint_mapping[ro_ch].values()):
+        _raw_scint_remap_table[ro_ch][channel["ch"]] = {"ly": channel["ly"], "st": channel["st"], "sipm": channel["sipm"], "ch_id": ch_id}
+
+### channel of a SiPM: {ly: {st: {sipm: {"ro_ch", "ch", "ch_id"}}}}
+_raw_scint_inverted_remap_table = {}
+for ro_ch in _raw_scint_ro_chs:
+    for ch in _raw_scint_remap_table[ro_ch]:
+        sipm_info = _raw_scint_remap_table[ro_ch][ch]
+        ly, st, sipm = sipm_info["ly"], sipm_info["st"], sipm_info["sipm"]
+        if ly not in _raw_scint_inverted_remap_table:
+            _raw_scint_inverted_remap_table[ly] = {}
+        if st not in _raw_scint_inverted_remap_table[ly]:
+            _raw_scint_inverted_remap_table[ly][st] = {}
+        _raw_scint_inverted_remap_table[ly][st][sipm] = {"ro_ch": ro_ch, "ch": ch, "ch_id": sipm_info["ch_id"]}
+
 # -----------------------------------------
 ### units
 # -----------------------------------------

@@ -119,7 +119,7 @@ def main():
     ax.errorbar(x0_bins, mean_theta_t0_residual_by_x0, yerr=sigma_theta_t0_residual_by_x0, xerr=np.diff(x0_edges)/4, linestyle="", label="data")
     def f_fit(x, a, b):
         return a*x+b
-    popt, pcov = scipy.optimize.curve_fit(f_fit, x0_bins, mean_theta_t0_residual_by_x0, p0=[0.01,0], absolute_sigma=True)
+    popt, pcov = scipy.optimize.curve_fit(f_fit, x0_bins, mean_theta_t0_residual_by_x0, sigma=sigma_theta_t0_residual_by_x0, p0=[0.01,0], absolute_sigma=True)
     inv_v_prop, t_offset = popt
     v_prop = 1/inv_v_prop
     v_prop_conv = v_prop*1e6 # conversion to m/s
@@ -170,7 +170,7 @@ def main():
     ax.errorbar(y0_bins, mean_phi1_t0_residual_by_y0, yerr=sigma_phi1_t0_residual_by_y0, xerr=np.diff(y0_edges)/4, linestyle="", label="data")
     def f_fit(x, a, b):
         return a*x+b
-    popt, pcov = scipy.optimize.curve_fit(f_fit, y0_bins, mean_phi1_t0_residual_by_y0, p0=[0.01,0], absolute_sigma=True)
+    popt, pcov = scipy.optimize.curve_fit(f_fit, y0_bins, mean_phi1_t0_residual_by_y0, sigma=sigma_phi1_t0_residual_by_y0, p0=[0.01,0], absolute_sigma=True)
     inv_v_prop, t_offset = popt
     v_prop = 1/inv_v_prop
     v_prop_conv = v_prop*1e6 # conversion to m/s
@@ -221,7 +221,7 @@ def main():
     ax.errorbar(y0_bins, mean_phi2_t0_residual_by_y0, yerr=sigma_phi2_t0_residual_by_y0, xerr=np.diff(y0_edges)/4, linestyle="", label="data")
     def f_fit(x, a, b):
         return a*x+b
-    popt, pcov = scipy.optimize.curve_fit(f_fit, y0_bins, mean_phi2_t0_residual_by_y0, p0=[0.01,0], absolute_sigma=True)
+    popt, pcov = scipy.optimize.curve_fit(f_fit, y0_bins, mean_phi2_t0_residual_by_y0, sigma=sigma_phi2_t0_residual_by_y0, p0=[0.01,0], absolute_sigma=True)
     inv_v_prop, t_offset = popt
     v_prop = 1/inv_v_prop
     v_prop_conv = v_prop*1e6 # conversion to m/s

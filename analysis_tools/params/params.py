@@ -216,6 +216,64 @@ _dt_dead_wires = { # sl: ly: [wire_ids] these wires are dead, no signal is expec
 }
 
 ###############################
+### SCINTILLATOR (SiPM hodoscope below the chamber)
+###############################
+# 2 layers of 16 strips each, every strip is read out by 2 SiPMs (sipm 0 and sipm 1), one at each end.
+# Layer 0: strips along x, numbered along y ("theta" orientation, measures y like SL 2).
+# Layer 1: strips along y, numbered along x ("phi" orientation, measures x like SL 1 / SL 3).
+# Positions in the chamber frame (see above). Measured: the upper corner of the scintillator with the smallest x, y is
+# 760 mm (x) / 1170 mm (y) from the SL 1 / SL 2 casing edge and 990 mm below SL 1; strips 30 mm wide, 500 mm long,
+# 5 mm thick, 20/15 mm gap between strips. Strip st of a layer: strip_0 shifted by st * pitch along the measured axis
+# (pitch < 0: the strip numbers grow towards smaller x / y).
+_scint_strip_pitch = 30 + 20/15  # mm, strip width + gap
+_scintillator = {
+    "name": "SiPM hodoscope, 2 layers x 16 strips",
+    "lys": {
+        0: {"orient": "theta", "n_sts": 16, "strip_size": (500, 30, 5), "strip_0": (752.667, 1672.967, -978.5), "pitch": -_scint_strip_pitch},
+        1: {"orient": "phi",   "n_sts": 16, "strip_size": (30, 500, 5), "strip_0": (1222.667, 1202.967, -953.5), "pitch": -_scint_strip_pitch},
+    },
+}
+
+### readout of the SiPMs: mezzanine boards in "no coincidence" mode (every SiPM is its own channel = raw scint hit)
+# {name: {"ch": channel of the mezzanine, "ly": layer, "st": strip, "sipm": 0 or 1}}; mapping valid since 09-11-2025
+_mezzanine_1_fe_mapping_no_coinc = { # one sipm of all strips
+    f"coinc_ch_{i}": {"ly": 0, "st": 0+i, "ch": i, "sipm": 0} for i in range(0, 8)
+} | {
+    f"coinc_ch_{8+i}": {"ly": 0, "st": 8+i, "ch": 8+i, "sipm": 0} for i in range(0, 8)
+} | {
+    f"coinc_ch_{16+i}": {"ly": 1, "st": 0+i, "ch": 16+i, "sipm": 1} for i in range(0, 8)
+} | {
+    f"coinc_ch_{24+i}": {"ly": 1, "st": 8+i, "ch": 24+i, "sipm": 1} for i in range(0, 8)
+}
+_mezzanine_2_fe_mapping_no_coinc = { # the other sipm of all strips
+    f"coinc_ch_{i}": {"ly": 1, "st": 0+i, "ch": i, "sipm": 0} for i in range(0, 8)
+} | {
+    f"coinc_ch_{8+i}": {"ly": 1, "st": 8+i, "ch": 8+i, "sipm": 0} for i in range(0, 8)
+} | {
+    f"coinc_ch_{16+i}": {"ly": 0, "st": 0+i, "ch": 16+i, "sipm": 1} for i in range(0, 8)
+} | {
+    f"coinc_ch_{24+i}": {"ly": 0, "st": 8+i, "ch": 24+i, "sipm": 1} for i in range(0, 8)
+}
+# {ro_ch: mezzanine mapping}
+_raw_scint_mapping = {
+    27: _mezzanine_1_fe_mapping_no_coinc, # mez1
+    25: _mezzanine_2_fe_mapping_no_coinc, # mez2
+}
+
+# masked SiPMs {ly: {st: sipm}}: for these strips a hit of the other SiPM alone is taken as strip hit (no coincidence).
+# A strip with one masked SiPM which is not listed here gives no strip hits; a strip with both SiPMs dead: do not list it.
+_scint_masked_sipms = {
+    0: {},
+    1: {},
+}
+
+### scintillator reconstruction
+_raw_scint_hits_grouping_ts_tolerance = 100 # raw scint hits closer in time than this (TU) form one group
+_scintillator_ts_acceptance_interval = 32 # max |ts difference| of the two SiPM hits of a strip hit (TU); 32 TU = 25 ns
+_raw_scintillator_ts_individual_dead_time = 0 # dead time of a single SiPM channel (TU), 0: no dead time cut
+_corr_ts_group_window = 1000 # dt muon - scint hit correlation: max |ts difference| (TU)
+
+###############################
 ### TESTPULSE TIMING CALIBRATION
 ###############################
 # known extra delay of the testpulses per frontend connector, subtracted from the measured testpulse times
@@ -427,6 +485,28 @@ _dt_other_keys = {
     "sim_phi": np.float64, # phi angle (angle relative to x axis, between x and y axis), in rad - of sim muon
 }
 
+# raw scint hits (single SiPM hits): the data word fields (_htg_keys) and
+_raw_scint_keys = {
+    "ly": np.uint8,
+    "st": np.uint8,
+    "sipm": np.uint8,
+    "ch_id": np.uint8, # index of the channel in the mezzanine mapping
+    "ts": _ts_type,
+    "err_ts": np.float64,
+}
+# scint hits (strip hits: coincidence of the two SiPMs of a strip)
+_scint_hit_keys = {
+    "ly": np.uint8,
+    "st": np.uint8,
+    "ts": _ts_type, # mean of the two SiPM hit times
+    "err_ts": np.float64,
+    "sipm_delta_ts": _ts_type, # |ts sipm 0 - ts sipm 1|
+    "sipm_delta_ts_signed": _ts_type, # ts sipm 0 - ts sipm 1
+    "n_raw_hits_group": np.int64, # number of SiPM channels with a hit in the group of raw scint hits
+    "raw_row_sipm0": np.int64, # row of the SiPM 0 hit in the raw scint hits file (-1: masked SiPM)
+    "raw_row_sipm1": np.int64, # row of the SiPM 1 hit in the raw scint hits file (-1: masked SiPM)
+}
+
 _sl_pattern_keys = { # {key: dtype}
     "sl": np.uint8, # sl of pattern in dt chamber
     "pat_type": np.uint8, # index of string name of pattern (index of key of _dt_sl_patterns)
@@ -633,6 +713,10 @@ _key_symbols = {
     "err_phi": "$\\sigma_{\\phi}$",
     "err_theta": "$\\sigma_{\\theta}$",
     "n_hits": "$N_\\text{hits}$",
+    "sipm_delta_ts": "$|\\Delta T_\\text{SiPMs}|$",
+    "sipm_delta_ts_signed": "$T_\\text{SiPM 0} - T_\\text{SiPM 1}$",
+    "delta_ts": "$T_\\text{scint} - T_\\text{DT}$",
+    "dist_to_strip": "Distance of the DT track to the strip",
 }
 
 _key_units = {
@@ -703,4 +787,8 @@ _key_units = {
     "err_phi": "rad",
     "err_theta": "rad",
     "n_hits": "",
+    "sipm_delta_ts": "TU",
+    "sipm_delta_ts_signed": "TU",
+    "delta_ts": "TU",
+    "dist_to_strip": "mm",
 }

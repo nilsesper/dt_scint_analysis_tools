@@ -22,6 +22,8 @@ import uproot
 # -----------------------------------------
 
 DT_HITS_TREE = "dt_hits"    # tree of the dt hit files
+RAW_SCINT_HITS_TREE = "raw_scint_hits"  # tree of the raw scint hit files (single SiPM hits)
+SCINT_HITS_TREE = "scint_hits"          # tree of the scint hit files (strip hits)
 DEFAULT_TREE = "tree"       # tree of all other files
 SUMMARY_TREE = "summary"    # one row with numbers of the whole run (some files)
 CHUNK_ID_KEY = "chunk_id"   # branch with the number of the dt hit chunk a row comes from (see scripts/README.md)

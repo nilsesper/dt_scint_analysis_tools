@@ -254,3 +254,31 @@ All files, trees, branches and histograms: [OUTPUT_FILES.md](../OUTPUT_FILES.md)
 - `data_utils.py`: reading raw dumpfile words, cuts (`cut_data`, `parse_cuts`), sorting, merging, pickle files
 
 `analysis_tools/params/`: `params.py` (all settings), `derived_params.py` (readout lookup tables, unit conversions).
+
+## Scintillator and correlation with the dt muons
+
+```
+dumpfile (.txt)
+  └─ dumpfile_to_raw_scint_hits.py ──► raw_scint_hits.root      (single SiPM hits, same timestamps as the dt hits)
+        └─ raw_scint_hits_to_scint_hits.py ► scint_hits.root     (strip hits: both SiPMs of a strip in coincidence)
+              └─ correlate_dt_muons_and_scint_hits.py ► corr_dt_muons_scint_hits.root   (+ dt_muons.root of the same dumpfile)
+```
+
+```
+python scripts/dumpfile_to_raw_scint_hits.py --input_dumpfile /path/to/run.txt --raw_scint_hits_file $D/run_raw_scint_hits.root
+python scripts/raw_scint_hits_to_scint_hits.py --raw_scint_hits_file $D/run_raw_scint_hits.root --scint_hits_file $D/run_scint_hits.root
+python scripts/correlate_dt_muons_and_scint_hits.py --dt_muons_file $D/run_dt_muons.root --scint_hits_file $D/run_scint_hits.root \
+       --corr_file $D/run_corr_dt_muons_scint_hits.root
+python scripts/plot_scint_hits.py --scint_hits_file $D/run_scint_hits.root --raw_scint_hits_file $D/run_raw_scint_hits.root --store_plots $D/plots/scint
+python scripts/plot_scint_correlation.py --corr_file $D/run_corr_dt_muons_scint_hits.root --dt_muons_file $D/run_dt_muons.root --store_plots $D/plots/corr
+```
+
+- Use the same `--n_lines_to_skip` for `dumpfile_to_raw_scint_hits.py` and `dumpfile_to_dt_hits.py`, so that dt and
+  scint timestamps are made the same way.
+- Strip hits: the raw hits are grouped in time (`params._raw_scint_hits_grouping_ts_tolerance`); in a group a strip is
+  hit if both SiPMs are hit within `params._scintillator_ts_acceptance_interval`. With the isolation criterion (default;
+  off with `--no_isolation`) the layer must have only this hit strip and no other SiPM hit in the group.
+  Optional dead time per SiPM: `--dead_time` (TU).
+- Correlation: every scint hit is paired with the dt muon within `--ts_window` (default `params._corr_ts_group_window`)
+  if there is exactly one dt muon in the window and it is not paired yet.
+- Geometry, readout mapping and settings of the scintillator: section SCINTILLATOR in `params.py`; code: `analysis_tools/utils/scint_hit_utils.py`.
