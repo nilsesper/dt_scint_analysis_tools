@@ -117,7 +117,7 @@ def main():
     for i in tqdm(range(n_bins)):
         muon_idcs = np.where((angle >= angle_edges[i]) & (angle < angle_edges[i+1]))
         mean_sl13_t0_diff_by_theta[i] = np.mean( sl13_t0_diff[muon_idcs] )
-        sigma_sl13_t0_diff_by_theta[i] = np.std( sl13_t0_diff[muon_idcs], ddof=1 )
+        sigma_sl13_t0_diff_by_theta[i] = np.std( sl13_t0_diff[muon_idcs], ddof=1 ) / np.sqrt( len(sl13_t0_diff[muon_idcs]) )
     ### plot distribution
     fig, ax = plt.subplots()
     ax.errorbar(np.rad2deg(angle_bins), mean_sl13_t0_diff_by_theta, yerr=sigma_sl13_t0_diff_by_theta, xerr=np.diff(np.rad2deg(angle_edges))/4, linestyle="")

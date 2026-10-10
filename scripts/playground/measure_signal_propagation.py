@@ -82,6 +82,8 @@ def main():
     super_fits = root_utils.read_tree(args.super_fits_file, root_utils.DEFAULT_TREE, branches=keys)
     log("loading done")
 
+    n_bins = 20 #50
+
     #################################
     ### ANALYZE FOR THETA SL
     #################################
@@ -95,7 +97,6 @@ def main():
     dt_muons_theta_base_point = muon_utils.change_muon_base_point(muons=dt_muons, z_new=theta_sl_central_z)
 
     ### calculate binned distribution: phi-sensitive coordinate vs. theta residual
-    n_bins = 50
     x0_edges = np.linspace(np.amin(dt_muons["x0"])-1, np.amax(dt_muons["x0"])+1, n_bins+1)
     x0_bins = (x0_edges[:-1] + x0_edges[1:]) / 2
     mean_theta_t0_residual_by_x0 = np.zeros(n_bins)
@@ -103,7 +104,7 @@ def main():
     for i in tqdm(range(n_bins)):
         muon_idcs = np.where((dt_muons_theta_base_point["x0"] >= x0_edges[i]) & (dt_muons_theta_base_point["x0"] < x0_edges[i+1]))
         mean_theta_t0_residual_by_x0[i] = np.mean( theta_t0_residual[muon_idcs] )
-        sigma_theta_t0_residual_by_x0[i] = np.std( theta_t0_residual[muon_idcs], ddof=1 )
+        sigma_theta_t0_residual_by_x0[i] = np.std( theta_t0_residual[muon_idcs], ddof=1 ) / np.sqrt( len(theta_t0_residual[muon_idcs]) )
     mean_theta_t0_residual_by_x0 *= 0.78 # conversion to ns
     sigma_theta_t0_residual_by_x0 *= 0.78 # conversion to ns
     ### plot distribution
@@ -147,7 +148,6 @@ def main():
     dt_muons_phi1_base_point = muon_utils.change_muon_base_point(muons=dt_muons, z_new=phi1_sl_central_z)
 
     ### calculate binned distribution: phi-sensitive coordinate vs. theta residual
-    n_bins = 50
     y0_edges = np.linspace(np.amin(dt_muons["y0"])-1, np.amax(dt_muons["y0"])+1, n_bins+1)
     y0_bins = (y0_edges[:-1] + y0_edges[1:]) / 2
     mean_phi1_t0_residual_by_y0 = np.zeros(n_bins)
@@ -155,7 +155,7 @@ def main():
     for i in tqdm(range(n_bins)):
         muon_idcs = np.where((dt_muons_phi1_base_point["y0"] >= y0_edges[i]) & (dt_muons_phi1_base_point["y0"] < y0_edges[i+1]))
         mean_phi1_t0_residual_by_y0[i] = np.mean( phi1_t0_residual[muon_idcs] )
-        sigma_phi1_t0_residual_by_y0[i] = np.std( phi1_t0_residual[muon_idcs], ddof=1 )
+        sigma_phi1_t0_residual_by_y0[i] = np.std( phi1_t0_residual[muon_idcs], ddof=1 ) / np.sqrt( len(phi1_t0_residual[muon_idcs]) )
     mean_phi1_t0_residual_by_y0 *= 0.78 # conversion to ns
     sigma_phi1_t0_residual_by_y0 *= 0.78 # conversion to ns
     ### plot distribution
@@ -199,7 +199,6 @@ def main():
     dt_muons_phi2_base_point = muon_utils.change_muon_base_point(muons=dt_muons, z_new=phi2_sl_central_z)
 
     ### calculate binned distribution: phi-sensitive coordinate vs. theta residual
-    n_bins = 50
     y0_edges = np.linspace(np.amin(dt_muons["y0"])-1, np.amax(dt_muons["y0"])+1, n_bins+1)
     y0_bins = (y0_edges[:-1] + y0_edges[1:]) / 2
     mean_phi2_t0_residual_by_y0 = np.zeros(n_bins)
@@ -207,7 +206,7 @@ def main():
     for i in tqdm(range(n_bins)):
         muon_idcs = np.where((dt_muons_phi2_base_point["y0"] >= y0_edges[i]) & (dt_muons_phi2_base_point["y0"] < y0_edges[i+1]))
         mean_phi2_t0_residual_by_y0[i] = np.mean( phi2_t0_residual[muon_idcs] )
-        sigma_phi2_t0_residual_by_y0[i] = np.std( phi2_t0_residual[muon_idcs], ddof=1 )
+        sigma_phi2_t0_residual_by_y0[i] = np.std( phi2_t0_residual[muon_idcs], ddof=1 ) / np.sqrt( len(phi2_t0_residual[muon_idcs]) )
     mean_phi2_t0_residual_by_y0 *= 0.78 # conversion to ns
     sigma_phi2_t0_residual_by_y0 *= 0.78 # conversion to ns
     ### plot distribution
