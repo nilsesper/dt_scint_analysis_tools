@@ -3,6 +3,7 @@
 # - delta_ts = ts scint - ts dt: full range, and a close-up with a Gaussian fit of the peak
 # - distance of the dt track to the hit strip, per layer
 # - dt muons at the height of the scintillator (x-y), matched ones and (with --dt_muons_file) all of them
+# - the same muons in the x-z and y-z view, with the dt chamber and the scintillator strips
 #
 # example:
 #   python scripts/plot_scint_correlation.py --corr_file out/run_corr_dt_muons_scint_hits.root \
@@ -87,6 +88,46 @@ def plot_muons_at_scintillator(dt_muons, name, title, args):
     fig.tight_layout()
     plot_utils.save_figure(fig, name, args)
 
+### dt muons in the x-z ("phi") and y-z ("theta") view, with the dt chamber and the scintillator strips in the frame
+# The tracks are drawn at every height z: counts per bin of the position at this z, summed over the other coordinate.
+def plot_muons_xz_yz(dt_muons, name, title, args):
+    scint_box = scint_hit_utils.scintillator_box()
+    z_axis = dt_chamber_utils.Z
+    margin, bin_width = 100, 5
+    z_low = min(dt_chamber_utils.superlayers_range(z_axis)[0], scint_box["low"][z_axis]) - margin
+    z_high = max(dt_chamber_utils.superlayers_range(z_axis)[1], scint_box["high"][z_axis]) + margin
+    z_edges = np.arange(z_low, z_high + bin_width, bin_width)
+    z_centers = (z_edges[:-1] + z_edges[1:]) / 2
+    for orient, view_name, other_name in (("phi", "xz", "y"), ("theta", "yz", "x")):
+        h_axis = dt_chamber_utils.MEASURED_AXIS[orient]
+        h_low = min(dt_chamber_utils.superlayers_range(h_axis)[0], scint_box["low"][h_axis]) - margin
+        h_high = max(dt_chamber_utils.superlayers_range(h_axis)[1], scint_box["high"][h_axis]) + margin
+        h_edges = np.arange(h_low, h_high + bin_width, bin_width)
+        counts = np.zeros((len(z_centers), len(h_edges) - 1))
+        for i, z in enumerate(z_centers):
+            h = dt_chamber_utils.muon_track_position(orient, z, dt_muons["x0"], dt_muons["y0"], dt_muons["z0"], dt_muons["theta"], dt_muons["phi"])
+            counts[i], _ = np.histogram(h, bins=h_edges)
+        fig, ax = plt.subplots(1, 1, figsize=(11 if orient == "phi" else 12, 6))
+        im_obj = ax.imshow(counts, origin="lower", extent=[h_edges[0], h_edges[-1], z_edges[0], z_edges[-1]])
+        plot_utils.draw_chamber(ax, orient, transparent=True)
+        ax.plot([], [], color="white", label="dt chamber")
+        for ly in scint_hit_utils.layers():
+            color = ["white", "tab:orange"][ly % 2]
+            strips = scint_hit_utils.strips(ly)
+            if scint_hit_utils.measured_axis(ly) != h_axis:
+                strips = [0]  # the strips of this layer lie behind each other in this view: one box for the layer
+            for st in strips:
+                ax.add_patch(plot_utils.box_rectangle(scint_hit_utils.strip_box(ly, st), h_axis, z_axis, edgecolor=color, facecolor="none"))
+            ax.plot([], [], color=color, label=f"scintillator strips layer {ly}")
+        ax.legend(loc="center left", fontsize=10, facecolor="black", framealpha=0.6, labelcolor="white")
+        ax.set_xlabel(f"${view_name[0]}$ [mm]")
+        ax.set_ylabel("$z$ [mm]")
+        ax.set_title(title)
+        cbar = fig.colorbar(im_obj, ax=ax, fraction=0.05)
+        cbar.set_label(f"Counts for each $z$ height\n(cumulated over ${other_name}$)")
+        fig.tight_layout()
+        plot_utils.save_figure(fig, f"{name}_{view_name}", args)
+
 def main():
     parser = argparse.ArgumentParser(description="Plots of the correlation of dt muons and scint hits.")
     parser.add_argument("--corr_file", type=str, required=True, help="input file path: correlation (.root, from correlate_dt_muons_and_scint_hits.py)")
@@ -127,6 +168,8 @@ def main():
             matched[key] = dt_muons[key][corr["dt_muon_row"]]
         plot_muons_at_scintillator(matched, "corr_matched_dt_muons_xy", "Matched dt muons", args)
         plot_muons_at_scintillator(dt_muons, "corr_all_dt_muons_xy", "All dt muons", args)
+        plot_muons_xz_yz(matched, "corr_matched_dt_muons", "Matched dt muons", args)
+        plot_muons_xz_yz(dt_muons, "corr_all_dt_muons", "All dt muons", args)
     plot_utils.show_figures(args)
 
 if __name__ == "__main__":
