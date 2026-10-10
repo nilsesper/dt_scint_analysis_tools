@@ -87,8 +87,15 @@ def main():
     ### calculate time difference between consecutive sls
     dt_scint_ts_diff = corr["ts_scint"] - corr["ts_dt"]
     dt_theta = dt_muons["theta"][dt_muons_rows]
+    dist_to_strip = corr["dist_to_strip"]
 
     dt_scint_ts_diff *= 0.78 # convert to ns
+
+    ### restrict to peak
+    muon_idcs = np.where((dt_scint_ts_diff >= -80) & (dt_scint_ts_diff <= -30) & (np.abs(dist_to_strip) < 20))
+    dt_scint_ts_diff = dt_scint_ts_diff[muon_idcs]
+    dt_theta = dt_theta[muon_idcs]
+
     log(f"dt_scint_ts_diff: mean={np.mean(dt_scint_ts_diff)} ns, std={np.std(dt_scint_ts_diff, ddof=1)} ns")
 
     plot_utils.plot_histogram(dt_scint_ts_diff, "dt_scint_ts_diff", args, xlabel="time difference Scint $-$ DT [ns]",
@@ -96,8 +103,8 @@ def main():
 
     ### calculate binned distribution: reco muon angle vs. time difference
     angle = dt_theta
-    n_bins = 50
-    angle_edges = np.linspace(np.amin(angle)-1, np.amax(angle)+1, n_bins+1)
+    n_bins = 10
+    angle_edges = np.linspace(np.deg2rad(2), np.deg2rad(50), n_bins+1)
     bin_width = angle_edges[1]-angle_edges[0]
     angle_bins = (angle_edges[:-1] + angle_edges[1:]) / 2
     mean_sl13_t0_diff_by_theta = np.zeros(n_bins)
@@ -106,8 +113,6 @@ def main():
         muon_idcs = np.where((angle >= angle_edges[i]) & (angle < angle_edges[i+1]))
         mean_sl13_t0_diff_by_theta[i] = np.mean( dt_scint_ts_diff[muon_idcs] )
         sigma_sl13_t0_diff_by_theta[i] = np.std( dt_scint_ts_diff[muon_idcs], ddof=1 ) / np.sqrt( len(dt_scint_ts_diff[muon_idcs]) )
-    mean_sl13_t0_diff_by_theta *= 0.78 # convert to ns
-    sigma_sl13_t0_diff_by_theta *= 0.78 # convert to ns
     # remove nan
     good_bins = ~(np.isnan(mean_sl13_t0_diff_by_theta) | np.isnan(sigma_sl13_t0_diff_by_theta))
     mean_sl13_t0_diff_by_theta = mean_sl13_t0_diff_by_theta[good_bins]
@@ -160,7 +165,7 @@ def main():
     plot_utils.save_figure(fig, f"mean_dt_scint_ts_diff_by_1_cos_theta_fit", args)
 
     log(f"a_val = h / v_muon ~ 1m / v_muon")
-    log(f"v_muon ~ {1e3/(a_val*1e-9):.4e} m/s")
+    log(f"v_muon ~ {1/(a_val*1e-9):.4e} m/s")
 
 if __name__ == "__main__":
     main()
