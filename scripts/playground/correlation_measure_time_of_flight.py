@@ -101,7 +101,7 @@ def main():
     plot_utils.plot_histogram(dt_scint_ts_diff, "dt_scint_ts_diff", args, xlabel="time difference Scint $-$ DT [ns]",
         full_range=True, log_scale=False, bin_unit="ns")
 
-    ### calculate binned distribution: reco muon angle vs. time difference
+    ### calculate binned distribution
     angle = dt_theta
     n_bins = 10
     angle_edges = np.linspace(np.deg2rad(2), np.deg2rad(50), n_bins+1)
