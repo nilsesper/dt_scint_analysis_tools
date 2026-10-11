@@ -24,9 +24,11 @@ theta_sl = dt_chamber_utils.theta_superlayer()
 phi_sl_1, phi_sl_2 = dt_chamber_utils.phi_superlayers()
 MUON_KEYS = ["x0", "y0", "z0", "theta", "phi", "ts"] + [f"super_fit_row", f"sl{theta_sl}_fit_row"]
 
+script_prefix = "dt_wireprop"
+
 @mpl.rc_context({'font.family': 'sans-serif', 'font.size': 16})
 def main():
-    parser = argparse.ArgumentParser(description="Track maps, projections, 3d view and timing plots of dt muons.")
+    parser = argparse.ArgumentParser(description="")
     parser.add_argument("--sl_fits_file", type=str, required=True, help="input file path: cut sl fits the muons were made from (.root)")
     parser.add_argument("--super_fits_file", type=str, required=True, help="input file path: cut super fits the muons were made from (.root)")
     parser.add_argument("--dt_muons_file", type=str, required=True, help="input file path: dt muons (.root)")
@@ -113,7 +115,7 @@ def main():
     ax.set_xlabel(f"reco position (along theta wire) $x_0$ [mm]")
     ax.set_ylabel(f"reco reference $T$ $-$ theta sl fit $T_0$ [ns]")
     fig.tight_layout()
-    plot_utils.save_figure(fig, f"mean_theta_t0_residual_by_x0", args)
+    plot_utils.save_figure(fig, f"{script_prefix}_mean_theta_t0_residual_by_x0", args)
     ### perform linear fit
     fig, ax = plt.subplots()
     ax.errorbar(x0_bins, mean_theta_t0_residual_by_x0, yerr=sigma_theta_t0_residual_by_x0, xerr=np.diff(x0_edges)/4, linestyle="", label="data", marker=".")
@@ -121,19 +123,22 @@ def main():
         return a*x+b
     popt, pcov = scipy.optimize.curve_fit(f_fit, x0_bins, mean_theta_t0_residual_by_x0, sigma=sigma_theta_t0_residual_by_x0, p0=[0.01,0], absolute_sigma=True)
     inv_v_prop, t_offset = popt
+    err_inv_vprop, err_t_offset = np.sqrt(pcov[0][0]), np.sqrt(pcov[1][1])
     v_prop = 1/inv_v_prop
+    err_v_prop = 1/inv_v_prop**2 * err_inv_vprop
     v_prop_conv = v_prop*1e6 # conversion to m/s
+    err_v_prop_conv = err_v_prop*1e6 # conversion to m/s
     log("linear fit to mean_theta_t0_residual_by_x0")
-    log(f"  t_offset = {t_offset}")
-    log(f"  inv_v_prop = {inv_v_prop}")
-    log(f"  v_prop = {v_prop}")
+    log(f"  t_offset = {t_offset} +- {err_t_offset}")
+    log(f"  inv_v_prop = {inv_v_prop} +- {err_inv_vprop}")
+    log(f"  v_prop = {v_prop} +- {err_v_prop}")
     x_arr = np.linspace(np.amin(x0_edges), np.amax(x0_edges), num=5000)
-    ax.plot(x_arr, f_fit(x_arr, inv_v_prop, t_offset), color="tab:red", label=f"linear fit:\n$v_\\text{{prop}}={v_prop_conv:.2e}$ m/s\n$t_\\text{{offset}}={t_offset:.1f}$ ns")
+    ax.plot(x_arr, f_fit(x_arr, inv_v_prop, t_offset), color="tab:red", label=f"linear fit $1/v_\\text{{prop}} x+t_\\text{{offset}}$:\n$v_\\text{{prop}}=({v_prop_conv:.2e}\\pm{err_v_prop_conv:.2e})$ m/s\n$t_\\text{{offset}}=({t_offset:.3f}\\pm{err_t_offset:.3f})$ ns")
     ax.set_xlabel(f"reco position (along theta wire) $x_0$ [mm]")
     ax.set_ylabel(f"reco reference $T$ $-$ theta sl fit $T_0$ [ns]")
-    ax.legend()
+    ax.legend(fontsize=12)
     fig.tight_layout()
-    plot_utils.save_figure(fig, f"mean_theta_t0_residual_by_x0_fit", args)
+    plot_utils.save_figure(fig, f"{script_prefix}_mean_theta_t0_residual_by_x0_fit", args)
 
     #################################
     ### ANALYZE FOR PHI 1 SL
@@ -164,7 +169,7 @@ def main():
     ax.set_xlabel(f"reco position (along phi wire) $y_0$ [mm]")
     ax.set_ylabel(f"reco reference $T$ $-$ phi1 sl fit $T_0$ [ns]")
     fig.tight_layout()
-    plot_utils.save_figure(fig, f"mean_phi1_t0_residual_by_y0", args)
+    plot_utils.save_figure(fig, f"{script_prefix}_mean_phi1_t0_residual_by_y0", args)
     ### perform linear fit
     fig, ax = plt.subplots()
     ax.errorbar(y0_bins, mean_phi1_t0_residual_by_y0, yerr=sigma_phi1_t0_residual_by_y0, xerr=np.diff(y0_edges)/4, linestyle="", label="data", marker=".")
@@ -172,19 +177,22 @@ def main():
         return a*x+b
     popt, pcov = scipy.optimize.curve_fit(f_fit, y0_bins, mean_phi1_t0_residual_by_y0, sigma=sigma_phi1_t0_residual_by_y0, p0=[0.01,0], absolute_sigma=True)
     inv_v_prop, t_offset = popt
+    err_inv_vprop, err_t_offset = np.sqrt(pcov[0][0]), np.sqrt(pcov[1][1])
     v_prop = 1/inv_v_prop
+    err_v_prop = 1/inv_v_prop**2 * err_inv_vprop
     v_prop_conv = v_prop*1e6 # conversion to m/s
-    log("linear fit to mean_phi1_t0_residual_by_y0")
-    log(f"  t_offset = {t_offset}")
-    log(f"  inv_v_prop = {inv_v_prop}")
-    log(f"  v_prop = {v_prop}")
-    x_arr = np.linspace(np.amin(y0_edges), np.amax(y0_edges), num=5000)
-    ax.plot(x_arr, f_fit(x_arr, inv_v_prop, t_offset), color="tab:red", label=f"linear fit:\n$v_\\text{{prop}}={v_prop_conv:.2e}$ m/s\n$t_\\text{{offset}}={t_offset:.1f}$ ns")
+    err_v_prop_conv = err_v_prop*1e6 # conversion to m/s
+    log("linear fit to mean_theta_t0_residual_by_x0")
+    log(f"  t_offset = {t_offset} +- {err_t_offset}")
+    log(f"  inv_v_prop = {inv_v_prop} +- {err_inv_vprop}")
+    log(f"  v_prop = {v_prop} +- {err_v_prop}")
+    x_arr = np.linspace(np.amin(x0_edges), np.amax(x0_edges), num=5000)
+    ax.plot(x_arr, f_fit(x_arr, inv_v_prop, t_offset), color="tab:red", label=f"linear fit $1/v_\\text{{prop}} x+t_\\text{{offset}}$:\n$v_\\text{{prop}}=({v_prop_conv:.2e}\\pm{err_v_prop_conv:.2e})$ m/s\n$t_\\text{{offset}}=({t_offset:.3f}\\pm{err_t_offset:.3f})$ ns")
     ax.set_xlabel(f"reco position (along phi wire) $y_0$ [mm]")
     ax.set_ylabel(f"reco reference $T$ $-$ phi1 sl fit $T_0$ [ns]")
-    ax.legend()
+    ax.legend(fontsize=12)
     fig.tight_layout()
-    plot_utils.save_figure(fig, f"mean_phi1_t0_residual_by_y0_fit", args)
+    plot_utils.save_figure(fig, f"{script_prefix}_mean_phi1_t0_residual_by_y0_fit", args)
 
     #################################
     ### ANALYZE FOR PHI 2 SL
@@ -215,7 +223,7 @@ def main():
     ax.set_xlabel(f"reco position (along phi wire) $y_0$ [mm]")
     ax.set_ylabel(f"reco reference $T$ $-$ phi2 sl fit $T_0$ [ns]")
     fig.tight_layout()
-    plot_utils.save_figure(fig, f"mean_phi2_t0_residual_by_y0", args)
+    plot_utils.save_figure(fig, f"{script_prefix}_mean_phi2_t0_residual_by_y0", args)
     ### perform linear fit
     fig, ax = plt.subplots()
     ax.errorbar(y0_bins, mean_phi2_t0_residual_by_y0, yerr=sigma_phi2_t0_residual_by_y0, xerr=np.diff(y0_edges)/4, linestyle="", label="data", marker=".")
@@ -223,19 +231,22 @@ def main():
         return a*x+b
     popt, pcov = scipy.optimize.curve_fit(f_fit, y0_bins, mean_phi2_t0_residual_by_y0, sigma=sigma_phi2_t0_residual_by_y0, p0=[0.01,0], absolute_sigma=True)
     inv_v_prop, t_offset = popt
+    err_inv_vprop, err_t_offset = np.sqrt(pcov[0][0]), np.sqrt(pcov[1][1])
     v_prop = 1/inv_v_prop
+    err_v_prop = 1/inv_v_prop**2 * err_inv_vprop
     v_prop_conv = v_prop*1e6 # conversion to m/s
-    log("linear fit to mean_phi2_t0_residual_by_y0")
-    log(f"  t_offset = {t_offset}")
-    log(f"  inv_v_prop = {inv_v_prop}")
-    log(f"  v_prop = {v_prop}")
-    x_arr = np.linspace(np.amin(y0_edges), np.amax(y0_edges), num=5000)
-    ax.plot(x_arr, f_fit(x_arr, inv_v_prop, t_offset), color="tab:red", label=f"linear fit:\n$v_\\text{{prop}}={v_prop_conv:.2e}$ m/s\n$t_\\text{{offset}}={t_offset:.1f}$ ns")
+    err_v_prop_conv = err_v_prop*1e6 # conversion to m/s
+    log("linear fit to mean_theta_t0_residual_by_x0")
+    log(f"  t_offset = {t_offset} +- {err_t_offset}")
+    log(f"  inv_v_prop = {inv_v_prop} +- {err_inv_vprop}")
+    log(f"  v_prop = {v_prop} +- {err_v_prop}")
+    x_arr = np.linspace(np.amin(x0_edges), np.amax(x0_edges), num=5000)
+    ax.plot(x_arr, f_fit(x_arr, inv_v_prop, t_offset), color="tab:red", label=f"linear fit $1/v_\\text{{prop}} x+t_\\text{{offset}}$:\n$v_\\text{{prop}}=({v_prop_conv:.2e}\\pm{err_v_prop_conv:.2e})$ m/s\n$t_\\text{{offset}}=({t_offset:.3f}\\pm{err_t_offset:.3f})$ ns")
     ax.set_xlabel(f"reco position (along phi wire) $y_0$ [mm]")
     ax.set_ylabel(f"reco reference $T$ $-$ phi2 sl fit $T_0$ [ns]")
-    ax.legend()
+    ax.legend(fontsize=12)
     fig.tight_layout()
-    plot_utils.save_figure(fig, f"mean_phi2_t0_residual_by_y0_fit", args)
+    plot_utils.save_figure(fig, f"{script_prefix}_mean_phi2_t0_residual_by_y0_fit", args)
 
 
 if __name__ == "__main__":
