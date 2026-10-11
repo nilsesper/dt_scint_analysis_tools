@@ -127,7 +127,7 @@ def main():
 
     ### plot distribution
     fig, ax = plt.subplots()
-    ax.errorbar(np.rad2deg(angle_bins), mean_sl13_t0_diff_by_theta, yerr=sigma_sl13_t0_diff_by_theta, xerr=bin_width/2, linestyle="")
+    ax.errorbar(np.rad2deg(angle_bins), mean_sl13_t0_diff_by_theta, yerr=sigma_sl13_t0_diff_by_theta, xerr=bin_width/2, linestyle="", marker=".")
     ax.set_xlabel(f"reco DT $\\theta$ [deg]")
     ax.set_ylabel(f"mean time difference Scint $-$ DT [ns]")
     #ax.set_ylim(mean_sl13_t0_diff_by_theta[n_bins//2]-5 , mean_sl13_t0_diff_by_theta[n_bins//2]+5)
@@ -136,7 +136,7 @@ def main():
 
     ### more plots
     fig, ax = plt.subplots()
-    ax.errorbar(1/np.cos(angle_bins), mean_sl13_t0_diff_by_theta, yerr=sigma_sl13_t0_diff_by_theta, linestyle="")
+    ax.errorbar(1/np.cos(angle_bins), mean_sl13_t0_diff_by_theta, yerr=sigma_sl13_t0_diff_by_theta, linestyle="", marker=".")
     ax.set_xlabel(f"reco DT $1/\\cos\\theta$")
     ax.set_ylabel(f"mean time difference Scint $-$ DT [ns]")
     fig.tight_layout()
@@ -148,7 +148,7 @@ def main():
     sigma_sl13_t0_diff_by_theta = sigma_sl13_t0_diff_by_theta
 
     fig, ax = plt.subplots()
-    ax.errorbar(cos_angle_bins, mean_sl13_t0_diff_by_theta, yerr=sigma_sl13_t0_diff_by_theta, linestyle="")
+    ax.errorbar(cos_angle_bins, mean_sl13_t0_diff_by_theta, yerr=sigma_sl13_t0_diff_by_theta, linestyle="", marker=".")
     def f_fit(x, a, b):
         return a*x+b
     popt, pcov = scipy.optimize.curve_fit(f_fit, xdata=cos_angle_bins, ydata=mean_sl13_t0_diff_by_theta, sigma=sigma_sl13_t0_diff_by_theta, p0=[10,-50], absolute_sigma=True)

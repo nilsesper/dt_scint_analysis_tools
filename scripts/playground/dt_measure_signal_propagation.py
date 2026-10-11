@@ -109,14 +109,14 @@ def main():
     sigma_theta_t0_residual_by_x0 *= 0.78 # conversion to ns
     ### plot distribution
     fig, ax = plt.subplots()
-    ax.errorbar(x0_bins, mean_theta_t0_residual_by_x0, yerr=sigma_theta_t0_residual_by_x0, xerr=np.diff(x0_edges)/4, linestyle="")
+    ax.errorbar(x0_bins, mean_theta_t0_residual_by_x0, yerr=sigma_theta_t0_residual_by_x0, xerr=np.diff(x0_edges)/4, linestyle="", marker=".")
     ax.set_xlabel(f"reco position (along theta wire) $x_0$ [mm]")
     ax.set_ylabel(f"reco reference $T$ $-$ theta sl fit $T_0$ [ns]")
     fig.tight_layout()
     plot_utils.save_figure(fig, f"mean_theta_t0_residual_by_x0", args)
     ### perform linear fit
     fig, ax = plt.subplots()
-    ax.errorbar(x0_bins, mean_theta_t0_residual_by_x0, yerr=sigma_theta_t0_residual_by_x0, xerr=np.diff(x0_edges)/4, linestyle="", label="data")
+    ax.errorbar(x0_bins, mean_theta_t0_residual_by_x0, yerr=sigma_theta_t0_residual_by_x0, xerr=np.diff(x0_edges)/4, linestyle="", label="data", marker=".")
     def f_fit(x, a, b):
         return a*x+b
     popt, pcov = scipy.optimize.curve_fit(f_fit, x0_bins, mean_theta_t0_residual_by_x0, sigma=sigma_theta_t0_residual_by_x0, p0=[0.01,0], absolute_sigma=True)
@@ -160,14 +160,14 @@ def main():
     sigma_phi1_t0_residual_by_y0 *= 0.78 # conversion to ns
     ### plot distribution
     fig, ax = plt.subplots()
-    ax.errorbar(y0_bins, mean_phi1_t0_residual_by_y0, yerr=sigma_phi1_t0_residual_by_y0, xerr=np.diff(y0_edges)/4, linestyle="")
+    ax.errorbar(y0_bins, mean_phi1_t0_residual_by_y0, yerr=sigma_phi1_t0_residual_by_y0, xerr=np.diff(y0_edges)/4, linestyle="", marker=".")
     ax.set_xlabel(f"reco position (along phi wire) $y_0$ [mm]")
     ax.set_ylabel(f"reco reference $T$ $-$ phi1 sl fit $T_0$ [ns]")
     fig.tight_layout()
     plot_utils.save_figure(fig, f"mean_phi1_t0_residual_by_y0", args)
     ### perform linear fit
     fig, ax = plt.subplots()
-    ax.errorbar(y0_bins, mean_phi1_t0_residual_by_y0, yerr=sigma_phi1_t0_residual_by_y0, xerr=np.diff(y0_edges)/4, linestyle="", label="data")
+    ax.errorbar(y0_bins, mean_phi1_t0_residual_by_y0, yerr=sigma_phi1_t0_residual_by_y0, xerr=np.diff(y0_edges)/4, linestyle="", label="data", marker=".")
     def f_fit(x, a, b):
         return a*x+b
     popt, pcov = scipy.optimize.curve_fit(f_fit, y0_bins, mean_phi1_t0_residual_by_y0, sigma=sigma_phi1_t0_residual_by_y0, p0=[0.01,0], absolute_sigma=True)
@@ -211,14 +211,14 @@ def main():
     sigma_phi2_t0_residual_by_y0 *= 0.78 # conversion to ns
     ### plot distribution
     fig, ax = plt.subplots()
-    ax.errorbar(y0_bins, mean_phi2_t0_residual_by_y0, yerr=sigma_phi2_t0_residual_by_y0, xerr=np.diff(y0_edges)/4, linestyle="")
+    ax.errorbar(y0_bins, mean_phi2_t0_residual_by_y0, yerr=sigma_phi2_t0_residual_by_y0, xerr=np.diff(y0_edges)/4, linestyle="", marker=".")
     ax.set_xlabel(f"reco position (along phi wire) $y_0$ [mm]")
     ax.set_ylabel(f"reco reference $T$ $-$ phi2 sl fit $T_0$ [ns]")
     fig.tight_layout()
     plot_utils.save_figure(fig, f"mean_phi2_t0_residual_by_y0", args)
     ### perform linear fit
     fig, ax = plt.subplots()
-    ax.errorbar(y0_bins, mean_phi2_t0_residual_by_y0, yerr=sigma_phi2_t0_residual_by_y0, xerr=np.diff(y0_edges)/4, linestyle="", label="data")
+    ax.errorbar(y0_bins, mean_phi2_t0_residual_by_y0, yerr=sigma_phi2_t0_residual_by_y0, xerr=np.diff(y0_edges)/4, linestyle="", label="data", marker=".")
     def f_fit(x, a, b):
         return a*x+b
     popt, pcov = scipy.optimize.curve_fit(f_fit, y0_bins, mean_phi2_t0_residual_by_y0, sigma=sigma_phi2_t0_residual_by_y0, p0=[0.01,0], absolute_sigma=True)
