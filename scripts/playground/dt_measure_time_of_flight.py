@@ -101,11 +101,11 @@ def main():
     log(f"sl23_t0_diff: mean={np.mean(sl23_t0_diff)} ns, std={np.std(sl23_t0_diff, ddof=1)} ns")
     log(f"sl13_t0_diff: mean={np.mean(sl13_t0_diff)} ns, std={np.std(sl13_t0_diff, ddof=1)} ns")
 
-    plot_utils.plot_histogram(sl12_t0_diff, f"{script_prefix}_sl12_t0_diff", args, xlabel="time difference SL2 $-$ SL1 [ns]",
+    plot_utils.plot_histogram(sl12_t0_diff, f"{script_prefix}_sl12_t0_diff", args, xlabel="time diff SL2$-$SL1 [ns]",
         full_range=True, log_scale=False, bin_unit="ns")
-    plot_utils.plot_histogram(sl23_t0_diff, f"{script_prefix}_sl23_t0_diff", args, xlabel="time difference SL3 $-$ SL2 [ns]",
+    plot_utils.plot_histogram(sl23_t0_diff, f"{script_prefix}_sl23_t0_diff", args, xlabel="time diff SL3$-$SL2 [ns]",
         full_range=True, log_scale=False, bin_unit="ns")
-    plot_utils.plot_histogram(sl13_t0_diff, f"{script_prefix}_sl13_t0_diff", args, xlabel="time difference SL3 $-$ SL1 [ns]",
+    plot_utils.plot_histogram(sl13_t0_diff, f"{script_prefix}_sl13_t0_diff", args, xlabel="time diff SL3$-$SL1 [ns]",
             full_range=True, log_scale=False, bin_unit="ns")
     
     ####################
@@ -126,7 +126,7 @@ def main():
     fig, ax = plt.subplots()
     ax.errorbar(np.rad2deg(angle_bins), mean_sl13_t0_diff_by_angle, yerr=sigma_sl13_t0_diff_by_angle, xerr=np.diff(np.rad2deg(angle_edges))/4, linestyle="", marker=".")
     ax.set_xlabel(f"reco $\\alpha_x$ (phi sl) [deg]")
-    ax.set_ylabel(f"mean time difference SL3 $-$ SL1 [ns]")
+    ax.set_ylabel(f"mean time diff SL3$-$SL1 [ns]")
     fig.tight_layout()
     plot_utils.save_figure(fig, f"{script_prefix}_mean_sl13_t0_diff_by_angle_x", args)
 
@@ -145,7 +145,7 @@ def main():
     fig, ax = plt.subplots()
     ax.errorbar(np.rad2deg(angle_bins), mean_sl12_t0_diff_by_angle, yerr=sigma_sl12_t0_diff_by_angle, xerr=np.diff(np.rad2deg(angle_edges))/4, linestyle="", marker=".")
     ax.set_xlabel(f"reco $\\alpha_x$ (phi sl) [deg]")
-    ax.set_ylabel(f"mean time difference SL2 $-$ SL1 [ns]")
+    ax.set_ylabel(f"mean time diff SL2$-$SL1 [ns]")
     fig.tight_layout()
     plot_utils.save_figure(fig, f"{script_prefix}_mean_sl12_t0_diff_by_angle_x", args)
 
@@ -179,7 +179,7 @@ def main():
     x_arr = np.linspace(np.amin(angle_bins), np.amax(angle_bins), num=5000)
     ax.plot(np.rad2deg(x_arr), f_fit(x_arr, a_val, b_val, c_val), color="tab:red", label=f"linear fit $ax^2+bx+c$:\n$a=({a_val:.3f}\\pm{err_a_val:.3f})$ ns/$\\sqrt{{\\text{{deg}}}}$\n$b=({b_val:.3f}\\pm{err_b_val:.3f})$ ns/deg\n$c=({c_val:.3f}\\pm{err_c_val:.3f})$ ns")
     ax.set_xlabel(f"reco $\\alpha_x$ (phi sl) [deg]")
-    ax.set_ylabel(f"mean time difference SL2 $-$ SL1 [ns]")
+    ax.set_ylabel(f"mean time diff SL2$-$SL1 [ns]")
     ax.legend(fontsize=12)
     fig.tight_layout()
     plot_utils.save_figure(fig, f"{script_prefix}_mean_sl12_t0_diff_by_angle_x_fit", args)
@@ -199,7 +199,7 @@ def main():
     fig, ax = plt.subplots()
     ax.errorbar(np.rad2deg(angle_bins), mean_sl23_t0_diff_by_angle, yerr=sigma_sl23_t0_diff_by_angle, xerr=np.diff(np.rad2deg(angle_edges))/4, linestyle="", marker=".")
     ax.set_xlabel(f"reco $\\alpha_x$ (phi sl) [deg]")
-    ax.set_ylabel(f"mean time difference SL3 $-$ SL2 [ns]")
+    ax.set_ylabel(f"mean time diff SL3$-$SL2 [ns]")
     fig.tight_layout()
     plot_utils.save_figure(fig, f"{script_prefix}_mean_sl23_t0_diff_by_angle_x", args)
 
@@ -233,7 +233,7 @@ def main():
     x_arr = np.linspace(np.amin(angle_bins), np.amax(angle_bins), num=5000)
     ax.plot(np.rad2deg(x_arr), f_fit(x_arr, a_val, b_val, c_val), color="tab:red", label=f"linear fit $ax^2+bx+c$:\n$a=({a_val:.3f}\\pm{err_a_val:.3f})$ ns/$\\sqrt{{\\text{{deg}}}}$\n$b=({b_val:.3f}\\pm{err_b_val:.3f})$ ns/deg\n$c=({c_val:.3f}\\pm{err_c_val:.3f})$ ns")
     ax.set_xlabel(f"reco $\\alpha_x$ (phi sl) [deg]")
-    ax.set_ylabel(f"mean time difference SL3 $-$ SL2 [ns]")
+    ax.set_ylabel(f"mean time diff SL3$-$SL2 [ns]")
     ax.legend(fontsize=12)
     fig.tight_layout()
     plot_utils.save_figure(fig, f"{script_prefix}_mean_sl23_t0_diff_by_angle_x_fit", args)
@@ -256,7 +256,7 @@ def main():
     fig, ax = plt.subplots()
     ax.errorbar(np.rad2deg(angle_bins), mean_sl13_t0_diff_by_angle, yerr=sigma_sl13_t0_diff_by_angle, xerr=np.diff(np.rad2deg(angle_edges))/4, linestyle="", marker=".")
     ax.set_xlabel(f"reco $\\alpha_y$ (theta sl) [deg]")
-    ax.set_ylabel(f"mean time difference SL3 $-$ SL1 [ns]")
+    ax.set_ylabel(f"mean time diff SL3$-$SL1 [ns]")
     fig.tight_layout()
     plot_utils.save_figure(fig, f"{script_prefix}_mean_sl13_t0_diff_by_angle_y", args)
 
@@ -275,7 +275,7 @@ def main():
     fig, ax = plt.subplots()
     ax.errorbar(np.rad2deg(angle_bins), mean_sl12_t0_diff_by_angle, yerr=sigma_sl12_t0_diff_by_angle, xerr=np.diff(np.rad2deg(angle_edges))/4, linestyle="", marker=".")
     ax.set_xlabel(f"reco $\\alpha_y$ (theta sl) [deg]")
-    ax.set_ylabel(f"mean time difference SL2 $-$ SL1 [ns]")
+    ax.set_ylabel(f"mean time diff SL2$-$SL1 [ns]")
     fig.tight_layout()
     plot_utils.save_figure(fig, f"{script_prefix}_mean_sl12_t0_diff_by_angle_y", args)
 
@@ -309,7 +309,7 @@ def main():
     x_arr = np.linspace(np.amin(angle_bins), np.amax(angle_bins), num=5000)
     ax.plot(np.rad2deg(x_arr), f_fit(x_arr, a_val, b_val, c_val), color="tab:red", label=f"linear fit $ax^2+bx+c$:\n$a=({a_val:.3f}\\pm{err_a_val:.3f})$ ns/$\\sqrt{{\\text{{deg}}}}$\n$b=({b_val:.3f}\\pm{err_b_val:.3f})$ ns/deg\n$c=({c_val:.3f}\\pm{err_c_val:.3f})$ ns")
     ax.set_xlabel(f"reco $\\alpha_y$ (theta sl) [deg]")
-    ax.set_ylabel(f"mean time difference SL2 $-$ SL1 [ns]")
+    ax.set_ylabel(f"mean time diff SL2$-$SL1 [ns]")
     ax.legend(fontsize=12)
     fig.tight_layout()
     plot_utils.save_figure(fig, f"{script_prefix}_mean_sl12_t0_diff_by_angle_y_fit", args)
@@ -329,7 +329,7 @@ def main():
     fig, ax = plt.subplots()
     ax.errorbar(np.rad2deg(angle_bins), mean_sl23_t0_diff_by_angle, yerr=sigma_sl23_t0_diff_by_angle, xerr=np.diff(np.rad2deg(angle_edges))/4, linestyle="", marker=".")
     ax.set_xlabel(f"reco $\\alpha_y$ (theta sl) [deg]")
-    ax.set_ylabel(f"mean time difference SL3 $-$ SL2 [ns]")
+    ax.set_ylabel(f"mean time diff SL3$-$SL2 [ns]")
     fig.tight_layout()
     plot_utils.save_figure(fig, f"{script_prefix}_mean_sl23_t0_diff_by_angle_y", args)
 
@@ -363,7 +363,7 @@ def main():
     x_arr = np.linspace(np.amin(angle_bins), np.amax(angle_bins), num=5000)
     ax.plot(np.rad2deg(x_arr), f_fit(x_arr, a_val, b_val, c_val), color="tab:red", label=f"linear fit $ax^2+bx+c$:\n$a=({a_val:.3f}\\pm{err_a_val:.3f})$ ns/$\\sqrt{{\\text{{deg}}}}$\n$b=({b_val:.3f}\\pm{err_b_val:.3f})$ ns/deg\n$c=({c_val:.3f}\\pm{err_c_val:.3f})$ ns")
     ax.set_xlabel(f"reco $\\alpha_y$ (theta sl) [deg]")
-    ax.set_ylabel(f"mean time difference SL3 $-$ SL2 [ns]")
+    ax.set_ylabel(f"mean time diff SL3$-$SL2 [ns]")
     ax.legend(fontsize=12)
     fig.tight_layout()
     plot_utils.save_figure(fig, f"{script_prefix}_mean_sl23_t0_diff_by_angle_y_fit", args)
@@ -383,7 +383,7 @@ def main():
     fig, ax = plt.subplots()
     ax.errorbar(np.rad2deg(angle_bins), mean_sl13_t0_diff_by_angle, yerr=sigma_sl13_t0_diff_by_angle, xerr=np.diff(np.rad2deg(angle_edges))/4, linestyle="", marker=".")
     ax.set_xlabel(f"reco $\\alpha_y$ (theta sl) [deg]")
-    ax.set_ylabel(f"mean time difference SL3 $-$ SL1 [ns]")
+    ax.set_ylabel(f"mean time diff SL3$-$SL1 [ns]")
     fig.tight_layout()
     plot_utils.save_figure(fig, f"{script_prefix}_mean_sl13_t0_diff_by_angle_y", args)
 
@@ -411,7 +411,7 @@ def main():
     fig, ax = plt.subplots()
     ax.errorbar(np.rad2deg(angle_bins), mean_sl13_t0_diff_by_angle, yerr=sigma_sl13_t0_diff_by_angle, xerr=np.diff(np.rad2deg(angle_edges))/4, linestyle="", marker=".")
     ax.set_xlabel(f"reco $\\alpha_y$ (theta sl) [deg]")
-    ax.set_ylabel(f"corr mean time difference SL3 $-$ SL1 [ns]")
+    ax.set_ylabel(f"corr mean time diff SL3$-$SL1 [ns]")
     fig.tight_layout()
     plot_utils.save_figure(fig, f"{script_prefix}_mean_sl13_t0_diff_by_angle_y_corr", args)
 
@@ -431,7 +431,7 @@ def main():
     fig, ax = plt.subplots()
     ax.errorbar(np.rad2deg(angle_bins), mean_sl13_t0_diff_by_angle, yerr=sigma_sl13_t0_diff_by_angle, xerr=np.diff(np.rad2deg(angle_edges))/4, linestyle="", marker=".")
     ax.set_xlabel(f"reco $|\\alpha_y|$ (theta sl) [deg]")
-    ax.set_ylabel(f"mean time difference SL3 $-$ SL1 [ns]")
+    ax.set_ylabel(f"corr mean time diff SL3$-$SL1 [ns]")
     fig.tight_layout()
     plot_utils.save_figure(fig, f"{script_prefix}_mean_sl13_t0_diff_by_abs_angle_y", args)
 
@@ -469,7 +469,7 @@ def main():
     x_arr = np.linspace(np.amin(cos_angle_bins), np.amax(cos_angle_bins), num=5000)
     ax.plot(x_arr, f_fit(x_arr, a_val, b_val), color="tab:red", label=f"linear fit $ax+b$:\n$a=({a_val:.3f}\\pm{err_a_val:.3f})$ ns\n$b=({b_val:.3f}\\pm{err_b_val:.3f})$ ns\n$v_\\mu = h / a=0.23\\text{{ m }}/a$\n$=({v_muon:.3e}\\pm{err_v_muon:.3e})$ m/s")
     ax.set_xlabel(f"reco $1/\\cos|\\alpha_y|$ (theta sl) [deg]")
-    ax.set_ylabel(f"mean time difference SL3 $-$ SL1 [ns]")
+    ax.set_ylabel(f"corr mean time diff SL3$-$SL1 [ns]")
     ax.legend(fontsize=12)
     fig.tight_layout()
     plot_utils.save_figure(fig, f"{script_prefix}_mean_sl13_t0_diff_by_abs_angle_y_fit", args)
