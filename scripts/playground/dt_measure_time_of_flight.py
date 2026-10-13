@@ -387,6 +387,30 @@ def main():
     fig.tight_layout()
     plot_utils.save_figure(fig, f"{script_prefix}_mean_sl13_t0_diff_by_angle_y", args)
 
+    ##########################
+    ### tof analysis with sl1 sl3 time difference for different theta angles
+    ##########################
+    print("tof analysis with sl1 sl3 time difference for different theta angles")
+
+    ### calculate binned distribution: reco muon angle vs. time difference sl13_t0_diff
+    angle = np.arctan(sl_fits["tan_alpha"][theta_sl_fit_rows])
+    n_bins = 50
+    angle_edges = np.linspace(np.amin(angle)-1, np.amax(angle)+1, n_bins+1)
+    angle_bins = (angle_edges[:-1] + angle_edges[1:]) / 2
+    mean_sl13_t0_diff_by_angle = np.zeros(n_bins)
+    sigma_sl13_t0_diff_by_angle = np.zeros(n_bins)
+    for i in tqdm(range(n_bins)):
+        muon_idcs = np.where((angle >= angle_edges[i]) & (angle < angle_edges[i+1]))
+        mean_sl13_t0_diff_by_angle[i] = np.mean( sl13_t0_diff[muon_idcs] )
+        sigma_sl13_t0_diff_by_angle[i] = np.std( sl13_t0_diff[muon_idcs], ddof=1 ) / np.sqrt( len(sl13_t0_diff[muon_idcs]) )
+    ### plot distribution
+    fig, ax = plt.subplots()
+    ax.errorbar(np.rad2deg(angle_bins), mean_sl13_t0_diff_by_angle, yerr=sigma_sl13_t0_diff_by_angle, xerr=np.diff(np.rad2deg(angle_edges))/4, linestyle="", marker=".")
+    ax.set_xlabel(f"reco $\\alpha_y$ (theta sl) [deg]")
+    ax.set_ylabel(f"mean time diff SL3$-$SL1 [ns]")
+    fig.tight_layout()
+    plot_utils.save_figure(fig, f"{script_prefix}_mean_sl13_t0_diff_by_angle_y", args)
+
     ### perform signal prop correction
     # define corr function
     v_sig_prop = 2.7e8 # m/s
@@ -435,10 +459,6 @@ def main():
     fig.tight_layout()
     plot_utils.save_figure(fig, f"{script_prefix}_mean_sl13_t0_diff_by_abs_angle_y", args)
 
-    ##########################
-    ### tof analysis with sl1 sl3 time difference for different theta angles
-    ##########################
-
     ### perform linear fit
     # remove nan
     bin_width = angle_edges[1]-angle_edges[0]
@@ -473,6 +493,118 @@ def main():
     ax.legend(fontsize=12)
     fig.tight_layout()
     plot_utils.save_figure(fig, f"{script_prefix}_mean_sl13_t0_diff_by_abs_angle_y_fit", args)
+
+    log(f"a_val = h / v_muon ~ 0.23m / v_muon")
+    log(f"v_muon = h / a_val ~ {v_muon:.4e} m/s")
+
+    ##########################
+    ### tof analysis with sl1 sl3 time difference for different phi angles
+    ##########################
+    print("tof analysis with sl1 sl3 time difference for different phi angles")
+
+    ### calculate binned distribution: reco muon angle vs. time difference sl13_t0_diff
+    angle = np.arctan(super_fits["tan_alpha_super_fits"][phi_superfit_rows])
+    n_bins = 50
+    angle_edges = np.linspace(np.amin(angle)-1, np.amax(angle)+1, n_bins+1)
+    angle_bins = (angle_edges[:-1] + angle_edges[1:]) / 2
+    mean_sl13_t0_diff_by_angle = np.zeros(n_bins)
+    sigma_sl13_t0_diff_by_angle = np.zeros(n_bins)
+    for i in tqdm(range(n_bins)):
+        muon_idcs = np.where((angle >= angle_edges[i]) & (angle < angle_edges[i+1]))
+        mean_sl13_t0_diff_by_angle[i] = np.mean( sl13_t0_diff[muon_idcs] )
+        sigma_sl13_t0_diff_by_angle[i] = np.std( sl13_t0_diff[muon_idcs], ddof=1 ) / np.sqrt( len(sl13_t0_diff[muon_idcs]) )
+    ### plot distribution
+    fig, ax = plt.subplots()
+    ax.errorbar(np.rad2deg(angle_bins), mean_sl13_t0_diff_by_angle, yerr=sigma_sl13_t0_diff_by_angle, xerr=np.diff(np.rad2deg(angle_edges))/4, linestyle="", marker=".")
+    ax.set_xlabel(f"reco $\\alpha_x$ (phi sl) [deg]")
+    ax.set_ylabel(f"mean time diff SL3$-$SL1 [ns]")
+    fig.tight_layout()
+    plot_utils.save_figure(fig, f"{script_prefix}_mean_sl13_t0_diff_by_angle_x", args)
+
+    ### perform signal prop correction
+    # define corr function
+    v_sig_prop = 2.7e8 # m/s
+    def ts_sig_prop_corr(alpha):
+        # ts_corr = delta_x / v_sig_prop
+        # delta_x = h * tan_alpha
+        ts_corr = 0.23*np.tan(alpha)/v_sig_prop
+        ts_corr *= 1e9 # convert to ns
+        return ts_corr
+    ### recalculate with applied corr
+    angle = np.arctan(super_fits["tan_alpha_super_fits"][phi_superfit_rows])
+    angle_theta = np.arctan(sl_fits["tan_alpha"][theta_sl_fit_rows])
+    n_bins = 50
+    angle_edges = np.linspace(np.amin(angle)-1, np.amax(angle)+1, n_bins+1)
+    angle_bins = (angle_edges[:-1] + angle_edges[1:]) / 2
+    mean_sl13_t0_diff_by_angle = np.zeros(n_bins)
+    sigma_sl13_t0_diff_by_angle = np.zeros(n_bins)
+    for i in tqdm(range(n_bins)):
+        muon_idcs = np.where((angle >= angle_edges[i]) & (angle < angle_edges[i+1]))
+        mean_sl13_t0_diff_by_angle[i] = np.mean( sl13_t0_diff[muon_idcs] - ts_sig_prop_corr(angle_theta[muon_idcs]) )
+        sigma_sl13_t0_diff_by_angle[i] = np.std( sl13_t0_diff[muon_idcs] - ts_sig_prop_corr(angle_theta[muon_idcs]) , ddof=1 ) / np.sqrt( len(sl13_t0_diff[muon_idcs]) )
+    ### plot distribution
+    fig, ax = plt.subplots()
+    ax.errorbar(np.rad2deg(angle_bins), mean_sl13_t0_diff_by_angle, yerr=sigma_sl13_t0_diff_by_angle, xerr=np.diff(np.rad2deg(angle_edges))/4, linestyle="", marker=".")
+    ax.set_xlabel(f"reco $\\alpha_x$ (phi sl) [deg]")
+    ax.set_ylabel(f"corr mean time diff SL3$-$SL1 [ns]")
+    fig.tight_layout()
+    plot_utils.save_figure(fig, f"{script_prefix}_mean_sl13_t0_diff_by_angle_x_corr", args)
+
+    ### calculate binned distribution: abs reco muon angle vs. time difference sl13_t0_diff
+    angle = np.arctan(super_fits["tan_alpha_super_fits"][phi_superfit_rows])
+    angle_theta = np.arctan(sl_fits["tan_alpha"][theta_sl_fit_rows])
+    abs_angle = np.abs(angle)
+    n_bins = 50
+    angle_edges = np.linspace(np.amin(abs_angle)-1, np.amax(abs_angle)+1, n_bins+1)
+    angle_bins = (angle_edges[:-1] + angle_edges[1:]) / 2
+    mean_sl13_t0_diff_by_angle = np.zeros(n_bins)
+    sigma_sl13_t0_diff_by_angle = np.zeros(n_bins)
+    for i in tqdm(range(n_bins)):
+        muon_idcs = np.where((abs_angle >= angle_edges[i]) & (abs_angle < angle_edges[i+1]))
+        mean_sl13_t0_diff_by_angle[i] = np.mean( sl13_t0_diff[muon_idcs] - ts_sig_prop_corr(angle_theta[muon_idcs]*np.sign(angle_theta[muon_idcs]) ) )
+        sigma_sl13_t0_diff_by_angle[i] = np.std( sl13_t0_diff[muon_idcs] - ts_sig_prop_corr(angle_theta[muon_idcs]*np.sign(angle_theta[muon_idcs]) ), ddof=1 ) / np.sqrt( len(sl13_t0_diff[muon_idcs]) )
+    ### plot distribution
+    fig, ax = plt.subplots()
+    ax.errorbar(np.rad2deg(angle_bins), mean_sl13_t0_diff_by_angle, yerr=sigma_sl13_t0_diff_by_angle, xerr=np.diff(np.rad2deg(angle_edges))/4, linestyle="", marker=".")
+    ax.set_xlabel(f"reco $|\\alpha_x|$ (phi sl) [deg]")
+    ax.set_ylabel(f"corr mean time diff SL3$-$SL1 [ns]")
+    fig.tight_layout()
+    plot_utils.save_figure(fig, f"{script_prefix}_mean_sl13_t0_diff_by_abs_angle_x", args)
+
+    ### perform linear fit
+    # remove nan
+    bin_width = angle_edges[1]-angle_edges[0]
+    good_bins = ~(np.isnan(mean_sl13_t0_diff_by_angle) | np.isnan(sigma_sl13_t0_diff_by_angle)) & ((angle_bins >= np.deg2rad(0)) & (angle_bins <= np.deg2rad(30)))
+    mean_sl13_t0_diff_by_angle = mean_sl13_t0_diff_by_angle[good_bins]
+    sigma_sl13_t0_diff_by_angle = sigma_sl13_t0_diff_by_angle[good_bins]
+    angle_bins = angle_bins[good_bins]
+    angle_edges = []
+    for i in range(len(angle_bins)):
+        angle_edges.append(angle_bins[i]-bin_width/2)
+        if angle_bins[i]+bin_width/2 != angle_edges[-1]:
+            angle_edges.append(angle_bins[i]+bin_width/2)
+    angle_edges = np.array(angle_edges) 
+    # perform fit
+    cos_angle_bins = 1/np.cos(angle_bins)
+    fig, ax = plt.subplots()
+    ax.errorbar(cos_angle_bins, mean_sl13_t0_diff_by_angle, yerr=sigma_sl13_t0_diff_by_angle, linestyle="", marker=".", label="data")
+    def f_fit(x, a, b):
+        return a*x+b
+    popt, pcov = scipy.optimize.curve_fit(f_fit, xdata=cos_angle_bins, ydata=mean_sl13_t0_diff_by_angle, sigma=sigma_sl13_t0_diff_by_angle, p0=[10,-50], absolute_sigma=True)
+    a_val, b_val = popt
+    err_a_val, err_b_val = np.sqrt(pcov[0][0]), np.sqrt(pcov[1][1])
+    log("linear fit")
+    log(f"  a_val = {a_val} +- {err_a_val}")
+    log(f"  b_val = {b_val} +- {err_b_val}")
+    v_muon = 0.23/(a_val*1e-9)
+    err_v_muon = 0.23/(a_val*1e-9)**2 * (err_a_val*1e-9)
+    x_arr = np.linspace(np.amin(cos_angle_bins), np.amax(cos_angle_bins), num=5000)
+    ax.plot(x_arr, f_fit(x_arr, a_val, b_val), color="tab:red", label=f"linear fit $ax+b$:\n$a=({a_val:.3f}\\pm{err_a_val:.3f})$ ns\n$b=({b_val:.3f}\\pm{err_b_val:.3f})$ ns\n$v_\\mu = h / a=0.23\\text{{ m }}/a$\n$=({v_muon:.3e}\\pm{err_v_muon:.3e})$ m/s")
+    ax.set_xlabel(f"reco $1/\\cos|\\alpha_x|$ (phi sl) [deg]")
+    ax.set_ylabel(f"corr mean time diff SL3$-$SL1 [ns]")
+    ax.legend(fontsize=12)
+    fig.tight_layout()
+    plot_utils.save_figure(fig, f"{script_prefix}_mean_sl13_t0_diff_by_abs_angle_x_fit", args)
 
     log(f"a_val = h / v_muon ~ 0.23m / v_muon")
     log(f"v_muon = h / a_val ~ {v_muon:.4e} m/s")

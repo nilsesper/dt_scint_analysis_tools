@@ -151,10 +151,10 @@ def main():
     delta_ts *= 0.78 # convert to ns
 
     ### apply additional cuts on dimuons
-    min_dimuon_xy_separation = 100 # mm
-    dimuons = data_utils.cut_data(dimuons, conditions=[("delta_x0y0", ">", min_dimuon_xy_separation)])
-    max_vertex_z_difference_alpha_xy = 1000 # mm
-    dimuons = data_utils.cut_data(dimuons, conditions=[("delta_vertex_z", "<", max_vertex_z_difference_alpha_xy)])
+    # min_dimuon_xy_separation = 100 # mm
+    # dimuons = data_utils.cut_data(dimuons, conditions=[("delta_x0y0", ">", min_dimuon_xy_separation)])
+    # max_vertex_z_difference_alpha_xy = 1000 # mm
+    # dimuons = data_utils.cut_data(dimuons, conditions=[("delta_vertex_z", "<", max_vertex_z_difference_alpha_xy)])
 
     ### create dimuon plots
     plot_utils.plot_histogram(np.rad2deg(dimuons["delta_theta"]), "dimuon_delta_theta", args, xlabel="$\\Delta \\theta$ [deg]",
