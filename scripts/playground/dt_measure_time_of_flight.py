@@ -414,8 +414,8 @@ def main():
     plot_utils.save_figure(fig, f"{script_prefix}_mean_sl13_t0_diff_by_angle_y", args)
 
     ### perform signal prop correction
+    v_sig_prop = 2.5e8 # m/s
     # define corr function
-    v_sig_prop = 2.7e8 # m/s
     def ts_sig_prop_corr(alpha):
         # ts_corr = delta_x / v_sig_prop
         # delta_x = h * tan_alpha
@@ -530,8 +530,8 @@ def main():
     plot_utils.save_figure(fig, f"{script_prefix}_mean_sl13_t0_diff_by_angle_x", args)
 
     ### perform signal prop correction
-    # define corr function
     v_sig_prop = 2.7e8 # m/s
+    # define corr function
     def ts_sig_prop_corr(alpha):
         # ts_corr = delta_x / v_sig_prop
         # delta_x = h * tan_alpha

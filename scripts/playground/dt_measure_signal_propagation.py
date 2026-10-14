@@ -99,7 +99,7 @@ def main():
     dt_muons_theta_base_point = muon_utils.change_muon_base_point(muons=dt_muons, z_new=theta_sl_central_z)
 
     ### calculate binned distribution: phi-sensitive coordinate vs. theta residual
-    x0_edges = np.linspace(np.amin(dt_muons["x0"])-1, np.amax(dt_muons["x0"])+1, n_bins+1)
+    x0_edges = np.linspace(np.amin(dt_muons_theta_base_point["x0"])-1, np.amax(dt_muons_theta_base_point["x0"])+1, n_bins+1)
     x0_bins = (x0_edges[:-1] + x0_edges[1:]) / 2
     mean_theta_t0_residual_by_x0 = np.zeros(n_bins)
     sigma_theta_t0_residual_by_x0 = np.zeros(n_bins)
@@ -153,7 +153,7 @@ def main():
     dt_muons_phi1_base_point = muon_utils.change_muon_base_point(muons=dt_muons, z_new=phi1_sl_central_z)
 
     ### calculate binned distribution: phi-sensitive coordinate vs. theta residual
-    y0_edges = np.linspace(np.amin(dt_muons["y0"])-1, np.amax(dt_muons["y0"])+1, n_bins+1)
+    y0_edges = np.linspace(np.amin(dt_muons_phi1_base_point["y0"])-1, np.amax(dt_muons_phi1_base_point["y0"])+1, n_bins+1)
     y0_bins = (y0_edges[:-1] + y0_edges[1:]) / 2
     mean_phi1_t0_residual_by_y0 = np.zeros(n_bins)
     sigma_phi1_t0_residual_by_y0 = np.zeros(n_bins)
@@ -207,7 +207,7 @@ def main():
     dt_muons_phi2_base_point = muon_utils.change_muon_base_point(muons=dt_muons, z_new=phi2_sl_central_z)
 
     ### calculate binned distribution: phi-sensitive coordinate vs. theta residual
-    y0_edges = np.linspace(np.amin(dt_muons["y0"])-1, np.amax(dt_muons["y0"])+1, n_bins+1)
+    y0_edges = np.linspace(np.amin(dt_muons_phi2_base_point["y0"])-1, np.amax(dt_muons_phi2_base_point["y0"])+1, n_bins+1)
     y0_bins = (y0_edges[:-1] + y0_edges[1:]) / 2
     mean_phi2_t0_residual_by_y0 = np.zeros(n_bins)
     sigma_phi2_t0_residual_by_y0 = np.zeros(n_bins)
