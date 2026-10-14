@@ -22,7 +22,7 @@ from analysis_tools.params import params
 
 theta_sl = dt_chamber_utils.theta_superlayer()
 phi_sl_1, phi_sl_2 = dt_chamber_utils.phi_superlayers()
-MUON_KEYS = ["x0", "y0", "z0", "theta", "phi", "ts"] + [f"super_fit_row", f"sl{theta_sl}_fit_row"]
+MUON_KEYS = ["x0", "y0", "z0", "theta", "phi", "ts"] + [f"super_fit_row", f"sl{theta_sl}_fit_row", "sl1_t0", "sl2_t0", "sl3_t0", "sl1_t0_sig_prop_corr", "sl2_t0_sig_prop_corr", "sl3_t0_sig_prop_corr"]
 
 script_prefix = "dt_wireprop"
 
@@ -91,12 +91,12 @@ def main():
     #################################
 
     ### calculate residual of theta from ts reference
-    theta_t0_residual = np.zeros(n_dt_muons)
-    # calculate residual of theta from phi superfit ts
-    theta_t0_residual = super_fits["t0_super_fits"][phi_superfit_rows] - sl_fits["t0"][theta_sl_fit_rows]
+    #theta_t0_residual = super_fits["t0_super_fits"][phi_superfit_rows] - sl_fits["t0"][theta_sl_fit_rows]
+    theta_t0_residual = (dt_muons["sl1_t0"]+dt_muons["sl3_t0"])/2 - dt_muons["sl2_t0"]
+    theta_t0_residual_sig_prop_corr = (dt_muons["sl1_t0_sig_prop_corr"]+dt_muons["sl3_t0_sig_prop_corr"])/2 - dt_muons["sl2_t0_sig_prop_corr"]
+    theta_t0_residual *= 0.78 # convert to ns
 
-    theta_sl_central_z = np.mean([dt_chamber_utils.layer_z(sl=theta_sl, ly=0), dt_chamber_utils.layer_z(sl=theta_sl, ly=3) ])
-    dt_muons_theta_base_point = muon_utils.change_muon_base_point(muons=dt_muons, z_new=theta_sl_central_z)
+    dt_muons_theta_base_point = muon_utils.change_muon_base_point(muons=dt_muons, z_new=dt_chamber_utils.SL2_CENTRAL_Z)
 
     ### calculate binned distribution: phi-sensitive coordinate vs. theta residual
     x0_edges = np.linspace(np.amin(dt_muons_theta_base_point["x0"])-1, np.amax(dt_muons_theta_base_point["x0"])+1, n_bins+1)
@@ -107,8 +107,6 @@ def main():
         muon_idcs = np.where((dt_muons_theta_base_point["x0"] >= x0_edges[i]) & (dt_muons_theta_base_point["x0"] < x0_edges[i+1]))
         mean_theta_t0_residual_by_x0[i] = np.mean( theta_t0_residual[muon_idcs] )
         sigma_theta_t0_residual_by_x0[i] = np.std( theta_t0_residual[muon_idcs], ddof=1 ) / np.sqrt( len(theta_t0_residual[muon_idcs]) )
-    mean_theta_t0_residual_by_x0 *= 0.78 # conversion to ns
-    sigma_theta_t0_residual_by_x0 *= 0.78 # conversion to ns
     ### plot distribution
     fig, ax = plt.subplots()
     ax.errorbar(x0_bins, mean_theta_t0_residual_by_x0, yerr=sigma_theta_t0_residual_by_x0, xerr=np.diff(x0_edges)/4, linestyle="", marker=".")
@@ -140,17 +138,40 @@ def main():
     fig.tight_layout()
     plot_utils.save_figure(fig, f"{script_prefix}_mean_theta_t0_residual_by_x0_fit", args)
 
+    ### CORRECTED DATA: calculate binned distribution: phi-sensitive coordinate vs. theta residual
+    x0_edges = np.linspace(np.amin(dt_muons_theta_base_point["x0"])-1, np.amax(dt_muons_theta_base_point["x0"])+1, n_bins+1)
+    x0_bins = (x0_edges[:-1] + x0_edges[1:]) / 2
+    mean_theta_t0_residual_by_x0_corr = np.zeros(n_bins)
+    sigma_theta_t0_residual_by_x0_corr = np.zeros(n_bins)
+    mean_theta_t0_residual_by_x0 = np.zeros(n_bins)
+    sigma_theta_t0_residual_by_x0 = np.zeros(n_bins)
+    for i in tqdm(range(n_bins)):
+        muon_idcs = np.where((dt_muons_theta_base_point["x0"] >= x0_edges[i]) & (dt_muons_theta_base_point["x0"] < x0_edges[i+1]))
+        mean_theta_t0_residual_by_x0_corr[i] = np.mean( theta_t0_residual_sig_prop_corr[muon_idcs] )
+        sigma_theta_t0_residual_by_x0_corr[i] = np.std( theta_t0_residual_sig_prop_corr[muon_idcs], ddof=1 ) / np.sqrt( len(theta_t0_residual_sig_prop_corr[muon_idcs]) )
+        mean_theta_t0_residual_by_x0[i] = np.mean( theta_t0_residual[muon_idcs] )
+        sigma_theta_t0_residual_by_x0[i] = np.std( theta_t0_residual[muon_idcs], ddof=1 ) / np.sqrt( len(theta_t0_residual[muon_idcs]) )
+    ### plot distribution
+    fig, ax = plt.subplots()
+    ax.errorbar(x0_bins, mean_theta_t0_residual_by_x0, yerr=sigma_theta_t0_residual_by_x0, xerr=np.diff(x0_edges)/4, linestyle="", marker=".", color="tab:blue", label="before")
+    ax.errorbar(x0_bins, mean_theta_t0_residual_by_x0_corr, yerr=sigma_theta_t0_residual_by_x0_corr, xerr=np.diff(x0_edges)/4, linestyle="", marker=".", color="tab:orange", label="after")
+    ax.set_xlabel(f"reco position (along theta wire) $x_0$ [mm]")
+    ax.set_ylabel(f"reco reference $T$ $-$ theta sl fit $T_0$ [ns]")
+    ax.legend(fontsize=12)
+    fig.tight_layout()
+    plot_utils.save_figure(fig, f"{script_prefix}_mean_theta_t0_residual_by_x0_corr", args)
+
     #################################
     ### ANALYZE FOR PHI 1 SL
     #################################
 
     ### calculate residual of theta from ts reference
-    phi1_t0_residual = np.zeros(n_dt_muons)
-    # calculate residual of theta from phi superfit ts
-    phi1_t0_residual = sl_fits["t0"][theta_sl_fit_rows] - super_fits[f"t0_sl{phi_sl_1}"][phi_superfit_rows]
+    #phi1_t0_residual = sl_fits["t0"][theta_sl_fit_rows] - super_fits[f"t0_sl{phi_sl_1}"][phi_superfit_rows]
+    phi1_t0_residual = dt_muons["sl2_t0"] - dt_muons["sl1_t0"]
+    phi1_t0_residual_sig_prop_corr = dt_muons["sl2_t0_sig_prop_corr"] - dt_muons["sl1_t0_sig_prop_corr"]
+    phi1_t0_residual *= 0.78 # convert to ns
 
-    phi1_sl_central_z = np.mean([dt_chamber_utils.layer_z(sl=phi_sl_1, ly=0), dt_chamber_utils.layer_z(sl=phi_sl_1, ly=3) ])
-    dt_muons_phi1_base_point = muon_utils.change_muon_base_point(muons=dt_muons, z_new=phi1_sl_central_z)
+    dt_muons_phi1_base_point = muon_utils.change_muon_base_point(muons=dt_muons, z_new=dt_chamber_utils.SL1_CENTRAL_Z)
 
     ### calculate binned distribution: phi-sensitive coordinate vs. theta residual
     y0_edges = np.linspace(np.amin(dt_muons_phi1_base_point["y0"])-1, np.amax(dt_muons_phi1_base_point["y0"])+1, n_bins+1)
@@ -161,8 +182,6 @@ def main():
         muon_idcs = np.where((dt_muons_phi1_base_point["y0"] >= y0_edges[i]) & (dt_muons_phi1_base_point["y0"] < y0_edges[i+1]))
         mean_phi1_t0_residual_by_y0[i] = np.mean( phi1_t0_residual[muon_idcs] )
         sigma_phi1_t0_residual_by_y0[i] = np.std( phi1_t0_residual[muon_idcs], ddof=1 ) / np.sqrt( len(phi1_t0_residual[muon_idcs]) )
-    mean_phi1_t0_residual_by_y0 *= 0.78 # conversion to ns
-    sigma_phi1_t0_residual_by_y0 *= 0.78 # conversion to ns
     ### plot distribution
     fig, ax = plt.subplots()
     ax.errorbar(y0_bins, mean_phi1_t0_residual_by_y0, yerr=sigma_phi1_t0_residual_by_y0, xerr=np.diff(y0_edges)/4, linestyle="", marker=".")
@@ -194,17 +213,40 @@ def main():
     fig.tight_layout()
     plot_utils.save_figure(fig, f"{script_prefix}_mean_phi1_t0_residual_by_y0_fit", args)
 
+    ### CORRECTED DATA: calculate binned distribution: phi-sensitive coordinate vs. theta residual
+    y0_edges = np.linspace(np.amin(dt_muons_phi1_base_point["y0"])-1, np.amax(dt_muons_phi1_base_point["y0"])+1, n_bins+1)
+    y0_bins = (y0_edges[:-1] + y0_edges[1:]) / 2
+    mean_phi1_t0_residual_by_y0_corr = np.zeros(n_bins)
+    sigma_phi1_t0_residual_by_y0_corr = np.zeros(n_bins)
+    mean_phi1_t0_residual_by_y0 = np.zeros(n_bins)
+    sigma_phi1_t0_residual_by_y0 = np.zeros(n_bins)
+    for i in tqdm(range(n_bins)):
+        muon_idcs = np.where((dt_muons_phi1_base_point["y0"] >= y0_edges[i]) & (dt_muons_phi1_base_point["y0"] < y0_edges[i+1]))
+        mean_phi1_t0_residual_by_y0_corr[i] = np.mean( phi1_t0_residual_sig_prop_corr[muon_idcs] )
+        sigma_phi1_t0_residual_by_y0_corr[i] = np.std( phi1_t0_residual_sig_prop_corr[muon_idcs], ddof=1 ) / np.sqrt( len(phi1_t0_residual_sig_prop_corr[muon_idcs]) )
+        mean_phi1_t0_residual_by_y0[i] = np.mean( phi1_t0_residual[muon_idcs] )
+        sigma_phi1_t0_residual_by_y0[i] = np.std( phi1_t0_residual[muon_idcs], ddof=1 ) / np.sqrt( len(phi1_t0_residual[muon_idcs]) )
+    ### plot distribution
+    fig, ax = plt.subplots()
+    ax.errorbar(y0_bins, mean_phi1_t0_residual_by_y0, yerr=sigma_phi1_t0_residual_by_y0, xerr=np.diff(y0_edges)/4, linestyle="", marker=".", color="tab:blue", label="before")
+    ax.errorbar(y0_bins, mean_phi1_t0_residual_by_y0_corr, yerr=sigma_phi1_t0_residual_by_y0_corr, xerr=np.diff(y0_edges)/4, linestyle="", marker=".", color="tab:orange", label="after")
+    ax.set_xlabel(f"reco position (along phi wire) $y_0$ [mm]")
+    ax.set_ylabel(f"reco reference $T$ $-$ phi1 sl fit $T_0$ [ns]")
+    ax.legend(fontsize=12)
+    fig.tight_layout()
+    plot_utils.save_figure(fig, f"{script_prefix}_mean_phi1_t0_residual_by_y0_corr", args)
+
     #################################
     ### ANALYZE FOR PHI 2 SL
     #################################
 
     ### calculate residual of theta from ts reference
-    phi2_t0_residual = np.zeros(n_dt_muons)
-    # calculate residual of theta from phi superfit ts
-    phi2_t0_residual = sl_fits["t0"][theta_sl_fit_rows] - super_fits[f"t0_sl{phi_sl_2}"][phi_superfit_rows]
+    #phi2_t0_residual = sl_fits["t0"][theta_sl_fit_rows] - super_fits[f"t0_sl{phi_sl_2}"][phi_superfit_rows]
+    phi2_t0_residual = dt_muons["sl2_t0"] - dt_muons["sl3_t0"]
+    phi2_t0_residual_sig_prop_corr = dt_muons["sl2_t0_sig_prop_corr"] - dt_muons["sl3_t0_sig_prop_corr"]
+    phi2_t0_residual *= 0.78 # convert to ns
 
-    phi2_sl_central_z = np.mean([dt_chamber_utils.layer_z(sl=phi_sl_1, ly=0), dt_chamber_utils.layer_z(sl=phi_sl_1, ly=3) ])
-    dt_muons_phi2_base_point = muon_utils.change_muon_base_point(muons=dt_muons, z_new=phi2_sl_central_z)
+    dt_muons_phi2_base_point = muon_utils.change_muon_base_point(muons=dt_muons, z_new=dt_chamber_utils.SL3_CENTRAL_Z)
 
     ### calculate binned distribution: phi-sensitive coordinate vs. theta residual
     y0_edges = np.linspace(np.amin(dt_muons_phi2_base_point["y0"])-1, np.amax(dt_muons_phi2_base_point["y0"])+1, n_bins+1)
@@ -215,8 +257,6 @@ def main():
         muon_idcs = np.where((dt_muons_phi2_base_point["y0"] >= y0_edges[i]) & (dt_muons_phi2_base_point["y0"] < y0_edges[i+1]))
         mean_phi2_t0_residual_by_y0[i] = np.mean( phi2_t0_residual[muon_idcs] )
         sigma_phi2_t0_residual_by_y0[i] = np.std( phi2_t0_residual[muon_idcs], ddof=1 ) / np.sqrt( len(phi2_t0_residual[muon_idcs]) )
-    mean_phi2_t0_residual_by_y0 *= 0.78 # conversion to ns
-    sigma_phi2_t0_residual_by_y0 *= 0.78 # conversion to ns
     ### plot distribution
     fig, ax = plt.subplots()
     ax.errorbar(y0_bins, mean_phi2_t0_residual_by_y0, yerr=sigma_phi2_t0_residual_by_y0, xerr=np.diff(y0_edges)/4, linestyle="", marker=".")
@@ -247,6 +287,29 @@ def main():
     ax.legend(fontsize=12)
     fig.tight_layout()
     plot_utils.save_figure(fig, f"{script_prefix}_mean_phi2_t0_residual_by_y0_fit", args)
+
+    ### CORRECTED DATA: calculate binned distribution: phi-sensitive coordinate vs. theta residual
+    y0_edges = np.linspace(np.amin(dt_muons_phi2_base_point["y0"])-1, np.amax(dt_muons_phi2_base_point["y0"])+1, n_bins+1)
+    y0_bins = (y0_edges[:-1] + y0_edges[1:]) / 2
+    mean_phi2_t0_residual_by_y0_corr = np.zeros(n_bins)
+    sigma_phi2_t0_residual_by_y0_corr = np.zeros(n_bins)
+    mean_phi2_t0_residual_by_y0 = np.zeros(n_bins)
+    sigma_phi2_t0_residual_by_y0 = np.zeros(n_bins)
+    for i in tqdm(range(n_bins)):
+        muon_idcs = np.where((dt_muons_phi2_base_point["y0"] >= y0_edges[i]) & (dt_muons_phi2_base_point["y0"] < y0_edges[i+1]))
+        mean_phi2_t0_residual_by_y0_corr[i] = np.mean( phi2_t0_residual_sig_prop_corr[muon_idcs] )
+        sigma_phi2_t0_residual_by_y0_corr[i] = np.std( phi2_t0_residual_sig_prop_corr[muon_idcs], ddof=1 ) / np.sqrt( len(phi2_t0_residual_sig_prop_corr[muon_idcs]) )
+        mean_phi2_t0_residual_by_y0[i] = np.mean( phi2_t0_residual[muon_idcs] )
+        sigma_phi2_t0_residual_by_y0[i] = np.std( phi2_t0_residual[muon_idcs], ddof=1 ) / np.sqrt( len(phi2_t0_residual[muon_idcs]) )
+    ### plot distribution
+    fig, ax = plt.subplots()
+    ax.errorbar(y0_bins, mean_phi2_t0_residual_by_y0, yerr=sigma_phi2_t0_residual_by_y0, xerr=np.diff(y0_edges)/4, linestyle="", marker=".", color="tab:blue", label="before")
+    ax.errorbar(y0_bins, mean_phi2_t0_residual_by_y0_corr, yerr=sigma_phi2_t0_residual_by_y0_corr, xerr=np.diff(y0_edges)/4, linestyle="", marker=".", color="tab:orange", label="after")
+    ax.set_xlabel(f"reco position (along phi wire) $y_0$ [mm]")
+    ax.set_ylabel(f"reco reference $T$ $-$ phi2 sl fit $T_0$ [ns]")
+    ax.legend(fontsize=12)
+    fig.tight_layout()
+    plot_utils.save_figure(fig, f"{script_prefix}_mean_phi2_t0_residual_by_y0_corr", args)
 
 
 if __name__ == "__main__":

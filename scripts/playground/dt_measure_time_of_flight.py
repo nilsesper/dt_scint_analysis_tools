@@ -22,7 +22,7 @@ from analysis_tools.params import params
 
 theta_sl = dt_chamber_utils.theta_superlayer()
 phi_sl_1, phi_sl_2 = dt_chamber_utils.phi_superlayers()
-MUON_KEYS = ["x0", "y0", "z0", "theta", "phi", "ts"] + [f"super_fit_row", f"sl{theta_sl}_fit_row"]
+MUON_KEYS = ["x0", "y0", "z0", "theta", "phi", "ts"] + [f"super_fit_row", f"sl{theta_sl}_fit_row", "sl1_t0", "sl2_t0", "sl3_t0", "sl1_t0_sig_prop_corr", "sl2_t0_sig_prop_corr", "sl3_t0_sig_prop_corr"]
 
 script_prefix = "dt_tof"
 
@@ -90,9 +90,15 @@ def main():
     #################################
 
     ### calculate time difference between consecutive sls
-    sl12_t0_diff = sl_fits["t0"][theta_sl_fit_rows] - super_fits[f"t0_sl{phi_sl_1}"][phi_superfit_rows]
-    sl23_t0_diff = super_fits[f"t0_sl{phi_sl_2}"][phi_superfit_rows] - sl_fits["t0"][theta_sl_fit_rows]
-    sl13_t0_diff = super_fits[f"t0_sl{phi_sl_2}"][phi_superfit_rows] - super_fits[f"t0_sl{phi_sl_1}"][phi_superfit_rows]
+    #sl12_t0_diff = sl_fits["t0"][theta_sl_fit_rows] - super_fits[f"t0_sl{phi_sl_1}"][phi_superfit_rows]
+    #sl23_t0_diff = super_fits[f"t0_sl{phi_sl_2}"][phi_superfit_rows] - sl_fits["t0"][theta_sl_fit_rows]
+    #sl13_t0_diff = super_fits[f"t0_sl{phi_sl_2}"][phi_superfit_rows] - super_fits[f"t0_sl{phi_sl_1}"][phi_superfit_rows]
+    #sl12_t0_diff = dt_muons["sl2_t0"] - dt_muons["sl1_t0"]
+    #sl23_t0_diff = dt_muons["sl3_t0"] - dt_muons["sl2_t0"]
+    #sl13_t0_diff = dt_muons["sl3_t0"] - dt_muons["sl1_t0"]
+    sl12_t0_diff = dt_muons["sl2_t0_sig_prop_corr"] - dt_muons["sl1_t0_sig_prop_corr"]
+    sl23_t0_diff = dt_muons["sl3_t0_sig_prop_corr"] - dt_muons["sl2_t0_sig_prop_corr"]
+    sl13_t0_diff = dt_muons["sl3_t0_sig_prop_corr"] - dt_muons["sl1_t0_sig_prop_corr"]
 
     sl12_t0_diff *= 0.78 # convert to ns
     sl23_t0_diff *= 0.78 # convert to ns
@@ -413,15 +419,6 @@ def main():
     fig.tight_layout()
     plot_utils.save_figure(fig, f"{script_prefix}_mean_sl13_t0_diff_by_angle_y", args)
 
-    ### perform signal prop correction
-    v_sig_prop = 2.5e8 # m/s
-    # define corr function
-    def ts_sig_prop_corr(alpha):
-        # ts_corr = delta_x / v_sig_prop
-        # delta_x = h * tan_alpha
-        ts_corr = 0.23*np.tan(alpha)/v_sig_prop
-        ts_corr *= 1e9 # convert to ns
-        return ts_corr
     ### recalculate with applied corr
     angle = np.arctan(sl_fits["tan_alpha"][theta_sl_fit_rows])
     n_bins = 50
@@ -431,8 +428,8 @@ def main():
     sigma_sl13_t0_diff_by_angle = np.zeros(n_bins)
     for i in tqdm(range(n_bins)):
         muon_idcs = np.where((angle >= angle_edges[i]) & (angle < angle_edges[i+1]) & (np.abs(angle_phi) < np.deg2rad(max_angle_phi)))
-        mean_sl13_t0_diff_by_angle[i] = np.mean( sl13_t0_diff[muon_idcs] - ts_sig_prop_corr(angle[muon_idcs]) )
-        sigma_sl13_t0_diff_by_angle[i] = np.std( sl13_t0_diff[muon_idcs] - ts_sig_prop_corr(angle[muon_idcs]) , ddof=1 ) / np.sqrt( len(sl13_t0_diff[muon_idcs]) )
+        mean_sl13_t0_diff_by_angle[i] = np.mean( sl13_t0_diff[muon_idcs] )
+        sigma_sl13_t0_diff_by_angle[i] = np.std( sl13_t0_diff[muon_idcs] , ddof=1 ) / np.sqrt( len(sl13_t0_diff[muon_idcs]) )
     ### plot distribution
     fig, ax = plt.subplots()
     ax.errorbar(np.rad2deg(angle_bins), mean_sl13_t0_diff_by_angle, yerr=sigma_sl13_t0_diff_by_angle, xerr=np.diff(np.rad2deg(angle_edges))/2, linestyle="", marker=".")
@@ -454,8 +451,8 @@ def main():
     for i in tqdm(range(n_bins)):
         #muon_idcs = np.where((abs_angle >= angle_edges[i]) & (abs_angle < angle_edges[i+1]) & (np.abs(angle_phi) < np.deg2rad(max_angle_phi)))
         muon_idcs = np.where((angle >= angle_edges[i]) & (angle < angle_edges[i+1]) & (np.abs(angle_phi) < np.deg2rad(max_angle_phi)))
-        mean_sl13_t0_diff_by_angle[i] = np.mean( sl13_t0_diff[muon_idcs] - ts_sig_prop_corr(angle[muon_idcs]) )
-        sigma_sl13_t0_diff_by_angle[i] = np.std( sl13_t0_diff[muon_idcs] - ts_sig_prop_corr(angle[muon_idcs]) , ddof=1 ) / np.sqrt( len(sl13_t0_diff[muon_idcs]) )
+        mean_sl13_t0_diff_by_angle[i] = np.mean( sl13_t0_diff[muon_idcs] )
+        sigma_sl13_t0_diff_by_angle[i] = np.std( sl13_t0_diff[muon_idcs] , ddof=1 ) / np.sqrt( len(sl13_t0_diff[muon_idcs]) )
     ### plot distribution
     fig, ax = plt.subplots()
     ax.errorbar(np.abs(np.rad2deg(angle_bins)), mean_sl13_t0_diff_by_angle, yerr=sigma_sl13_t0_diff_by_angle, xerr=np.diff(np.rad2deg(angle_edges))/2, linestyle="", marker=".")
@@ -529,15 +526,6 @@ def main():
     fig.tight_layout()
     plot_utils.save_figure(fig, f"{script_prefix}_mean_sl13_t0_diff_by_angle_x", args)
 
-    ### perform signal prop correction
-    v_sig_prop = 2.7e8 # m/s
-    # define corr function
-    def ts_sig_prop_corr(alpha):
-        # ts_corr = delta_x / v_sig_prop
-        # delta_x = h * tan_alpha
-        ts_corr = 0.23*np.tan(alpha)/v_sig_prop
-        ts_corr *= 1e9 # convert to ns
-        return ts_corr
     ### recalculate with applied corr
     angle = np.arctan(super_fits["tan_alpha_super_fits"][phi_superfit_rows])
     angle_theta = np.arctan(sl_fits["tan_alpha"][theta_sl_fit_rows])
@@ -548,8 +536,8 @@ def main():
     sigma_sl13_t0_diff_by_angle = np.zeros(n_bins)
     for i in tqdm(range(n_bins)):
         muon_idcs = np.where((angle >= angle_edges[i]) & (angle < angle_edges[i+1]) & (np.abs(angle_theta) < np.deg2rad(max_angle_theta)))
-        mean_sl13_t0_diff_by_angle[i] = np.mean( sl13_t0_diff[muon_idcs] - ts_sig_prop_corr(angle_theta[muon_idcs]) )
-        sigma_sl13_t0_diff_by_angle[i] = np.std( sl13_t0_diff[muon_idcs] - ts_sig_prop_corr(angle_theta[muon_idcs]) , ddof=1 ) / np.sqrt( len(sl13_t0_diff[muon_idcs]) )
+        mean_sl13_t0_diff_by_angle[i] = np.mean( sl13_t0_diff[muon_idcs] )
+        sigma_sl13_t0_diff_by_angle[i] = np.std( sl13_t0_diff[muon_idcs] , ddof=1 ) / np.sqrt( len(sl13_t0_diff[muon_idcs]) )
     ### plot distribution
     fig, ax = plt.subplots()
     ax.errorbar(np.rad2deg(angle_bins), mean_sl13_t0_diff_by_angle, yerr=sigma_sl13_t0_diff_by_angle, xerr=np.diff(np.rad2deg(angle_edges))/2, linestyle="", marker=".")
@@ -571,8 +559,8 @@ def main():
     for i in tqdm(range(n_bins)):
         #muon_idcs = np.where((abs_angle >= angle_edges[i]) & (abs_angle < angle_edges[i+1]) & (np.abs(angle_theta) < np.deg2rad(max_angle_theta)))
         muon_idcs = np.where((angle >= angle_edges[i]) & (angle < angle_edges[i+1]) & (np.abs(angle_theta) < np.deg2rad(max_angle_theta)))
-        mean_sl13_t0_diff_by_angle[i] = np.mean( sl13_t0_diff[muon_idcs] - ts_sig_prop_corr(angle_theta[muon_idcs]) )
-        sigma_sl13_t0_diff_by_angle[i] = np.std( sl13_t0_diff[muon_idcs] - ts_sig_prop_corr(angle_theta[muon_idcs]) , ddof=1 ) / np.sqrt( len(sl13_t0_diff[muon_idcs]) )
+        mean_sl13_t0_diff_by_angle[i] = np.mean( sl13_t0_diff[muon_idcs] )
+        sigma_sl13_t0_diff_by_angle[i] = np.std( sl13_t0_diff[muon_idcs] , ddof=1 ) / np.sqrt( len(sl13_t0_diff[muon_idcs]) )
     ### plot distribution
     fig, ax = plt.subplots()
     ax.errorbar(np.abs(np.rad2deg(angle_bins)), mean_sl13_t0_diff_by_angle, yerr=sigma_sl13_t0_diff_by_angle, xerr=np.diff(np.rad2deg(angle_edges))/2, linestyle="", marker=".")
