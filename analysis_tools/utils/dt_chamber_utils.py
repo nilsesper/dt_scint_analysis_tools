@@ -254,6 +254,14 @@ def find_top_phi_superlayer():
 
 TOP_PHI_SUPERLAYER = find_top_phi_superlayer()
 
+SL1_CENTRAL_Z = np.mean([layer_z(sl=1, ly=0), layer_z(sl=1, ly=3) ])
+SL2_CENTRAL_Z = np.mean([layer_z(sl=2, ly=0), layer_z(sl=2, ly=3) ])
+SL3_CENTRAL_Z = np.mean([layer_z(sl=3, ly=0), layer_z(sl=3, ly=3) ])
+
+SL1_WIRE_LENGTH = params._dt_chamber["sls"][1]["cell_size"][1]
+SL2_WIRE_LENGTH = params._dt_chamber["sls"][2]["cell_size"][0]
+SL3_WIRE_LENGTH = params._dt_chamber["sls"][3]["cell_size"][1]
+
 # -----------------------------------------
 # tracks (see "2. TRACK FRAME" and "3. MUONS" above)
 # -----------------------------------------

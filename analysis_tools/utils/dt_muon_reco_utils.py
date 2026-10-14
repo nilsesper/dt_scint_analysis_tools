@@ -10,9 +10,10 @@
 # (see "3. MUONS" in dt_chamber_utils.py).
 
 import numpy as np
+import copy
 
 from analysis_tools.params import params
-from analysis_tools.utils import dt_chamber_utils
+from analysis_tools.utils import dt_chamber_utils, muon_utils
 from analysis_tools.utils.dt_fit_utils import SUPER_FIT_SUFFIX, SIM_KEYS
 
 # -----------------------------------------
@@ -27,8 +28,12 @@ for sl in dt_chamber_utils.phi_superlayers():
 MUON_KEYS["delta_t0"] = np.float64
 MUON_KEYS["sim_id_mismatch"] = np.int64
 MUON_KEYS["super_fit_row"] = np.int64
+MUON_KEYS["super_fit_tan_alpha"] = np.float64
 for sl in dt_chamber_utils.superlayers():
     MUON_KEYS[f"sl{sl}_fit_row"] = np.int64
+    MUON_KEYS[f"sl{sl}_t0"] = np.float64
+    MUON_KEYS[f"sl{sl}_t0_sig_prop_corr"] = np.float64
+    MUON_KEYS[f"sl{sl}_tan_alpha"] = np.float64
 
 ### direction from the slopes in the x-z and y-z planes: tan_alpha_x = tan(theta) cos(phi), tan_alpha_y = tan(theta) sin(phi)
 # returns (theta, err_theta, phi, err_phi), phi in [0, 2 pi)
@@ -80,6 +85,13 @@ def pair_super_and_theta_fits(t0_super, t0_theta, tgroup_tolerance):
         pairs.append((i, closest, n_candidates))
     return pairs
 
+### timing correction function for signal propagation along the wire
+v_sig_prop = 2.6e8 # m/s
+def ts_sig_prop_corr(x_wire): # x_wire in mm
+    # ts_corr = delta_x / v_sig_prop , delta_x = h * tan_alpha
+    ts_corr = x_wire * 1e-3 / v_sig_prop * 1e9 / 0.78 # convert to TS units
+    return ts_corr
+
 ### muons from the super fits and the sl fits of one chunk
 # first_super_fit_row, first_sl_fit_row: row numbers (in their files) of the first super fit / sl fit of this chunk;
 # the muons get the rows of the fits they were made of: "super_fit_row", "sl<n>_fit_row"
@@ -99,6 +111,8 @@ def reco_muons(super_fits, sl_fits, first_super_fit_row, first_sl_fit_row, tgrou
     muons = []
     for i, j, n_candidates in pair_super_and_theta_fits(t0_super, t0_theta, tgroup_tolerance):
         theta_row = theta_rows[j]
+        sl1_phi_row = super_fits[f"row_sl1"][i] - first_sl_fit_row
+        sl3_phi_row = super_fits[f"row_sl3"][i] - first_sl_fit_row
 
         # phi view (super fit) at z0: position, its error, slope, its error
         ref_x, ref_z = super_fits["ref_x" + sfx][i], super_fits["ref_z" + sfx][i]
@@ -122,6 +136,24 @@ def reco_muons(super_fits, sl_fits, first_super_fit_row, first_sl_fit_row, tgrou
             "err_x0": err_x, "err_y0": err_y, "err_z0": 0, "err_theta": err_theta, "err_phi": err_phi, "err_ts": err_ts,
             "n_theta_candidates": n_candidates, "delta_t0": t0_theta[j] - t0_super[i], "sim_id_mismatch": 0,
             "super_fit_row": first_super_fit_row + i, f"sl{theta_sl}_fit_row": first_sl_fit_row + theta_row,
+            # add angles and times
+            "sl1_t0": sl_fits["t0"][sl1_phi_row],   "sl1_tan_alpha": sl_fits["tan_alpha"][sl1_phi_row],
+            "sl2_t0": sl_fits["t0"][theta_row],     "sl2_tan_alpha": sl_fits["tan_alpha"][theta_row],
+            "sl3_t0": sl_fits["t0"][sl3_phi_row],   "sl3_tan_alpha": sl_fits["tan_alpha"][sl3_phi_row],
+            "super_fit_tan_alpha": super_fits["tan_alpha" + sfx][i],
+        }
+
+        # timing correction due to signal prop along wire
+        _muon = copy.deepcopy(muon)
+        alpha_phi = muon["super_fit_tan_alpha"]
+        alpha_theta = muon["sl2_tan_alpha"]
+        (_,sl1_wire_pos,_) = muon_utils.propagate_muons(_muon, z=dt_chamber_utils.SL1_CENTRAL_Z)
+        (sl2_wire_pos,_,_) = muon_utils.propagate_muons(_muon, z=dt_chamber_utils.SL2_CENTRAL_Z)
+        (_,sl3_wire_pos,_) = muon_utils.propagate_muons(_muon, z=dt_chamber_utils.SL3_CENTRAL_Z)
+        muon |= {
+            "sl1_t0_sig_prop_corr": muon["sl1_t0"] - ts_sig_prop_corr(x_wire=sl1_wire_pos),
+            "sl2_t0_sig_prop_corr": muon["sl2_t0"] - ts_sig_prop_corr(x_wire=dt_chamber_utils.SL2_WIRE_LENGTH-sl2_wire_pos),
+            "sl3_t0_sig_prop_corr": muon["sl3_t0"] - ts_sig_prop_corr(x_wire=sl3_wire_pos),
         }
         for sl in dt_chamber_utils.phi_superlayers():
             muon[f"sl{sl}_fit_row"] = super_fits[f"row_sl{sl}"][i]  # already the row in the sl fits file
