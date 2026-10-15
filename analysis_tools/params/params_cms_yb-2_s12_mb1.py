@@ -218,6 +218,64 @@ _dt_dead_wires = { # sl: ly: [wire_ids] these wires are dead, no signal is expec
 }
 
 ###############################
+### SCINTILLATOR (SiPM hodoscope below the chamber)
+###############################
+# 2 layers of 16 strips each, every strip is read out by 2 SiPMs (sipm 0 and sipm 1), one at each end.
+# Layer 0: strips along x, numbered along y ("theta" orientation, measures y like SL 2).
+# Layer 1: strips along y, numbered along x ("phi" orientation, measures x like SL 1 / SL 3).
+# Positions in the chamber frame (see above). Measured: the upper corner of the scintillator with the smallest x, y is
+# 760 mm (x) / 1170 mm (y) from the SL 1 / SL 2 casing edge and 990 mm below SL 1; strips 30 mm wide, 500 mm long,
+# 5 mm thick, 20/15 mm gap between strips. Strip st of a layer: strip_0 shifted by st * pitch along the measured axis
+# (pitch < 0: the strip numbers grow towards smaller x / y).
+_scint_strip_pitch = 30 + 20/15  # mm, strip width + gap
+_scintillator = {
+    "name": "SiPM hodoscope, 2 layers x 16 strips",
+    "lys": {
+        0: {"orient": "theta", "n_sts": 16, "strip_size": (500, 30, 5), "strip_0": (752.667, 1672.967, -978.5), "pitch": -_scint_strip_pitch},
+        1: {"orient": "phi",   "n_sts": 16, "strip_size": (30, 500, 5), "strip_0": (1222.667, 1202.967, -953.5), "pitch": -_scint_strip_pitch},
+    },
+}
+
+### readout of the SiPMs: mezzanine boards in "no coincidence" mode (every SiPM is its own channel = raw scint hit)
+# {name: {"ch": channel of the mezzanine, "ly": layer, "st": strip, "sipm": 0 or 1}}; mapping valid since 09-11-2025
+_mezzanine_1_fe_mapping_no_coinc = { # one sipm of all strips
+    f"coinc_ch_{i}": {"ly": 0, "st": 0+i, "ch": i, "sipm": 0} for i in range(0, 8)
+} | {
+    f"coinc_ch_{8+i}": {"ly": 0, "st": 8+i, "ch": 8+i, "sipm": 0} for i in range(0, 8)
+} | {
+    f"coinc_ch_{16+i}": {"ly": 1, "st": 0+i, "ch": 16+i, "sipm": 1} for i in range(0, 8)
+} | {
+    f"coinc_ch_{24+i}": {"ly": 1, "st": 8+i, "ch": 24+i, "sipm": 1} for i in range(0, 8)
+}
+_mezzanine_2_fe_mapping_no_coinc = { # the other sipm of all strips
+    f"coinc_ch_{i}": {"ly": 1, "st": 0+i, "ch": i, "sipm": 0} for i in range(0, 8)
+} | {
+    f"coinc_ch_{8+i}": {"ly": 1, "st": 8+i, "ch": 8+i, "sipm": 0} for i in range(0, 8)
+} | {
+    f"coinc_ch_{16+i}": {"ly": 0, "st": 0+i, "ch": 16+i, "sipm": 1} for i in range(0, 8)
+} | {
+    f"coinc_ch_{24+i}": {"ly": 0, "st": 8+i, "ch": 24+i, "sipm": 1} for i in range(0, 8)
+}
+# {ro_ch: mezzanine mapping}
+_raw_scint_mapping = {
+    #27: _mezzanine_1_fe_mapping_no_coinc, # mez1
+    #25: _mezzanine_2_fe_mapping_no_coinc, # mez2
+}
+
+# masked SiPMs {ly: {st: sipm}}: for these strips a hit of the other SiPM alone is taken as strip hit (no coincidence).
+# A strip with one masked SiPM which is not listed here gives no strip hits; a strip with both SiPMs dead: do not list it.
+_scint_masked_sipms = {
+    #0: {},
+    #1: {},
+}
+
+### scintillator reconstruction
+_raw_scint_hits_grouping_ts_tolerance = 100 # raw scint hits closer in time than this (TU) form one group
+_scintillator_ts_acceptance_interval = 32 # max |ts difference| of the two SiPM hits of a strip hit (TU); 32 TU = 25 ns
+_raw_scintillator_ts_individual_dead_time = 0 # dead time of a single SiPM channel (TU), 0: no dead time cut
+_corr_ts_group_window = 1000 # dt muon - scint hit correlation: max |ts difference| (TU)
+
+###############################
 ### TESTPULSE TIMING CALIBRATION
 ###############################
 # known extra delay of the testpulses per frontend connector, subtracted from the measured testpulse times

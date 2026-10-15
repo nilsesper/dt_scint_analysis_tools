@@ -258,8 +258,8 @@ _mezzanine_2_fe_mapping_no_coinc = { # the other sipm of all strips
 }
 # {ro_ch: mezzanine mapping}
 _raw_scint_mapping = {
-    27: _mezzanine_1_fe_mapping_no_coinc, # mez1
-    25: _mezzanine_2_fe_mapping_no_coinc, # mez2
+    #27: _mezzanine_1_fe_mapping_no_coinc, # mez1
+    #25: _mezzanine_2_fe_mapping_no_coinc, # mez2
 }
 
 # masked SiPMs {ly: {st: sipm}}: for these strips a hit of the other SiPM alone is taken as strip hit (no coincidence).
