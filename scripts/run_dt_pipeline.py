@@ -25,7 +25,7 @@ from analysis_tools.utils.root_utils import log
 STAGES = [
     "dt_hits",
     "hit_diff_hist",
-    #"cell_counts",
+    "cell_counts",
     "sl_patterns",
     "sl_fits",
     "sl_fits_cut",
