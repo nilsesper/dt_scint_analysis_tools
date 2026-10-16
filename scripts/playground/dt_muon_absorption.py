@@ -43,11 +43,25 @@ def main():
     parser.add_argument("--dt_muons_file", type=str, required=True, help="input file path: dt muons without absorber (.root)")
     parser.add_argument("--dt_muons_file_absorber", type=str, required=True, help="input file path: dt muons with absorber (.root)")
     parser.add_argument("--cuts", type=str, default=None, help="cuts applied before plotting, format \"key1,operator1,value1;key2,operator2,value2;...\"")
+    parser.add_argument("--mark_cells", type=str, default=None,
+                        help="cells to mark in the maps (e.g. dead or noisy ones) as \"sl:ly:wi,sl:ly:wi,...\", or \"none\" "
+                             "(default: the cells listed in params._dt_wire_mask and params._dt_dead_wires)")
     parser.add_argument("--xy_bin_width", type=float, default=20, help="bin width of the x-y maps in mm")
     parser.add_argument("--xz_bin_width", type=float, default=5, help="bin width of the x-z and y-z projections in mm")
     plot_utils.add_plot_arguments(parser)
     args = parser.parse_args()
     plot_utils.check_plot_arguments(parser, args)
+
+    ### cells to mark
+    if args.mark_cells is None:
+        marked_cells = sorted(dt_chamber_utils.excluded_cells())
+    elif args.mark_cells.strip().lower() == "none":
+        marked_cells = []
+    else:
+        marked_cells = plot_utils.parse_cells(args.mark_cells)
+    for sl, ly, wi in marked_cells:
+        if (sl, ly, wi) not in dt_chamber_utils.chamber_cells():
+            raise ValueError(f"--mark_cells: cell sl={sl}, ly={ly}, wi={wi} does not exist in the chamber.")
 
     ### data import
     cuts = data_utils.parse_cuts(args.cuts)
@@ -134,12 +148,20 @@ def main():
     #     fig.tight_layout()
     #     plot_utils.save_figure(fig, f"dt_muon_absorption_xy_sl{sl}", args)
 
+    # z: height, x: along theta wires, y: along phi wires
+    chamber_top_left_corner = (0, 0, 273.95+53.5) # x,y,z
+    absorber_positions = [ # ((x0,x1),(y0,y1)),(z0,z1)))
+        (
+            (chamber_top_left_corner[0]+80, chamber_top_left_corner[0]+80 +400),
+            (chamber_top_left_corner[1]+950, chamber_top_left_corner[1]+950 +200),
+            (chamber_top_left_corner[2]+200, chamber_top_left_corner[2]+200 +50),
+        ),
+    ]
+
     # ### X-Y maps: track positions at specified height
-    new_z_planes = {
-        273.95+53.5 + 20 # mm
-    }
     # without absorber
-    for new_z_plane in new_z_planes:
+    for i_absorber in range(len(absorber_positions)):
+        new_z_plane = (absorber_positions[i_absorber][2][0]+(absorber_positions[i_absorber][2][1]-absorber_positions[i_absorber][2][0]))/2
         margin = 200  # mm
         box = dt_chamber_utils.superlayer_box(sl=3)
         x_edges = np.arange(start=box["low"][dt_chamber_utils.X] - margin, stop=box["high"][dt_chamber_utils.X] + margin + args.xy_bin_width, step=args.xy_bin_width)
@@ -153,10 +175,12 @@ def main():
         #     (box["low"][dt_chamber_utils.X], box["low"][dt_chamber_utils.Y]), width=(box["high"][dt_chamber_utils.X] - box["low"][dt_chamber_utils.X]), height=(box["high"][dt_chamber_utils.Y] - box["low"][dt_chamber_utils.Y]),
         #     edgecolor="white", facecolor="None", label="Superlayer position",
         # ))
+        # draw absorber location
+        ax.add_patch( patches.Rectangle((absorber_positions[i_absorber][0][0], absorber_positions[i_absorber][1][0]), width=absorber_positions[i_absorber][0][1]-absorber_positions[i_absorber][0][0], height=absorber_positions[i_absorber][1][1]-absorber_positions[i_absorber][1][0], edgecolor="red", facecolor="None", label="Absorber position",) )
         ax.set_title(f"DT tracks without absorber at $z={new_z_plane}$ mm")
         ax.set_xlabel("$x$ [mm]")
         ax.set_ylabel("$y$ [mm]")
-        # ax.legend(prop={"size": 12}, loc="upper left", fancybox=False, framealpha=params._legend_alpha)
+        ax.legend(prop={"size": 12}, loc="upper left", fancybox=False, framealpha=params._legend_alpha)
         add_colorbar(fig, ax, im_obj, "Rate [Hz]")
         entries = int(np.sum(pos_muons_hist2d))
         info_str = f"entries = {entries:,}\nnot shown = {n_dt_muons - entries:,}\ntotal = {n_dt_muons:,}\nbin width = {args.xy_bin_width:g} mm $\\times$ {args.xy_bin_width:g} mm"
@@ -164,7 +188,8 @@ def main():
         fig.tight_layout()
         plot_utils.save_figure(fig, f"dt_muon_absorption_xy_z{new_z_plane}_without_absorber", args)
     # with absorber
-    for new_z_plane in new_z_planes:
+    for i_absorber in range(len(absorber_positions)):
+        new_z_plane = (absorber_positions[i_absorber][2][0]+(absorber_positions[i_absorber][2][1]-absorber_positions[i_absorber][2][0]))/2
         margin = 200  # mm
         box = dt_chamber_utils.superlayer_box(sl=3)
         x_edges = np.arange(start=box["low"][dt_chamber_utils.X] - margin, stop=box["high"][dt_chamber_utils.X] + margin + args.xy_bin_width, step=args.xy_bin_width)
@@ -178,18 +203,21 @@ def main():
         #     (box["low"][dt_chamber_utils.X], box["low"][dt_chamber_utils.Y]), width=(box["high"][dt_chamber_utils.X] - box["low"][dt_chamber_utils.X]), height=(box["high"][dt_chamber_utils.Y] - box["low"][dt_chamber_utils.Y]),
         #     edgecolor="white", facecolor="None", label="Superlayer position",
         # ))
+        # draw absorber location
+        ax.add_patch( patches.Rectangle((absorber_positions[i_absorber][0][0], absorber_positions[i_absorber][1][0]), width=absorber_positions[i_absorber][0][1]-absorber_positions[i_absorber][0][0], height=absorber_positions[i_absorber][1][1]-absorber_positions[i_absorber][1][0], edgecolor="red", facecolor="None", label="Absorber position",) )
         ax.set_title(f"DT tracks with absorber at $z={new_z_plane}$ mm")
         ax.set_xlabel("$x$ [mm]")
         ax.set_ylabel("$y$ [mm]")
-        # ax.legend(prop={"size": 12}, loc="upper left", fancybox=False, framealpha=params._legend_alpha)
+        ax.legend(prop={"size": 12}, loc="upper left", fancybox=False, framealpha=params._legend_alpha)
         add_colorbar(fig, ax, im_obj, "Rate [Hz]")
         entries = int(np.sum(pos_muons_hist2d_absorber))
-        info_str = f"entries = {entries:,}\nnot shown = {n_dt_muons - entries:,}\ntotal = {n_dt_muons:,}\nbin width = {args.xy_bin_width:g} mm $\\times$ {args.xy_bin_width:g} mm"
+        info_str = f"entries = {entries:,}\nnot shown = {n_dt_muons_absorber - entries:,}\ntotal = {n_dt_muons_absorber:,}\nbin width = {args.xy_bin_width:g} mm $\\times$ {args.xy_bin_width:g} mm"
         hist_utils.add_infobox(ax=ax, info_str=info_str, info_loc="bottom left")
         fig.tight_layout()
         plot_utils.save_figure(fig, f"dt_muon_absorption_xy_z{new_z_plane}_with_absorber", args)
     # difference: without absorber - with absorber
-    for new_z_plane in new_z_planes:
+    for i_absorber in range(len(absorber_positions)):
+        new_z_plane = (absorber_positions[i_absorber][2][0]+(absorber_positions[i_absorber][2][1]-absorber_positions[i_absorber][2][0]))/2
         margin = 200  # mm
         box = dt_chamber_utils.superlayer_box(sl=3)
         x_edges = np.arange(start=box["low"][dt_chamber_utils.X] - margin, stop=box["high"][dt_chamber_utils.X] + margin + args.xy_bin_width, step=args.xy_bin_width)
@@ -207,59 +235,165 @@ def main():
         #     (box["low"][dt_chamber_utils.X], box["low"][dt_chamber_utils.Y]), width=(box["high"][dt_chamber_utils.X] - box["low"][dt_chamber_utils.X]), height=(box["high"][dt_chamber_utils.Y] - box["low"][dt_chamber_utils.Y]),
         #     edgecolor="white", facecolor="None", label="Superlayer position",
         # ))
+        # draw absorber location
+        ax.add_patch( patches.Rectangle((absorber_positions[i_absorber][0][0], absorber_positions[i_absorber][1][0]), width=absorber_positions[i_absorber][0][1]-absorber_positions[i_absorber][0][0], height=absorber_positions[i_absorber][1][1]-absorber_positions[i_absorber][1][0], edgecolor="red", facecolor="None", label="Absorber position",) )
         ax.set_title(f"DT tracks difference at $z={new_z_plane}$ mm")
         ax.set_xlabel("$x$ [mm]")
         ax.set_ylabel("$y$ [mm]")
-        # ax.legend(prop={"size": 12}, loc="upper left", fancybox=False, framealpha=params._legend_alpha)
-        add_colorbar(fig, ax, im_obj, "Rate without absorber $-$ rate with absorber [Hz]", cmap="bwr")
+        ax.legend(prop={"size": 12}, loc="upper left", fancybox=False, framealpha=params._legend_alpha)
+        add_colorbar(fig, ax, im_obj, "Rate without absorber $-$ rate with absorber [Hz]", cmap="gist_earth")
         # entries = int(np.sum(pos_muons_hist2d_difference_rate))
         # info_str = f"entries = {entries:,}\nnot shown = {n_dt_muons - entries:,}\ntotal = {n_dt_muons:,}\nbin width = {args.xy_bin_width:g} mm $\\times$ {args.xy_bin_width:g} mm"
         # hist_utils.add_infobox(ax=ax, info_str=info_str, info_loc="bottom left")
         fig.tight_layout()
         plot_utils.save_figure(fig, f"dt_muon_absorption_xy_z{new_z_plane}_absorber_difference", args)
 
-    # ### X-Z and Y-Z projections of the tracks through the chamber
-    # marked_cell_colors = {}
-    # for cell in marked_cells:
-    #     marked_cell_colors[cell] = "tab:red"
-    # sl_z_coord = dt_chamber_utils.superlayers_range(dt_chamber_utils.Z)
-    # for orient, slice_name in [("phi", "xz"), ("theta", "yz")]:
-    #     if slice_name == "xz":
-    #         sl_x_coord = dt_chamber_utils.superlayers_range(dt_chamber_utils.X)
-    #         other = "y"
-    #     else:
-    #         sl_x_coord = dt_chamber_utils.superlayers_range(dt_chamber_utils.Y)
-    #         other = "x"
-    #     margin_x, margin_z = 100, 300  # mm
-    #     x_edges = np.arange(start=sl_x_coord[0] - margin_x, stop=sl_x_coord[1] + margin_x + args.xz_bin_width, step=args.xz_bin_width)
-    #     z_edges = np.arange(start=sl_z_coord[0] - margin_z, stop=sl_z_coord[1] + margin_z + args.xz_bin_width, step=args.xz_bin_width)
-    #     z_bins = (z_edges[:-1] + z_edges[1:]) / 2
-    #     # track position at every z bin
-    #     x_muons = []
-    #     z_muons = []
-    #     for z_pos in z_bins:
-    #         dt_muons_moved = muon_utils.change_muon_base_point(muons=dt_muons, z_new=z_pos)
-    #         if slice_name == "xz":
-    #             x_muons.append(dt_muons_moved["x0"])
-    #         else:
-    #             x_muons.append(dt_muons_moved["y0"])
-    #         z_muons.append(dt_muons_moved["z0"])
-    #     pos_muons_hist2d, _, _ = np.histogram2d(x=np.concatenate(z_muons), y=np.concatenate(x_muons), bins=(z_edges, x_edges))
-    #     fig, ax = plt.subplots(1, 1, figsize=(14, 4.5))
-    #     im_obj = ax.imshow(X=pos_muons_hist2d, origin="lower", extent=[x_edges[0], x_edges[-1], z_edges[0], z_edges[-1]], aspect="auto")
-    #     plot_utils.draw_chamber(ax, orient, cell_colors=marked_cell_colors, wires=False, transparent=True)
-    #     ax.set_title(f"DT tracks, ${slice_name[0]}$-$z$ projection ({n_dt_muons:,} tracks)")
-    #     ax.set_xlabel(f"${slice_name[0]}$ [mm]")
-    #     ax.set_ylabel("$z$ [mm]")
-    #     add_colorbar(fig, ax, im_obj, f"Tracks per bin\n(summed over ${other}$)")
-    #     legend_handles = [patches.Patch(edgecolor="white", facecolor="none")]
-    #     legend_labels = ["Chamber geometry"]
-    #     if len(marked_cells) > 0:
-    #         legend_handles.append(patches.Patch(edgecolor="tab:red", facecolor="none"))
-    #         legend_labels.append("Marked cells")
-    #     ax.legend(legend_handles, legend_labels, prop={"size": 11}, loc="lower center", ncols=2, fancybox=False, framealpha=params._legend_alpha, facecolor="gray")
-    #     fig.tight_layout()
-    #     plot_utils.save_figure(fig, f"dt_muon_absorption_{slice_name}_chamber", args)
+    ### X-Z and Y-Z projections of the tracks through the chamber
+    marked_cell_colors = {}
+    for cell in marked_cells:
+        marked_cell_colors[cell] = "tab:red"
+    sl_z_coord = dt_chamber_utils.superlayers_range(dt_chamber_utils.Z)
+    # without absorber
+    for orient, slice_name in [("phi", "xz"), ("theta", "yz")]:
+        if slice_name == "xz":
+            sl_x_coord = dt_chamber_utils.superlayers_range(dt_chamber_utils.X)
+            other = "y"
+            x_coord = 0
+        else:
+            sl_x_coord = dt_chamber_utils.superlayers_range(dt_chamber_utils.Y)
+            other = "x"
+            x_coord = 1
+        margin_x, margin_z = 100, 400 # mm
+        x_edges = np.arange(start=sl_x_coord[0] - margin_x, stop=sl_x_coord[1] + margin_x + args.xz_bin_width, step=args.xz_bin_width)
+        z_edges = np.arange(start=sl_z_coord[0] - margin_z, stop=sl_z_coord[1] + margin_z + args.xz_bin_width, step=args.xz_bin_width)
+        z_bins = (z_edges[:-1] + z_edges[1:]) / 2
+        # track position at every z bin
+        x_muons = []
+        z_muons = []
+        for z_pos in z_bins:
+            dt_muons_moved = muon_utils.change_muon_base_point(muons=dt_muons, z_new=z_pos)
+            if slice_name == "xz":
+                x_muons.append(dt_muons_moved["x0"])
+            else:
+                x_muons.append(dt_muons_moved["y0"])
+            z_muons.append(dt_muons_moved["z0"])
+        pos_muons_hist2d, _, _ = np.histogram2d(x=np.concatenate(z_muons), y=np.concatenate(x_muons), bins=(z_edges, x_edges))
+        pos_muons_hist2d_rate = pos_muons_hist2d / duration
+        fig, ax = plt.subplots(1, 1, figsize=(14, 4.5))
+        im_obj = ax.imshow(X=pos_muons_hist2d_rate, origin="lower", extent=[x_edges[0], x_edges[-1], z_edges[0], z_edges[-1]], aspect="auto")
+        plot_utils.draw_chamber(ax, orient, cell_colors=marked_cell_colors, wires=False, transparent=True)
+        # draw absorber location
+        ax.add_patch( patches.Rectangle((absorber_positions[i_absorber][x_coord][0], absorber_positions[i_absorber][2][0]), width=absorber_positions[i_absorber][x_coord][1]-absorber_positions[i_absorber][x_coord][0], height=absorber_positions[i_absorber][2][1]-absorber_positions[i_absorber][2][0], edgecolor="black", facecolor="None", ) )
+        ax.set_title(f"DT tracks without absorber, ${slice_name[0]}$-$z$ projection ({n_dt_muons:,} tracks)")
+        ax.set_xlabel(f"${slice_name[0]}$ [mm]")
+        ax.set_ylabel("$z$ [mm]")
+        add_colorbar(fig, ax, im_obj, f"Track rate per bin\n(summed over ${other}$) [Hz]")
+        legend_handles = [patches.Patch(edgecolor="white", facecolor="none"), patches.Patch(edgecolor="black", facecolor="none")]
+        legend_labels = ["Chamber geometry", "Absorber position",]
+        if len(marked_cells) > 0:
+            legend_handles.append(patches.Patch(edgecolor="tab:red", facecolor="none"))
+            legend_labels.append("Marked cells")
+        ax.legend(legend_handles, legend_labels, prop={"size": 11}, loc="lower center", ncols=2, fancybox=False, framealpha=params._legend_alpha, facecolor="gray")
+        fig.tight_layout()
+        plot_utils.save_figure(fig, f"dt_muon_absorption_{slice_name}_chamber_without_absorber", args)
+    # with absorber
+    for orient, slice_name in [("phi", "xz"), ("theta", "yz")]:
+        if slice_name == "xz":
+            sl_x_coord = dt_chamber_utils.superlayers_range(dt_chamber_utils.X)
+            other = "y"
+            x_coord = 0
+        else:
+            sl_x_coord = dt_chamber_utils.superlayers_range(dt_chamber_utils.Y)
+            other = "x"
+            x_coord = 1
+        margin_x, margin_z = 100, 400 # mm
+        x_edges = np.arange(start=sl_x_coord[0] - margin_x, stop=sl_x_coord[1] + margin_x + args.xz_bin_width, step=args.xz_bin_width)
+        z_edges = np.arange(start=sl_z_coord[0] - margin_z, stop=sl_z_coord[1] + margin_z + args.xz_bin_width, step=args.xz_bin_width)
+        z_bins = (z_edges[:-1] + z_edges[1:]) / 2
+        # track position at every z bin
+        x_muons_absorber = []
+        z_muons_absorber = []
+        for z_pos in z_bins:
+            dt_muons_moved_absorber = muon_utils.change_muon_base_point(muons=dt_muons_absorber, z_new=z_pos)
+            if slice_name == "xz":
+                x_muons_absorber.append(dt_muons_moved_absorber["x0"])
+            else:
+                x_muons_absorber.append(dt_muons_moved_absorber["y0"])
+            z_muons_absorber.append(dt_muons_moved_absorber["z0"])
+        pos_muons_hist2d_absorber, _, _ = np.histogram2d(x=np.concatenate(z_muons_absorber), y=np.concatenate(x_muons_absorber), bins=(z_edges, x_edges))
+        pos_muons_hist2d_absorber_rate = pos_muons_hist2d_absorber / duration_absorber
+        fig, ax = plt.subplots(1, 1, figsize=(14, 4.5))
+        im_obj = ax.imshow(X=pos_muons_hist2d_absorber_rate, origin="lower", extent=[x_edges[0], x_edges[-1], z_edges[0], z_edges[-1]], aspect="auto")
+        plot_utils.draw_chamber(ax, orient, cell_colors=marked_cell_colors, wires=False, transparent=True)
+        # draw absorber location
+        ax.add_patch( patches.Rectangle((absorber_positions[i_absorber][x_coord][0], absorber_positions[i_absorber][2][0]), width=absorber_positions[i_absorber][x_coord][1]-absorber_positions[i_absorber][x_coord][0], height=absorber_positions[i_absorber][2][1]-absorber_positions[i_absorber][2][0], edgecolor="black", facecolor="None", ) )
+        ax.set_title(f"DT tracks with absorber, ${slice_name[0]}$-$z$ projection ({n_dt_muons_absorber:,} tracks)")
+        ax.set_xlabel(f"${slice_name[0]}$ [mm]")
+        ax.set_ylabel("$z$ [mm]")
+        add_colorbar(fig, ax, im_obj, f"Track rate per bin\n(summed over ${other}$) [Hz]")
+        legend_handles = [patches.Patch(edgecolor="white", facecolor="none"), patches.Patch(edgecolor="black", facecolor="none")]
+        legend_labels = ["Chamber geometry", "Absorber position",]
+        if len(marked_cells) > 0:
+            legend_handles.append(patches.Patch(edgecolor="tab:red", facecolor="none"))
+            legend_labels.append("Marked cells")
+        ax.legend(legend_handles, legend_labels, prop={"size": 11}, loc="lower center", ncols=2, fancybox=False, framealpha=params._legend_alpha, facecolor="gray")
+        fig.tight_layout()
+        plot_utils.save_figure(fig, f"dt_muon_absorption_{slice_name}_chamber_with_absorber", args)
+    # with absorber
+    for orient, slice_name in [("phi", "xz"), ("theta", "yz")]:
+        if slice_name == "xz":
+            sl_x_coord = dt_chamber_utils.superlayers_range(dt_chamber_utils.X)
+            other = "y"
+            x_coord = 0
+        else:
+            sl_x_coord = dt_chamber_utils.superlayers_range(dt_chamber_utils.Y)
+            other = "x"
+            x_coord = 1
+        margin_x, margin_z = 100, 400 # mm
+        x_edges = np.arange(start=sl_x_coord[0] - margin_x, stop=sl_x_coord[1] + margin_x + args.xz_bin_width, step=args.xz_bin_width)
+        z_edges = np.arange(start=sl_z_coord[0] - margin_z, stop=sl_z_coord[1] + margin_z + args.xz_bin_width, step=args.xz_bin_width)
+        z_bins = (z_edges[:-1] + z_edges[1:]) / 2
+        # track position at every z bin
+        x_muons_absorber = []
+        z_muons_absorber = []
+        for z_pos in z_bins:
+            dt_muons_moved_absorber = muon_utils.change_muon_base_point(muons=dt_muons_absorber, z_new=z_pos)
+            if slice_name == "xz":
+                x_muons_absorber.append(dt_muons_moved_absorber["x0"])
+            else:
+                x_muons_absorber.append(dt_muons_moved_absorber["y0"])
+            z_muons_absorber.append(dt_muons_moved_absorber["z0"])
+        pos_muons_hist2d_absorber, _, _ = np.histogram2d(x=np.concatenate(z_muons_absorber), y=np.concatenate(x_muons_absorber), bins=(z_edges, x_edges))
+        pos_muons_hist2d_absorber_rate = pos_muons_hist2d_absorber / duration_absorber
+        x_muons = []
+        z_muons = []
+        for z_pos in z_bins:
+            dt_muons_moved = muon_utils.change_muon_base_point(muons=dt_muons, z_new=z_pos)
+            if slice_name == "xz":
+                x_muons.append(dt_muons_moved["x0"])
+            else:
+                x_muons.append(dt_muons_moved["y0"])
+            z_muons.append(dt_muons_moved["z0"])
+        pos_muons_hist2d, _, _ = np.histogram2d(x=np.concatenate(z_muons), y=np.concatenate(x_muons), bins=(z_edges, x_edges))
+        pos_muons_hist2d_rate = pos_muons_hist2d / duration
+        pos_muons_hist2d_rate_diff = pos_muons_hist2d_rate - pos_muons_hist2d_absorber_rate
+        fig, ax = plt.subplots(1, 1, figsize=(14, 4.5))
+        im_obj = ax.imshow(X=pos_muons_hist2d_rate_diff, origin="lower", extent=[x_edges[0], x_edges[-1], z_edges[0], z_edges[-1]], aspect="auto")
+        plot_utils.draw_chamber(ax, orient, cell_colors=marked_cell_colors, wires=False, transparent=True)
+        # draw absorber location
+        ax.add_patch( patches.Rectangle((absorber_positions[i_absorber][x_coord][0], absorber_positions[i_absorber][2][0]), width=absorber_positions[i_absorber][x_coord][1]-absorber_positions[i_absorber][x_coord][0], height=absorber_positions[i_absorber][2][1]-absorber_positions[i_absorber][2][0], edgecolor="black", facecolor="None", ) )
+        ax.set_title(f"DT tracks absorber difference, ${slice_name[0]}$-$z$ projection")
+        ax.set_xlabel(f"${slice_name[0]}$ [mm]")
+        ax.set_ylabel("$z$ [mm]")
+        add_colorbar(fig, ax, im_obj, f"Track rate difference per bin\n(summed over ${other}$) [Hz]", cmap="gist_earth"))
+        legend_handles = [patches.Patch(edgecolor="white", facecolor="none"), patches.Patch(edgecolor="black", facecolor="none")]
+        legend_labels = ["Chamber geometry", "Absorber position",]
+        if len(marked_cells) > 0:
+            legend_handles.append(patches.Patch(edgecolor="tab:red", facecolor="none"))
+            legend_labels.append("Marked cells")
+        ax.legend(legend_handles, legend_labels, prop={"size": 11}, loc="lower center", ncols=2, fancybox=False, framealpha=params._legend_alpha, facecolor="gray")
+        fig.tight_layout()
+        plot_utils.save_figure(fig, f"dt_muon_absorption_{slice_name}_chamber_absorber_difference", args)
 
     plot_utils.show_figures(args)
 
