@@ -385,7 +385,7 @@ def main():
         ax.set_title(f"DT tracks absorber difference, ${slice_name[0]}$-$z$ projection")
         ax.set_xlabel(f"${slice_name[0]}$ [mm]")
         ax.set_ylabel("$z$ [mm]")
-        add_colorbar(fig, ax, im_obj, f"Track rate difference per bin\n(summed over ${other}$) [Hz]", cmap="gist_earth"))
+        add_colorbar(fig, ax, im_obj, f"Track rate difference per bin\n(summed over ${other}$) [Hz]", cmap="gist_earth")
         legend_handles = [patches.Patch(edgecolor="white", facecolor="none"), patches.Patch(edgecolor="black", facecolor="none")]
         legend_labels = ["Chamber geometry", "Absorber position",]
         if len(marked_cells) > 0:
