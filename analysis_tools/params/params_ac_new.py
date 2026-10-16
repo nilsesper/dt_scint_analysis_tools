@@ -210,9 +210,9 @@ _dt_dead_wires = { # sl: ly: [wire_ids] these wires are dead, no signal is expec
     },
     3: {
         0: [10],
-        1: [41,49],
+        1: [32,41,49],
         2: [26],
-        3: [],
+        3: [32],
     }
 
 }
