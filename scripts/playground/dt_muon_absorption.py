@@ -29,7 +29,9 @@ def cell_rectangle(sl, ly, wi, **kwargs):
     return patches.Rectangle((c["low"][dt_chamber_utils.X], c["low"][dt_chamber_utils.Y]), width=dt_chamber_utils.box_size(c, dt_chamber_utils.X), height=dt_chamber_utils.box_size(c, dt_chamber_utils.Y), **kwargs)
 
 ### colorbar with scientific notation for large numbers
-def add_colorbar(fig, ax, im_obj, label):
+def add_colorbar(fig, ax, im_obj, label, cmap=None):
+    if cmap is not None:
+        im_obj.set_cmap(cmap)
     formatter = ScalarFormatter(useMathText=True)
     formatter.set_powerlimits([-3, 3])
     cbar = fig.colorbar(im_obj, ax=ax, fraction=0.05, format=formatter)
@@ -205,11 +207,11 @@ def main():
         #     (box["low"][dt_chamber_utils.X], box["low"][dt_chamber_utils.Y]), width=(box["high"][dt_chamber_utils.X] - box["low"][dt_chamber_utils.X]), height=(box["high"][dt_chamber_utils.Y] - box["low"][dt_chamber_utils.Y]),
         #     edgecolor="white", facecolor="None", label="Superlayer position",
         # ))
-        ax.set_title(f"DT tracks absorber difference at $z={new_z_plane}$ mm")
+        ax.set_title(f"DT tracks difference at $z={new_z_plane}$ mm")
         ax.set_xlabel("$x$ [mm]")
         ax.set_ylabel("$y$ [mm]")
         # ax.legend(prop={"size": 12}, loc="upper left", fancybox=False, framealpha=params._legend_alpha)
-        add_colorbar(fig, ax, im_obj, "Rate without $-$ rate with absorber [Hz]")
+        add_colorbar(fig, ax, im_obj, "Rate without absorber $-$ rate with absorber [Hz]", cmap="bwr")
         # entries = int(np.sum(pos_muons_hist2d_difference_rate))
         # info_str = f"entries = {entries:,}\nnot shown = {n_dt_muons - entries:,}\ntotal = {n_dt_muons:,}\nbin width = {args.xy_bin_width:g} mm $\\times$ {args.xy_bin_width:g} mm"
         # hist_utils.add_infobox(ax=ax, info_str=info_str, info_loc="bottom left")
