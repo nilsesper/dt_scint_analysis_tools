@@ -47,7 +47,7 @@ def main():
                         help="cells to mark in the maps (e.g. dead or noisy ones) as \"sl:ly:wi,sl:ly:wi,...\", or \"none\" "
                              "(default: the cells listed in params._dt_wire_mask and params._dt_dead_wires)")
     parser.add_argument("--xy_bin_width", type=float, default=20, help="bin width of the x-y maps in mm")
-    parser.add_argument("--xz_bin_width", type=float, default=5, help="bin width of the x-z and y-z projections in mm")
+    parser.add_argument("--xz_bin_width", type=float, default=20, help="bin width of the x-z and y-z projections in mm")
     plot_utils.add_plot_arguments(parser)
     args = parser.parse_args()
     plot_utils.check_plot_arguments(parser, args)
@@ -151,11 +151,14 @@ def main():
     # z: height, x: along theta wires, y: along phi wires
     chamber_top_left_corner = (0, 0, 273.95+53.5) # x,y,z
     absorber_positions = [ # ((x0,x1),(y0,y1)),(z0,z1)))
-        (
+        
+        ( # ABSORBER FOR DATASET 2026-10-16_10-37-23_absorber
             (chamber_top_left_corner[0]+80, chamber_top_left_corner[0]+80 +400),
             (chamber_top_left_corner[1]+950, chamber_top_left_corner[1]+950 +200),
             (chamber_top_left_corner[2]+200, chamber_top_left_corner[2]+200 +50),
         ),
+        # ( # ABSORBER FOR DATASET ... 
+        # ),
     ]
 
     # ### X-Y maps: track positions at specified height
