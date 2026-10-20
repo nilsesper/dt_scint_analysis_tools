@@ -86,7 +86,7 @@ def pair_super_and_theta_fits(t0_super, t0_theta, tgroup_tolerance):
     return pairs
 
 ### timing correction function for signal propagation along the wire
-v_sig_prop = 2.6e8 # m/s
+v_sig_prop = 2.4e8 # m/s
 def ts_sig_prop_corr(x_wire): # x_wire in mm
     # ts_corr = delta_x / v_sig_prop , delta_x = h * tan_alpha
     ts_corr = x_wire * 1e-3 / v_sig_prop * 1e9 / 0.78 # convert to TS units

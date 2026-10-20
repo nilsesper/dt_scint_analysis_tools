@@ -26,6 +26,84 @@ MUON_KEYS = ["x0", "y0", "z0", "theta", "phi", "ts"] + [f"super_fit_row", f"sl{t
 
 script_prefix = "dt_wireprop"
 
+###############################
+
+### linear fit function: t = 1/v_prop * position + t_offset
+def f_fit(x, a, b):
+    return a*x+b
+
+### mean and its uncertainty of the residual in bins of the position
+def binned_mean(residual, position, edges):
+    n_bins = len(edges) - 1
+    mean = np.zeros(n_bins)
+    sigma = np.zeros(n_bins)
+    for i in tqdm(range(n_bins)):
+        muon_idcs = np.where((position >= edges[i]) & (position < edges[i+1]))
+        mean[i] = np.mean( residual[muon_idcs] )
+        sigma[i] = np.std( residual[muon_idcs], ddof=1 ) / np.sqrt( len(residual[muon_idcs]) )
+    return mean, sigma
+
+### one superlayer: residual (reference time - t0 of this superlayer, in TU) vs. the track position along its wires
+# residual, residual_corr: before / after the signal propagation correction (in TU, converted to ns here)
+# position: track position along the wires at the height of the superlayer (mm)
+# name: used in the plot file names and the log, e.g. "theta" or "phi1"; position_name: e.g. "x0"
+# position_label, residual_label: axis labels
+# min_/max_position: fit range of bin centers, can be smaller than position array
+def analyze_superlayer(residual, residual_corr, position, name, position_name, position_label, residual_label, n_bins, args, min_position=-np.inf, max_position=np.inf):
+    residual = residual * 0.78 # convert to ns
+    residual_corr = residual_corr * 0.78 # convert to ns
+    plot_name = f"{script_prefix}_mean_{name}_t0_residual_by_{position_name}"
+
+    ### calculate binned distribution: position along the wire vs. residual
+    edges = np.linspace(np.amin(position)-1, np.amax(position)+1, n_bins+1)
+    bin_width = np.diff(edges)[0]
+    bins = (edges[:-1] + edges[1:]) / 2
+    mean, sigma = binned_mean(residual, position, edges)
+    mean_corr, sigma_corr = binned_mean(residual_corr, position, edges)
+
+    ### plot distribution
+    fig, ax = plt.subplots()
+    ax.errorbar(bins, mean, yerr=sigma, xerr=np.diff(edges)/4, linestyle="", marker=".")
+    ax.set_xlabel(position_label)
+    ax.set_ylabel(residual_label)
+    fig.tight_layout()
+    plot_utils.save_figure(fig, plot_name, args)
+
+    ### perform linear fit (bins without a value, e.g. empty bins, are left out)
+    good_bins = ~(np.isnan(mean) | np.isnan(sigma) | (sigma == 0)) & (bins > min_position) & (bins < max_position)
+    fig, ax = plt.subplots()
+    ax.errorbar(bins, mean, yerr=sigma, xerr=np.diff(edges)/4, linestyle="", label="data", marker=".")
+    popt, pcov = scipy.optimize.curve_fit(f_fit, bins[good_bins], mean[good_bins], sigma=sigma[good_bins], p0=[0.01,0], absolute_sigma=True)
+    inv_v_prop, t_offset = popt
+    err_inv_vprop, err_t_offset = np.sqrt(pcov[0][0]), np.sqrt(pcov[1][1])
+    v_prop = 1/inv_v_prop
+    err_v_prop = 1/inv_v_prop**2 * err_inv_vprop
+    v_prop_conv = v_prop*1e6 # conversion to m/s
+    err_v_prop_conv = err_v_prop*1e6 # conversion to m/s
+    log(f"linear fit to mean_{name}_t0_residual_by_{position_name}")
+    log(f"  t_offset = {t_offset} +- {err_t_offset}")
+    log(f"  inv_v_prop = {inv_v_prop} +- {err_inv_vprop}")
+    log(f"  v_prop = {v_prop} +- {err_v_prop}")
+    pos_arr = np.linspace(np.amin(bins[good_bins])-bin_width/2, np.amax(bins[good_bins])+bin_width/2, num=5000)
+    ax.plot(pos_arr, f_fit(pos_arr, inv_v_prop, t_offset), color="tab:red", label=f"linear fit $1/v_\\text{{prop}} x+t_\\text{{offset}}$:\n$v_\\text{{prop}}=({v_prop_conv:.2e}\\pm{err_v_prop_conv:.2e})$ m/s\n$t_\\text{{offset}}=({t_offset:.3f}\\pm{err_t_offset:.3f})$ ns")
+    ax.set_xlabel(position_label)
+    ax.set_ylabel(residual_label)
+    ax.legend(fontsize=12)
+    fig.tight_layout()
+    plot_utils.save_figure(fig, f"{plot_name}_fit", args)
+
+    ### plot distribution before and after the correction
+    fig, ax = plt.subplots()
+    ax.errorbar(bins, mean, yerr=sigma, xerr=np.diff(edges)/4, linestyle="", marker=".", color="tab:blue", label="before")
+    ax.errorbar(bins, mean_corr, yerr=sigma_corr, xerr=np.diff(edges)/4, linestyle="", marker=".", color="tab:orange", label="after")
+    ax.set_xlabel(position_label)
+    ax.set_ylabel(residual_label)
+    ax.legend(fontsize=12)
+    fig.tight_layout()
+    plot_utils.save_figure(fig, f"{plot_name}_corr", args)
+
+###############################
+
 @mpl.rc_context({'font.family': 'sans-serif', 'font.size': 16})
 def main():
     parser = argparse.ArgumentParser(description="")
@@ -86,230 +164,41 @@ def main():
 
     n_bins = 20 #50
 
-    #################################
-    ### ANALYZE FOR THETA SL
-    #################################
+    ### THETA SL: reference = mean t0 of the two phi sls, position along the theta wires = x at the height of SL 2
+    analyze_superlayer(
+        residual=(dt_muons["sl1_t0"]+dt_muons["sl3_t0"])/2 - dt_muons["sl2_t0"],
+        residual_corr=(dt_muons["sl1_t0_sig_prop_corr"]+dt_muons["sl3_t0_sig_prop_corr"])/2 - dt_muons["sl2_t0_sig_prop_corr"],
+        position=muon_utils.change_muon_base_point(muons=dt_muons, z_new=dt_chamber_utils.SL2_CENTRAL_Z)["x0"],
+        min_position=250,
+        max_position=1750,
+        name="theta", position_name="x0",
+        position_label="reco position (along theta wire) $x_0$ [mm]",
+        residual_label="reco reference $T$ $-$ theta sl fit $T_0$ [ns]",
+        n_bins=n_bins, args=args)
 
-    ### calculate residual of theta from ts reference
-    #theta_t0_residual = super_fits["t0_super_fits"][phi_superfit_rows] - sl_fits["t0"][theta_sl_fit_rows]
-    theta_t0_residual = (dt_muons["sl1_t0"]+dt_muons["sl3_t0"])/2 - dt_muons["sl2_t0"]
-    theta_t0_residual_sig_prop_corr = (dt_muons["sl1_t0_sig_prop_corr"]+dt_muons["sl3_t0_sig_prop_corr"])/2 - dt_muons["sl2_t0_sig_prop_corr"]
-    theta_t0_residual *= 0.78 # convert to ns
+    ### PHI 1 SL: reference = t0 of the theta sl, position along the phi wires = y at the height of SL 1
+    analyze_superlayer(
+        residual=dt_muons["sl2_t0"] - dt_muons["sl1_t0"],
+        residual_corr=dt_muons["sl2_t0_sig_prop_corr"] - dt_muons["sl1_t0_sig_prop_corr"],
+        position=muon_utils.change_muon_base_point(muons=dt_muons, z_new=dt_chamber_utils.SL1_CENTRAL_Z)["y0"],
+        min_position=250,
+        max_position=2000,
+        name="phi1", position_name="y0",
+        position_label="reco position (along phi wire) $y_0$ [mm]",
+        residual_label="reco reference $T$ $-$ phi1 sl fit $T_0$ [ns]",
+        n_bins=n_bins, args=args)
 
-    dt_muons_theta_base_point = muon_utils.change_muon_base_point(muons=dt_muons, z_new=dt_chamber_utils.SL2_CENTRAL_Z)
-
-    ### calculate binned distribution: phi-sensitive coordinate vs. theta residual
-    x0_edges = np.linspace(np.amin(dt_muons_theta_base_point["x0"])-1, np.amax(dt_muons_theta_base_point["x0"])+1, n_bins+1)
-    x0_bins = (x0_edges[:-1] + x0_edges[1:]) / 2
-    mean_theta_t0_residual_by_x0 = np.zeros(n_bins)
-    sigma_theta_t0_residual_by_x0 = np.zeros(n_bins)
-    for i in tqdm(range(n_bins)):
-        muon_idcs = np.where((dt_muons_theta_base_point["x0"] >= x0_edges[i]) & (dt_muons_theta_base_point["x0"] < x0_edges[i+1]))
-        mean_theta_t0_residual_by_x0[i] = np.mean( theta_t0_residual[muon_idcs] )
-        sigma_theta_t0_residual_by_x0[i] = np.std( theta_t0_residual[muon_idcs], ddof=1 ) / np.sqrt( len(theta_t0_residual[muon_idcs]) )
-    ### plot distribution
-    fig, ax = plt.subplots()
-    ax.errorbar(x0_bins, mean_theta_t0_residual_by_x0, yerr=sigma_theta_t0_residual_by_x0, xerr=np.diff(x0_edges)/4, linestyle="", marker=".")
-    ax.set_xlabel(f"reco position (along theta wire) $x_0$ [mm]")
-    ax.set_ylabel(f"reco reference $T$ $-$ theta sl fit $T_0$ [ns]")
-    fig.tight_layout()
-    plot_utils.save_figure(fig, f"{script_prefix}_mean_theta_t0_residual_by_x0", args)
-    ### perform linear fit
-    fig, ax = plt.subplots()
-    ax.errorbar(x0_bins, mean_theta_t0_residual_by_x0, yerr=sigma_theta_t0_residual_by_x0, xerr=np.diff(x0_edges)/4, linestyle="", label="data", marker=".")
-    def f_fit(x, a, b):
-        return a*x+b
-    popt, pcov = scipy.optimize.curve_fit(f_fit, x0_bins, mean_theta_t0_residual_by_x0, sigma=sigma_theta_t0_residual_by_x0, p0=[0.01,0], absolute_sigma=True)
-    inv_v_prop, t_offset = popt
-    err_inv_vprop, err_t_offset = np.sqrt(pcov[0][0]), np.sqrt(pcov[1][1])
-    v_prop = 1/inv_v_prop
-    err_v_prop = 1/inv_v_prop**2 * err_inv_vprop
-    v_prop_conv = v_prop*1e6 # conversion to m/s
-    err_v_prop_conv = err_v_prop*1e6 # conversion to m/s
-    log("linear fit to mean_theta_t0_residual_by_x0")
-    log(f"  t_offset = {t_offset} +- {err_t_offset}")
-    log(f"  inv_v_prop = {inv_v_prop} +- {err_inv_vprop}")
-    log(f"  v_prop = {v_prop} +- {err_v_prop}")
-    x_arr = np.linspace(np.amin(x0_edges), np.amax(x0_edges), num=5000)
-    ax.plot(x_arr, f_fit(x_arr, inv_v_prop, t_offset), color="tab:red", label=f"linear fit $1/v_\\text{{prop}} x+t_\\text{{offset}}$:\n$v_\\text{{prop}}=({v_prop_conv:.2e}\\pm{err_v_prop_conv:.2e})$ m/s\n$t_\\text{{offset}}=({t_offset:.3f}\\pm{err_t_offset:.3f})$ ns")
-    ax.set_xlabel(f"reco position (along theta wire) $x_0$ [mm]")
-    ax.set_ylabel(f"reco reference $T$ $-$ theta sl fit $T_0$ [ns]")
-    ax.legend(fontsize=12)
-    fig.tight_layout()
-    plot_utils.save_figure(fig, f"{script_prefix}_mean_theta_t0_residual_by_x0_fit", args)
-
-    ### CORRECTED DATA: calculate binned distribution: phi-sensitive coordinate vs. theta residual
-    x0_edges = np.linspace(np.amin(dt_muons_theta_base_point["x0"])-1, np.amax(dt_muons_theta_base_point["x0"])+1, n_bins+1)
-    x0_bins = (x0_edges[:-1] + x0_edges[1:]) / 2
-    mean_theta_t0_residual_by_x0_corr = np.zeros(n_bins)
-    sigma_theta_t0_residual_by_x0_corr = np.zeros(n_bins)
-    mean_theta_t0_residual_by_x0 = np.zeros(n_bins)
-    sigma_theta_t0_residual_by_x0 = np.zeros(n_bins)
-    for i in tqdm(range(n_bins)):
-        muon_idcs = np.where((dt_muons_theta_base_point["x0"] >= x0_edges[i]) & (dt_muons_theta_base_point["x0"] < x0_edges[i+1]))
-        mean_theta_t0_residual_by_x0_corr[i] = np.mean( theta_t0_residual_sig_prop_corr[muon_idcs] )
-        sigma_theta_t0_residual_by_x0_corr[i] = np.std( theta_t0_residual_sig_prop_corr[muon_idcs], ddof=1 ) / np.sqrt( len(theta_t0_residual_sig_prop_corr[muon_idcs]) )
-        mean_theta_t0_residual_by_x0[i] = np.mean( theta_t0_residual[muon_idcs] )
-        sigma_theta_t0_residual_by_x0[i] = np.std( theta_t0_residual[muon_idcs], ddof=1 ) / np.sqrt( len(theta_t0_residual[muon_idcs]) )
-    ### plot distribution
-    fig, ax = plt.subplots()
-    ax.errorbar(x0_bins, mean_theta_t0_residual_by_x0, yerr=sigma_theta_t0_residual_by_x0, xerr=np.diff(x0_edges)/4, linestyle="", marker=".", color="tab:blue", label="before")
-    ax.errorbar(x0_bins, mean_theta_t0_residual_by_x0_corr, yerr=sigma_theta_t0_residual_by_x0_corr, xerr=np.diff(x0_edges)/4, linestyle="", marker=".", color="tab:orange", label="after")
-    ax.set_xlabel(f"reco position (along theta wire) $x_0$ [mm]")
-    ax.set_ylabel(f"reco reference $T$ $-$ theta sl fit $T_0$ [ns]")
-    ax.legend(fontsize=12)
-    fig.tight_layout()
-    plot_utils.save_figure(fig, f"{script_prefix}_mean_theta_t0_residual_by_x0_corr", args)
-
-    #################################
-    ### ANALYZE FOR PHI 1 SL
-    #################################
-
-    ### calculate residual of theta from ts reference
-    #phi1_t0_residual = sl_fits["t0"][theta_sl_fit_rows] - super_fits[f"t0_sl{phi_sl_1}"][phi_superfit_rows]
-    phi1_t0_residual = dt_muons["sl2_t0"] - dt_muons["sl1_t0"]
-    phi1_t0_residual_sig_prop_corr = dt_muons["sl2_t0_sig_prop_corr"] - dt_muons["sl1_t0_sig_prop_corr"]
-    phi1_t0_residual *= 0.78 # convert to ns
-
-    dt_muons_phi1_base_point = muon_utils.change_muon_base_point(muons=dt_muons, z_new=dt_chamber_utils.SL1_CENTRAL_Z)
-
-    ### calculate binned distribution: phi-sensitive coordinate vs. theta residual
-    y0_edges = np.linspace(np.amin(dt_muons_phi1_base_point["y0"])-1, np.amax(dt_muons_phi1_base_point["y0"])+1, n_bins+1)
-    y0_bins = (y0_edges[:-1] + y0_edges[1:]) / 2
-    mean_phi1_t0_residual_by_y0 = np.zeros(n_bins)
-    sigma_phi1_t0_residual_by_y0 = np.zeros(n_bins)
-    for i in tqdm(range(n_bins)):
-        muon_idcs = np.where((dt_muons_phi1_base_point["y0"] >= y0_edges[i]) & (dt_muons_phi1_base_point["y0"] < y0_edges[i+1]))
-        mean_phi1_t0_residual_by_y0[i] = np.mean( phi1_t0_residual[muon_idcs] )
-        sigma_phi1_t0_residual_by_y0[i] = np.std( phi1_t0_residual[muon_idcs], ddof=1 ) / np.sqrt( len(phi1_t0_residual[muon_idcs]) )
-    ### plot distribution
-    fig, ax = plt.subplots()
-    ax.errorbar(y0_bins, mean_phi1_t0_residual_by_y0, yerr=sigma_phi1_t0_residual_by_y0, xerr=np.diff(y0_edges)/4, linestyle="", marker=".")
-    ax.set_xlabel(f"reco position (along phi wire) $y_0$ [mm]")
-    ax.set_ylabel(f"reco reference $T$ $-$ phi1 sl fit $T_0$ [ns]")
-    fig.tight_layout()
-    plot_utils.save_figure(fig, f"{script_prefix}_mean_phi1_t0_residual_by_y0", args)
-    ### perform linear fit
-    fig, ax = plt.subplots()
-    ax.errorbar(y0_bins, mean_phi1_t0_residual_by_y0, yerr=sigma_phi1_t0_residual_by_y0, xerr=np.diff(y0_edges)/4, linestyle="", label="data", marker=".")
-    def f_fit(x, a, b):
-        return a*x+b
-    popt, pcov = scipy.optimize.curve_fit(f_fit, y0_bins, mean_phi1_t0_residual_by_y0, sigma=sigma_phi1_t0_residual_by_y0, p0=[0.01,0], absolute_sigma=True)
-    inv_v_prop, t_offset = popt
-    err_inv_vprop, err_t_offset = np.sqrt(pcov[0][0]), np.sqrt(pcov[1][1])
-    v_prop = 1/inv_v_prop
-    err_v_prop = 1/inv_v_prop**2 * err_inv_vprop
-    v_prop_conv = v_prop*1e6 # conversion to m/s
-    err_v_prop_conv = err_v_prop*1e6 # conversion to m/s
-    log("linear fit to mean_theta_t0_residual_by_x0")
-    log(f"  t_offset = {t_offset} +- {err_t_offset}")
-    log(f"  inv_v_prop = {inv_v_prop} +- {err_inv_vprop}")
-    log(f"  v_prop = {v_prop} +- {err_v_prop}")
-    x_arr = np.linspace(np.amin(x0_edges), np.amax(x0_edges), num=5000)
-    ax.plot(x_arr, f_fit(x_arr, inv_v_prop, t_offset), color="tab:red", label=f"linear fit $1/v_\\text{{prop}} x+t_\\text{{offset}}$:\n$v_\\text{{prop}}=({v_prop_conv:.2e}\\pm{err_v_prop_conv:.2e})$ m/s\n$t_\\text{{offset}}=({t_offset:.3f}\\pm{err_t_offset:.3f})$ ns")
-    ax.set_xlabel(f"reco position (along phi wire) $y_0$ [mm]")
-    ax.set_ylabel(f"reco reference $T$ $-$ phi1 sl fit $T_0$ [ns]")
-    ax.legend(fontsize=12)
-    fig.tight_layout()
-    plot_utils.save_figure(fig, f"{script_prefix}_mean_phi1_t0_residual_by_y0_fit", args)
-
-    ### CORRECTED DATA: calculate binned distribution: phi-sensitive coordinate vs. theta residual
-    y0_edges = np.linspace(np.amin(dt_muons_phi1_base_point["y0"])-1, np.amax(dt_muons_phi1_base_point["y0"])+1, n_bins+1)
-    y0_bins = (y0_edges[:-1] + y0_edges[1:]) / 2
-    mean_phi1_t0_residual_by_y0_corr = np.zeros(n_bins)
-    sigma_phi1_t0_residual_by_y0_corr = np.zeros(n_bins)
-    mean_phi1_t0_residual_by_y0 = np.zeros(n_bins)
-    sigma_phi1_t0_residual_by_y0 = np.zeros(n_bins)
-    for i in tqdm(range(n_bins)):
-        muon_idcs = np.where((dt_muons_phi1_base_point["y0"] >= y0_edges[i]) & (dt_muons_phi1_base_point["y0"] < y0_edges[i+1]))
-        mean_phi1_t0_residual_by_y0_corr[i] = np.mean( phi1_t0_residual_sig_prop_corr[muon_idcs] )
-        sigma_phi1_t0_residual_by_y0_corr[i] = np.std( phi1_t0_residual_sig_prop_corr[muon_idcs], ddof=1 ) / np.sqrt( len(phi1_t0_residual_sig_prop_corr[muon_idcs]) )
-        mean_phi1_t0_residual_by_y0[i] = np.mean( phi1_t0_residual[muon_idcs] )
-        sigma_phi1_t0_residual_by_y0[i] = np.std( phi1_t0_residual[muon_idcs], ddof=1 ) / np.sqrt( len(phi1_t0_residual[muon_idcs]) )
-    ### plot distribution
-    fig, ax = plt.subplots()
-    ax.errorbar(y0_bins, mean_phi1_t0_residual_by_y0, yerr=sigma_phi1_t0_residual_by_y0, xerr=np.diff(y0_edges)/4, linestyle="", marker=".", color="tab:blue", label="before")
-    ax.errorbar(y0_bins, mean_phi1_t0_residual_by_y0_corr, yerr=sigma_phi1_t0_residual_by_y0_corr, xerr=np.diff(y0_edges)/4, linestyle="", marker=".", color="tab:orange", label="after")
-    ax.set_xlabel(f"reco position (along phi wire) $y_0$ [mm]")
-    ax.set_ylabel(f"reco reference $T$ $-$ phi1 sl fit $T_0$ [ns]")
-    ax.legend(fontsize=12)
-    fig.tight_layout()
-    plot_utils.save_figure(fig, f"{script_prefix}_mean_phi1_t0_residual_by_y0_corr", args)
-
-    #################################
-    ### ANALYZE FOR PHI 2 SL
-    #################################
-
-    ### calculate residual of theta from ts reference
-    #phi2_t0_residual = sl_fits["t0"][theta_sl_fit_rows] - super_fits[f"t0_sl{phi_sl_2}"][phi_superfit_rows]
-    phi2_t0_residual = dt_muons["sl2_t0"] - dt_muons["sl3_t0"]
-    phi2_t0_residual_sig_prop_corr = dt_muons["sl2_t0_sig_prop_corr"] - dt_muons["sl3_t0_sig_prop_corr"]
-    phi2_t0_residual *= 0.78 # convert to ns
-
-    dt_muons_phi2_base_point = muon_utils.change_muon_base_point(muons=dt_muons, z_new=dt_chamber_utils.SL3_CENTRAL_Z)
-
-    ### calculate binned distribution: phi-sensitive coordinate vs. theta residual
-    y0_edges = np.linspace(np.amin(dt_muons_phi2_base_point["y0"])-1, np.amax(dt_muons_phi2_base_point["y0"])+1, n_bins+1)
-    y0_bins = (y0_edges[:-1] + y0_edges[1:]) / 2
-    mean_phi2_t0_residual_by_y0 = np.zeros(n_bins)
-    sigma_phi2_t0_residual_by_y0 = np.zeros(n_bins)
-    for i in tqdm(range(n_bins)):
-        muon_idcs = np.where((dt_muons_phi2_base_point["y0"] >= y0_edges[i]) & (dt_muons_phi2_base_point["y0"] < y0_edges[i+1]))
-        mean_phi2_t0_residual_by_y0[i] = np.mean( phi2_t0_residual[muon_idcs] )
-        sigma_phi2_t0_residual_by_y0[i] = np.std( phi2_t0_residual[muon_idcs], ddof=1 ) / np.sqrt( len(phi2_t0_residual[muon_idcs]) )
-    ### plot distribution
-    fig, ax = plt.subplots()
-    ax.errorbar(y0_bins, mean_phi2_t0_residual_by_y0, yerr=sigma_phi2_t0_residual_by_y0, xerr=np.diff(y0_edges)/4, linestyle="", marker=".")
-    ax.set_xlabel(f"reco position (along phi wire) $y_0$ [mm]")
-    ax.set_ylabel(f"reco reference $T$ $-$ phi2 sl fit $T_0$ [ns]")
-    fig.tight_layout()
-    plot_utils.save_figure(fig, f"{script_prefix}_mean_phi2_t0_residual_by_y0", args)
-    ### perform linear fit
-    fig, ax = plt.subplots()
-    ax.errorbar(y0_bins, mean_phi2_t0_residual_by_y0, yerr=sigma_phi2_t0_residual_by_y0, xerr=np.diff(y0_edges)/4, linestyle="", label="data", marker=".")
-    def f_fit(x, a, b):
-        return a*x+b
-    popt, pcov = scipy.optimize.curve_fit(f_fit, y0_bins, mean_phi2_t0_residual_by_y0, sigma=sigma_phi2_t0_residual_by_y0, p0=[0.01,0], absolute_sigma=True)
-    inv_v_prop, t_offset = popt
-    err_inv_vprop, err_t_offset = np.sqrt(pcov[0][0]), np.sqrt(pcov[1][1])
-    v_prop = 1/inv_v_prop
-    err_v_prop = 1/inv_v_prop**2 * err_inv_vprop
-    v_prop_conv = v_prop*1e6 # conversion to m/s
-    err_v_prop_conv = err_v_prop*1e6 # conversion to m/s
-    log("linear fit to mean_theta_t0_residual_by_x0")
-    log(f"  t_offset = {t_offset} +- {err_t_offset}")
-    log(f"  inv_v_prop = {inv_v_prop} +- {err_inv_vprop}")
-    log(f"  v_prop = {v_prop} +- {err_v_prop}")
-    x_arr = np.linspace(np.amin(x0_edges), np.amax(x0_edges), num=5000)
-    ax.plot(x_arr, f_fit(x_arr, inv_v_prop, t_offset), color="tab:red", label=f"linear fit $1/v_\\text{{prop}} x+t_\\text{{offset}}$:\n$v_\\text{{prop}}=({v_prop_conv:.2e}\\pm{err_v_prop_conv:.2e})$ m/s\n$t_\\text{{offset}}=({t_offset:.3f}\\pm{err_t_offset:.3f})$ ns")
-    ax.set_xlabel(f"reco position (along phi wire) $y_0$ [mm]")
-    ax.set_ylabel(f"reco reference $T$ $-$ phi2 sl fit $T_0$ [ns]")
-    ax.legend(fontsize=12)
-    fig.tight_layout()
-    plot_utils.save_figure(fig, f"{script_prefix}_mean_phi2_t0_residual_by_y0_fit", args)
-
-    ### CORRECTED DATA: calculate binned distribution: phi-sensitive coordinate vs. theta residual
-    y0_edges = np.linspace(np.amin(dt_muons_phi2_base_point["y0"])-1, np.amax(dt_muons_phi2_base_point["y0"])+1, n_bins+1)
-    y0_bins = (y0_edges[:-1] + y0_edges[1:]) / 2
-    mean_phi2_t0_residual_by_y0_corr = np.zeros(n_bins)
-    sigma_phi2_t0_residual_by_y0_corr = np.zeros(n_bins)
-    mean_phi2_t0_residual_by_y0 = np.zeros(n_bins)
-    sigma_phi2_t0_residual_by_y0 = np.zeros(n_bins)
-    for i in tqdm(range(n_bins)):
-        muon_idcs = np.where((dt_muons_phi2_base_point["y0"] >= y0_edges[i]) & (dt_muons_phi2_base_point["y0"] < y0_edges[i+1]))
-        mean_phi2_t0_residual_by_y0_corr[i] = np.mean( phi2_t0_residual_sig_prop_corr[muon_idcs] )
-        sigma_phi2_t0_residual_by_y0_corr[i] = np.std( phi2_t0_residual_sig_prop_corr[muon_idcs], ddof=1 ) / np.sqrt( len(phi2_t0_residual_sig_prop_corr[muon_idcs]) )
-        mean_phi2_t0_residual_by_y0[i] = np.mean( phi2_t0_residual[muon_idcs] )
-        sigma_phi2_t0_residual_by_y0[i] = np.std( phi2_t0_residual[muon_idcs], ddof=1 ) / np.sqrt( len(phi2_t0_residual[muon_idcs]) )
-    ### plot distribution
-    fig, ax = plt.subplots()
-    ax.errorbar(y0_bins, mean_phi2_t0_residual_by_y0, yerr=sigma_phi2_t0_residual_by_y0, xerr=np.diff(y0_edges)/4, linestyle="", marker=".", color="tab:blue", label="before")
-    ax.errorbar(y0_bins, mean_phi2_t0_residual_by_y0_corr, yerr=sigma_phi2_t0_residual_by_y0_corr, xerr=np.diff(y0_edges)/4, linestyle="", marker=".", color="tab:orange", label="after")
-    ax.set_xlabel(f"reco position (along phi wire) $y_0$ [mm]")
-    ax.set_ylabel(f"reco reference $T$ $-$ phi2 sl fit $T_0$ [ns]")
-    ax.legend(fontsize=12)
-    fig.tight_layout()
-    plot_utils.save_figure(fig, f"{script_prefix}_mean_phi2_t0_residual_by_y0_corr", args)
+    ### PHI 2 SL: reference = t0 of the theta sl, position along the phi wires = y at the height of SL 3
+    analyze_superlayer(
+        residual=dt_muons["sl2_t0"] - dt_muons["sl3_t0"],
+        residual_corr=dt_muons["sl2_t0_sig_prop_corr"] - dt_muons["sl3_t0_sig_prop_corr"],
+        position=muon_utils.change_muon_base_point(muons=dt_muons, z_new=dt_chamber_utils.SL3_CENTRAL_Z)["y0"],
+        min_position=250,
+        max_position=2000,
+        name="phi2", position_name="y0",
+        position_label="reco position (along phi wire) $y_0$ [mm]",
+        residual_label="reco reference $T$ $-$ phi2 sl fit $T_0$ [ns]",
+        n_bins=n_bins, args=args)
 
 
 if __name__ == "__main__":

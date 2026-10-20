@@ -46,8 +46,8 @@ def import_raw_lines(lines, *, silent=False):
 def cut_data(data, conditions=[], *, silent=False):
     if not silent: print(f"Cutting data according to conditions {conditions}...")
     ## calculate masks for data
-    #mask = np.full(len(data["ch"]), True)
-    last_data = copy.deepcopy(data)
+    # last_data = copy.deepcopy(data)
+    last_data = data
     any_key = list(last_data.keys())[0]
     mask = np.full(len(last_data[any_key]), True)
     for c in conditions: # calculate mask for all conditions and AND them together
@@ -70,10 +70,11 @@ def cut_data(data, conditions=[], *, silent=False):
                     masked_data[name].append(last_data[name][i])
         # if numpy array at this key
         elif isinstance(last_data[name], np.ndarray):
-            masked_data[name] = copy.deepcopy(last_data[name][mask])
+            # masked_data[name] = copy.deepcopy(last_data[name][mask])
+            masked_data[name] = last_data[name][mask]
         else:
             raise Exception(f"CUT_DATA ERROR: data[{name}] is of unsupported type {type(last_data[name])}. can only cut lists or numpy arrays")
-    last_data = copy.deepcopy(masked_data)
+    # last_data = copy.deepcopy(masked_data)
     one_key = list(masked_data.keys())[0]
     if not silent:
         if len(data[one_key]) > 0: print(f"Cut flow: {len(masked_data[one_key])} / {len(data[one_key])} = {len(masked_data[one_key])/len(data[one_key])}")
@@ -103,7 +104,8 @@ def parse_cuts(cuts_text):
 ### sort hits by any key
 # sort hints in ascending order depending on key value
 def sort_by_key(data, sort_key, *, silent=False):
-    sorted_data = copy.deepcopy(data)
+    # sorted_data = copy.deepcopy(data)
+    sorted_data = data
     any_key = list(sorted_data.keys())[0]
     n_data = len(sorted_data[any_key])
     if not silent: print(f"Sorting {n_data} hits by key \"{sort_key}\"...")
@@ -175,7 +177,8 @@ def merge_dataset(split_data, *, silent=False):
 ### restrict data to last X entries
 def restrict_to_last_entries(data, n_keep=1, *, silent=False):
     n_data = length(data)
-    restricted_data = copy.deepcopy(data) 
+    # restricted_data = copy.deepcopy(data)
+    restricted_data = data
     for k in restricted_data.keys():
         if n_data > n_keep:
             restricted_data[k] = restricted_data[k][-n_keep:-1]
@@ -184,7 +187,8 @@ def restrict_to_last_entries(data, n_keep=1, *, silent=False):
 ### cut first X entries of dumpfile
 def cut_first_entries(data, n_cut=1, *, silent=False):
     n_data = length(data) 
-    cut_data = copy.deepcopy(data) 
+    # cut_data = copy.deepcopy(data) 
+    cut_data = data
     for k in cut_data.keys():
         if n_data > n_cut:
             cut_data[k] = data[k][n_cut-1:-1]
@@ -199,7 +203,7 @@ def length(data):
 
 ### slice data: select only data points with given indices from object
 def slice_data(data, slice_indices, *, silent=False):
-    data = copy.deepcopy(data)
+    # data = copy.deepcopy(data)
     sliced_data = {}
     for name in data.keys():
         # if python list at this key
@@ -210,7 +214,8 @@ def slice_data(data, slice_indices, *, silent=False):
                     sliced_data[name].append(data[name][i])
         else:
             raise Exception(f"SLICE_DATA ERROR: data[{name}] is of unsupported type {type(data[name])}. can only cut lists or numpy arrays")
-    data = copy.deepcopy(sliced_data)
+    # data = copy.deepcopy(sliced_data)
+    data = sliced_data
     one_key = list(sliced_data.keys())[0]
     if not silent:
         if len(data[one_key]) > 0: print(f"Cut flow: {len(sliced_data[one_key])} / {len(data[one_key])} = {len(sliced_data[one_key])/len(data[one_key])}")
