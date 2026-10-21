@@ -100,6 +100,48 @@ def main():
     if duration > 0:
         log(f"dt muon rate: {n_dt_muons / duration:.3f} +- {np.sqrt(n_dt_muons) / duration:.3f} Hz")
 
+    tan_alpha_x = np.tan(dt_muons["theta"]) * np.cos(dt_muons["phi"])
+    tan_alpha_y = np.tan(dt_muons["theta"]) * np.sin(dt_muons["phi"])
+
+    ### 1d histograms
+    with mpl.rc_context({'font.family': 'sans-serif', 'font.size': 20}):
+        ### positions
+        plot_utils.plot_histogram(dt_muons["x0"], "dt_muons_x0", args, xlabel="Position $x_0$ [mm]",
+                                          full_range=True, log_scale=False, bin_unit="mm")
+        plot_utils.plot_histogram(dt_muons["y0"], "dt_muons_y0", args, xlabel="Position $y_0$ [mm]",
+                                                  full_range=True, log_scale=False, bin_unit="mm")
+        plot_utils.plot_histogram(dt_muons["z0"], "dt_muons_z0", args, xlabel="Position $z_0$ [mm]",
+                                                  full_range=True, log_scale=False, bin_unit="mm")
+        ### angles
+        plot_utils.plot_histogram(np.rad2deg(dt_muons["theta"]), "dt_muons_theta_deg", args, xlabel="Polar angle $\\theta$ [deg]",
+                                  full_range=True, log_scale=False, bin_unit="deg")
+        plot_utils.plot_histogram(np.rad2deg(dt_muons["phi"]), "dt_muons_phi_deg", args, xlabel="Azimuthal angle $\\phi$ [deg]",
+                                  full_range=True, log_scale=False, bin_unit="deg")
+        # weighted with 1 / sin theta
+        theta_edges = np.linspace(0-0.5,70+0.5,51)
+        theta_centers = (theta_edges[:-1] + theta_edges[1:]) / 2
+        sin_theta_weights = 1/np.sin(np.deg2rad(theta_centers))
+        plot_utils.plot_histogram(np.rad2deg(dt_muons["theta"]), "dt_muons_theta_weighted_deg", args, xlabel="Polar angle $\\theta$ weighted by $1/\\sin\\theta$ [deg]",
+                                  full_range=True, log_scale=False, bin_unit="deg",
+                                  edges=theta_edges, weights=sin_theta_weights)
+        ### projected angles in the x-z and y-z planes
+        plot_utils.plot_histogram(np.rad2deg(np.arctan(tan_alpha_x)), "dt_muons_angle_xz_deg", args, xlabel="Projected angle in the $x$-$z$ plane [deg]",
+                                  full_range=True, log_scale=False, bin_unit="deg")
+        plot_utils.plot_histogram(np.rad2deg(np.arctan(tan_alpha_y)), "dt_muons_angle_yz_deg", args, xlabel="Projected angle in the $y$-$z$ plane [deg]",
+                                  full_range=True, log_scale=False, bin_unit="deg")
+        ### arrival times since the first muon
+        ts_sorted = np.sort(np.asarray(dt_muons["ts"], dtype=np.float64))
+        plot_utils.plot_histogram(ts_sorted - ts_sorted[0], "dt_muons_ts", args, xlabel="$T_0$ since first muon [s]",
+                                  full_range=True, log_scale=False, scale=plot_utils.TS_UNIT_NS * 1e-9, bin_unit="s")
+        ### time between consecutive muons
+        if n_dt_muons > 1:
+            delta_ts = np.diff(ts_sorted)
+            plot_utils.plot_histogram(delta_ts, "dt_muons_delta_ts", args, xlabel="$\\Delta T_0$ [ms]",
+                                    full_range=True, log_scale=True, scale=plot_utils.TS_UNIT_NS * 1e-6, bin_unit="ms")
+            plot_utils.plot_histogram(delta_ts, "dt_muons_delta_ts_us", args, xlabel="$\\Delta T_0$ [$\mu$s]",
+                                    full_range=True, log_scale=True, scale=plot_utils.TS_UNIT_NS * 1e-3, bin_unit="$\\mu$s",
+                                    edges=np.linspace(1e3, 10e3, 101))
+
     ### X-Y maps: track positions in the plane of each superlayer
     for sl in SLS:
         margin = 100  # mm
@@ -200,8 +242,6 @@ def main():
     ### tracks as straight lines from z_lo to z_hi
     z_lo = sl_z_coord[0] - 150
     z_hi = sl_z_coord[1] + 150
-    tan_alpha_x = np.tan(dt_muons["theta"]) * np.cos(dt_muons["phi"])
-    tan_alpha_y = np.tan(dt_muons["theta"]) * np.sin(dt_muons["phi"])
     for i in range(n_3d):
         z = np.array([z_lo, z_hi])
         x = dt_muons["x0"][i] + tan_alpha_x[i] * (z - dt_muons["z0"][i])
@@ -226,41 +266,6 @@ def main():
     ax.legend(legend_handles, legend_labels, prop={"size": 12}, loc="upper left", fancybox=False)
     fig.tight_layout()
     plot_utils.save_figure(fig, "dt_muons_3d", args)
-
-    ### 1d histograms
-    with mpl.rc_context({'font.family': 'sans-serif', 'font.size': 20}):
-        ### positions
-        plot_utils.plot_histogram(dt_muons["x0"], "dt_muons_x0", args, xlabel="Position $x_0$ [mm]",
-                                          full_range=True, log_scale=False, bin_unit="mm")
-        plot_utils.plot_histogram(dt_muons["y0"], "dt_muons_y0", args, xlabel="Position $y_0$ [mm]",
-                                                  full_range=True, log_scale=False, bin_unit="mm")
-        plot_utils.plot_histogram(dt_muons["z0"], "dt_muons_z0", args, xlabel="Position $z_0$ [mm]",
-                                                  full_range=True, log_scale=False, bin_unit="mm")
-        ### angles
-        plot_utils.plot_histogram(np.rad2deg(dt_muons["theta"]), "dt_muons_theta_deg", args, xlabel="Polar angle $\\theta$ [deg]",
-                                  full_range=True, log_scale=False, bin_unit="deg")
-        plot_utils.plot_histogram(np.rad2deg(dt_muons["phi"]), "dt_muons_phi_deg", args, xlabel="Azimuthal angle $\\phi$ [deg]",
-                                  full_range=True, log_scale=False, bin_unit="deg")
-        # weighted with 1 / sin theta
-        theta_edges = np.linspace(0-0.5,70+0.5,51)
-        theta_centers = (theta_edges[:-1] + theta_edges[1:]) / 2
-        sin_theta_weights = 1/np.sin(np.deg2rad(theta_centers))
-        plot_utils.plot_histogram(np.rad2deg(dt_muons["theta"]), "dt_muons_theta_weighted_deg", args, xlabel="Polar angle $\\theta$ weighted by $1/\\sin\\theta$ [deg]",
-                                  full_range=True, log_scale=False, bin_unit="deg",
-                                  edges=theta_edges, weights=sin_theta_weights)
-        ### projected angles in the x-z and y-z planes
-        plot_utils.plot_histogram(np.rad2deg(np.arctan(tan_alpha_x)), "dt_muons_angle_xz_deg", args, xlabel="Projected angle in the $x$-$z$ plane [deg]",
-                                  full_range=True, log_scale=False, bin_unit="deg")
-        plot_utils.plot_histogram(np.rad2deg(np.arctan(tan_alpha_y)), "dt_muons_angle_yz_deg", args, xlabel="Projected angle in the $y$-$z$ plane [deg]",
-                                  full_range=True, log_scale=False, bin_unit="deg")
-        ### arrival times since the first muon
-        ts_sorted = np.sort(np.asarray(dt_muons["ts"], dtype=np.float64))
-        plot_utils.plot_histogram(ts_sorted - ts_sorted[0], "dt_muons_ts", args, xlabel="$T_0$ since first muon [s]",
-                                  full_range=True, log_scale=False, scale=plot_utils.TS_UNIT_NS * 1e-9, bin_unit="s")
-        ### time between consecutive muons
-        if n_dt_muons > 1:
-            plot_utils.plot_histogram(np.diff(ts_sorted), "dt_muons_delta_ts", args, xlabel="$\\Delta T_0$ [ms]",
-                                      full_range=True, log_scale=True, scale=plot_utils.TS_UNIT_NS * 1e-6, bin_unit="ms")
 
     plot_utils.show_figures(args)
 

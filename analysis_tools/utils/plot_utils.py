@@ -133,19 +133,19 @@ def choose_edges(values, n_bins=50, full_range=False):
 # with entries, underflow, overflow, total, bin count and bin width (drawing: hist_utils.plot_histogram)
 # weights (optional): one factor per bin, the bar heights are multiplied by it
 def draw_histogram(ax, counts, edges, entries, underflow, overflow, xlabel="", log_scale=False, bin_unit=None, scale=1.0,
-                   weights=None, info_loc="top right"):
+                   weights=None, info_loc="top right", ylim=None):
     centers = hist_utils.centers_from_edges(edges)
     err_counts, _, _ = hist_utils.calculate_hist_uncertainty(hist=counts, do_stat_err=True)
     err_counts = np.where(counts > 0, err_counts, 0)
     hist_utils.plot_histogram(ax=ax, hist=counts, centers=centers * scale, err_hist=err_counts, log_scale=log_scale, add_info=True,
                               entries=int(entries), overflow=int(overflow), underflow=int(underflow), bin_unit=bin_unit,
-                              info_loc=info_loc, power_limits=[-3, 4], weights=weights)
+                              info_loc=info_loc, power_limits=[-3, 4], weights=weights, ylim=ylim)
     ax.set_xlabel(xlabel)
 
 ### one histogram of values as one plot file <args.store_plots>/<name>.<args.format>
 # edges: bin edges (default: choose_edges with args.n_bins bins); scale: factor for the x axis (e.g. TS_UNIT_NS for ns)
 # NaN / inf values are left out
-def plot_histogram(values, name, args, xlabel="", title="", edges=None, full_range=False, log_scale=None, bin_unit=None, scale=1.0, weights=None):
+def plot_histogram(values, name, args, xlabel="", title="", edges=None, full_range=False, log_scale=None, bin_unit=None, scale=1.0, weights=None, ylim=None):
     import matplotlib.pyplot as plt
     values = np.asarray(values, dtype=np.float64)
     values = values[np.isfinite(values)]
@@ -155,7 +155,7 @@ def plot_histogram(values, name, args, xlabel="", title="", edges=None, full_ran
         edges = choose_edges(values, n_bins=args.n_bins, full_range=full_range)
     counts, edges, centers, entries, underflow, overflow = hist_utils.calculate_histogram(data=values, edges=edges)
     fig, ax = plt.subplots(1, 1, figsize=(12, 8))
-    draw_histogram(ax, counts, edges, entries, underflow, overflow, xlabel=xlabel, log_scale=log_scale, bin_unit=bin_unit, scale=scale, weights=weights)
+    draw_histogram(ax, counts, edges, entries, underflow, overflow, xlabel=xlabel, log_scale=log_scale, bin_unit=bin_unit, scale=scale, weights=weights, ylim=ylim)
     ax.set_title(title, fontsize=12)
     fig.tight_layout()
     save_figure(fig, name, args)

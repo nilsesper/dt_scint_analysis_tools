@@ -212,7 +212,7 @@ def calculate_hist_uncertainty(hist, *, hist_err_right=None, hist_err_left=None,
 # give hist to plot
 # optionally give err_hist (symm errors)
 # or err_hist_down and err_hist_up (asymm errors)
-def plot_histogram(ax, hist, centers, *, err_hist=None, err_hist_down=None, err_hist_up=None, log_scale=False, power_limits=[-2, 2], add_info=False, overflow=None, underflow=None, entries=None, bin_unit=None, bin_width_digits=3, set_y_label=True, info_font_size=params._info_font_size, info_loc="top right", bool_plus_label = False, pluslabel = "", weights=None):
+def plot_histogram(ax, hist, centers, *, err_hist=None, err_hist_down=None, err_hist_up=None, log_scale=False, power_limits=[-2, 2], add_info=False, overflow=None, underflow=None, entries=None, bin_unit=None, bin_width_digits=3, set_y_label=True, info_font_size=params._info_font_size, info_loc="top right", bool_plus_label = False, pluslabel = "", weights=None, ylim=None):
     barwidth = np.mean(np.diff(centers))
     # apply weights
     if weights is None:
@@ -228,17 +228,31 @@ def plot_histogram(ax, hist, centers, *, err_hist=None, err_hist_down=None, err_
     if type(err_hist_down) != type(None) and type(err_hist_up) != type(None):
         ax.bar(centers, bottom=hist-err_hist_down, height=err_hist_down+err_hist_up, width=barwidth, align="center", hatch="xxx", fill=False, edgecolor="0.2", linestyle="")
         max_hist_val = np.amax(hist+err_hist_up)
+        min_hist_val = np.amin(hist-err_hist_down)
     # if symm errors given
     elif type(err_hist) != type(None):
         ax.bar(centers, bottom=hist-err_hist, height=2*err_hist, width=barwidth, align="center", hatch="xxx", fill=False, edgecolor="0.2", linestyle="")
         max_hist_val = np.amax(hist+err_hist)
+        min_hist_val = np.amin(hist-err_hist)
     if not log_scale:
-        ax.set_ylim(bottom=0, top=max_hist_val*1.1)
+        if ylim is None:
+            ax.set_ylim(bottom=0, top=max_hist_val*1.1)
+        elif type(ylim) == type(""):
+            if ylim == "data":
+                ax.set_ylim(bottom=min_hist_val*0.9, top=max_hist_val*1.1)
+        else:
+            ax.set_ylim(bottom=ylim[0], top=ylim[1])
         ax.yaxis.set_major_formatter(ScalarFormatter(useMathText=True))
         ax.yaxis.get_major_formatter().set_powerlimits(power_limits) # 10^X power limits for prescale
     else:
         ax.set_yscale("log")
-        ax.set_ylim(bottom=0.5, top=max_hist_val*np.exp(1.1))
+        if ylim is None:
+            ax.set_ylim(bottom=0.5, top=max_hist_val*np.exp(1.1))
+        elif type(ylim) == type(""):
+            if ylim == "data":
+                ax.set_ylim(bottom=min_hist_val*np.exp(-1.01), top=max_hist_val*np.exp(1.01))
+        else:
+            ax.set_ylim(bottom=ylim[0], top=ylim[1])
     ax.xaxis.set_major_formatter(ScalarFormatter(useMathText=True)) 
     ax.xaxis.get_major_formatter().set_powerlimits(power_limits) # 10^X power limits for prescale
     # add text in histogram with hist info / stats

@@ -144,7 +144,8 @@ def reco_muons(super_fits, sl_fits, first_super_fit_row, first_sl_fit_row, tgrou
         }
 
         # timing correction due to signal prop along wire
-        _muon = copy.deepcopy(muon)
+        # _muon = copy.deepcopy(muon)
+        _muon = muon
         alpha_phi = muon["super_fit_tan_alpha"]
         alpha_theta = muon["sl2_tan_alpha"]
         (_,sl1_wire_pos,_) = muon_utils.propagate_muons(_muon, z=dt_chamber_utils.SL1_CENTRAL_Z)

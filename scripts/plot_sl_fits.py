@@ -20,7 +20,7 @@ plot_utils.setup_backend(show_plots="--show_plots" in sys.argv)
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 
-from analysis_tools.utils import data_utils, root_utils
+from analysis_tools.utils import data_utils, root_utils, hist_utils, dt_fit_utils
 from analysis_tools.utils import dt_chamber_utils
 from analysis_tools.params import derived_params
 
@@ -61,6 +61,7 @@ def main():
         keys.append(f"ts{ly}")
         keys.append(f"err_ts{ly}")
         keys.append(f"dt{ly}")
+        keys.append(f"wi{ly}")
     for cut in cuts:
         if cut[0] not in keys:
             keys.append(cut[0])
@@ -132,6 +133,23 @@ def main():
         delta_t0 = np.diff(np.sort(sl_fits["t0"]))
         plot_utils.plot_histogram(delta_t0, f"{name}_delta_t0", args, xlabel="Time between consecutive fits $\\Delta T_0$ [ms]", title=cut_title,
                                   scale=ns * 1e-6, bin_unit="ms", log_scale=True)
+
+        # edges = np.linspace(5e2, 10e3, 101)
+        # counts, edges, centers, entries, underflow, overflow = hist_utils.calculate_histogram(data=np.array([]), edges=edges)
+        # for wi0 in range(0,49+1):
+        #     sl_fits_selected = data_utils.cut_data(data=sl_fits, conditions=[("sl","==",1), ("wi0","==",wi0)], silent=True)
+        #     delta_t0 = np.diff(np.sort(sl_fits_selected["t0"]))
+        #     counts_, edges_, centers_, entries_, underflow_, overflow_ = hist_utils.calculate_histogram(data=delta_t0, edges=edges)
+        #     counts += counts_
+        #     entries += entries_
+        #     underflow += underflow_
+        #     overflow += overflow_
+
+        # fig, ax = plt.subplots(1, 1, figsize=(12, 8))
+        # plot_utils.draw_histogram(ax, counts, edges, entries, underflow, overflow, xlabel="Time between consecutive fits $\\Delta T_0$ [$\\mu$s]", log_scale=True, bin_unit="us", scale=ns*1e-3, ylim="data")
+        # ax.set_title(cut_title, fontsize=12)
+        # fig.tight_layout()
+        # plot_utils.save_figure(fig, f"{name}_delta_t0_samewire", args)
 
     ### number and rate of fits per superlayer
     duration = ns * 1e-9 * float(np.amax(sl_fits["ts0"]) - np.amin(sl_fits["ts0"]))
