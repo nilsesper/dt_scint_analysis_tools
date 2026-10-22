@@ -227,10 +227,13 @@ def fit_sl_patterns(patterns, fit_vd=False, verbose=False):
         best["laterality"] = best["lat_id"]
         for key in params._sl_fit_keys:
             sl_fits[key][i] = best[key]
-        for fit in fits:
-            for key in params._sl_fit_keys:
-                if key != "laterality":
-                    sl_fits[f"lat{fit['lat_id']}_{key}"][i] = fit[key]
+
+        ### also add all other lateralities
+        # for fit in fits:
+        #     for key in params._sl_fit_keys:
+        #         if key != "laterality":
+        #             sl_fits[f"lat{fit['lat_id']}_{key}"][i] = fit[key]
+
     return sl_fits
 
 # -----------------------------------------

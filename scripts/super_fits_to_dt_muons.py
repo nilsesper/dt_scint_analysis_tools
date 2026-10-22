@@ -13,7 +13,7 @@ import argparse
 import numpy as np
 
 from analysis_tools.params import params
-from analysis_tools.utils import data_utils, dt_muon_reco_utils, root_utils
+from analysis_tools.utils import data_utils, dt_muon_reco_utils, root_utils, dt_chamber_utils
 from analysis_tools.utils.dt_fit_utils import SUPER_FIT_SUFFIX
 from analysis_tools.utils.root_utils import log
 
@@ -36,6 +36,8 @@ def main():
     root_utils.check_input_file(args.sl_fits_file)
     log(f"[{label}] START \"{args.super_fits_file}\" + \"{args.sl_fits_file}\" -> \"{args.dt_muons_file}\" "
         f"(tgroup_tolerance={args.tgroup_tolerance:.2f} ts units)")
+
+    theta_sl = dt_chamber_utils.theta_superlayer()
 
     ### rows of every chunk_id in the two input files
     super_fit_chunks = root_utils.rows_of_each_chunk_id(args.super_fits_file)
@@ -65,7 +67,7 @@ def main():
         n_muons = root_utils.length(dt_muons)
         n_super_fits_total += root_utils.length(super_fits)
         n_muons_total += n_muons
-        n_ambiguous += int(np.sum(dt_muons["n_theta_candidates"] > 1))
+        n_ambiguous += int(np.sum(dt_muons[f"n_candidates_sl{theta_sl}"] > 1))
         if n_muons > 0:
             if ts_min is None or np.amin(dt_muons["ts"]) < ts_min:
                 ts_min = np.amin(dt_muons["ts"])

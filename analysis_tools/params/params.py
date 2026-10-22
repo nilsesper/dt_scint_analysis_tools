@@ -439,6 +439,16 @@ _muon_slphi_tan_alpha_tolerance = 0.05 # max tan_alpha difference of the two phi
 _muon_slphi_xproj_tolerance = 30 # max difference of the track positions of the two phi sl fits at z = _muon_reco_z0
 _muon_reco_z0 = 144 # z where the muons are given
 
+# sl fit t0 corrections with angle: parabolic function in tan_alpha:
+#   ts_corr = angle_corr_a0 + angle_corr_a1 * tan_alpha + angle_corr_a2 * tan_alpha**2
+angle_corr_a0 = 0 # ns
+angle_corr_a1 = 0 # ns
+angle_corr_a2 = -12 # ns
+
+# sl fit t0 signal prop along wire correction: performed in dt muon reco step
+#   ts_corr = x_wire / v_sig_prop
+v_sig_prop = 2.4e8 # m/s
+
 ###############################
 ### SIMULATION
 ###############################

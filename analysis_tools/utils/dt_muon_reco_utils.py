@@ -22,18 +22,13 @@ from analysis_tools.utils.dt_fit_utils import SUPER_FIT_SUFFIX, SIM_KEYS
 MUON_KEYS = {}
 for key in params._muon_obj_keys:
     MUON_KEYS[key] = params._muon_obj_keys[key]
-MUON_KEYS["n_theta_candidates"] = np.int64
-for sl in dt_chamber_utils.phi_superlayers():
-    MUON_KEYS[f"n_candidates_sl{sl}"] = np.int64
-MUON_KEYS["delta_t0"] = np.float64
-MUON_KEYS["sim_id_mismatch"] = np.int64
 MUON_KEYS["super_fit_row"] = np.int64
-MUON_KEYS["super_fit_tan_alpha"] = np.float64
 for sl in dt_chamber_utils.superlayers():
+    MUON_KEYS[f"n_candidates_sl{sl}"] = np.int64
     MUON_KEYS[f"sl{sl}_fit_row"] = np.int64
     MUON_KEYS[f"sl{sl}_t0"] = np.float64
-    MUON_KEYS[f"sl{sl}_t0_sig_prop_corr"] = np.float64
-    MUON_KEYS[f"sl{sl}_tan_alpha"] = np.float64
+    # MUON_KEYS[f"sl{sl}_t0_before_sig_prop_corr_and_angle_corr"] = np.float64
+    # MUON_KEYS[f"sl{sl}_t0_before_sig_prop_corr"] = np.float64
 
 ### direction from the slopes in the x-z and y-z planes: tan_alpha_x = tan(theta) cos(phi), tan_alpha_y = tan(theta) sin(phi)
 # returns (theta, err_theta, phi, err_phi), phi in [0, 2 pi)
@@ -85,13 +80,6 @@ def pair_super_and_theta_fits(t0_super, t0_theta, tgroup_tolerance):
         pairs.append((i, closest, n_candidates))
     return pairs
 
-### timing correction function for signal propagation along the wire
-v_sig_prop = 2.4e8 # m/s
-def ts_sig_prop_corr(x_wire): # x_wire in mm
-    # ts_corr = delta_x / v_sig_prop , delta_x = h * tan_alpha
-    ts_corr = x_wire * 1e-3 / v_sig_prop * 1e9 / 0.78 # convert to TS units
-    return ts_corr
-
 ### muons from the super fits and the sl fits of one chunk
 # first_super_fit_row, first_sl_fit_row: row numbers (in their files) of the first super fit / sl fit of this chunk;
 # the muons get the rows of the fits they were made of: "super_fit_row", "sl<n>_fit_row"
@@ -99,6 +87,7 @@ def ts_sig_prop_corr(x_wire): # x_wire in mm
 def reco_muons(super_fits, sl_fits, first_super_fit_row, first_sl_fit_row, tgroup_tolerance, verbose=False):
     sfx = SUPER_FIT_SUFFIX
     theta_sl = dt_chamber_utils.theta_superlayer()
+    phi1_sl, phi2_sl = dt_chamber_utils.phi_superlayers()
     z0 = params._muon_reco_z0
 
     theta_rows = []
@@ -128,38 +117,46 @@ def reco_muons(super_fits, sl_fits, first_super_fit_row, first_sl_fit_row, tgrou
                                                       sl_fits["corr_x0_tan_alpha"][theta_row])
         tan_alpha_y, err_tan_alpha_y = sl_fits["tan_alpha"][theta_row], sl_fits["err_tan_alpha"][theta_row]
 
+        
+        # calculate muon angles in global 3d system
         theta, err_theta, phi, err_phi = direction_from_slopes(tan_alpha_x, err_tan_alpha_x, tan_alpha_y, err_tan_alpha_y)
+
+        # estimate timestamp
         ts, err_ts = arrival_time(t0_super[i], super_fits["err_t0" + sfx][i], t0_theta[j], sl_fits["err_t0"][theta_row])
 
+        # prepare muon object
         muon = {
-            "x0": x, "y0": y, "z0": z0, "theta": theta, "phi": phi, "ts": ts,
-            "err_x0": err_x, "err_y0": err_y, "err_z0": 0, "err_theta": err_theta, "err_phi": err_phi, "err_ts": err_ts,
-            "n_theta_candidates": n_candidates, "delta_t0": t0_theta[j] - t0_super[i], "sim_id_mismatch": 0,
-            "super_fit_row": first_super_fit_row + i, f"sl{theta_sl}_fit_row": first_sl_fit_row + theta_row,
-            # add angles and times
-            "sl1_t0": sl_fits["t0"][sl1_phi_row],   "sl1_tan_alpha": sl_fits["tan_alpha"][sl1_phi_row],
-            "sl2_t0": sl_fits["t0"][theta_row],     "sl2_tan_alpha": sl_fits["tan_alpha"][theta_row],
-            "sl3_t0": sl_fits["t0"][sl3_phi_row],   "sl3_tan_alpha": sl_fits["tan_alpha"][sl3_phi_row],
-            "super_fit_tan_alpha": super_fits["tan_alpha" + sfx][i],
+            # basic info
+            "x0": x,
+            "y0": y,
+            "z0": z0,
+            "theta": theta,
+            "phi": phi,
+            "ts": ts,
+            # errors
+            "err_x0": err_x,
+            "err_y0": err_y,
+            "err_z0": 0,
+            "err_theta": err_theta,
+            "err_phi": err_phi,
+            "err_ts": err_ts,
+            # add other info
+            "sim_id_mismatch": 0,
+            "super_fit_row": first_super_fit_row + i,
+            f"n_candidates_sl{theta_sl}": n_candidates,
+            f"sl{theta_sl}_fit_row": first_sl_fit_row + theta_row,
+            f"sl{phi1_sl}_fit_row": super_fits[f"row_sl{phi1_sl}"][i],
+            f"n_candidates_sl{phi1_sl}": super_fits[f"n_candidates_sl{phi1_sl}"][i],
+            f"sl{phi2_sl}_fit_row": super_fits[f"row_sl{phi1_sl}"][i],
+            f"n_candidates_sl{phi2_sl}": super_fits[f"n_candidates_sl{phi1_sl}"][i],
+        }
+        muon |= {
+            "sl1_t0": sl_fits["t0"][sl1_phi_row],
+            "sl2_t0": sl_fits["t0"][theta_row],
+            "sl3_t0": sl_fits["t0"][sl3_phi_row],
         }
 
-        # timing correction due to signal prop along wire
-        # _muon = copy.deepcopy(muon)
-        _muon = muon
-        alpha_phi = muon["super_fit_tan_alpha"]
-        alpha_theta = muon["sl2_tan_alpha"]
-        (_,sl1_wire_pos,_) = muon_utils.propagate_muons(_muon, z=dt_chamber_utils.SL1_CENTRAL_Z)
-        (sl2_wire_pos,_,_) = muon_utils.propagate_muons(_muon, z=dt_chamber_utils.SL2_CENTRAL_Z)
-        (_,sl3_wire_pos,_) = muon_utils.propagate_muons(_muon, z=dt_chamber_utils.SL3_CENTRAL_Z)
-        muon |= {
-            "sl1_t0_sig_prop_corr": muon["sl1_t0"] - ts_sig_prop_corr(x_wire=sl1_wire_pos),
-            "sl2_t0_sig_prop_corr": muon["sl2_t0"] - ts_sig_prop_corr(x_wire=dt_chamber_utils.SL2_WIRE_LENGTH-sl2_wire_pos),
-            "sl3_t0_sig_prop_corr": muon["sl3_t0"] - ts_sig_prop_corr(x_wire=sl3_wire_pos),
-        }
-        for sl in dt_chamber_utils.phi_superlayers():
-            muon[f"sl{sl}_fit_row"] = super_fits[f"row_sl{sl}"][i]  # already the row in the sl fits file
-            muon[f"n_candidates_sl{sl}"] = super_fits[f"n_candidates_sl{sl}"][i]
-        # simulation truth (0 in data)
+        ### add other info       
         for key in SIM_KEYS:
             muon[key] = 0
             if key in super_fits:

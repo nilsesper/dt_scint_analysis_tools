@@ -14,7 +14,7 @@ plot_utils.setup_backend(show_plots="--show_plots" in sys.argv)
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 
-from analysis_tools.utils import data_utils, hist_utils, muon_utils, root_utils, timestamp_utils
+from analysis_tools.utils import data_utils, hist_utils, muon_utils, root_utils, timestamp_utils, dt_correction_utils
 from analysis_tools.utils import dt_chamber_utils
 from analysis_tools.params import params
 
@@ -22,7 +22,7 @@ from analysis_tools.params import params
 
 theta_sl = dt_chamber_utils.theta_superlayer()
 phi_sl_1, phi_sl_2 = dt_chamber_utils.phi_superlayers()
-MUON_KEYS = ["x0", "y0", "z0", "theta", "phi", "ts"] + [f"super_fit_row", f"sl{theta_sl}_fit_row", "sl1_t0", "sl2_t0", "sl3_t0", "sl1_t0_sig_prop_corr", "sl2_t0_sig_prop_corr", "sl3_t0_sig_prop_corr"]
+MUON_KEYS = ["x0", "y0", "z0", "theta", "phi", "ts"] + [f"sl{theta_sl}_fit_row", f"sl{phi_sl_1}_fit_row", f"sl{phi_sl_2}_fit_row", "sl1_t0", "sl2_t0", "sl3_t0"]
 
 script_prefix = "dt_wireprop"
 
@@ -50,8 +50,7 @@ def binned_mean(residual, position, edges):
 # position_label, residual_label: axis labels
 # min_/max_position: fit range of bin centers, can be smaller than position array
 def analyze_superlayer(residual, residual_corr, position, name, position_name, position_label, residual_label, n_bins, args, min_position=-np.inf, max_position=np.inf):
-    residual = residual * 0.78 # convert to ns
-    residual_corr = residual_corr * 0.78 # convert to ns
+
     plot_name = f"{script_prefix}_mean_{name}_t0_residual_by_{position_name}"
 
     ### calculate binned distribution: position along the wire vs. residual
@@ -63,7 +62,7 @@ def analyze_superlayer(residual, residual_corr, position, name, position_name, p
 
     ### plot distribution
     fig, ax = plt.subplots()
-    ax.errorbar(bins, mean, yerr=sigma, xerr=np.diff(edges)/4, linestyle="", marker=".")
+    ax.errorbar(bins, mean, yerr=sigma, xerr=np.diff(edges)/2, linestyle="", marker=".")
     ax.set_xlabel(position_label)
     ax.set_ylabel(residual_label)
     fig.tight_layout()
@@ -72,7 +71,7 @@ def analyze_superlayer(residual, residual_corr, position, name, position_name, p
     ### perform linear fit (bins without a value, e.g. empty bins, are left out)
     good_bins = ~(np.isnan(mean) | np.isnan(sigma) | (sigma == 0)) & (bins > min_position) & (bins < max_position)
     fig, ax = plt.subplots()
-    ax.errorbar(bins, mean, yerr=sigma, xerr=np.diff(edges)/4, linestyle="", label="data", marker=".")
+    ax.errorbar(bins, mean, yerr=sigma, xerr=np.diff(edges)/2, linestyle="", label="data", marker=".")
     popt, pcov = scipy.optimize.curve_fit(f_fit, bins[good_bins], mean[good_bins], sigma=sigma[good_bins], p0=[0.01,0], absolute_sigma=True)
     inv_v_prop, t_offset = popt
     err_inv_vprop, err_t_offset = np.sqrt(pcov[0][0]), np.sqrt(pcov[1][1])
@@ -94,8 +93,8 @@ def analyze_superlayer(residual, residual_corr, position, name, position_name, p
 
     ### plot distribution before and after the correction
     fig, ax = plt.subplots()
-    ax.errorbar(bins, mean, yerr=sigma, xerr=np.diff(edges)/4, linestyle="", marker=".", color="tab:blue", label="before")
-    ax.errorbar(bins, mean_corr, yerr=sigma_corr, xerr=np.diff(edges)/4, linestyle="", marker=".", color="tab:orange", label="after")
+    ax.errorbar(bins, mean, yerr=sigma, xerr=np.diff(edges)/2, linestyle="", marker=".", color="tab:blue", label="before")
+    ax.errorbar(bins, mean_corr, yerr=sigma_corr, xerr=np.diff(edges)/2, linestyle="", marker=".", color="tab:orange", label="after")
     ax.set_xlabel(position_label)
     ax.set_ylabel(residual_label)
     ax.legend(fontsize=12)
@@ -108,7 +107,6 @@ def analyze_superlayer(residual, residual_corr, position, name, position_name, p
 def main():
     parser = argparse.ArgumentParser(description="")
     parser.add_argument("--sl_fits_file", type=str, required=True, help="input file path: cut sl fits the muons were made from (.root)")
-    parser.add_argument("--super_fits_file", type=str, required=True, help="input file path: cut super fits the muons were made from (.root)")
     parser.add_argument("--dt_muons_file", type=str, required=True, help="input file path: dt muons (.root)")
     parser.add_argument("--cuts", type=str, default=None, help="cuts applied before plotting, format \"key1,operator1,value1;key2,operator2,value2;...\"")
     plot_utils.add_plot_arguments(parser)
@@ -116,7 +114,6 @@ def main():
     plot_utils.check_plot_arguments(parser, args)
 
     root_utils.check_input_file(args.sl_fits_file)
-    root_utils.check_input_file(args.super_fits_file)
     root_utils.check_input_file(args.dt_muons_file)
 
     ### data import
@@ -151,53 +148,107 @@ def main():
 
     ### find respective sl fit and super fit rows
     theta_sl_fit_rows = dt_muons[f"sl{theta_sl}_fit_row"]
-    phi_superfit_rows = dt_muons[f"super_fit_row"]
+    phi1_sl_fit_rows = dt_muons[f"sl{phi_sl_1}_fit_row"]
+    phi2_sl_fit_rows = dt_muons[f"sl{phi_sl_2}_fit_row"]
 
     ### load sl fits and super fits
     log("loading sl fits...")
-    keys = ["t0"]
+    keys = ["t0", "tan_alpha"]
     sl_fits = root_utils.read_tree(args.sl_fits_file, root_utils.DEFAULT_TREE, branches=keys)
-    log("loading sl super fits...")
-    keys = ["t0_super_fits", f"t0_sl{phi_sl_1}", f"t0_sl{phi_sl_2}"]
-    super_fits = root_utils.read_tree(args.super_fits_file, root_utils.DEFAULT_TREE, branches=keys)
     log("loading done")
 
-    n_bins = 20 #50
+    #################################
+    ### sl time differences
+    #################################
 
-    ### THETA SL: reference = mean t0 of the two phi sls, position along the theta wires = x at the height of SL 2
+    n_bins = 30
+
+    ### determine times and angles
+    sl1_t0 = dt_muons["sl1_t0"]
+    sl2_t0 = dt_muons["sl2_t0"]
+    sl3_t0 = dt_muons["sl3_t0"]
+    tan_angle_theta = sl_fits["tan_alpha"][theta_sl_fit_rows]
+    tan_angle_phi = ( sl_fits["tan_alpha"][phi1_sl_fit_rows] + sl_fits["tan_alpha"][phi2_sl_fit_rows] ) / 2
+
+    ### calculate time difference between consecutive sls
+    sl12_t0_diff = sl2_t0 - sl1_t0
+    sl23_t0_diff = sl3_t0 - sl2_t0
+    sl13_t0_diff = sl3_t0 - sl1_t0
+    sl12_t0_diff = sl2_t0 - sl1_t0
+    sl23_t0_diff = sl3_t0 - sl2_t0
+    sl13_t0_diff = sl3_t0 - sl1_t0
+    sl12_t0_diff *= 0.78 # convert to ns
+    sl23_t0_diff *= 0.78 # convert to ns
+    sl13_t0_diff *= 0.78 # convert to ns
+
+    ### timing correction due to signal prop along wire
+    (_,sl1_wire_pos,_) = muon_utils.propagate_muons(dt_muons, z=dt_chamber_utils.SL1_CENTRAL_Z)
+    (sl2_wire_pos,_,_) = muon_utils.propagate_muons(dt_muons, z=dt_chamber_utils.SL2_CENTRAL_Z)
+    (_,sl3_wire_pos,_) = muon_utils.propagate_muons(dt_muons, z=dt_chamber_utils.SL3_CENTRAL_Z)
+    # sl fit corrected timing info
+    sl1_t0_sp = sl1_t0 - dt_correction_utils.ts_sig_prop_corr(x_wire=sl1_wire_pos)
+    sl2_t0_sp = sl2_t0 - dt_correction_utils.ts_sig_prop_corr(x_wire=dt_chamber_utils.SL2_WIRE_LENGTH-sl2_wire_pos)
+    sl3_t0_sp = sl3_t0 - dt_correction_utils.ts_sig_prop_corr(x_wire=sl3_wire_pos)
+
+    ### calculate time difference between consecutive sls
+    sl12_t0_diff_sp = sl2_t0_sp - sl1_t0_sp
+    sl23_t0_diff_sp = sl3_t0_sp - sl2_t0_sp
+    sl13_t0_diff_sp = sl3_t0_sp - sl1_t0_sp
+    sl12_t0_diff_sp = sl2_t0_sp - sl1_t0_sp
+    sl23_t0_diff_sp = sl3_t0_sp - sl2_t0_sp
+    sl13_t0_diff_sp = sl3_t0_sp - sl1_t0_sp
+    sl12_t0_diff_sp *= 0.78 # convert to ns
+    sl23_t0_diff_sp *= 0.78 # convert to ns
+    sl13_t0_diff_sp *= 0.78 # convert to ns
+
+    ########################################
+
+    ### THETA SL: reference = t0 of sl phi 1, position along the theta wires = x at the height of SL 2
     analyze_superlayer(
-        residual=(dt_muons["sl1_t0"]+dt_muons["sl3_t0"])/2 - dt_muons["sl2_t0"],
-        residual_corr=(dt_muons["sl1_t0_sig_prop_corr"]+dt_muons["sl3_t0_sig_prop_corr"])/2 - dt_muons["sl2_t0_sig_prop_corr"],
+        residual=sl12_t0_diff,
+        residual_corr=sl12_t0_diff_sp,
         position=muon_utils.change_muon_base_point(muons=dt_muons, z_new=dt_chamber_utils.SL2_CENTRAL_Z)["x0"],
         min_position=250,
         max_position=1750,
-        name="theta", position_name="x0",
+        name="theta_phi1", position_name="x0",
         position_label="reco position (along theta wire) $x_0$ [mm]",
-        residual_label="reco reference $T$ $-$ theta sl fit $T_0$ [ns]",
+        residual_label="reco time SL2$-$SL1 [ns]",
+        n_bins=n_bins, args=args)
+
+    ### THETA SL: reference = t0 of sl phi 1, position along the theta wires = x at the height of SL 2
+    analyze_superlayer(
+        residual=sl23_t0_diff,
+        residual_corr=sl23_t0_diff_sp,
+        position=muon_utils.change_muon_base_point(muons=dt_muons, z_new=dt_chamber_utils.SL2_CENTRAL_Z)["x0"],
+        min_position=250,
+        max_position=1750,
+        name="theta_phi2", position_name="x0",
+        position_label="reco position (along theta wire) $x_0$ [mm]",
+        residual_label="reco time SL3$-$SL2 [ns]",
         n_bins=n_bins, args=args)
 
     ### PHI 1 SL: reference = t0 of the theta sl, position along the phi wires = y at the height of SL 1
     analyze_superlayer(
-        residual=dt_muons["sl2_t0"] - dt_muons["sl1_t0"],
-        residual_corr=dt_muons["sl2_t0_sig_prop_corr"] - dt_muons["sl1_t0_sig_prop_corr"],
+        residual=sl12_t0_diff,
+        residual_corr=sl12_t0_diff_sp,
         position=muon_utils.change_muon_base_point(muons=dt_muons, z_new=dt_chamber_utils.SL1_CENTRAL_Z)["y0"],
         min_position=250,
         max_position=2000,
         name="phi1", position_name="y0",
         position_label="reco position (along phi wire) $y_0$ [mm]",
-        residual_label="reco reference $T$ $-$ phi1 sl fit $T_0$ [ns]",
+        residual_label="reco time SL2$-$SL1 [ns]",
         n_bins=n_bins, args=args)
 
     ### PHI 2 SL: reference = t0 of the theta sl, position along the phi wires = y at the height of SL 3
     analyze_superlayer(
-        residual=dt_muons["sl2_t0"] - dt_muons["sl3_t0"],
-        residual_corr=dt_muons["sl2_t0_sig_prop_corr"] - dt_muons["sl3_t0_sig_prop_corr"],
+        residual=sl23_t0_diff,
+        residual_corr=sl23_t0_diff_sp,
         position=muon_utils.change_muon_base_point(muons=dt_muons, z_new=dt_chamber_utils.SL3_CENTRAL_Z)["y0"],
         min_position=250,
         max_position=2000,
         name="phi2", position_name="y0",
         position_label="reco position (along phi wire) $y_0$ [mm]",
-        residual_label="reco reference $T$ $-$ phi2 sl fit $T_0$ [ns]",
+        residual_label="reco time SL3$-$SL2 [ns]",
         n_bins=n_bins, args=args)
 
 
